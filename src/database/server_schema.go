@@ -2,28 +2,9 @@ package database
 
 // ServerSchema contains all server infrastructure tables per TEMPLATE.md PART 31
 const ServerSchema = `
--- Admin Credentials table (admins are NOT in users table)
--- AI.md PART 11: API tokens stored as SHA-256 hash, never plaintext
-CREATE TABLE IF NOT EXISTS server_admin_credentials (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	username TEXT UNIQUE NOT NULL,
-	email TEXT UNIQUE NOT NULL,
-	password_hash TEXT NOT NULL,
-	api_token_hash TEXT UNIQUE,
-	api_token_prefix TEXT,
-	is_super_admin BOOLEAN DEFAULT 0,
-	is_active BOOLEAN DEFAULT 1,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	last_login_at DATETIME
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_username ON server_admin_credentials(username);
-CREATE INDEX IF NOT EXISTS idx_admin_email ON server_admin_credentials(email);
-CREATE INDEX IF NOT EXISTS idx_admin_token_hash ON server_admin_credentials(api_token_hash);
-
--- Admin Sessions table (admin panel sessions only)
-CREATE TABLE IF NOT EXISTS server_admin_sessions (
+-- Admin Sessions table (admin panel sessions only); admin_id is a logical foreign key to
+-- admins.id in users.db (cross-database, not enforced) per AI.md PART 12
+CREATE TABLE IF NOT EXISTS admin_sessions (
 	id TEXT PRIMARY KEY,
 	token_hash TEXT NOT NULL,
 	admin_id INTEGER NOT NULL,
@@ -31,12 +12,11 @@ CREATE TABLE IF NOT EXISTS server_admin_sessions (
 	expires_at DATETIME NOT NULL,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	ip_address TEXT,
-	user_agent TEXT,
-	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
+	user_agent TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON server_admin_sessions(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON server_admin_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON admin_sessions(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
 
 -- Server Configuration table (all settings as key-value pairs)
 CREATE TABLE IF NOT EXISTS server_config (
@@ -61,7 +41,7 @@ CREATE TABLE IF NOT EXISTS server_cluster_state (
 CREATE INDEX IF NOT EXISTS idx_cluster_node ON server_cluster_state(node_id);
 
 -- Scheduler State table (scheduled tasks)
-CREATE TABLE IF NOT EXISTS server_scheduler_state (
+CREATE TABLE IF NOT EXISTS scheduler_tasks (
 	task_id TEXT PRIMARY KEY,
 	task_name TEXT NOT NULL,
 	schedule TEXT NOT NULL,
@@ -76,12 +56,12 @@ CREATE TABLE IF NOT EXISTS server_scheduler_state (
 	locked_at DATETIME
 );
 
-CREATE INDEX IF NOT EXISTS idx_scheduler_enabled ON server_scheduler_state(enabled);
-CREATE INDEX IF NOT EXISTS idx_scheduler_next_run ON server_scheduler_state(next_run);
-CREATE INDEX IF NOT EXISTS idx_scheduler_locked ON server_scheduler_state(locked_by);
+CREATE INDEX IF NOT EXISTS idx_scheduler_enabled ON scheduler_tasks(enabled);
+CREATE INDEX IF NOT EXISTS idx_scheduler_next_run ON scheduler_tasks(next_run);
+CREATE INDEX IF NOT EXISTS idx_scheduler_locked ON scheduler_tasks(locked_by);
 
 -- Scheduler History table (one row per task execution)
-CREATE TABLE IF NOT EXISTS server_scheduler_history (
+CREATE TABLE IF NOT EXISTS scheduler_history (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	task_name TEXT NOT NULL,
 	start_time DATETIME NOT NULL,
@@ -92,8 +72,8 @@ CREATE TABLE IF NOT EXISTS server_scheduler_history (
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON server_scheduler_history(task_name);
-CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON server_scheduler_history(start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON scheduler_history(task_name);
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON scheduler_history(start_time DESC);
 
 -- Cluster Nodes table (for future cluster mode)
 CREATE TABLE IF NOT EXISTS server_nodes (
@@ -122,25 +102,8 @@ CREATE TABLE IF NOT EXISTS server_join_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_join_tokens_expires ON server_join_tokens(expires_at);
 
--- Admin Invite Tokens table (TEMPLATE.md Part 31: 15-minute expiry)
-CREATE TABLE IF NOT EXISTS server_admin_invites (
-	token TEXT PRIMARY KEY,
-	invited_email TEXT NOT NULL,
-	invited_by INTEGER NOT NULL,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	expires_at DATETIME NOT NULL,
-	used_by INTEGER,
-	used_at DATETIME,
-	FOREIGN KEY (invited_by) REFERENCES server_admin_credentials(id) ON DELETE CASCADE,
-	FOREIGN KEY (used_by) REFERENCES server_admin_credentials(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_invites_email ON server_admin_invites(invited_email);
-CREATE INDEX IF NOT EXISTS idx_admin_invites_expires ON server_admin_invites(expires_at);
-CREATE INDEX IF NOT EXISTS idx_admin_invites_invited_by ON server_admin_invites(invited_by);
-
 -- Audit Log table (system-wide audit trail)
-CREATE TABLE IF NOT EXISTS server_audit_log (
+CREATE TABLE IF NOT EXISTS audit_log (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	ulid TEXT UNIQUE NOT NULL,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -157,13 +120,13 @@ CREATE TABLE IF NOT EXISTS server_audit_log (
 	error TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_ulid ON server_audit_log(ulid);
-CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON server_audit_log(timestamp);
-CREATE INDEX IF NOT EXISTS idx_audit_actor ON server_audit_log(actor_type, actor_id);
-CREATE INDEX IF NOT EXISTS idx_audit_resource ON server_audit_log(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_ulid ON audit_log(ulid);
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_type, actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log(resource_type, resource_id);
 
 -- Rate Limiting table (global rate limits)
-CREATE TABLE IF NOT EXISTS server_rate_limits (
+CREATE TABLE IF NOT EXISTS rate_limits (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	identifier TEXT NOT NULL,
 	endpoint TEXT NOT NULL,
@@ -172,8 +135,8 @@ CREATE TABLE IF NOT EXISTS server_rate_limits (
 	UNIQUE(identifier, endpoint, window_start)
 );
 
-CREATE INDEX IF NOT EXISTS idx_ratelimit_identifier ON server_rate_limits(identifier, endpoint);
-CREATE INDEX IF NOT EXISTS idx_ratelimit_window ON server_rate_limits(window_start);
+CREATE INDEX IF NOT EXISTS idx_ratelimit_identifier ON rate_limits(identifier, endpoint);
+CREATE INDEX IF NOT EXISTS idx_ratelimit_window ON rate_limits(window_start);
 
 -- Notification Channels table (30+ channel configurations)
 CREATE TABLE IF NOT EXISTS server_notification_channels (
@@ -213,74 +176,8 @@ CREATE TABLE IF NOT EXISTS server_notification_templates (
 CREATE INDEX IF NOT EXISTS idx_templates_channel ON server_notification_templates(channel_type);
 CREATE INDEX IF NOT EXISTS idx_templates_name ON server_notification_templates(template_name);
 
--- Admin Notifications table (TEMPLATE.md Part 25: WebUI notifications for admins)
-CREATE TABLE IF NOT EXISTS server_admin_notifications (
-	id TEXT PRIMARY KEY,
-	admin_id INTEGER NOT NULL,
-	type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
-	display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
-	title TEXT NOT NULL,
-	message TEXT NOT NULL,
-	action_json TEXT,
-	read BOOLEAN DEFAULT 0,
-	dismissed BOOLEAN DEFAULT 0,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	expires_at DATETIME,
-	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_notif_admin ON server_admin_notifications(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_notif_read ON server_admin_notifications(read);
-CREATE INDEX IF NOT EXISTS idx_admin_notif_created ON server_admin_notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_admin_notif_expires ON server_admin_notifications(expires_at);
-
--- Admin Notification Preferences table (TEMPLATE.md Part 25)
-CREATE TABLE IF NOT EXISTS server_admin_notification_preferences (
-	admin_id INTEGER PRIMARY KEY,
-	enable_toast BOOLEAN DEFAULT 1,
-	enable_banner BOOLEAN DEFAULT 1,
-	enable_center BOOLEAN DEFAULT 1,
-	enable_sound BOOLEAN DEFAULT 0,
-	toast_duration_success INTEGER DEFAULT 5,
-	toast_duration_info INTEGER DEFAULT 5,
-	toast_duration_warning INTEGER DEFAULT 10,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
-);
-
--- Admin Preferences table (settings per admin)
-CREATE TABLE IF NOT EXISTS server_admin_preferences (
-	admin_id INTEGER PRIMARY KEY,
-	preferences TEXT NOT NULL,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
-);
-
--- Admin Passkeys (WebAuthn/FIDO2 credentials) per AI.md PART 17 line 28674-28683.
--- Mirrors user_passkeys (in users.db) but lives in server.db because admins
--- are stored in server.db, never in users.db.
-CREATE TABLE IF NOT EXISTS server_admin_passkeys (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	admin_id INTEGER NOT NULL,
-	credential_id TEXT UNIQUE NOT NULL,
-	public_key TEXT NOT NULL,
-	aaguid TEXT,
-	sign_count INTEGER DEFAULT 0,
-	name TEXT NOT NULL,
-	transport TEXT NOT NULL DEFAULT '[]',
-	attestation_type TEXT NOT NULL DEFAULT '',
-	backup_eligible BOOLEAN NOT NULL DEFAULT 0,
-	backup_state BOOLEAN NOT NULL DEFAULT 0,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	last_used_at DATETIME,
-	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_passkey_admin ON server_admin_passkeys(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_passkey_cred ON server_admin_passkeys(credential_id);
-
 -- Backup History table (backup metadata)
-CREATE TABLE IF NOT EXISTS server_backup_history (
+CREATE TABLE IF NOT EXISTS backups (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	filename TEXT NOT NULL,
 	path TEXT NOT NULL,
@@ -293,8 +190,8 @@ CREATE TABLE IF NOT EXISTS server_backup_history (
 	status TEXT DEFAULT 'completed' CHECK(status IN ('in_progress', 'completed', 'failed'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_backup_created ON server_backup_history(created_at);
-CREATE INDEX IF NOT EXISTS idx_backup_status ON server_backup_history(status);
+CREATE INDEX IF NOT EXISTS idx_backup_created ON backups(created_at);
+CREATE INDEX IF NOT EXISTS idx_backup_status ON backups(status);
 
 -- SSL Certificates table (certificate tracking and renewal)
 CREATE TABLE IF NOT EXISTS server_ssl_certificates (

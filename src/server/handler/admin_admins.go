@@ -298,7 +298,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Verify current password
 	if request.CurrentPassword != "" {
 		var currentHash string
-		err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT password FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
+		err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT password_hash FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
 		if err != nil {
 			InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_verify_password"))
 			return
@@ -311,14 +311,8 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Hash new password with Argon2id
-	passwordHash, err := util.HashPassword(request.NewPassword)
-	if err != nil {
-		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_hash_password"))
-		return
-	}
-
-	if err := h.AdminModel.UpdatePassword(id, passwordHash); err != nil {
+	// UpdatePassword hashes with Argon2id itself, so it receives the plaintext
+	if err := h.AdminModel.UpdatePassword(id, request.NewPassword); err != nil {
 		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.admins.failed_to_update_password"), map[string]interface{}{
 			"details": err.Error(),
 		})

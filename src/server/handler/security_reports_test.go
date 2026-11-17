@@ -375,7 +375,7 @@ func TestSecurityKeypairActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO server_admin_credentials (username, email, password_hash) VALUES ('ops', 'ops@example.com', ?)`, hash); err != nil {
+	if _, err := database.GetUsersDB().Exec(`INSERT INTO admins (username, email, password_hash) VALUES ('ops', 'ops@example.com', ?)`, hash); err != nil {
 		t.Fatal(err)
 	}
 	store := newSecurityStore()

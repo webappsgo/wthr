@@ -22,7 +22,7 @@ var (
 	adminZoneEast = time.FixedZone("EAT", 13*60*60)
 )
 
-// adminSessionFixture describes one row planted in server_admin_sessions.
+// adminSessionFixture describes one row planted in admin_sessions.
 type adminSessionFixture struct {
 	name string
 	// storedExpiresAt is written verbatim, so each case controls the exact
@@ -74,7 +74,7 @@ func insertAdminSessionFixtures(t *testing.T, db *sql.DB, adminID int64, fixture
 
 	for _, fixture := range fixtures {
 		_, err := db.Exec(`
-			INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at)
+			INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at)
 			VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
 		`, fixture.name, "fixture-hash-"+fixture.name, adminID, "203.0.113.10", "go-test", fixture.storedExpiresAt)
 		if err != nil {
@@ -87,7 +87,7 @@ func insertAdminSessionFixtures(t *testing.T, db *sql.DB, adminID int64, fixture
 func remainingAdminSessionIDs(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 
-	rows, err := db.Query("SELECT id FROM server_admin_sessions ORDER BY id")
+	rows, err := db.Query("SELECT id FROM admin_sessions ORDER BY id")
 	if err != nil {
 		t.Fatalf("query remaining admin sessions: %v", err)
 	}
@@ -127,7 +127,7 @@ func assertSameStrings(t *testing.T, what string, got, want []string) {
 // judges expiry by absolute instant.
 //
 // Against the pre-fix statement
-// "DELETE FROM server_admin_sessions WHERE datetime(expires_at) < datetime('now')"
+// "DELETE FROM admin_sessions WHERE datetime(expires_at) < datetime('now')"
 // this test fails on the "expired-east-zone-text-reads-as-future" row: its
 // stored text is the driver's local-zone time.Time.String() form, which
 // SQLite's datetime() cannot parse and therefore evaluates to NULL, so the
@@ -222,7 +222,7 @@ func TestAdminSessionCreateReadRoundTrip(t *testing.T) {
 	}
 
 	var stored string
-	err = serverDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM server_admin_sessions WHERE id = ?", created.ID).Scan(&stored)
+	err = serverDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM admin_sessions WHERE id = ?", created.ID).Scan(&stored)
 	if err != nil {
 		t.Fatalf("read stored expires_at: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestAdminSessionCreateReadRoundTrip(t *testing.T) {
 	}
 }
 
-// adminInviteFixture describes one row planted in server_admin_invites.
+// adminInviteFixture describes one row planted in admin_invites.
 type adminInviteFixture struct {
 	token string
 	// storedExpiresAt is written verbatim so each case pins its on-disk layout.
@@ -310,7 +310,7 @@ func insertAdminInviteFixtures(t *testing.T, db *sql.DB, fixtures []adminInviteF
 		}
 
 		_, err := db.Exec(`
-			INSERT INTO server_admin_invites (token, invited_email, invited_by, created_at, expires_at, used_by, used_at)
+			INSERT INTO admin_invites (token, invited_email, invited_by, created_at, expires_at, used_by, used_at)
 			VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
 		`, fixture.token, fixture.token+"@example.com", int64(1), fixture.storedExpiresAt, usedBy, usedAt)
 		if err != nil {
@@ -323,7 +323,7 @@ func insertAdminInviteFixtures(t *testing.T, db *sql.DB, fixtures []adminInviteF
 func remainingAdminInviteTokens(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 
-	rows, err := db.Query("SELECT token FROM server_admin_invites ORDER BY token")
+	rows, err := db.Query("SELECT token FROM admin_invites ORDER BY token")
 	if err != nil {
 		t.Fatalf("query remaining admin invites: %v", err)
 	}
@@ -349,7 +349,7 @@ func remainingAdminInviteTokens(t *testing.T, db *sql.DB) []string {
 // prunes by absolute instant while still removing used invites.
 //
 // Against the pre-fix statement
-// "DELETE FROM server_admin_invites WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL"
+// "DELETE FROM admin_invites WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL"
 // this test fails on "invite-expired-east-zone-text-reads-as-future": SQLite's
 // datetime() returns NULL for the driver's local-zone layout, so an invite that
 // expired an hour ago was never pruned and stayed redeemable forever.
@@ -359,9 +359,9 @@ func TestAdminInviteDeleteExpiredHonorsStoredZone(t *testing.T) {
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
 	fixtures := adminInviteFixtures(time.Now())
-	insertAdminInviteFixtures(t, serverDB, fixtures)
+	insertAdminInviteFixtures(t, usersDB, fixtures)
 
-	model := &AdminInviteModel{DB: serverDB}
+	model := &AdminInviteModel{DB: usersDB}
 	if err := model.DeleteExpiredInvites(); err != nil {
 		t.Fatalf("DeleteExpiredInvites: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestAdminInviteDeleteExpiredHonorsStoredZone(t *testing.T) {
 	}
 	sort.Strings(want)
 
-	assertSameStrings(t, "surviving admin invites", remainingAdminInviteTokens(t, serverDB), want)
+	assertSameStrings(t, "surviving admin invites", remainingAdminInviteTokens(t, usersDB), want)
 }
 
 // TestAdminInviteGetPendingHonorsStoredZone proves GetPendingInvites lists an
@@ -391,9 +391,9 @@ func TestAdminInviteGetPendingHonorsStoredZone(t *testing.T) {
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
 	fixtures := adminInviteFixtures(time.Now())
-	insertAdminInviteFixtures(t, serverDB, fixtures)
+	insertAdminInviteFixtures(t, usersDB, fixtures)
 
-	model := &AdminInviteModel{DB: serverDB}
+	model := &AdminInviteModel{DB: usersDB}
 	invites, err := model.GetPendingInvites()
 	if err != nil {
 		t.Fatalf("GetPendingInvites: %v", err)
@@ -423,14 +423,14 @@ func TestAdminInviteCreateStoresCanonicalLayout(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
-	model := &AdminInviteModel{DB: serverDB}
+	model := &AdminInviteModel{DB: usersDB}
 	invite, err := model.CreateInvite("invitee@example.com", 1, 15*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateInvite: %v", err)
 	}
 
 	var stored string
-	err = serverDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM server_admin_invites WHERE rowid = ?", invite.ID).Scan(&stored)
+	err = usersDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM admin_invites WHERE rowid = ?", invite.ID).Scan(&stored)
 	if err != nil {
 		t.Fatalf("read stored expires_at: %v", err)
 	}

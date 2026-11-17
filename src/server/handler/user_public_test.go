@@ -100,7 +100,7 @@ func TestUserPublicHandler_LoadPublicProfile(t *testing.T) {
 	t.Run("private profile hidden from non-owner viewer", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "privuser", "priv@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("set private: %v", err)
 		}
 
@@ -113,7 +113,7 @@ func TestUserPublicHandler_LoadPublicProfile(t *testing.T) {
 	t.Run("private profile visible to owner", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ownerview", "owner@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("set private: %v", err)
 		}
 
@@ -129,7 +129,7 @@ func TestUserPublicHandler_LoadPublicProfile(t *testing.T) {
 	t.Run("inactive user not found", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "inactiveuser", "inactive@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET is_active = 0 WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET is_active = 0 WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("deactivate: %v", err)
 		}
 		if _, err := h.loadPublicProfile("inactiveuser", 0); err != sql.ErrNoRows {
@@ -140,7 +140,7 @@ func TestUserPublicHandler_LoadPublicProfile(t *testing.T) {
 	t.Run("banned user not found", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "banneduser", "banned@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET is_banned = 1 WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET is_banned = 1 WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("ban: %v", err)
 		}
 		if _, err := h.loadPublicProfile("banneduser", 0); err != sql.ErrNoRows {
@@ -189,7 +189,7 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 
 	t.Run("db error returns 500", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
-		if _, err := usersDB.Exec(`DROP TABLE user_accounts`); err != nil {
+		if _, err := usersDB.Exec(`DROP TABLE users`); err != nil {
 			t.Fatalf("drop table: %v", err)
 		}
 		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/whoever")
@@ -204,7 +204,7 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 	t.Run("viewer identity from context sees own private profile", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ctxowner", "ctxowner@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("set private: %v", err)
 		}
 		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/ctxowner")
@@ -681,7 +681,7 @@ func TestUserPublicHandler_ChangeCurrentUserPassword(t *testing.T) {
 		}
 
 		var hash string
-		if err := usersDB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, u.ID).Scan(&hash); err != nil {
+		if err := usersDB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, u.ID).Scan(&hash); err != nil {
 			t.Fatalf("query hash: %v", err)
 		}
 		ok, err := utils.VerifyPassword("newpassword456", hash)
@@ -838,7 +838,7 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 
 		var email string
 		var verified bool
-		if err := usersDB.QueryRow(`SELECT email, email_verified FROM user_accounts WHERE id = ?`, u.ID).Scan(&email, &verified); err != nil {
+		if err := usersDB.QueryRow(`SELECT email, email_verified FROM users WHERE id = ?`, u.ID).Scan(&email, &verified); err != nil {
 			t.Fatalf("query updated user: %v", err)
 		}
 		if email != "ce5-new@example.com" {
@@ -863,7 +863,7 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 		}
 
 		var email string
-		if err := usersDB.QueryRow(`SELECT email FROM user_accounts WHERE id = ?`, u.ID).Scan(&email); err != nil {
+		if err := usersDB.QueryRow(`SELECT email FROM users WHERE id = ?`, u.ID).Scan(&email); err != nil {
 			t.Fatalf("query updated user: %v", err)
 		}
 		if email != "ce6-new@example.com" {
@@ -907,7 +907,7 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("two factor enabled without code returns 401", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ce9", "ce9@example.com", "password123")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1 WHERE id = ?`, u.ID); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET two_factor_enabled = 1 WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
@@ -921,7 +921,7 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 		}
 
 		var email string
-		if err := usersDB.QueryRow(`SELECT email FROM user_accounts WHERE id = ?`, u.ID).Scan(&email); err != nil {
+		if err := usersDB.QueryRow(`SELECT email FROM users WHERE id = ?`, u.ID).Scan(&email); err != nil {
 			t.Fatalf("query user: %v", err)
 		}
 		if email != "ce9@example.com" {
@@ -1022,7 +1022,7 @@ func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 		}
 
 		var count int
-		if err := usersDB.QueryRow(`SELECT COUNT(*) FROM user_accounts WHERE id = ?`, u.ID).Scan(&count); err != nil {
+		if err := usersDB.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ?`, u.ID).Scan(&count); err != nil {
 			t.Fatalf("query count: %v", err)
 		}
 		if count != 0 {
@@ -1078,7 +1078,7 @@ func TestUserPublicHandler_LoadPublicProfileLegacyCreatedAt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h, usersDB := newUserPublicTestHandler(t)
 			u := seedPublicUser(t, usersDB, tc.username, tc.username+"@example.com", "password123")
-			if _, err := usersDB.Exec(`UPDATE user_accounts SET created_at = ? WHERE id = ?`, tc.createdAt, u.ID); err != nil {
+			if _, err := usersDB.Exec(`UPDATE users SET created_at = ? WHERE id = ?`, tc.createdAt, u.ID); err != nil {
 				t.Fatalf("rewrite created_at: %v", err)
 			}
 

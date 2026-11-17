@@ -168,7 +168,7 @@ type UserModel struct {
 }
 
 // getDB returns the users.db handle this model was constructed with. Every
-// table UserModel touches (user_accounts, user_preferences) is declared in
+// table UserModel touches (users, user_preferences) is declared in
 // database.UsersSchema, so the injected handle is the correct database for
 // every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
@@ -206,7 +206,7 @@ func (m *UserModel) CreateUserAccount(username, email, password string, role ...
 
 	// Insert user into users.db
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_accounts (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
+		INSERT INTO users (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 0, 1, 0, 0, ?, ?)
 	`, username, email, passwordHash, userRole, sqlTimestamp(now), sqlTimestamp(now))
 
@@ -237,7 +237,7 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 
 	// created_at, updated_at and last_login_at are scanned as raw driver values
 	// and resolved with parseStoredTimestamp instead of being scanned straight
-	// into time.Time/sql.NullTime. user_accounts rows written by an older build
+	// into time.Time/sql.NullTime. users rows written by an older build
 	// hold the local-zone time.Time.String() text, which database/sql cannot
 	// convert - the whole SELECT failed with a scan error and the account looked
 	// as if it did not exist.
@@ -265,7 +265,7 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 		       two_factor_enabled, two_factor_secret, avatar_type, avatar_url, bio,
 		       location, website, timezone, language, created_at, updated_at,
 		       last_login_at, last_login_ip
-		FROM user_accounts
+		FROM users
 		WHERE id = ?
 	`, id).Scan(
 		&user.ID,
@@ -371,7 +371,7 @@ func (m *UserModel) GetByUsername(username string) (*User, error) {
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
-		FROM user_accounts
+		FROM users
 		WHERE username = ?
 	`, username).Scan(
 		&user.ID,
@@ -432,7 +432,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
-		FROM user_accounts
+		FROM users
 		WHERE email = ?
 	`, email).Scan(
 		&user.ID,
@@ -484,7 +484,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
 		SELECT id, username, email, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, created_at, updated_at, last_login_at, last_login_ip
-		FROM user_accounts
+		FROM users
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
 	`, limit, offset)
@@ -549,7 +549,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 // CountUsers returns the total number of users
 func (m *UserModel) CountUsers() (int, error) {
 	var count int
-	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_accounts`).Scan(&count)
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM users`).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -563,7 +563,7 @@ func (m *UserModel) UpdateUserProfile(id int64, username, email string, role ...
 	// If role is provided, update it too
 	if len(role) > 0 && role[0] != "" {
 		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-			UPDATE user_accounts
+			UPDATE users
 			SET username = ?, email = ?, role = ?, updated_at = ?
 			WHERE id = ?
 		`, username, email, role[0], sqlTimestamp(time.Now()), id)
@@ -573,7 +573,7 @@ func (m *UserModel) UpdateUserProfile(id int64, username, email string, role ...
 		}
 	} else {
 		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-			UPDATE user_accounts
+			UPDATE users
 			SET username = ?, email = ?, updated_at = ?
 			WHERE id = ?
 		`, username, email, sqlTimestamp(time.Now()), id)
@@ -596,7 +596,7 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 	}
 
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
 	`, passwordHash, sqlTimestamp(time.Now()), id)
@@ -613,7 +613,7 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 // SET list, so the timestamp is the first value in the argument list.
 func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET last_login_at = ?, last_login_ip = ?
 		WHERE id = ?
 	`, sqlTimestamp(time.Now()), ipAddress, id)
@@ -628,7 +628,7 @@ func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
 // VerifyEmail marks a user's email as verified
 func (m *UserModel) VerifyEmail(id int64) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET email_verified = 1, updated_at = ?
 		WHERE id = ?
 	`, sqlTimestamp(time.Now()), id)
@@ -643,7 +643,7 @@ func (m *UserModel) VerifyEmail(id int64) error {
 // SetActive sets the user's active status
 func (m *UserModel) SetActive(id int64, isActive bool) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET is_active = ?, updated_at = ?
 		WHERE id = ?
 	`, isActive, sqlTimestamp(time.Now()), id)
@@ -658,7 +658,7 @@ func (m *UserModel) SetActive(id int64, isActive bool) error {
 // BanUser bans a user with a reason
 func (m *UserModel) BanUser(id int64, reason string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET is_banned = 1, ban_reason = ?, updated_at = ?
 		WHERE id = ?
 	`, reason, sqlTimestamp(time.Now()), id)
@@ -673,7 +673,7 @@ func (m *UserModel) BanUser(id int64, reason string) error {
 // UnbanUser unbans a user
 func (m *UserModel) UnbanUser(id int64) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET is_banned = 0, ban_reason = NULL, updated_at = ?
 		WHERE id = ?
 	`, sqlTimestamp(time.Now()), id)
@@ -688,7 +688,7 @@ func (m *UserModel) UnbanUser(id int64) error {
 // DeleteUserAccount deletes a user account
 func (m *UserModel) DeleteUserAccount(id int64) error {
 	// Delete user (cascades to sessions, preferences, etc.)
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_accounts WHERE id = ?`, id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -741,7 +741,7 @@ func (m *UserModel) Enable2FA(id int64, secret string) error {
 	}
 
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET two_factor_enabled = 1, two_factor_secret = ?, updated_at = ?
 		WHERE id = ?
 	`, encryptedSecret, sqlTimestamp(time.Now()), id)
@@ -781,7 +781,7 @@ func encryptTwoFactorSecret(secret string) (string, error) {
 }
 
 // DecryptTwoFactorSecret returns the plaintext TOTP secret for a stored
-// user_accounts.two_factor_secret value. It transparently handles the
+// users.two_factor_secret value. It transparently handles the
 // one-time migration from legacy plaintext secrets (stored before AI.md
 // PART 11 at-rest encryption was implemented): if the stored value does not
 // decrypt as AES-256-GCM ciphertext, it is treated as legacy plaintext and
@@ -805,7 +805,7 @@ func DecryptTwoFactorSecret(stored string) (string, error) {
 // Disable2FA disables two-factor authentication for a user
 func (m *UserModel) Disable2FA(id int64) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET two_factor_enabled = 0, two_factor_secret = NULL, updated_at = ?
 		WHERE id = ?
 	`, sqlTimestamp(time.Now()), id)
@@ -829,7 +829,7 @@ func (m *UserModel) Count() (int, error) {
 
 // CountByRole returns count of users by role
 func (m *UserModel) CountByRole(role string) (int, error) {
-	query := `SELECT COUNT(*) FROM user_accounts WHERE role = ?`
+	query := `SELECT COUNT(*) FROM users WHERE role = ?`
 	var count int
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, query, role).Scan(&count)
 	return count, err
@@ -856,7 +856,7 @@ func (m *UserModel) CheckPassword(user *User, password string) bool {
 // UpdateProfile updates current-user profile information.
 func (m *UserModel) UpdateProfile(id int64, displayName, phone string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET display_name = ?, phone = ?, updated_at = ?
 		WHERE id = ?
 	`, displayName, phone, sqlTimestamp(time.Now()), id)
@@ -1184,7 +1184,7 @@ type UserEmailVerificationModel struct {
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
-// table UserEmailVerificationModel touches (user_email_verifications) is
+// table UserEmailVerificationModel touches (email_verifications) is
 // declared in database.UsersSchema, so the injected handle is the correct
 // database for every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
@@ -1215,7 +1215,7 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_email_verifications (user_id, token, email, created_at, expires_at)
+		INSERT INTO email_verifications (user_id, token, email, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, userID, tokenHash, email, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
@@ -1249,7 +1249,7 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, email, created_at, expires_at, used_at
-		FROM user_email_verifications
+		FROM email_verifications
 		WHERE token = ?
 	`, HashAPIToken(token)).Scan(
 		&verification.ID,
@@ -1284,7 +1284,7 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 // MarkVerificationUsed marks a verification as used
 func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_email_verifications
+		UPDATE email_verifications
 		SET used_at = ?
 		WHERE token = ?
 	`, sqlTimestamp(time.Now()), HashAPIToken(token))
@@ -1302,7 +1302,7 @@ func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 // of the picture.
 func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
-		DELETE FROM user_email_verifications
+		DELETE FROM email_verifications
 		WHERE used_at IS NOT NULL
 	`)
 
@@ -1310,7 +1310,7 @@ func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
 		return fmt.Errorf("failed to delete expired verifications: %w", err)
 	}
 
-	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "user_email_verifications", "id", "expires_at", time.Now().UTC(), false); err != nil {
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "email_verifications", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired verifications: %w", err)
 	}
 
@@ -1323,7 +1323,7 @@ type UserPasswordResetModel struct {
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
-// table UserPasswordResetModel touches (user_password_resets) is declared in
+// table UserPasswordResetModel touches (password_resets) is declared in
 // database.UsersSchema, so the injected handle is the correct database for
 // every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
@@ -1354,7 +1354,7 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_password_resets (user_id, token, created_at, expires_at)
+		INSERT INTO password_resets (user_id, token, created_at, expires_at)
 		VALUES (?, ?, ?, ?)
 	`, userID, tokenHash, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
@@ -1388,7 +1388,7 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, created_at, expires_at, used_at
-		FROM user_password_resets
+		FROM password_resets
 		WHERE token = ?
 	`, HashAPIToken(token)).Scan(
 		&reset.ID,
@@ -1422,7 +1422,7 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 // MarkResetUsed marks a reset as used
 func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_password_resets
+		UPDATE password_resets
 		SET used_at = ?
 		WHERE token = ?
 	`, sqlTimestamp(time.Now()), HashAPIToken(token))
@@ -1440,7 +1440,7 @@ func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 // of the picture.
 func (m *UserPasswordResetModel) DeleteExpiredResets() error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
-		DELETE FROM user_password_resets
+		DELETE FROM password_resets
 		WHERE used_at IS NOT NULL
 	`)
 
@@ -1448,7 +1448,7 @@ func (m *UserPasswordResetModel) DeleteExpiredResets() error {
 		return fmt.Errorf("failed to delete expired resets: %w", err)
 	}
 
-	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "user_password_resets", "id", "expires_at", time.Now().UTC(), false); err != nil {
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "password_resets", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired resets: %w", err)
 	}
 

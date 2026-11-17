@@ -125,7 +125,7 @@ func TestCompleteSetupFlow(t *testing.T) {
 	// Step 2: Verify admin was created
 	t.Run("2. Verify admin in database", func(t *testing.T) {
 		var adminCount int
-		err := dualDB.Server.QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
+		err := dualDB.Users.QueryRow("SELECT COUNT(*) FROM admins").Scan(&adminCount)
 		if err != nil {
 			t.Fatalf("Failed to query admins: %v", err)
 		}

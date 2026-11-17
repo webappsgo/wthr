@@ -294,7 +294,7 @@ func TestVerifyDatabaseFile(t *testing.T) {
 	})
 }
 
-// TestVerifyAdminExists covers: no server_admin_credentials table at all
+// TestVerifyAdminExists covers: no admins table at all
 // (query error), table present but empty (zero admins), and table with at
 // least one row. The populated cases build the table from the real
 // database.ServerSchema.
@@ -313,8 +313,8 @@ func TestVerifyAdminExists(t *testing.T) {
 	})
 
 	t.Run("zero_admins_errors", func(t *testing.T) {
-		dbPath := filepath.Join(t.TempDir(), "server.db")
-		applySchema(t, dbPath, database.ServerSchema)
+		dbPath := filepath.Join(t.TempDir(), "users.db")
+		applySchema(t, dbPath, database.UsersSchema)
 
 		if err := verifyAdminExists(dbPath); err == nil {
 			t.Error("verifyAdminExists() with zero rows = nil, want error")
@@ -322,11 +322,11 @@ func TestVerifyAdminExists(t *testing.T) {
 	})
 
 	t.Run("admin_present_ok", func(t *testing.T) {
-		dbPath := filepath.Join(t.TempDir(), "server.db")
-		applySchema(t, dbPath, database.ServerSchema)
+		dbPath := filepath.Join(t.TempDir(), "users.db")
+		applySchema(t, dbPath, database.UsersSchema)
 		// username, email and password_hash are all NOT NULL in the real schema.
 		execFixture(t, dbPath,
-			"INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
+			"INSERT INTO admins (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
 			"admin", "admin@example.com", "hash",
 		)
 
@@ -402,13 +402,15 @@ func TestVerifySystem_AllPresent(t *testing.T) {
 
 	serverDBPath := filepath.Join(dbDir, "server.db")
 	applySchema(t, serverDBPath, database.ServerSchema)
+
+	// Server Admin accounts live in users.db (AI.md PART 12).
+	usersDBPath := filepath.Join(dbDir, "users.db")
+	applySchema(t, usersDBPath, database.UsersSchema)
 	// username, email and password_hash are all NOT NULL in the real schema.
-	execFixture(t, serverDBPath,
-		"INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
+	execFixture(t, usersDBPath,
+		"INSERT INTO admins (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
 		"admin", "admin@example.com", "hash",
 	)
-
-	applySchema(t, filepath.Join(dbDir, "users.db"), database.UsersSchema)
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatalf("setup: %v", err)
@@ -534,10 +536,10 @@ func TestAdminRecoverySetup_MissingDatabase(t *testing.T) {
 
 	err := adminRecoverySetup("")
 	if err == nil {
-		t.Fatal("adminRecoverySetup(\"\") with no server.db = nil, want error")
+		t.Fatal("adminRecoverySetup(\"\") with no users.db = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "server database not found") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "server database not found")
+	if !strings.Contains(err.Error(), "users database not found") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "users database not found")
 	}
 }
 
@@ -552,6 +554,7 @@ func TestAdminRecoverySetup_FirstRun(t *testing.T) {
 	}
 	dbPath := filepath.Join(dbDir, "server.db")
 	applySchema(t, dbPath, database.ServerSchema)
+	applySchema(t, filepath.Join(dbDir, "users.db"), database.UsersSchema)
 
 	t.Setenv("DATA_DIR", dataDir)
 
@@ -581,6 +584,7 @@ func TestAdminRecoverySetup_FirstRun_ShowsToken(t *testing.T) {
 	}
 	dbPath := filepath.Join(dbDir, "server.db")
 	applySchema(t, dbPath, database.ServerSchema)
+	applySchema(t, filepath.Join(dbDir, "users.db"), database.UsersSchema)
 
 	t.Setenv("DATA_DIR", dataDir)
 
@@ -601,14 +605,14 @@ func TestAdminRecoverySetup_FirstRun_ShowsToken(t *testing.T) {
 	}
 
 	// Verify no admin account was created (setup only shows token; WebUI creates account)
-	verifyDB, err := sql.Open("sqlite", dbPath)
+	verifyDB, err := sql.Open("sqlite", filepath.Join(filepath.Dir(dbPath), "users.db"))
 	if err != nil {
 		t.Fatalf("verify DB open: %v", err)
 	}
 	defer verifyDB.Close()
 
 	var count int
-	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count); err != nil {
+	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM admins").Scan(&count); err != nil {
 		t.Fatalf("verify query: %v", err)
 	}
 	if count != 0 {

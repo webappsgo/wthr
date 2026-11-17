@@ -30,7 +30,7 @@ func newStatusTestServerDB(t *testing.T) *sql.DB {
 
 // newStatusTestUsersDB opens a fresh in-memory SQLite database with the real
 // UsersSchema applied, mirroring server/handler/handler_helpers_test.go's
-// newTestUsersDB. showServerStatus queries user_accounts, user_tokens, and
+// newTestUsersDB. showServerStatus queries users, tokens, and
 // user_saved_locations directly through database.GetUsersDB(), so those
 // tables must exist.
 func newStatusTestUsersDB(t *testing.T) *sql.DB {
@@ -153,10 +153,10 @@ func TestShowServerStatus_CountsReflectRows(t *testing.T) {
 	wireStatusTestDualDB(t, serverDB, usersDB)
 
 	if _, err := usersDB.Exec(
-		`INSERT INTO user_accounts (username, email, password_hash) VALUES (?, ?, ?)`,
+		`INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
 		"statususer", "status@example.test", "argon2id$fakehash",
 	); err != nil {
-		t.Fatalf("insert user_accounts row: %v", err)
+		t.Fatalf("insert users row: %v", err)
 	}
 
 	db := &database.DB{DB: serverDB}

@@ -62,13 +62,13 @@ func setModelGlobalDualDB(t *testing.T, serverDB, usersDB *sql.DB) {
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 }
 
-// insertTestUser inserts a minimal user_accounts row directly (bypassing
+// insertTestUser inserts a minimal users row directly (bypassing
 // UserModel.Create) for tests that only need a user to exist as a foreign
 // key target. Returns the new row ID.
 func insertTestUser(t *testing.T, db *sql.DB, username, email string) int64 {
 	t.Helper()
 	res, err := db.Exec(`
-		INSERT INTO user_accounts (username, email, password_hash)
+		INSERT INTO users (username, email, password_hash)
 		VALUES (?, ?, 'x')
 	`, username, email)
 	if err != nil {

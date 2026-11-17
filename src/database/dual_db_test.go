@@ -34,9 +34,14 @@ func TestInitServerDB_NewDatabase(t *testing.T) {
 		t.Errorf("MaxOpenConnections = %d, want %d", stats.MaxOpenConnections, poolMaxOpen)
 	}
 
-	// server_admin_credentials must exist from ServerSchema.
-	if _, err := db.Exec("SELECT COUNT(*) FROM server_admin_credentials"); err != nil {
-		t.Errorf("server_admin_credentials table missing: %v", err)
+	// admin_sessions must exist from ServerSchema.
+	if _, err := db.Exec("SELECT COUNT(*) FROM admin_sessions"); err != nil {
+		t.Errorf("admin_sessions table missing: %v", err)
+	}
+
+	// Server Admin accounts live in users.db (AI.md PART 12), never in server.db.
+	if _, err := db.Exec("SELECT COUNT(*) FROM admins"); err == nil {
+		t.Error("admins table exists in server.db, want it only in users.db")
 	}
 }
 
@@ -47,14 +52,14 @@ func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 	if _, err := db.Exec(`
-		CREATE TABLE server_admin_sessions (
+		CREATE TABLE admin_sessions (
 			id TEXT PRIMARY KEY,
 			admin_id INTEGER NOT NULL,
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME
 		);
-		CREATE TABLE server_audit_log (ulid TEXT PRIMARY KEY);
-		INSERT INTO server_admin_sessions (id, admin_id, expires_at)
+		CREATE TABLE audit_log (ulid TEXT PRIMARY KEY);
+		INSERT INTO admin_sessions (id, admin_id, expires_at)
 		VALUES ('legacy-raw-admin-cookie', 1, '2030-01-01 00:00:00');
 	`); err != nil {
 		t.Fatalf("seed legacy admin session: %v", err)
@@ -67,7 +72,7 @@ func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
 	}
 
 	var rowID, tokenHash string
-	if err := db.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
+	if err := db.QueryRow(`SELECT id, token_hash FROM admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
 		t.Fatalf("read migrated session: %v", err)
 	}
 	if _, err := uuid.Parse(rowID); err != nil {
@@ -84,7 +89,7 @@ func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
 		t.Fatalf("repeat migration: %v", err)
 	}
 	var repeatedID, repeatedHash string
-	if err := db.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&repeatedID, &repeatedHash); err != nil {
+	if err := db.QueryRow(`SELECT id, token_hash FROM admin_sessions`).Scan(&repeatedID, &repeatedHash); err != nil {
 		t.Fatalf("read session after repeat migration: %v", err)
 	}
 	if repeatedID != rowID || repeatedHash != tokenHash {

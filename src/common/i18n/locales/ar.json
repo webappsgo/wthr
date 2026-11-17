@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "فشل في تحديث الإعدادات",
   "errors.user.settings.invalid_session_id": "معرف جلسة غير صالح",
   "errors.user.settings.maximum_5_tokens_per_user": "الحد الأقصى 5 رموز لكل مستخدم",
+  "errors.user.settings.token_name_exists": "يوجد رمز بهذا الاسم بالفعل",
   "errors.user.settings.session_does_not_belong_to_you": "الجلسة لا تخصك",
   "errors.user.settings.session_id_required": "معرف الجلسة مطلوب",
   "errors.user.settings.session_not_found": "الجلسة غير موجودة",

@@ -126,7 +126,7 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, username, display_name, email, bio, location, website, visibility,
 		       avatar_type, avatar_url, email_verified, created_at
-		FROM user_accounts
+		FROM users
 		WHERE LOWER(username) = ? AND is_active = 1 AND is_banned = 0
 	`, username).Scan(
 		&user.ID, &user.Username, &user.DisplayName, &user.Email,
@@ -279,7 +279,7 @@ func (h *UserPublicHandler) loadCurrentUserAvatar(userID int64) (*AvatarResponse
 
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT email, avatar_type, avatar_url
-		FROM user_accounts WHERE id = ?
+		FROM users WHERE id = ?
 	`, userID).Scan(&email, &avatarType, &avatarURL)
 	if err != nil {
 		return nil, err
@@ -330,7 +330,7 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 	// zone, which no reader can compare against a UTC instant without guessing
 	// the writer's offset.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET avatar_type = ?, avatar_url = ?, updated_at = ?
 		WHERE id = ?
 	`, req.Type, avatarURL, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -341,7 +341,7 @@ func (h *UserPublicHandler) resetCurrentUserAvatar(userID int64) error {
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET avatar_type = 'gravatar', avatar_url = NULL, updated_at = ?
 		WHERE id = ?
 	`, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -382,7 +382,7 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET avatar_type = 'upload', avatar_url = ?, updated_at = ?
 		WHERE id = ?
 	`, avatarURL, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -577,7 +577,7 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 	}
 
 	var passwordHash string
-	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&passwordHash)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&passwordHash)
 	if err != nil {
 		return fmt.Errorf("failed to verify current password")
 	}
@@ -595,7 +595,7 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
 	`, newHash, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -682,7 +682,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	var twoFactorEnabled bool
 	var twoFactorSecret sql.NullString
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
-		`SELECT password_hash, two_factor_enabled, two_factor_secret FROM user_accounts WHERE id = ?`,
+		`SELECT password_hash, two_factor_enabled, two_factor_secret FROM users WHERE id = ?`,
 		user.ID,
 	).Scan(&passwordHash, &twoFactorEnabled, &twoFactorSecret); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
@@ -716,7 +716,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 
 	// Check the new email is not already in use
 	var existing int64
-	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, newEmail, user.ID).Scan(&existing)
+	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM users WHERE email = ? AND id != ?`, newEmail, user.ID).Scan(&existing)
 	if existing != 0 {
 		Conflict(w, r, Translate(r, "errors.user.public.email_address_is_already_in_use"))
 		return
@@ -727,7 +727,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
 	// MySQL and SQL Server than it does on SQLite.
 	if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
-		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
+		`UPDATE users SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
 		newEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
 	); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_update_email"))
@@ -763,7 +763,7 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 
 	// Verify password before allowing deletion
 	var passwordHash string
-	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM users WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
 		return
 	}

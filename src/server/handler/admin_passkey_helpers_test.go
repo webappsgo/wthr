@@ -63,7 +63,7 @@ func TestListAdminPasskeys(t *testing.T) {
 
 	t.Run("db error surfaces", func(t *testing.T) {
 		badDB := newTestServerDB(t)
-		if _, err := badDB.Exec("DROP TABLE server_admin_passkeys"); err != nil {
+		if _, err := badDB.Exec("DROP TABLE passkeys"); err != nil {
 			t.Fatalf("failed to drop table: %v", err)
 		}
 		if _, err := ListAdminPasskeys(badDB, admin.ID); err == nil {

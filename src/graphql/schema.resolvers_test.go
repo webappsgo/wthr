@@ -466,7 +466,7 @@ func TestQueryResolver_AdminStats_ActiveUsersCountedByInstant(t *testing.T) {
 	for _, fixture := range fixtures {
 		user := seedGraphQLUser(t, ddb, fixture.username, fixture.email, "correctpass1")
 		if _, err := ddb.Users.Exec(`
-			UPDATE user_accounts SET last_login_at = ? WHERE id = ?
+			UPDATE users SET last_login_at = ? WHERE id = ?
 		`, fixture.lastLoginAt, user.ID); err != nil {
 			t.Fatalf("seed last_login_at for %s: %v", fixture.username, err)
 		}
@@ -546,8 +546,8 @@ func TestQueryResolver_UserTokens_OrderedByInstant(t *testing.T) {
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for i, fixture := range fixtures {
 		if _, err := ddb.Users.Exec(`
-			INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO tokens (owner_type, owner_id, token_hash, token_prefix, name, scope, created_at)
+			VALUES ('user', ?, ?, ?, ?, ?, ?)
 		`, user.ID, fmt.Sprintf("token-hash-%d", i), fmt.Sprintf("usr_%04d", i), fixture.name, "read", fixture.timestamp); err != nil {
 			t.Fatalf("seed token %s: %v", fixture.name, err)
 		}
@@ -603,7 +603,7 @@ func TestQueryResolver_AdminUsers_OrderedByInstant(t *testing.T) {
 	for _, fixture := range fixtures {
 		user := seedGraphQLUser(t, ddb, fixture.name, fixture.name+"@example.com", "correctpass1")
 		if _, err := ddb.Users.Exec(`
-			UPDATE user_accounts SET created_at = ? WHERE id = ?
+			UPDATE users SET created_at = ? WHERE id = ?
 		`, fixture.timestamp, user.ID); err != nil {
 			t.Fatalf("seed created_at for %s: %v", fixture.name, err)
 		}
@@ -631,7 +631,7 @@ func TestQueryResolver_AdminAuditLogs_OrderedByInstantAndPaged(t *testing.T) {
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for i, fixture := range fixtures {
 		if _, err := ddb.Server.Exec(`
-			INSERT INTO server_audit_log (ulid, action, timestamp)
+			INSERT INTO audit_log (ulid, action, timestamp)
 			VALUES (?, ?, ?)
 		`, fmt.Sprintf("audit-ulid-%d", i), fixture.name, fixture.timestamp); err != nil {
 			t.Fatalf("seed audit log %s: %v", fixture.name, err)

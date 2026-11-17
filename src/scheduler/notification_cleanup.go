@@ -89,7 +89,7 @@ func (nc *NotificationCleaner) EnforceLimits() error {
 
 	adminTrimmed, err := enforceRecipientLimits(
 		nc.notificationService.AdminNotif.DB,
-		"SELECT DISTINCT admin_id FROM server_admin_notifications",
+		"SELECT DISTINCT admin_id FROM admin_notifications",
 		nc.notificationService.AdminNotif.EnforceLimit,
 	)
 	if err != nil {

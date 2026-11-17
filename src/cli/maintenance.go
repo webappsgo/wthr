@@ -309,17 +309,17 @@ func adminRecoverySetup(setupToken string) error {
 		configDir = "/etc/webappsgo/wthr"
 	}
 
-	// Connect to server.db
-	serverDBPath := filepath.Join(dataDir, "db", "server.db")
+	// Server Admin accounts live in users.db (AI.md PART 12)
+	usersDBPath := filepath.Join(dataDir, "db", "users.db")
 
 	// Check if database exists
-	if _, err := os.Stat(serverDBPath); os.IsNotExist(err) {
-		return fmt.Errorf("server database not found at %s", serverDBPath)
+	if _, err := os.Stat(usersDBPath); os.IsNotExist(err) {
+		return fmt.Errorf("users database not found at %s", usersDBPath)
 	}
 
 	// Import database package is already imported via database initialization
 	// We'll use direct SQL connection for CLI tool
-	db, err := openDatabase(serverDBPath)
+	db, err := openDatabase(usersDBPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -327,7 +327,7 @@ func adminRecoverySetup(setupToken string) error {
 
 	// Check if database is empty (first-run)
 	var adminCount int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&adminCount)
 	if err != nil {
 		return fmt.Errorf("failed to check admin accounts: %w", err)
 	}
@@ -563,7 +563,7 @@ func verifySystem() error {
 
 	// 6. Verify at least one admin account exists
 	fmt.Print(T("cli.maintenance.checking_admin_accounts"))
-	if err := verifyAdminExists(serverDBPath); err != nil {
+	if err := verifyAdminExists(filepath.Join(dataDir, "db", "users.db")); err != nil {
 		fmt.Printf(T("cli.maintenance.admin_check_warning")+"\n", display.Emoji("⚠️", "[!]"), err)
 		fmt.Println(T("cli.maintenance.admin_recovery_run_hint"))
 	} else {
@@ -654,15 +654,15 @@ func verifyDirectoryWritable(dirPath string) error {
 }
 
 // verifyAdminExists checks if at least one admin account exists
-func verifyAdminExists(serverDBPath string) error {
-	db, err := sql.Open("sqlite", serverDBPath)
+func verifyAdminExists(usersDBPath string) error {
+	db, err := sql.Open("sqlite", usersDBPath)
 	if err != nil {
 		return fmt.Errorf("cannot open database: %w", err)
 	}
 	defer db.Close()
 
 	var count int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("cannot query: %w", err)
 	}

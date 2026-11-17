@@ -269,7 +269,7 @@ func TestNotificationPreferencesModel_AdminPreferences(t *testing.T) {
 	defer userDB.Close()
 	serverDB := setupTestDB(t)
 	defer serverDB.Close()
-	model := &NotificationPreferencesModel{UserDB: userDB, ServerDB: serverDB}
+	model := &NotificationPreferencesModel{UserDB: userDB}
 
 	t.Run("defaults when no record exists", func(t *testing.T) {
 		prefs, err := model.GetAdminPreferences(1)
@@ -318,7 +318,7 @@ func TestNotificationPreferencesModel_AdminPreferences(t *testing.T) {
 			t.Fatalf("UpdateAdminPreferences() second call error = %v", err)
 		}
 		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_notification_preferences WHERE admin_id = ?", 1).Scan(&count); err != nil {
+		if err := userDB.QueryRow("SELECT COUNT(*) FROM admin_notification_preferences WHERE admin_id = ?", 1).Scan(&count); err != nil {
 			t.Fatalf("query count: %v", err)
 		}
 		if count != 1 {

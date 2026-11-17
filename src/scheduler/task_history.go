@@ -37,7 +37,7 @@ type TaskInfo struct {
 	ErrorCount   int        `json:"error_count"`
 }
 
-// InitTaskHistoryTable verifies that server_scheduler_history is present.
+// InitTaskHistoryTable verifies that scheduler_history is present.
 //
 // The table and its indexes are declared once in database.ServerSchema, which
 // database.InitDualDB executes on every startup - no DDL runs at scheduler
@@ -52,9 +52,9 @@ func (s *Scheduler) InitTaskHistoryTable() error {
 
 	var present int
 	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
-		"SELECT COUNT(*) FROM server_scheduler_history WHERE 1 = 0",
+		"SELECT COUNT(*) FROM scheduler_history WHERE 1 = 0",
 	).Scan(&present); err != nil {
-		return fmt.Errorf("server_scheduler_history is missing from the server database schema: %w", err)
+		return fmt.Errorf("scheduler_history is missing from the server database schema: %w", err)
 	}
 
 	return nil
@@ -77,7 +77,7 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 	// server either side of a timezone change - would fill the same column with
 	// two encodings that no longer share an ordering.
 	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_scheduler_history (task_name, start_time, end_time, duration_ms, status, error)
+		INSERT INTO scheduler_history (task_name, start_time, end_time, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, taskName, dbtime.FormatSQLTimestamp(startTime), dbtime.FormatSQLTimestamp(endTime), duration, status, errorMsg)
 
@@ -110,7 +110,7 @@ func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskR
 	// real ordering is applied below.
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutComplexSelect, `
 		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
-		FROM server_scheduler_history
+		FROM scheduler_history
 		WHERE task_name = ?
 		ORDER BY id DESC
 	`, taskName)
@@ -183,7 +183,7 @@ func (s *Scheduler) GetTaskStats(taskName string) (total, success, errors int, e
 			COUNT(*) as total,
 			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
 			SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors
-		FROM server_scheduler_history
+		FROM scheduler_history
 		WHERE task_name = ?
 	`, taskName).Scan(&total, &success, &errors)
 
@@ -245,7 +245,7 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 	// were UTC (see CleanupOldSessions).
 	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
-	rows, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_scheduler_history", "id", "start_time", cutoff)
+	rows, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "scheduler_history", "id", "start_time", cutoff)
 	if err != nil {
 		return err
 	}

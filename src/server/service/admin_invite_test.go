@@ -12,8 +12,8 @@ import (
 )
 
 // setupAdminInviteServerDB opens a fresh in-memory SQLite database with the
-// real production ServerSchema applied (server_admin_credentials and
-// server_admin_invites both live there, with a foreign key from invites to
+// real production ServerSchema applied (admins and
+// admin_invites both live there, with a foreign key from invites to
 // credentials), uniquely named per test via t.Name().
 func setupAdminInviteServerDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -25,6 +25,10 @@ func setupAdminInviteServerDB(t *testing.T) *sql.DB {
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
+	}
+	// Server Admin accounts live in users.db (AI.md PART 12); this single connection serves as both
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("apply UsersSchema: %v", err)
 	}
 	return db
 }
@@ -293,7 +297,7 @@ func TestAdminInvite_VerifyInvite(t *testing.T) {
 		// service's own duration math (which only offers forward-looking
 		// durations).
 		if _, err := db.Exec(
-			`UPDATE server_admin_invites SET expires_at = datetime('now', '-1 hour') WHERE token = ?`,
+			`UPDATE admin_invites SET expires_at = datetime('now', '-1 hour') WHERE token = ?`,
 			models.HashAPIToken(created.Token),
 		); err != nil {
 			t.Fatalf("force-expire invite: %v", err)
@@ -441,7 +445,7 @@ func TestAdminInvite_CleanupExpiredInvites(t *testing.T) {
 		t.Fatalf("CreateInvite() unexpected error: %v", err)
 	}
 	if _, err := db.Exec(
-		`UPDATE server_admin_invites SET expires_at = datetime('now', '-1 hour') WHERE token = ?`,
+		`UPDATE admin_invites SET expires_at = datetime('now', '-1 hour') WHERE token = ?`,
 		models.HashAPIToken(expired.Token),
 	); err != nil {
 		t.Fatalf("force-expire invite: %v", err)

@@ -19,7 +19,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// AuditLogger logs admin actions to the server_audit_log table
+// AuditLogger logs admin actions to the audit_log table
 func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -75,14 +75,14 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 			now := time.Now()
 			id := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
-			// server_audit_log.timestamp is also written by src/scheduler/scheduler.go
+			// audit_log.timestamp is also written by src/scheduler/scheduler.go
 			// and src/server/handler/admin_passkey.go as canonical UTC text. Binding a
 			// raw time.Time here would make modernc.org/sqlite store the host-local
 			// time.Time.String() form instead, leaving one column with two layouts that
 			// no SQL-side comparison or ORDER BY can reconcile - format through dbtime
 			// so every producer of this column agrees.
 			_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-				INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
+				INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, id, dbtime.FormatSQLTimestamp(now), actorType, actorID, action, resource, "", clientIP, userAgent, source, status)
 

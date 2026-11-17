@@ -32,6 +32,16 @@ type Resolver struct {
 	MoonHandler          *handler.MoonHandler
 }
 
+// adminAccountsDB returns the database holding Server Admin accounts, which is
+// users.db (AI.md PART 12). A resolver wired with a single handle falls back to
+// ServerDB so single-database tests keep working.
+func (r *Resolver) adminAccountsDB() *sql.DB {
+	if r.UsersDB != nil {
+		return r.UsersDB
+	}
+	return r.ServerDB
+}
+
 // NewResolver creates a new root resolver with all dependencies
 func NewResolver(
 	serverDB, usersDB *sql.DB,

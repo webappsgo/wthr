@@ -47,18 +47,18 @@ func setupDeliverySystemTestDB(t *testing.T) (serverDB, usersDB *sql.DB) {
 	return serverDB, usersDB
 }
 
-// seedDeliveryUser inserts the owning user_accounts row for a user id. Every
+// seedDeliveryUser inserts the owning users row for a user id. Every
 // users.db row this file seeds (user_notification_channel_preferences) carries
-// FOREIGN KEY (user_id) REFERENCES user_accounts(id), and username/email/
+// FOREIGN KEY (user_id) REFERENCES users(id), and username/email/
 // password_hash are NOT NULL in the real UsersSchema, so the parent row must
 // exist and be fully populated before any dependent insert.
 func seedDeliveryUser(t *testing.T, usersDB *sql.DB, id int, email string) {
 	t.Helper()
 	if _, err := usersDB.Exec(
-		`INSERT INTO user_accounts (id, username, email, password_hash) VALUES (?, ?, ?, 'x')`,
+		`INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, 'x')`,
 		id, "user"+strconv.Itoa(id), email,
 	); err != nil {
-		t.Fatalf("seed user_accounts(%d): %v", id, err)
+		t.Fatalf("seed users(%d): %v", id, err)
 	}
 }
 
@@ -352,7 +352,7 @@ func TestDeliverySystem_ProcessQueue(t *testing.T) {
 
 	// nil userID is required here: getRecipient returns immediately inside
 	// its UserID.Valid branch for channel_type "email" (querying
-	// user_notification_channel_preferences / user_accounts) and never falls
+	// user_notification_channel_preferences / users) and never falls
 	// through to the Variables["recipient"] fallback when UserID is set.
 	readyID, err := ds.Enqueue(nil, "email", "S", "B", 1, map[string]interface{}{"recipient": "a@b.com"})
 	if err != nil {

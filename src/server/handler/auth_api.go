@@ -502,7 +502,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 	var storedExpiresAt interface{}
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, email, expires_at
-		FROM user_email_verifications
+		FROM email_verifications
 		WHERE token = ?
 	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&verification.ID, &verification.UserID, &verification.Email, &storedExpiresAt)
 	if err != nil {
@@ -518,7 +518,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET email_verified = 1, updated_at = ?
 		WHERE id = ?
 	`, dbtime.FormatSQLTimestamp(time.Now()), verification.UserID)
@@ -526,7 +526,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		return fmt.Errorf("failed to verify email")
 	}
 
-	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verification.ID)
+	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM email_verifications WHERE id = ?`, verification.ID)
 	return nil
 }
 
@@ -571,7 +571,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		}
 
 		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-			SELECT id, email, language FROM user_accounts WHERE email = ? AND is_active = 1
+			SELECT id, email, language FROM users WHERE email = ? AND is_active = 1
 		`, emailAddress).Scan(&user.ID, &user.Email, &user.Language)
 		if err != nil {
 			return
@@ -600,7 +600,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		// match and vice versa.
 		issuedAt := time.Now()
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-			INSERT INTO user_password_resets (user_id, token, ip_address, created_at, expires_at)
+			INSERT INTO password_resets (user_id, token, ip_address, created_at, expires_at)
 			VALUES (?, ?, ?, ?, ?)
 		`, user.ID, models.HashAPIToken(token), requestIP, dbtime.FormatSQLTimestamp(issuedAt), dbtime.FormatSQLTimestamp(issuedAt.Add(1*time.Hour)))
 		if err != nil {
@@ -612,7 +612,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		// The SMTP service reads server_config and server_notification_channels,
 		// both declared in database.ServerSchema, so it must be given the SERVER
 		// handle. The `db` in scope here is the users handle - every caller passes
-		// one, and it is what the user_password_resets insert above writes to -
+		// one, and it is what the password_resets insert above writes to -
 		// so passing it made the service look for its configuration in the wrong
 		// database and silently find no SMTP settings at all.
 		smtpService := service.SharedSMTPService(database.GetServerDB())
@@ -668,7 +668,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 	var storedExpiresAt interface{}
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, expires_at
-		FROM user_password_resets
+		FROM password_resets
 		WHERE token = ?
 	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&reset.ID, &reset.UserID, &storedExpiresAt)
 	if err != nil {
@@ -689,7 +689,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
 	`, hashedPassword, dbtime.FormatSQLTimestamp(time.Now()), reset.UserID)
@@ -697,7 +697,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		return fmt.Errorf("failed to reset password")
 	}
 
-	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_password_resets WHERE id = ?`, reset.ID)
+	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM password_resets WHERE id = ?`, reset.ID)
 	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_sessions WHERE user_id = ?`, reset.UserID)
 	return nil
 }
@@ -756,7 +756,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 	// updated_at is bound as canonical UTC text rather than produced by SQL's
 	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
 	// MySQL and SQL Server than it does on SQLite.
-	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
 		return nil, fmt.Errorf("failed to finalize account")
 	}
 
@@ -784,7 +784,7 @@ func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, err
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
+	inviteService := service.NewAdminInviteService(database.GetUsersDB(), "", nil)
 	invite, err := inviteService.VerifyInvite(token)
 	if err != nil {
 		return nil, err
@@ -802,7 +802,7 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
+	inviteService := service.NewAdminInviteService(database.GetUsersDB(), "", nil)
 	admin, err := inviteService.AcceptInvite(token, username, password)
 	if err != nil {
 		return nil, err

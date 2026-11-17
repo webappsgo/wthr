@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "Échec de mettre à jour les paramètres",
   "errors.user.settings.invalid_session_id": "ID de session invalide",
   "errors.user.settings.maximum_5_tokens_per_user": "Maximum de 5 jetons par utilisateur",
+  "errors.user.settings.token_name_exists": "Un jeton portant ce nom existe déjà",
   "errors.user.settings.session_does_not_belong_to_you": "La session ne vous appartient pas",
   "errors.user.settings.session_id_required": "L'ID de session est requis",
   "errors.user.settings.session_not_found": "Session introuvable",

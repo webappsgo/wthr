@@ -98,13 +98,13 @@ func AdminUsername(r *http.Request) string {
 		return ""
 	}
 
-	db := database.GetServerDB()
+	db := database.GetUsersDB()
 	if db == nil {
 		return ""
 	}
 	var username string
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
-		"SELECT username FROM server_admin_credentials WHERE id = ?", id).Scan(&username)
+		"SELECT username FROM admins WHERE id = ?", id).Scan(&username)
 	if err != nil || username == "" {
 		return ""
 	}

@@ -152,7 +152,7 @@ func TestHandleAPILogin(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "apiuser3", "apiuser3@example.com", "correcthorse123")
 		secret := "JBSWY3DPEHPK3PXP"
-		if _, err := h.DB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, userID); err != nil {
+		if _, err := h.DB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, userID); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
@@ -217,7 +217,7 @@ func TestHandleAPIRegister(t *testing.T) {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := h.DB.QueryRow(`SELECT COUNT(*) FROM user_accounts WHERE username = ?`, "newapiuser2").Scan(&count); err != nil {
+		if err := h.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, "newapiuser2").Scan(&count); err != nil {
 			t.Fatalf("count query: %v", err)
 		}
 		if count != 1 {
@@ -286,7 +286,7 @@ func TestHandleAPI2FA(t *testing.T) {
 	setupPending := func(t *testing.T, h *AuthAPIHandler) (userID int64, pendingToken string) {
 		t.Helper()
 		userID = seedAuthUser(t, h.DB, "twofauser", "twofauser@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, userID); err != nil {
+		if _, err := h.DB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, userID); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 		pending, err := createPendingTwoFactorSession(h.DB, userID)
@@ -349,7 +349,7 @@ func TestHandleAPIRecoveryUse(t *testing.T) {
 	t.Run("valid recovery key completes login", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "recoveryuser", "recoveryuser@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, userID); err != nil {
+		if _, err := h.DB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, userID); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 		keys, err := (&models.RecoveryKeyModel{DB: h.DB}).GenerateRecoveryKeys(int(userID))
@@ -441,7 +441,7 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 	t.Run("valid token marks the account verified", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "verifyuser", "verifyuser@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
+		if _, err := h.DB.Exec(`UPDATE users SET email_verified = 0 WHERE id = ?`, userID); err != nil {
 			t.Fatalf("reset verified flag: %v", err)
 		}
 		// The table comes from database.UsersSchema, applied by
@@ -451,7 +451,7 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 		//
 		// The token column holds the SHA-256 hash, never the raw token, so the
 		// fixture must store what CreateVerification would have stored.
-		if _, err := h.DB.Exec(`INSERT INTO user_email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
+		if _, err := h.DB.Exec(`INSERT INTO email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
 			userID, "verifyuser@example.com", models.HashAPIToken("good-token")); err != nil {
 			t.Fatalf("seed verification row: %v", err)
 		}
@@ -463,7 +463,7 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var verified bool
-		if err := h.DB.QueryRow(`SELECT email_verified FROM user_accounts WHERE id = ?`, userID).Scan(&verified); err != nil {
+		if err := h.DB.QueryRow(`SELECT email_verified FROM users WHERE id = ?`, userID).Scan(&verified); err != nil {
 			t.Fatalf("query verified flag: %v", err)
 		}
 		if !verified {
@@ -491,14 +491,14 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 	t.Run("BUG: DB failure during verification should return 500, not 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "verifybuguser", "verifybuguser@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`INSERT INTO user_email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
+		if _, err := h.DB.Exec(`INSERT INTO email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
 			userID, "verifybuguser@example.com", models.HashAPIToken("bug-token")); err != nil {
 			t.Fatalf("seed verification row: %v", err)
 		}
-		// Force the subsequent UPDATE user_accounts to fail by dropping the
+		// Force the subsequent UPDATE users to fail by dropping the
 		// table out from under it after the verification row lookup succeeds.
-		if _, err := h.DB.Exec(`DROP TABLE user_accounts`); err != nil {
-			t.Fatalf("drop user_accounts to force update failure: %v", err)
+		if _, err := h.DB.Exec(`DROP TABLE users`); err != nil {
+			t.Fatalf("drop users to force update failure: %v", err)
 		}
 
 		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "bug-token"})
@@ -538,10 +538,10 @@ func TestHandleAPIPasswordForgot(t *testing.T) {
 func TestHandleAPIPasswordReset(t *testing.T) {
 	seedResetRow := func(t *testing.T, h *AuthAPIHandler, userID int64, token string) {
 		t.Helper()
-		// user_password_resets is created by database.UsersSchema; see the note
+		// password_resets is created by database.UsersSchema; see the note
 		// in TestHandleAPIVerifyEmail on why a fixture never redeclares it. The
 		// token column stores the SHA-256 hash, so the fixture hashes too.
-		if _, err := h.DB.Exec(`INSERT INTO user_password_resets (user_id, token, expires_at) VALUES (?, ?, datetime('now','+1 hour'))`,
+		if _, err := h.DB.Exec(`INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, datetime('now','+1 hour'))`,
 			userID, models.HashAPIToken(token)); err != nil {
 			t.Fatalf("seed reset row: %v", err)
 		}
@@ -605,8 +605,8 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "resetbuguser", "resetbuguser@example.com", "oldpassword1")
 		seedResetRow(t, h, userID, "bug-reset-token")
-		if _, err := h.DB.Exec(`DROP TABLE user_accounts`); err != nil {
-			t.Fatalf("drop user_accounts to force update failure: %v", err)
+		if _, err := h.DB.Exec(`DROP TABLE users`); err != nil {
+			t.Fatalf("drop users to force update failure: %v", err)
 		}
 
 		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
@@ -622,8 +622,8 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 }
 
 // TestTokenHashingRoundTrip is a regression test for a functional break: the
-// model layer wrote user_email_verifications.token and
-// user_password_resets.token as models.HashAPIToken(token), while the API
+// model layer wrote email_verifications.token and
+// password_resets.token as models.HashAPIToken(token), while the API
 // handlers looked those rows up by the RAW token. Nothing matched, so a link
 // issued through the model could never be redeemed through the API - and the
 // handler's own reset writer stored the token in plaintext, which PART 11
@@ -632,7 +632,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 	t.Run("model-issued verification token is redeemable through the API", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "rtverify", "rtverify@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
+		if _, err := h.DB.Exec(`UPDATE users SET email_verified = 0 WHERE id = ?`, userID); err != nil {
 			t.Fatalf("reset verified flag: %v", err)
 		}
 
@@ -643,7 +643,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 
 		// The raw token must never reach the table; only its hash does.
 		var stored string
-		if err := h.DB.QueryRow(`SELECT token FROM user_email_verifications WHERE id = ?`, verification.ID).Scan(&stored); err != nil {
+		if err := h.DB.QueryRow(`SELECT token FROM email_verifications WHERE id = ?`, verification.ID).Scan(&stored); err != nil {
 			t.Fatalf("read stored token: %v", err)
 		}
 		if stored == verification.Token {
@@ -660,7 +660,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		}
 
 		var verified bool
-		if err := h.DB.QueryRow(`SELECT email_verified FROM user_accounts WHERE id = ?`, userID).Scan(&verified); err != nil {
+		if err := h.DB.QueryRow(`SELECT email_verified FROM users WHERE id = ?`, userID).Scan(&verified); err != nil {
 			t.Fatalf("query verified flag: %v", err)
 		}
 		if !verified {
@@ -678,7 +678,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		}
 
 		var stored string
-		if err := h.DB.QueryRow(`SELECT token FROM user_password_resets WHERE id = ?`, reset.ID).Scan(&stored); err != nil {
+		if err := h.DB.QueryRow(`SELECT token FROM password_resets WHERE id = ?`, reset.ID).Scan(&stored); err != nil {
 			t.Fatalf("read stored token: %v", err)
 		}
 		if stored == reset.Token {
@@ -690,7 +690,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		}
 
 		var hash string
-		if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&hash); err != nil {
+		if err := h.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash); err != nil {
 			t.Fatalf("query password hash: %v", err)
 		}
 		ok, err := util.VerifyPassword("brandnewpassword1", hash)
@@ -755,7 +755,7 @@ func TestHandleAPIUserInviteComplete(t *testing.T) {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := h.DB.QueryRow(`SELECT COUNT(*) FROM user_accounts WHERE username = ?`, "completedinviteuser").Scan(&count); err != nil {
+		if err := h.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, "completedinviteuser").Scan(&count); err != nil {
 			t.Fatalf("count query: %v", err)
 		}
 		if count != 1 {
@@ -831,7 +831,7 @@ func TestVerifyAPIUserEmail_ExpiryComparedAsInstant(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newAuthAPITestHandler(t)
 			userID := seedAuthUser(t, h.DB, "verifyzone", "verifyzone@example.com", "correcthorse123")
-			if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
+			if _, err := h.DB.Exec(`UPDATE users SET email_verified = 0 WHERE id = ?`, userID); err != nil {
 				t.Fatalf("reset verified flag: %v", err)
 			}
 			// VerifyAPIUserEmail looks the row up by models.HashAPIToken(token), the
@@ -839,7 +839,7 @@ func TestVerifyAPIUserEmail_ExpiryComparedAsInstant(t *testing.T) {
 			// (PART 11 forbids keeping a usable token at rest) - seeding the raw
 			// token here would never match and every case would fail closed.
 			if _, err := h.DB.Exec(`
-				INSERT INTO user_email_verifications (user_id, email, token, expires_at)
+				INSERT INTO email_verifications (user_id, email, token, expires_at)
 				VALUES (?, ?, ?, ?)
 			`, userID, "verifyzone@example.com", models.HashAPIToken(tc.token), tc.expiresAt); err != nil {
 				t.Fatalf("seed verification row: %v", err)
@@ -854,7 +854,7 @@ func TestVerifyAPIUserEmail_ExpiryComparedAsInstant(t *testing.T) {
 			}
 
 			var verified bool
-			if err := h.DB.QueryRow(`SELECT email_verified FROM user_accounts WHERE id = ?`, userID).Scan(&verified); err != nil {
+			if err := h.DB.QueryRow(`SELECT email_verified FROM users WHERE id = ?`, userID).Scan(&verified); err != nil {
 				t.Fatalf("query verified flag: %v", err)
 			}
 			if verified != tc.wantOK {
@@ -916,7 +916,7 @@ func TestResetAPIUserPassword_ExpiryComparedAsInstant(t *testing.T) {
 			h := newAuthAPITestHandler(t)
 			userID := seedAuthUser(t, h.DB, "resetzone", "resetzone@example.com", "oldpassword1")
 			var originalHash string
-			if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&originalHash); err != nil {
+			if err := h.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&originalHash); err != nil {
 				t.Fatalf("read original hash: %v", err)
 			}
 			// ResetAPIUserPassword looks the row up by models.HashAPIToken(token),
@@ -924,7 +924,7 @@ func TestResetAPIUserPassword_ExpiryComparedAsInstant(t *testing.T) {
 			// keeping a usable token at rest) - seeding the raw token here would
 			// never match and every case would fail closed.
 			if _, err := h.DB.Exec(`
-				INSERT INTO user_password_resets (user_id, token, expires_at)
+				INSERT INTO password_resets (user_id, token, expires_at)
 				VALUES (?, ?, ?)
 			`, userID, models.HashAPIToken(tc.token), tc.expiresAt); err != nil {
 				t.Fatalf("seed reset row: %v", err)
@@ -942,7 +942,7 @@ func TestResetAPIUserPassword_ExpiryComparedAsInstant(t *testing.T) {
 			}
 
 			var currentHash string
-			if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&currentHash); err != nil {
+			if err := h.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&currentHash); err != nil {
 				t.Fatalf("read current hash: %v", err)
 			}
 			changed := currentHash != originalHash

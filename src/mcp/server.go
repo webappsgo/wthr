@@ -650,7 +650,7 @@ func (s *Server) operator(r *http.Request) bool {
 	if !strings.HasPrefix(typeOfToken, "adm_") {
 		return false
 	}
-	_, err := (&model.AdminModel{DB: s.DB}).GetByAPIToken(typeOfToken)
+	_, err := (&model.AdminModel{DB: database.UsersDBOr(s.DB)}).GetByAPIToken(typeOfToken)
 	return err == nil
 }
 

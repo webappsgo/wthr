@@ -18,7 +18,7 @@ func TestNewAdminPasskeyHandler(t *testing.T) {
 }
 
 // TestLogAdminPasskeyAudit_InsertsRow verifies a successful audit write
-// inserts a row into server_audit_log with the expected action, actor, and
+// inserts a row into audit_log with the expected action, actor, and
 // resource fields.
 func TestLogAdminPasskeyAudit_InsertsRow(t *testing.T) {
 	db := newTestServerDB(t)
@@ -28,7 +28,7 @@ func TestLogAdminPasskeyAudit_InsertsRow(t *testing.T) {
 	var action, actorID, resourceID, ipAddress string
 	err := db.QueryRow(`
 		SELECT action, actor_id, resource_id, ip_address
-		FROM server_audit_log
+		FROM audit_log
 		WHERE resource_type = 'admin_passkey'
 	`).Scan(&action, &actorID, &resourceID, &ipAddress)
 	if err != nil {

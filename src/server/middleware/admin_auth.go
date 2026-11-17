@@ -48,7 +48,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			session := sessionCookie.Value
 
 			// Validate session against database (AI.md PART 18 requirement)
-			// Check if session exists in server_admin_sessions table and is not expired
+			// Check if session exists in admin_sessions table and is not expired
 			db := GetDB(r)
 			if db == nil {
 				// Database not available - reject
@@ -62,7 +62,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 				return
 			}
 
-			// Query server_admin_sessions table for the session row.
+			// Query admin_sessions table for the session row.
 			//
 			// expires_at is judged in Go, never by SQL. "expires_at >
 			// CURRENT_TIMESTAMP" is a raw lexicographic TEXT comparison, and this
@@ -76,15 +76,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			// dbtime.IsAfter resolves both layouts to the same absolute instant and
 			// reports false for a NULL or unparseable value, so a session this
 			// project cannot interpret is rejected rather than trusted.
-			var adminID int
-			var storedExpiresAt interface{}
-			err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-				SELECT sessions.admin_id, sessions.expires_at
-				FROM server_admin_sessions AS sessions
-				INNER JOIN server_admin_credentials AS admins
-					ON admins.id = sessions.admin_id AND admins.is_active = 1
-				WHERE sessions.token_hash = ?
-			`, model.HashAdminSessionToken(session)).Scan(&adminID, &storedExpiresAt)
+			adminID, storedExpiresAt, err := model.LookupActiveAdminSession(db, database.UsersDBOr(db), model.HashAdminSessionToken(session))
 
 			if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
 				// Invalid or expired session
@@ -158,12 +150,12 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Query users.db server_admin_credentials table for username (AI.md PART 23)
+		// Query users.db admins table for username (AI.md PART 23)
 		var adminID int
 		var passwordHash string
-		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
+		err := database.QueryRowContext(context.Background(), database.UsersDBOr(db), database.TimeoutSimpleSelect, `
 			SELECT id, password_hash
-			FROM server_admin_credentials
+			FROM admins
 			WHERE username = ? AND is_active = 1
 		`, username).Scan(&adminID, &passwordHash)
 
@@ -254,7 +246,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		// Update last_login timestamp, bound as canonical UTC text so the value
 		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
 		// means to the backend in use.
-		database.ExecContext(context.Background(), db, database.TimeoutWrite, "UPDATE server_admin_credentials SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID)
+		database.ExecContext(context.Background(), database.UsersDBOr(db), database.TimeoutWrite, "UPDATE admins SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID)
 
 		// Redirect to admin dashboard
 		http.Redirect(w, r, adminPath+"/dashboard", http.StatusFound)

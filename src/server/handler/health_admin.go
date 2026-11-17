@@ -232,28 +232,28 @@ func getSchedulerStatus() map[string]interface{} {
 
 	// Count total tasks
 	var totalTasks int
-	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks)
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&totalTasks)
 	if err != nil {
 		totalTasks = 0
 	}
 
 	// Count enabled tasks
 	var enabledTasks int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 1").Scan(&enabledTasks)
 	if err != nil {
 		enabledTasks = 0
 	}
 
 	// Get next scheduled run
 	var nextRun *string
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT MIN(next_run) FROM server_scheduler_state WHERE enabled = 1 AND next_run IS NOT NULL").Scan(&nextRun)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT MIN(next_run) FROM scheduler_tasks WHERE enabled = 1 AND next_run IS NOT NULL").Scan(&nextRun)
 	if err != nil {
 		nextRun = nil
 	}
 
 	// Count running tasks (locked)
 	var runningTasks int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE locked_by IS NOT NULL").Scan(&runningTasks)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE locked_by IS NOT NULL").Scan(&runningTasks)
 	if err != nil {
 		runningTasks = 0
 	}
@@ -305,7 +305,7 @@ func getRequestStats() map[string]interface{} {
 
 	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT status, timestamp
-		FROM server_audit_log
+		FROM audit_log
 		WHERE timestamp IS NOT NULL
 	`)
 	if err == nil {

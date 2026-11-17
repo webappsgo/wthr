@@ -50,8 +50,8 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 		ServerDB:   serverDB,
 		WSHub:      wsHub,
 		UserNotif:  &models.UserNotificationModel{DB: userDB},
-		AdminNotif: &models.AdminNotificationModel{DB: serverDB},
-		Prefs:      &models.NotificationPreferencesModel{UserDB: userDB, ServerDB: serverDB},
+		AdminNotif: &models.AdminNotificationModel{DB: userDB},
+		Prefs:      &models.NotificationPreferencesModel{UserDB: userDB},
 	}
 
 	// Create handlers

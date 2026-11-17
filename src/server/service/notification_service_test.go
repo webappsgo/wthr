@@ -36,21 +36,21 @@ func setupNotificationTestDB(t *testing.T) (*sql.DB, *sql.DB) {
 	}
 
 	// user_notifications and user_notification_preferences declare
-	// FOREIGN KEY (user_id) REFERENCES user_accounts(id), and
-	// server_admin_notifications / server_admin_notification_preferences
-	// declare FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id),
+	// FOREIGN KEY (user_id) REFERENCES users(id), and
+	// admin_notifications / admin_notification_preferences
+	// declare FOREIGN KEY (admin_id) REFERENCES admins(id),
 	// so both owner rows must exist before the tests write notifications for
 	// user 1 / admin 1. username, email and password_hash are NOT NULL on both
 	// parent tables.
 	if _, err := userDB.Exec(
-		`INSERT INTO user_accounts (id, username, email, password_hash) VALUES (1, 'user1', 'user1@example.com', 'x')`,
+		`INSERT INTO users (id, username, email, password_hash) VALUES (1, 'user1', 'user1@example.com', 'x')`,
 	); err != nil {
-		t.Fatalf("seed user_accounts(1): %v", err)
+		t.Fatalf("seed users(1): %v", err)
 	}
-	if _, err := serverDB.Exec(
-		`INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, 'admin1', 'admin1@example.com', 'x')`,
+	if _, err := userDB.Exec(
+		`INSERT INTO admins (id, username, email, password_hash) VALUES (1, 'admin1', 'admin1@example.com', 'x')`,
 	); err != nil {
-		t.Fatalf("seed server_admin_credentials(1): %v", err)
+		t.Fatalf("seed admins(1): %v", err)
 	}
 
 	return userDB, serverDB
@@ -66,8 +66,8 @@ func setupNotificationService(t *testing.T) (*NotificationService, *sql.DB, *sql
 		ServerDB:   serverDB,
 		WSHub:      wsHub,
 		UserNotif:  &model.UserNotificationModel{DB: userDB},
-		AdminNotif: &model.AdminNotificationModel{DB: serverDB},
-		Prefs:      &model.NotificationPreferencesModel{UserDB: userDB, ServerDB: serverDB},
+		AdminNotif: &model.AdminNotificationModel{DB: userDB},
+		Prefs:      &model.NotificationPreferencesModel{UserDB: userDB},
 	}
 
 	return service, userDB, serverDB
@@ -478,11 +478,11 @@ func TestNewNotificationService(t *testing.T) {
 	if service.UserNotif == nil || service.UserNotif.DB != userDB {
 		t.Error("NewNotificationService() UserNotif model not wired to userDB")
 	}
-	if service.AdminNotif == nil || service.AdminNotif.DB != serverDB {
-		t.Error("NewNotificationService() AdminNotif model not wired to serverDB")
+	if service.AdminNotif == nil || service.AdminNotif.DB != userDB {
+		t.Error("NewNotificationService() AdminNotif model not wired to userDB")
 	}
-	if service.Prefs == nil || service.Prefs.UserDB != userDB || service.Prefs.ServerDB != serverDB {
-		t.Error("NewNotificationService() Prefs model not wired to both DBs")
+	if service.Prefs == nil || service.Prefs.UserDB != userDB {
+		t.Error("NewNotificationService() Prefs model not wired to userDB")
 	}
 
 	notif, err := service.SendInfoToAdmin(1, "Constructed", "via NewNotificationService")

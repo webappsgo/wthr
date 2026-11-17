@@ -517,7 +517,7 @@ func nextScheduledBackup() string {
 	}
 	var nextRun sql.NullString
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
-		"SELECT next_run FROM server_scheduler_state WHERE task_id LIKE 'backup%' AND enabled = 1 AND next_run IS NOT NULL ORDER BY next_run ASC LIMIT 1").Scan(&nextRun)
+		"SELECT next_run FROM scheduler_tasks WHERE task_id LIKE 'backup%' AND enabled = 1 AND next_run IS NOT NULL ORDER BY next_run ASC LIMIT 1").Scan(&nextRun)
 	if err != nil || !nextRun.Valid {
 		return ""
 	}
@@ -804,7 +804,7 @@ func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []strin
 	}
 
 	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_audit_log
+		INSERT INTO audit_log
 			(ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'admin', ?, 'backup.retention_cleanup', 'backup', ?, ?, ?, ?, 'success')
 	`,

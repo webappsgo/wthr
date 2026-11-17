@@ -29,7 +29,7 @@ func seedTwoFactorUser(t *testing.T, db *sql.DB, username, email, password strin
 	t.Helper()
 	id := seedAuthUser(t, db, username, email, password)
 	if enabled {
-		if _, err := db.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, id); err != nil {
+		if _, err := db.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, id); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 	}
@@ -133,7 +133,7 @@ func TestEnableTwoFactor(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var enabled bool
-		if err := db.QueryRow(`SELECT two_factor_enabled FROM user_accounts WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
+		if err := db.QueryRow(`SELECT two_factor_enabled FROM users WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
 			t.Fatalf("query 2fa flag: %v", err)
 		}
 		if !enabled {
@@ -178,7 +178,7 @@ func TestEnableTwoFactor(t *testing.T) {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
 		var enabled bool
-		if err := db.QueryRow(`SELECT two_factor_enabled FROM user_accounts WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
+		if err := db.QueryRow(`SELECT two_factor_enabled FROM users WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
 			t.Fatalf("query 2fa flag: %v", err)
 		}
 		if enabled {
@@ -217,7 +217,7 @@ func TestDisableTwoFactor(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var enabled bool
-		if err := db.QueryRow(`SELECT two_factor_enabled FROM user_accounts WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
+		if err := db.QueryRow(`SELECT two_factor_enabled FROM users WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
 			t.Fatalf("query 2fa flag: %v", err)
 		}
 		if enabled {

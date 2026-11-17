@@ -52,8 +52,8 @@ func ShowUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	availableVersion := ""
-	if db := database.GetServerDB(); db != nil {
-		_ = db.QueryRow(`SELECT message FROM server_admin_notifications WHERE title = ? ORDER BY created_at DESC LIMIT 1`, "Update available").Scan(&availableVersion)
+	if db := database.GetUsersDB(); db != nil {
+		_ = db.QueryRow(`SELECT message FROM admin_notifications WHERE title = ? ORDER BY created_at DESC LIMIT 1`, "Update available").Scan(&availableVersion)
 	}
 	data := map[string]interface{}{
 		"title":             "Updates - Admin",

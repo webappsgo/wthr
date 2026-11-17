@@ -220,7 +220,7 @@ func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
 // TestAuditLogger_WritesRowForMutatingAdminRequest is the core behavioral
 // test: a mutating request to an admin route should result in a row being
 // written to the real audit-log table defined by database.ServerSchema
-// (server_audit_log).
+// (audit_log).
 func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 	db := openAuditTestDB(t)
 
@@ -240,12 +240,12 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 	}
 
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE action = 'create'").Scan(&count)
+	err := db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action = 'create'").Scan(&count)
 	if err != nil {
-		t.Fatalf("query server_audit_log: %v", err)
+		t.Fatalf("query audit_log: %v", err)
 	}
 	if count != 1 {
-		t.Errorf("server_audit_log rows for this request = %d, want 1", count)
+		t.Errorf("audit_log rows for this request = %d, want 1", count)
 	}
 }
 
@@ -253,7 +253,7 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 // the log rather than silent.
 //
 // The middleware must never fail the request over a broken audit table, but a
-// missing or broken server_audit_log must never drop every admin action with
+// missing or broken audit_log must never drop every admin action with
 // no operator-visible signal at all. PART 11 makes recording security-relevant
 // actions non-negotiable, which makes a failure to record one a security event
 // in its own right.
@@ -296,7 +296,7 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 }
 
 // TestAuditLogger_WritesCanonicalTimestampText is a regression test for the
-// mixed-layout bug in server_audit_log.timestamp.
+// mixed-layout bug in audit_log.timestamp.
 //
 // The column has three producers: this middleware, src/scheduler/scheduler.go
 // and src/server/handler/admin_passkey.go. The latter two write canonical
@@ -342,8 +342,8 @@ func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
 	// to catch. CAST(... AS TEXT) makes the result an expression with no
 	// column decltype, so the driver returns the raw stored bytes.
 	var stored interface{}
-	if err := db.QueryRow("SELECT CAST(timestamp AS TEXT) FROM server_audit_log WHERE action = 'create'").Scan(&stored); err != nil {
-		t.Fatalf("query server_audit_log.timestamp: %v", err)
+	if err := db.QueryRow("SELECT CAST(timestamp AS TEXT) FROM audit_log WHERE action = 'create'").Scan(&stored); err != nil {
+		t.Fatalf("query audit_log.timestamp: %v", err)
 	}
 
 	var text string
@@ -353,13 +353,13 @@ func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
 	case []byte:
 		text = string(value)
 	default:
-		t.Fatalf("server_audit_log.timestamp scanned as %T (%v), want text - the "+
+		t.Fatalf("audit_log.timestamp scanned as %T (%v), want text - the "+
 			"column must hold canonical text written by dbtime.FormatSQLTimestamp", stored, stored)
 	}
 
 	parsed, err := time.Parse(dbtime.SQLTimestampLayout, text)
 	if err != nil {
-		t.Fatalf("server_audit_log.timestamp = %q does not parse with "+
+		t.Fatalf("audit_log.timestamp = %q does not parse with "+
 			"dbtime.SQLTimestampLayout (%q): %v - AuditLogger must bind "+
 			"dbtime.FormatSQLTimestamp(now), not a raw time.Time (which "+
 			"modernc.org/sqlite stores in the host-local time.Time.String() form)",
@@ -371,7 +371,7 @@ func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
 	// wall-clock reading formatted without its offset.
 	parsed = parsed.UTC()
 	if parsed.Before(before) || parsed.After(after) {
-		t.Errorf("server_audit_log.timestamp = %q parses to %s, want an instant "+
+		t.Errorf("audit_log.timestamp = %q parses to %s, want an instant "+
 			"within [%s, %s] - the stored text must be UTC, not local wall-clock",
 			text, parsed.Format(time.RFC3339), before.Format(time.RFC3339), after.Format(time.RFC3339))
 	}

@@ -160,7 +160,7 @@ func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchRes
 
 	pattern := adminSearchPattern(query)
 	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect,
-		`SELECT task_name, COALESCE(schedule, '') FROM server_scheduler_state
+		`SELECT task_name, COALESCE(schedule, '') FROM scheduler_tasks
 		 WHERE task_id LIKE ? ESCAPE '\' OR task_name LIKE ? ESCAPE '\'
 		 ORDER BY task_name LIMIT ?`, pattern, pattern, adminSearchLimit)
 	if err != nil {
@@ -181,7 +181,7 @@ func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearch
 
 	pattern := adminSearchPattern(query)
 	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect,
-		`SELECT action, COALESCE(timestamp, '') FROM server_audit_log
+		`SELECT action, COALESCE(timestamp, '') FROM audit_log
 		 WHERE action LIKE ? ESCAPE '\' OR resource_type LIKE ? ESCAPE '\' OR resource_id LIKE ? ESCAPE '\'
 		 ORDER BY timestamp DESC LIMIT ?`, pattern, pattern, pattern, adminSearchLimit)
 	if err != nil {
@@ -204,7 +204,7 @@ func adminSearchUsers(r *http.Request, query, adminPath string) []AdminSearchRes
 
 	pattern := adminSearchPattern(query)
 	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect,
-		`SELECT username, COALESCE(display_name, '') FROM user_accounts
+		`SELECT username, COALESCE(display_name, '') FROM users
 		 WHERE username LIKE ? ESCAPE '\' OR display_name LIKE ? ESCAPE '\'
 		 ORDER BY username LIMIT ?`, pattern, pattern, adminSearchLimit)
 	if err != nil {

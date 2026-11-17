@@ -278,7 +278,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		now := dbtime.FormatSQLTimestamp(time.Now())
 
 		result, err := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
-			INSERT INTO user_accounts
+			INSERT INTO users
 				(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
 		`, username, email, displayName, pwHash, emailVerified, now, now)
@@ -286,7 +286,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 			// Username or email collision — generate a unique suffix
 			username = username + "_" + provider
 			result, err = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
-				INSERT INTO user_accounts
+				INSERT INTO users
 					(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 				VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
 			`, username, email, displayName, pwHash, emailVerified, now, now)
@@ -329,7 +329,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		// Verify user is still active and not banned
 		var isActive, isBanned bool
 		err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect,
-			"SELECT is_active, is_banned FROM user_accounts WHERE id = ?", userID,
+			"SELECT is_active, is_banned FROM users WHERE id = ?", userID,
 		).Scan(&isActive, &isBanned)
 		if err != nil || !isActive || isBanned {
 			middleware.RenderHTML(w, r, http.StatusForbidden, "page/oidc_callback.tmpl", util.TemplateData(r, map[string]interface{}{

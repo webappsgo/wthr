@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "无法更新设置",
   "errors.user.settings.invalid_session_id": "会话 ID 无效",
   "errors.user.settings.maximum_5_tokens_per_user": "每位用户最多可拥有 5 个令牌",
+  "errors.user.settings.token_name_exists": "已存在同名令牌",
   "errors.user.settings.session_does_not_belong_to_you": "该会话不属于您",
   "errors.user.settings.session_id_required": "需要提供会话 ID",
   "errors.user.settings.session_not_found": "未找到会话",

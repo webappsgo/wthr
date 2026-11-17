@@ -83,22 +83,22 @@ func newMainServerDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// insertVerificationUser creates the user_accounts row the verification
+// insertVerificationUser creates the users row the verification
 // fixtures reference and returns its id.
 func insertVerificationUser(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
 
 	result, err := db.Exec(`
-		INSERT INTO user_accounts (username, email, password_hash)
+		INSERT INTO users (username, email, password_hash)
 		VALUES (?, ?, ?)
 	`, "verifyuser", "verify@example.com", "argon2id$placeholder")
 	if err != nil {
-		t.Fatalf("insert user_accounts: %v", err)
+		t.Fatalf("insert users: %v", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		t.Fatalf("user_accounts last insert id: %v", err)
+		t.Fatalf("users last insert id: %v", err)
 	}
 
 	return id
@@ -108,7 +108,7 @@ func insertVerificationUser(t *testing.T, db *sql.DB) int64 {
 // judges expiry by absolute instant rather than by stored text.
 //
 // Against the pre-fix statement
-// "SELECT id, user_id, expires_at FROM user_email_verifications
+// "SELECT id, user_id, expires_at FROM email_verifications
 //
 //	WHERE token = ? AND expires_at > ?"
 //
@@ -167,7 +167,7 @@ func TestLookupEmailVerificationHonorsStoredZone(t *testing.T) {
 		// — that is what every writer of this table stores, so a fixture that
 		// seeded the raw token would only match a lookup that had the same bug.
 		_, err := usersDB.Exec(`
-			INSERT INTO user_email_verifications (user_id, email, token, expires_at)
+			INSERT INTO email_verifications (user_id, email, token, expires_at)
 			VALUES (?, ?, ?, ?)
 		`, userID, "verify@example.com", model.HashAPIToken(tt.name), tt.storedExpiresAt)
 		if err != nil {
@@ -207,22 +207,22 @@ func TestLookupEmailVerificationUnknownToken(t *testing.T) {
 	}
 }
 
-// insertPreferencesAdmin creates the server_admin_credentials row that
-// server_admin_preferences references and returns its id.
+// insertPreferencesAdmin creates the admins row that
+// admin_preferences references and returns its id.
 func insertPreferencesAdmin(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
 
 	result, err := db.Exec(`
-		INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active)
+		INSERT INTO admins (username, email, password_hash, is_super_admin, is_active)
 		VALUES (?, ?, ?, 1, 1)
 	`, "prefsadmin", "prefsadmin@example.com", "argon2id$placeholder")
 	if err != nil {
-		t.Fatalf("insert server_admin_credentials: %v", err)
+		t.Fatalf("insert admins: %v", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		t.Fatalf("server_admin_credentials last insert id: %v", err)
+		t.Fatalf("admins last insert id: %v", err)
 	}
 
 	return id
@@ -238,10 +238,10 @@ func insertPreferencesAdmin(t *testing.T, db *sql.DB) int64 {
 // test asserts both that updated_at is canonical UTC text and that the
 // preferences column still round-trips as the default JSON document.
 func TestLoadAdminPreferencesRowBindOrder(t *testing.T) {
-	serverDB := newMainServerDB(t)
-	adminID := insertPreferencesAdmin(t, serverDB)
+	usersDB := newMainUsersDB(t)
+	adminID := insertPreferencesAdmin(t, usersDB)
 
-	prefs, err := loadAdminPreferencesRow(serverDB, adminID)
+	prefs, err := loadAdminPreferencesRow(usersDB, adminID)
 	if err != nil {
 		t.Fatalf("loadAdminPreferencesRow() error = %v", err)
 	}
@@ -255,9 +255,9 @@ func TestLoadAdminPreferencesRowBindOrder(t *testing.T) {
 	// CAST(... AS TEXT) keeps the driver from re-rendering the column on the way
 	// out, so the assertion sees the bytes actually on disk.
 	var storedPrefs, storedUpdatedAt string
-	err = serverDB.QueryRow(`
+	err = usersDB.QueryRow(`
 		SELECT preferences, CAST(updated_at AS TEXT)
-		FROM server_admin_preferences
+		FROM admin_preferences
 		WHERE admin_id = ?
 	`, adminID).Scan(&storedPrefs, &storedUpdatedAt)
 	if err != nil {
@@ -315,23 +315,23 @@ func TestLoadAdminPreferencesRowReadsLegacyLayouts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serverDB := newMainServerDB(t)
-			adminID := insertPreferencesAdmin(t, serverDB)
+			usersDB := newMainUsersDB(t)
+			adminID := insertPreferencesAdmin(t, usersDB)
 
 			defaultJSON, err := defaultAdminPreferencesJSON(adminID)
 			if err != nil {
 				t.Fatalf("defaultAdminPreferencesJSON() error = %v", err)
 			}
 
-			_, err = serverDB.Exec(`
-				INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
+			_, err = usersDB.Exec(`
+				INSERT INTO admin_preferences (admin_id, preferences, updated_at)
 				VALUES (?, ?, ?)
 			`, adminID, defaultJSON, tt.storedValue)
 			if err != nil {
 				t.Fatalf("insert legacy preferences row: %v", err)
 			}
 
-			prefs, err := loadAdminPreferencesRow(serverDB, adminID)
+			prefs, err := loadAdminPreferencesRow(usersDB, adminID)
 			if err != nil {
 				t.Fatalf("loadAdminPreferencesRow() error = %v, want the row to load", err)
 			}

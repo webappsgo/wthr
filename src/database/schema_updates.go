@@ -34,9 +34,9 @@ func configurePool(db *sql.DB) {
 // the base ServerSchema creates every table, and each statement here brings an
 // older database forward without dropping or renaming anything.
 var serverSchemaUpdates = []string{
-	`ALTER TABLE server_admin_sessions ADD COLUMN token_hash TEXT`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON server_admin_sessions(token_hash)`,
-	`ALTER TABLE server_audit_log ADD COLUMN source TEXT DEFAULT 'api'`,
+	`ALTER TABLE admin_sessions ADD COLUMN token_hash TEXT`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON admin_sessions(token_hash)`,
+	`ALTER TABLE audit_log ADD COLUMN source TEXT DEFAULT 'api'`,
 }
 
 // usersSchemaUpdates holds idempotent schema updates applied to users.db on
@@ -96,7 +96,7 @@ func isColumnExistsError(err error) bool {
 // restart-safe: each row is updated only while its token_hash is NULL.
 func migrateLegacyAdminSessions(db *sql.DB) error {
 	rows, err := QueryContext(context.Background(), db, TimeoutMigration, `
-		SELECT id FROM server_admin_sessions WHERE token_hash IS NULL
+		SELECT id FROM admin_sessions WHERE token_hash IS NULL
 	`)
 	if err != nil {
 		return fmt.Errorf("query legacy admin sessions: %w", err)
@@ -121,7 +121,7 @@ func migrateLegacyAdminSessions(db *sql.DB) error {
 	for _, rawToken := range legacyTokens {
 		digest := sha256.Sum256([]byte(rawToken))
 		_, err := ExecContext(context.Background(), db, TimeoutMigration, `
-			UPDATE server_admin_sessions
+			UPDATE admin_sessions
 			SET id = ?, token_hash = ?
 			WHERE id = ? AND token_hash IS NULL
 		`, uuid.NewString(), hex.EncodeToString(digest[:]), rawToken)

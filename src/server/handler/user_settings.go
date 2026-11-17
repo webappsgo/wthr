@@ -399,7 +399,7 @@ func (h *UserSettingsHandler) loadSettings(userID int64) (*UserSettingsResponse,
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, email, username, display_name, bio, location, website, timezone, language,
 		       role, visibility, is_active, email_verified, created_at, updated_at
-		FROM user_accounts
+		FROM users
 		WHERE id = ?
 	`, userID).Scan(
 		&user.ID, &user.Email, &user.Username, &displayName, &bio, &location,
@@ -587,7 +587,7 @@ func (h *UserSettingsHandler) updateAccountSettings(userID int64, settings *Acco
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET display_name = ?, bio = ?, location = ?, website = ?, timezone = ?, language = ?, updated_at = ?
 		WHERE id = ?
 	`, settings.DisplayName, settings.Bio, settings.Location, settings.Website,
@@ -602,7 +602,7 @@ func (h *UserSettingsHandler) updatePrivacySettings(userID int64, settings *Priv
 	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
 	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_accounts
+		UPDATE users
 		SET visibility = ?, updated_at = ?
 		WHERE id = ?
 	`, settings.Visibility, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -659,8 +659,8 @@ type UserToken struct {
 // getUserTokens gets all API tokens for a user
 func (h *UserSettingsHandler) getUserTokens(userID int64) ([]UserToken, error) {
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
-		SELECT id, name, token_prefix, scopes, created_at, expires_at, last_used_at
-		FROM user_tokens WHERE user_id = ?
+		SELECT id, name, token_prefix, scope, created_at, expires_at, last_used_at
+		FROM tokens WHERE owner_type = 'user' AND owner_id = ?
 		ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -738,9 +738,17 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 
 	// Check token limit (max 5 per user per AI.md)
 	var count int
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", user.ID).Scan(&count)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ?", user.ID).Scan(&count)
 	if count >= 5 {
 		BadRequest(w, r, Translate(r, "errors.user.settings.maximum_5_tokens_per_user"))
+		return
+	}
+
+	// Token names are unique per owner (AI.md PART 11 UNIQUE(owner_type, owner_id, name))
+	var sameName int
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ? AND name = ?", user.ID, req.Name).Scan(&sameName)
+	if sameName > 0 {
+		Conflict(w, r, Translate(r, "errors.user.settings.token_name_exists"))
 		return
 	}
 
@@ -765,8 +773,8 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 	// zone, which no reader can compare against a UTC instant without guessing
 	// the writer's offset.
 	_, dbErr := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO tokens (owner_type, owner_id, token_hash, token_prefix, name, scope, created_at, expires_at)
+		VALUES ('user', ?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, dbtime.FormatSQLTimestamp(time.Now()), expiresAt)
 
 	if dbErr != nil {
@@ -803,7 +811,7 @@ func (h *UserSettingsHandler) RevokeToken(w http.ResponseWriter, r *http.Request
 	tokenID := chi.URLParam(r, "id")
 
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		DELETE FROM user_tokens WHERE id = ? AND user_id = ?
+		DELETE FROM tokens WHERE id = ? AND owner_type = 'user' AND owner_id = ?
 	`, tokenID, user.ID)
 
 	if err != nil {

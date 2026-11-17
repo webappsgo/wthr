@@ -41,7 +41,7 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &models.AdminModel{DB: database.GetUsersDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)

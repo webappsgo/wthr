@@ -31,6 +31,10 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 	if _, err := serverDB.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("Failed to create server schema: %v", err)
 	}
+	// Server Admin accounts live in users.db (AI.md PART 12); this single connection serves as both
+	if _, err := serverDB.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("Failed to create server schema: %v", err)
+	}
 
 	// Create in-memory users database with shared cache mode
 	usersDB, err := sql.Open("sqlite", "file:authtest_users?mode=memory&cache=shared")

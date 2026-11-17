@@ -30,11 +30,10 @@ func NewNotificationService(userDB, serverDB *sql.DB, wsHub *WebSocketHub) *Noti
 			DB: userDB,
 		},
 		AdminNotif: &model.AdminNotificationModel{
-			DB: serverDB,
+			DB: userDB,
 		},
 		Prefs: &model.NotificationPreferencesModel{
-			UserDB:   userDB,
-			ServerDB: serverDB,
+			UserDB: userDB,
 		},
 	}
 }

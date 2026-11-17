@@ -772,16 +772,16 @@ func getPublicI2PStatus(_ *config.AppConfig) (publicHealthI2P, string) {
 func getPublicStats(db *database.DB) publicHealthStats {
 	stats := publicHealthStats{}
 
-	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&stats.RequestsTotal)
+	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&stats.RequestsTotal)
 	// The cutoff is computed in Go and bound as canonical UTC text rather than
 	// left to SQLite's datetime('now', '-24 hours'). Every producer of
-	// server_audit_log.timestamp writes dbtime.FormatSQLTimestamp output, which
+	// audit_log.timestamp writes dbtime.FormatSQLTimestamp output, which
 	// is fixed-width UTC, so a plain text comparison against a cutoff in the
 	// same layout orders correctly - and unlike datetime(), it does not depend
 	// on a SQLite-only function this project's other supported drivers
 	// (PostgreSQL, MySQL) spell differently.
 	cutoff := dbtime.FormatSQLTimestamp(time.Now().Add(-24 * time.Hour))
-	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= ?", cutoff).Scan(&stats.Requests24H)
+	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ?", cutoff).Scan(&stats.Requests24H)
 
 	sessionCount, err := db.GetSessionCount()
 	if err == nil {

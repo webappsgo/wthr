@@ -47,7 +47,7 @@ func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -74,7 +74,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if setup is already done
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -287,7 +287,7 @@ func markSetupComplete() error {
 // IsSetupComplete checks if the initial setup has been completed
 // Per TEMPLATE.md PART 22: Required for setup wizard flow
 func IsSetupComplete() (bool, error) {
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		return false, fmt.Errorf("failed to count admins: %w", err)

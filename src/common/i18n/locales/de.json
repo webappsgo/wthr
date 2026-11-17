@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "Fehler beim Aktualisieren der Einstellungen",
   "errors.user.settings.invalid_session_id": "Ungültige Sitzungs-ID",
   "errors.user.settings.maximum_5_tokens_per_user": "Maximal 5 Tokens pro Benutzer",
+  "errors.user.settings.token_name_exists": "Ein Token mit diesem Namen existiert bereits",
   "errors.user.settings.session_does_not_belong_to_you": "Die Sitzung gehört nicht Ihnen",
   "errors.user.settings.session_id_required": "Die Sitzungs-ID ist erforderlich",
   "errors.user.settings.session_not_found": "Sitzung nicht gefunden",

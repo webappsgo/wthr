@@ -164,10 +164,10 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 		return nil, fmt.Errorf("invalid owner type: %s", ownerType)
 	}
 
-	// user_tokens rows are owned by a user_accounts row (enforced foreign key), so only
-	// user-owned tokens live here; admin tokens are stored in server.db by AdminModel
-	if ownerType != OwnerTypeUser {
-		return nil, fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
+	// Organizations are not adopted by this project (AI.md PART 35), so only admin
+	// and user tokens are stored
+	if ownerType == OwnerTypeOrg {
+		return nil, fmt.Errorf("owner type %s is not supported", ownerType)
 	}
 
 	// Validate scope
@@ -175,7 +175,7 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
-	fullToken, err := GenerateTokenWithPrefix(PrefixUser)
+	fullToken, err := GenerateTokenWithPrefix(ownerTokenPrefix(ownerType))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -193,9 +193,9 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 
 	// Insert into database
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, ownerID, name, tokenHash, tokenPrefix, scope, expiresAt, time.Now())
+		INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, ownerType, ownerID, name, tokenHash, tokenPrefix, scope, expiresAt, time.Now())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert token: %w", err)
@@ -240,11 +240,11 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 	var scopes sql.NullString
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, name, token_hash, token_prefix, scopes, expires_at, last_used_at, created_at
-		FROM user_tokens
+		SELECT id, owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, last_used_at, created_at
+		FROM tokens
 		WHERE token_hash = ?
 	`, tokenHash).Scan(
-		&t.ID, &t.OwnerID, &name, &t.TokenHash, &t.TokenPrefix,
+		&t.ID, &t.OwnerType, &t.OwnerID, &name, &t.TokenHash, &t.TokenPrefix,
 		&scopes, &expiresAt, &lastUsedAt, &t.CreatedAt,
 	)
 
@@ -255,8 +255,6 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
 
-	// Ownership is implied by the user_accounts foreign key on user_tokens
-	t.OwnerType = OwnerTypeUser
 	t.Name = name.String
 	t.Scope = scopes.String
 
@@ -278,7 +276,7 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_tokens SET last_used_at = ?
+		UPDATE tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
 	return err
@@ -286,16 +284,16 @@ func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
 
 // ListTokens lists all tokens for an owner per TEMPLATE.md PART 11
 func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, error) {
-	if ownerType != OwnerTypeUser {
-		return nil, fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
+	if ownerType != OwnerTypeUser && ownerType != OwnerTypeAdmin {
+		return nil, fmt.Errorf("owner type %s is not supported", ownerType)
 	}
 
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, name, token_prefix, scopes, expires_at, last_used_at, created_at
-		FROM user_tokens
-		WHERE user_id = ?
+		SELECT id, owner_id, name, token_prefix, scope, expires_at, last_used_at, created_at
+		FROM tokens
+		WHERE owner_type = ? AND owner_id = ?
 		ORDER BY created_at DESC
-	`, ownerID)
+	`, ownerType, ownerID)
 
 	if err != nil {
 		return nil, err
@@ -318,7 +316,7 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 			return nil, err
 		}
 
-		t.OwnerType = OwnerTypeUser
+		t.OwnerType = ownerType
 		t.Name = name.String
 		t.Scope = scopes.String
 
@@ -337,14 +335,14 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 
 // DeleteToken deletes a token per TEMPLATE.md PART 11
 func (m *TokenModelV2) DeleteToken(id int64, ownerType string, ownerID int64) error {
-	if ownerType != OwnerTypeUser {
-		return fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
+	if ownerType != OwnerTypeUser && ownerType != OwnerTypeAdmin {
+		return fmt.Errorf("owner type %s is not supported", ownerType)
 	}
 
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM user_tokens
-		WHERE id = ? AND user_id = ?
-	`, id, ownerID)
+		DELETE FROM tokens
+		WHERE id = ? AND owner_type = ? AND owner_id = ?
+	`, id, ownerType, ownerID)
 
 	if err != nil {
 		return err
@@ -364,8 +362,8 @@ func (m *TokenModelV2) DeleteToken(id int64, ownerType string, ownerID int64) er
 
 // RotateToken generates a new token value while keeping settings per TEMPLATE.md PART 11
 func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*Token, error) {
-	if ownerType != OwnerTypeUser {
-		return nil, fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
+	if ownerType != OwnerTypeUser && ownerType != OwnerTypeAdmin {
+		return nil, fmt.Errorf("owner type %s is not supported", ownerType)
 	}
 
 	// Get existing token
@@ -375,10 +373,10 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	var scopes sql.NullString
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, name, scopes, expires_at, created_at
-		FROM user_tokens
-		WHERE id = ? AND user_id = ?
-	`, id, ownerID).Scan(
+		SELECT id, owner_id, name, scope, expires_at, created_at
+		FROM tokens
+		WHERE id = ? AND owner_type = ? AND owner_id = ?
+	`, id, ownerType, ownerID).Scan(
 		&existing.ID, &existing.OwnerID,
 		&name, &scopes, &expiresAt, &existing.CreatedAt,
 	)
@@ -390,11 +388,11 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 		return nil, err
 	}
 
-	existing.OwnerType = OwnerTypeUser
+	existing.OwnerType = ownerType
 	existing.Name = name.String
 	existing.Scope = scopes.String
 
-	fullToken, err := GenerateTokenWithPrefix(PrefixUser)
+	fullToken, err := GenerateTokenWithPrefix(ownerTokenPrefix(ownerType))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -404,7 +402,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 
 	// Update token
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_tokens
+		UPDATE tokens
 		SET token_hash = ?, token_prefix = ?, last_used_at = NULL
 		WHERE id = ?
 	`, tokenHash, tokenPrefix, id)
@@ -424,4 +422,13 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	}
 
 	return &existing, nil
+}
+
+// ownerTokenPrefix returns the token prefix for an owner type (AI.md PART 11):
+// adm_ for admins, usr_ for users.
+func ownerTokenPrefix(ownerType string) string {
+	if ownerType == OwnerTypeAdmin {
+		return PrefixAdmin
+	}
+	return PrefixUser
 }

@@ -46,7 +46,7 @@ func setupNotificationCleanupDBs(t *testing.T) (userDB, serverDB *sql.DB) {
 		t.Fatalf("create user_notifications: %v", err)
 	}
 
-	if _, err := serverDB.Exec(`CREATE TABLE server_admin_notifications (
+	if _, err := userDB.Exec(`CREATE TABLE admin_notifications (
 		id TEXT PRIMARY KEY,
 		admin_id INTEGER,
 		type TEXT,
@@ -59,7 +59,7 @@ func setupNotificationCleanupDBs(t *testing.T) (userDB, serverDB *sql.DB) {
 		created_at DATETIME,
 		expires_at DATETIME
 	)`); err != nil {
-		t.Fatalf("create server_admin_notifications: %v", err)
+		t.Fatalf("create admin_notifications: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -98,15 +98,15 @@ func TestCleanupExpiredNotifications(t *testing.T) {
 	})
 
 	t.Run("mixed expired and active rows: only expired ones are deleted", func(t *testing.T) {
-		cleaner, userDB, serverDB := newTestNotificationCleaner(t)
+		cleaner, userDB, _ := newTestNotificationCleaner(t)
 
 		expired := time.Now().Add(-1 * time.Hour)
 		active := time.Now().Add(1 * time.Hour)
 
 		insertNotification(t, userDB, "user_notifications", "id", "user_id", "u1", 1, expired)
 		insertNotification(t, userDB, "user_notifications", "id", "user_id", "u2", 1, active)
-		insertNotification(t, serverDB, "server_admin_notifications", "id", "admin_id", "a1", 1, expired)
-		insertNotification(t, serverDB, "server_admin_notifications", "id", "admin_id", "a2", 1, active)
+		insertNotification(t, userDB, "admin_notifications", "id", "admin_id", "a1", 1, expired)
+		insertNotification(t, userDB, "admin_notifications", "id", "admin_id", "a2", 1, active)
 
 		if err := cleaner.CleanupExpiredNotifications(); err != nil {
 			t.Fatalf("CleanupExpiredNotifications() error: %v", err)
@@ -116,7 +116,7 @@ func TestCleanupExpiredNotifications(t *testing.T) {
 		if err := userDB.QueryRow("SELECT COUNT(*) FROM user_notifications").Scan(&userRemaining); err != nil {
 			t.Fatalf("count user notifications: %v", err)
 		}
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_notifications").Scan(&adminRemaining); err != nil {
+		if err := userDB.QueryRow("SELECT COUNT(*) FROM admin_notifications").Scan(&adminRemaining); err != nil {
 			t.Fatalf("count admin notifications: %v", err)
 		}
 		if userRemaining != 1 {
@@ -159,13 +159,13 @@ func TestEnforceLimits(t *testing.T) {
 	})
 
 	t.Run("trims each recipient down to the retention cap", func(t *testing.T) {
-		cleaner, userDB, serverDB := newTestNotificationCleaner(t)
+		cleaner, userDB, _ := newTestNotificationCleaner(t)
 
 		active := time.Now().Add(1 * time.Hour)
 		overflow := maxNotificationsPerRecipient + 5
 		for i := 0; i < overflow; i++ {
 			insertNotification(t, userDB, "user_notifications", "id", "user_id", fmt.Sprintf("u%d", i), 1, active)
-			insertNotification(t, serverDB, "server_admin_notifications", "id", "admin_id", fmt.Sprintf("a%d", i), 1, active)
+			insertNotification(t, userDB, "admin_notifications", "id", "admin_id", fmt.Sprintf("a%d", i), 1, active)
 		}
 		// A second recipient must be trimmed independently, not skipped.
 		insertNotification(t, userDB, "user_notifications", "id", "user_id", "other", 2, active)
@@ -181,7 +181,7 @@ func TestEnforceLimits(t *testing.T) {
 		if err := userDB.QueryRow("SELECT COUNT(*) FROM user_notifications WHERE user_id = 2").Scan(&user2); err != nil {
 			t.Fatalf("count user 2: %v", err)
 		}
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_notifications WHERE admin_id = 1").Scan(&admin1); err != nil {
+		if err := userDB.QueryRow("SELECT COUNT(*) FROM admin_notifications WHERE admin_id = 1").Scan(&admin1); err != nil {
 			t.Fatalf("count admin 1: %v", err)
 		}
 

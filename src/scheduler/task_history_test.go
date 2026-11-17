@@ -32,9 +32,9 @@ func TestTaskHistoryTableComesFromServerSchema(t *testing.T) {
 
 	var name string
 	if err := serverDB.QueryRow(
-		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", "server_scheduler_history",
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", "scheduler_history",
 	).Scan(&name); err != nil {
-		t.Fatalf("server_scheduler_history not created by database.ServerSchema: %v", err)
+		t.Fatalf("scheduler_history not created by database.ServerSchema: %v", err)
 	}
 
 	for _, index := range []string{"idx_server_scheduler_history_name", "idx_server_scheduler_history_start"} {
@@ -49,7 +49,7 @@ func TestTaskHistoryTableComesFromServerSchema(t *testing.T) {
 	// The column set has to be byte-for-byte what the runtime DDL created, or
 	// an existing database (where CREATE TABLE IF NOT EXISTS is a no-op) would
 	// disagree with a fresh one.
-	rows, err := serverDB.Query("SELECT name FROM pragma_table_info('server_scheduler_history') ORDER BY cid")
+	rows, err := serverDB.Query("SELECT name FROM pragma_table_info('scheduler_history') ORDER BY cid")
 	if err != nil {
 		t.Fatalf("read table info: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestInitTaskHistoryTableReportsMissingSchema(t *testing.T) {
 	newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
 
-	if _, err := database.GetServerDB().Exec("DROP TABLE server_scheduler_history"); err != nil {
+	if _, err := database.GetServerDB().Exec("DROP TABLE scheduler_history"); err != nil {
 		t.Fatalf("drop table: %v", err)
 	}
 
@@ -405,7 +405,7 @@ var (
 	historyZoneEast = time.FixedZone("EAST", 13*60*60)
 )
 
-// seedTaskHistoryRow inserts one server_scheduler_history row at an explicit
+// seedTaskHistoryRow inserts one scheduler_history row at an explicit
 // id, writing start_time and end_time exactly as given so each case controls
 // the stored layout and zone. The column list is the one RecordTaskRun writes;
 // the table itself comes from database.ServerSchema via newSchedulerTestDBs, so
@@ -414,10 +414,10 @@ func seedTaskHistoryRow(t *testing.T, db *sql.DB, id int64, taskName string, sta
 	t.Helper()
 
 	if _, err := db.Exec(`
-		INSERT INTO server_scheduler_history (id, task_name, start_time, end_time, duration_ms, status, error)
+		INSERT INTO scheduler_history (id, task_name, start_time, end_time, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, 1000, 'success', '')
 	`, id, taskName, startTime, endTime); err != nil {
-		t.Fatalf("seed server_scheduler_history id=%d: %v", id, err)
+		t.Fatalf("seed scheduler_history id=%d: %v", id, err)
 	}
 }
 
@@ -444,7 +444,7 @@ func TestRecordTaskRun_WritesCanonicalTimestamps(t *testing.T) {
 	// time.Time on the way out, so the assertion sees the bytes actually stored.
 	var storedStart, storedEnd string
 	if err := serverDB.QueryRow(
-		"SELECT CAST(start_time AS TEXT), CAST(end_time AS TEXT) FROM server_scheduler_history WHERE task_name = ?", "canonical-job",
+		"SELECT CAST(start_time AS TEXT), CAST(end_time AS TEXT) FROM scheduler_history WHERE task_name = ?", "canonical-job",
 	).Scan(&storedStart, &storedEnd); err != nil {
 		t.Fatalf("query stored timestamps: %v", err)
 	}

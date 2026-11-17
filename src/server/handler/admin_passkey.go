@@ -24,7 +24,7 @@ import (
 )
 
 // logAdminPasskeyAudit writes an admin.passkey_added or admin.passkey_removed
-// event to server_audit_log (server.db). Errors are non-fatal — the passkey
+// event to audit_log (server.db). Errors are non-fatal — the passkey
 // operation has already completed; logging failure must not roll it back.
 func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
 	details, _ := json.Marshal(map[string]string{"name": passkeyName})
@@ -34,10 +34,10 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 	// application-side discipline reaches: on PostgreSQL and MySQL it renders
 	// in the server's own zone and type, which would leave this one column
 	// holding two layouts that no ORDER BY or range comparison can reconcile.
-	// The other two writers of server_audit_log (src/server/middleware/audit.go
+	// The other two writers of audit_log (src/server/middleware/audit.go
 	// and src/scheduler/scheduler.go) already bind canonical UTC text.
 	_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_audit_log
+		INSERT INTO audit_log
 			(ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'admin', ?, ?, 'admin_passkey', ?, ?, ?, ?, 'success')
 	`,
@@ -66,11 +66,24 @@ const adminSessionCookieName = "admin_session"
 // AdminPasskeyHandler hosts the chi REST routes for admin-side WebAuthn
 // passkey management (registration, listing, and deletion).
 type AdminPasskeyHandler struct {
+	// DB is the users.db handle holding admins and passkeys (AI.md PART 12)
 	DB *sql.DB
+	// AuditDB is the server.db handle holding audit_log; nil falls back to DB
+	AuditDB *sql.DB
 }
 
-func NewAdminPasskeyHandler(db *sql.DB) *AdminPasskeyHandler {
-	return &AdminPasskeyHandler{DB: db}
+// NewAdminPasskeyHandler builds the handler around the users.db handle and
+// takes the audit_log handle from the process-global server database.
+func NewAdminPasskeyHandler(usersDB *sql.DB) *AdminPasskeyHandler {
+	return &AdminPasskeyHandler{DB: usersDB, AuditDB: database.GetServerDB()}
+}
+
+// auditDB returns the database audit rows are written to.
+func (h *AdminPasskeyHandler) auditDB() *sql.DB {
+	if h.AuditDB != nil {
+		return h.AuditDB
+	}
+	return h.DB
 }
 
 func (h *AdminPasskeyHandler) loadAdminFromContext(r *http.Request) (*models.Admin, bool) {
@@ -181,7 +194,7 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 		}
 
 		// Audit: admin.passkey_added per AI.md PART 11 shape.
-		logAdminPasskeyAudit(h.DB, "admin.passkey_added", admin.ID, result.Passkey.ID,
+		logAdminPasskeyAudit(h.auditDB(), "admin.passkey_added", admin.ID, result.Passkey.ID,
 			result.Passkey.Name, util.TrustedGetClientIP(r), r.UserAgent())
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -334,7 +347,7 @@ func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Reque
 	// Fetch the passkey name before deletion so the audit log entry is meaningful.
 	var passkeyName string
 	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
-		"SELECT name FROM server_admin_passkeys WHERE id = ? AND admin_id = ?",
+		"SELECT name FROM passkeys WHERE id = ? AND user_type = 'admin' AND user_id = ?",
 		passkeyID, admin.ID,
 	).Scan(&passkeyName)
 
@@ -348,7 +361,7 @@ func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Audit: admin.passkey_removed per AI.md PART 11 shape.
-	logAdminPasskeyAudit(h.DB, "admin.passkey_removed", admin.ID, passkeyID,
+	logAdminPasskeyAudit(h.auditDB(), "admin.passkey_removed", admin.ID, passkeyID,
 		passkeyName, util.TrustedGetClientIP(r), r.UserAgent())
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{

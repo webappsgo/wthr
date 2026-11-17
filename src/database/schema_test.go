@@ -93,15 +93,15 @@ func insertUserSession(t *testing.T, db *sql.DB, tokenHash, expiresAt string) {
 }
 
 // insertAdminSession seeds one row in the server database's
-// server_admin_sessions table with a caller-supplied raw expires_at text.
+// admin_sessions table with a caller-supplied raw expires_at text.
 func insertAdminSession(t *testing.T, db *sql.DB, id, expiresAt string) {
 	t.Helper()
 	_, err := db.Exec(
-		"INSERT INTO server_admin_sessions (id, token_hash, admin_id, expires_at) VALUES (?, ?, ?, ?)",
+		"INSERT INTO admin_sessions (id, token_hash, admin_id, expires_at) VALUES (?, ?, ?, ?)",
 		id, "schema-test-hash-"+id, 1, expiresAt,
 	)
 	if err != nil {
-		t.Fatalf("seed server_admin_sessions row %q: %v", id, err)
+		t.Fatalf("seed admin_sessions row %q: %v", id, err)
 	}
 }
 
@@ -112,7 +112,7 @@ func insertAdminSession(t *testing.T, db *sql.DB, id, expiresAt string) {
 // never matches the canonical stored layout.
 //
 // The count now sums unexpired rows from the two tables the live schema really
-// creates - user_sessions (users DB) and server_admin_sessions (server DB) -
+// creates - user_sessions (users DB) and admin_sessions (server DB) -
 // and decides expiry in Go.
 func TestDB_GetSessionCount(t *testing.T) {
 	now := time.Now()
@@ -218,9 +218,9 @@ func TestDB_GetSessionCount(t *testing.T) {
 	// Documents the exact tables the count is required to read, so a future
 	// schema rename cannot silently reintroduce the original bug.
 	t.Run("reads only tables the live schema creates", func(t *testing.T) {
-		for _, table := range []string{"user_sessions", "server_admin_sessions"} {
+		for _, table := range []string{"user_sessions", "admin_sessions"} {
 			schema := UsersSchema
-			if table == "server_admin_sessions" {
+			if table == "admin_sessions" {
 				schema = ServerSchema
 			}
 			needle := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (", table)
@@ -252,7 +252,7 @@ func TestDB_IsFirstRun(t *testing.T) {
 	t.Run("true when no admins exist", func(t *testing.T) {
 		resetGlobalDualDB(t)
 		db := newSchemaDB(t, "isfirstrun_true")
-		SetGlobalDualDB(&DualDB{Server: db.DB})
+		SetGlobalDualDB(&DualDB{Server: db.DB, Users: newUsersSchemaDB(t, "isfirstrun_true_users")})
 
 		first, err := db.IsFirstRun()
 		if err != nil {
@@ -266,10 +266,11 @@ func TestDB_IsFirstRun(t *testing.T) {
 	t.Run("false once an admin exists", func(t *testing.T) {
 		resetGlobalDualDB(t)
 		db := newSchemaDB(t, "isfirstrun_false")
-		if _, err := db.Exec("INSERT INTO server_admin_credentials (username, email, password_hash) VALUES ('admin', 'admin@example.com', 'hash')"); err != nil {
+		usersDB := newUsersSchemaDB(t, "isfirstrun_false_users")
+		if _, err := usersDB.Exec("INSERT INTO admins (username, email, password_hash) VALUES ('admin', 'admin@example.com', 'hash')"); err != nil {
 			t.Fatalf("seed admin: %v", err)
 		}
-		SetGlobalDualDB(&DualDB{Server: db.DB})
+		SetGlobalDualDB(&DualDB{Server: db.DB, Users: usersDB})
 
 		first, err := db.IsFirstRun()
 		if err != nil {

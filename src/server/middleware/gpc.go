@@ -37,7 +37,7 @@ func GlobalPrivacyControl(db *sql.DB) func(http.Handler) http.Handler {
 
 			now := time.Now()
 			_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-				INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
+				INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), dbtime.FormatSQLTimestamp(now), "anonymous", "", "compliance.gpc_honored", "request", r.URL.Path, util.TrustedGetClientIP(r), r.UserAgent(), "web", "success")
 			if err != nil {

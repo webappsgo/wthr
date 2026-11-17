@@ -146,7 +146,7 @@ func TestTokenAuthMiddleware_RejectsUnknownTokenPrefix(t *testing.T) {
 }
 
 // TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken verifies an adm_
-// token with no matching row in server_admin_credentials'
+// token with no matching row in admins'
 // api_token/api_token_hash is rejected with 401 rather than panicking or
 // succeeding.
 func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
@@ -166,7 +166,7 @@ func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
 
 func TestTokenAuthMiddleware_AdminTokenSetsAdminIDContext(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
-	adminModel := &model.AdminModel{DB: serverDB}
+	adminModel := &model.AdminModel{DB: usersDB}
 	admin, err := adminModel.CreateAdminAccount("contextadmin", "contextadmin@example.com", "StrongPassword123!", true)
 	if err != nil {
 		t.Fatalf("CreateAdminAccount: %v", err)
@@ -230,7 +230,7 @@ func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
 // schema that has since been deleted and never in database.UsersSchema - the
 // schema actually applied to users.db - so every usr_ token failed with
 // "no such table: tokens", surfaced as a generic 401. Both sides now agree on the canonical
-// user_tokens table, so this asserts the positive case: seed usersDB with
+// tokens table, so this asserts the positive case: seed usersDB with
 // the real UsersSchema, mint a token through the model, and require the
 // middleware to accept it and populate the auth context.
 func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
@@ -239,14 +239,14 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 	// The canonical token table must exist in the applied schema - a missing
 	// table here is the exact regression this test guards against.
 	var count int
-	if err := usersDB.QueryRow("SELECT COUNT(*) FROM user_tokens").Scan(&count); err != nil {
-		t.Fatalf("SELECT FROM user_tokens failed against the real UsersSchema: %v", err)
+	if err := usersDB.QueryRow("SELECT COUNT(*) FROM tokens").Scan(&count); err != nil {
+		t.Fatalf("SELECT FROM tokens failed against the real UsersSchema: %v", err)
 	}
 
 	// The middleware resolves the token owner through UserModel.GetByID, so
 	// the token needs a real owning account row.
 	if _, err := usersDB.Exec(`
-		INSERT INTO user_accounts (id, username, email, password_hash)
+		INSERT INTO users (id, username, email, password_hash)
 		VALUES (42, 'tokenuser', 'tokenuser@example.com', 'argon2id$placeholder')
 	`); err != nil {
 		t.Fatalf("insert user account: %v", err)

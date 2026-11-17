@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "設定の更新に失敗しました",
   "errors.user.settings.invalid_session_id": "無効なセッション ID です",
   "errors.user.settings.maximum_5_tokens_per_user": "1 ユーザーあたり最大 5 個のトークン",
+  "errors.user.settings.token_name_exists": "この名前のトークンは既に存在します",
   "errors.user.settings.session_does_not_belong_to_you": "このセッションはあなたのものではありません",
   "errors.user.settings.session_id_required": "セッション ID が必要です",
   "errors.user.settings.session_not_found": "セッションが見つかりません",

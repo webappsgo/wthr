@@ -354,14 +354,14 @@ func TestBuildGraphQLAdminSessionContext_ExpiryIsJudgedByInstantNotText(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			ddb := newGraphQLTimestampTestDB(t)
 
-			admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("sessionadmin", "sessionadmin@example.com", "password123", true)
+			admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("sessionadmin", "sessionadmin@example.com", "password123", true)
 			if err != nil {
 				t.Fatalf("create admin: %v", err)
 			}
 
 			const token = "graphql-zone-safety-session"
 			if _, err := ddb.Server.Exec(`
-				INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+				INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?)
 			`, "00000000-0000-4000-8000-000000000004", models.HashAdminSessionToken(token), admin.ID, "127.0.0.1", "test-agent", tc.expiresAt, now.UTC().Format("2006-01-02 15:04:05")); err != nil {
 				t.Fatalf("seed admin session: %v", err)

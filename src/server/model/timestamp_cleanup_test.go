@@ -352,7 +352,6 @@ func survivingNotificationIDs(t *testing.T, db *sql.DB, table string) map[string
 
 func TestNotificationCleanupExpiredMixedLayouts(t *testing.T) {
 	usersDB := newModelUsersDB(t)
-	serverDB := newModelServerDB(t)
 	userID := insertTestUser(t, usersDB, "notify-user", "notify@example.com")
 
 	now := time.Now().UTC()
@@ -391,12 +390,12 @@ func TestNotificationCleanupExpiredMixedLayouts(t *testing.T) {
 		},
 		{
 			name:        "admin notifications",
-			table:       "server_admin_notifications",
+			table:       "admin_notifications",
 			ownerColumn: "admin_id",
 			ownerID:     1,
-			db:          serverDB,
+			db:          usersDB,
 			cleanup: func() (int64, error) {
-				return (&AdminNotificationModel{DB: serverDB}).CleanupExpired()
+				return (&AdminNotificationModel{DB: usersDB}).CleanupExpired()
 			},
 		},
 	}
@@ -436,10 +435,9 @@ func TestNotificationCleanupExpiredMixedLayouts(t *testing.T) {
 
 func TestNotificationPreferencesRoundTripUpdatedAt(t *testing.T) {
 	usersDB := newModelUsersDB(t)
-	serverDB := newModelServerDB(t)
 	userID := insertTestUser(t, usersDB, "prefs-user", "prefs@example.com")
 
-	prefsModel := &NotificationPreferencesModel{UserDB: usersDB, ServerDB: serverDB}
+	prefsModel := &NotificationPreferencesModel{UserDB: usersDB}
 
 	before := time.Now().UTC().Add(-time.Second)
 	if err := prefsModel.UpdateUserPreferences(int(userID), &NotificationPreferences{

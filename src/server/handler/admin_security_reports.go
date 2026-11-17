@@ -192,14 +192,14 @@ func keyserverList() []string {
 
 // verifyAdminPassword re-prompts the signed-in admin's password for a sensitive operation.
 func verifyAdminPassword(r *http.Request, password string) bool {
-	db := database.GetServerDB()
+	db := database.GetUsersDB()
 	username := AdminUsername(r)
 	if db == nil || username == "" || password == "" {
 		return false
 	}
 	var hash string
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
-		"SELECT password_hash FROM server_admin_credentials WHERE username = ?", username).Scan(&hash)
+		"SELECT password_hash FROM admins WHERE username = ?", username).Scan(&hash)
 	if err != nil {
 		return false
 	}

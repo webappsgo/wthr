@@ -35,9 +35,9 @@ type AdminPasskeyModel struct {
 	DB *sql.DB
 }
 
-// getDB returns the server.db handle this model was constructed with. The only
-// table AdminPasskeyModel touches (server_admin_passkeys) is declared in
-// database.ServerSchema, so the injected handle is the correct database for
+// getDB returns the users.db handle this model was constructed with. The only
+// table AdminPasskeyModel touches (passkeys) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
 // every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
 // before the global dual DB is wired) the process-global server handle is used
@@ -48,66 +48,7 @@ func (m *AdminPasskeyModel) getDB() *sql.DB {
 		return m.DB
 	}
 
-	return database.GetServerDB()
-}
-
-func (m *AdminPasskeyModel) ensurePasskeySchema() error {
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(server_admin_passkeys)`)
-	if err != nil {
-		return fmt.Errorf("failed to inspect server_admin_passkeys schema: %w", err)
-	}
-	defer rows.Close()
-
-	hasTransport := false
-	hasAttestationType := false
-	hasBackupEligible := false
-	hasBackupState := false
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var columnType string
-		var notNull int
-		var defaultValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan server_admin_passkeys schema: %w", err)
-		}
-
-		switch name {
-		case "transport":
-			hasTransport = true
-		case "attestation_type":
-			hasAttestationType = true
-		case "backup_eligible":
-			hasBackupEligible = true
-		case "backup_state":
-			hasBackupState = true
-		}
-	}
-
-	if !hasTransport {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
-			return fmt.Errorf("failed to add server_admin_passkeys.transport: %w", err)
-		}
-	}
-	if !hasAttestationType {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("failed to add server_admin_passkeys.attestation_type: %w", err)
-		}
-	}
-	if !hasBackupEligible {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("failed to add server_admin_passkeys.backup_eligible: %w", err)
-		}
-	}
-	if !hasBackupState {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("failed to add server_admin_passkeys.backup_state: %w", err)
-		}
-	}
-
-	return nil
+	return database.GetUsersDB()
 }
 
 func (m *AdminPasskeyModel) scanPasskey(rowScanner interface {
@@ -159,16 +100,12 @@ func (m *AdminPasskeyModel) scanPasskey(rowScanner interface {
 }
 
 func (m *AdminPasskeyModel) ListByAdminID(adminID int64) ([]*AdminPasskey, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return nil, err
-	}
-
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, admin_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
+		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
-		FROM server_admin_passkeys
-		WHERE admin_id = ?
+		FROM passkeys
+		WHERE user_type = 'admin' AND user_id = ?
 		ORDER BY created_at ASC, id ASC
 	`, adminID)
 	if err != nil {
@@ -189,12 +126,8 @@ func (m *AdminPasskeyModel) ListByAdminID(adminID int64) ([]*AdminPasskey, error
 }
 
 func (m *AdminPasskeyModel) CountByAdminID(adminID int64) (int, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return 0, err
-	}
-
 	var count int
-	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM server_admin_passkeys WHERE admin_id = ?`, adminID).Scan(&count); err != nil {
+	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM passkeys WHERE user_type = 'admin' AND user_id = ?`, adminID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count admin passkeys: %w", err)
 	}
 
@@ -254,10 +187,6 @@ func (m *AdminPasskeyModel) ListCredentialsByAdminID(adminID int64) ([]webauthn.
 }
 
 func (m *AdminPasskeyModel) CreateAdminPasskey(adminID int64, name string, credential *webauthn.Credential) (*AdminPasskey, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return nil, err
-	}
-
 	transportJSON, err := marshalPasskeyTransport(credential.Transport)
 	if err != nil {
 		return nil, err
@@ -268,11 +197,11 @@ func (m *AdminPasskeyModel) CreateAdminPasskey(adminID int64, name string, crede
 	// server-zone timestamp on another. The bind parameter sits in the position
 	// CURRENT_TIMESTAMP occupied, so it is the last value in the argument list.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_passkeys (
-			admin_id, credential_id, public_key, aaguid, sign_count, name, transport,
+		INSERT INTO passkeys (
+			user_type, user_id, credential_id, public_key, aaguid, sign_count, name, transport,
 			attestation_type, backup_eligible, backup_state, created_at, last_used_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+		VALUES ('admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
 	`,
 		adminID,
 		encodePasskeyBytes(credential.ID),
@@ -296,10 +225,10 @@ func (m *AdminPasskeyModel) CreateAdminPasskey(adminID int64, name string, crede
 	}
 
 	row := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, admin_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
+		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
-		FROM server_admin_passkeys
+		FROM passkeys
 		WHERE id = ?
 	`, id)
 
@@ -312,10 +241,6 @@ func (m *AdminPasskeyModel) CreateAdminPasskey(adminID int64, name string, crede
 }
 
 func (m *AdminPasskeyModel) UpdateCredential(adminID int64, credential *webauthn.Credential) error {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return err
-	}
-
 	transportJSON, err := marshalPasskeyTransport(credential.Transport)
 	if err != nil {
 		return err
@@ -325,10 +250,10 @@ func (m *AdminPasskeyModel) UpdateCredential(adminID int64, credential *webauthn
 	// held, so its value is passed second - immediately after sign_count and
 	// before transport - to keep the argument order matching the SET list.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE server_admin_passkeys
+		UPDATE passkeys
 		SET sign_count = ?, last_used_at = ?, transport = ?, attestation_type = ?,
 		    backup_eligible = ?, backup_state = ?, aaguid = ?
-		WHERE admin_id = ? AND credential_id = ?
+		WHERE user_type = 'admin' AND user_id = ? AND credential_id = ?
 	`,
 		credential.Authenticator.SignCount,
 		sqlTimestamp(time.Now()),
@@ -356,11 +281,7 @@ func (m *AdminPasskeyModel) UpdateCredential(adminID int64, credential *webauthn
 }
 
 func (m *AdminPasskeyModel) DeleteByID(adminID int64, passkeyID int64) error {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return err
-	}
-
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM server_admin_passkeys WHERE id = ? AND admin_id = ?`, passkeyID, adminID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM passkeys WHERE id = ? AND user_type = 'admin' AND user_id = ?`, passkeyID, adminID)
 	if err != nil {
 		return fmt.Errorf("failed to delete admin passkey: %w", err)
 	}

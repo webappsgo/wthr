@@ -756,15 +756,15 @@ func (r *queryResolver) UserTokens(ctx context.Context) ([]*UserToken, error) {
 	}
 
 	// Newest-first ordering is applied in Go, not by an SQL "ORDER BY created_at DESC".
-	// user_tokens.created_at holds two text encodings - the canonical UTC form every current writer binds, and the
+	// tokens.created_at holds two text encodings - the canonical UTC form every current writer binds, and the
 	// driver's local-zone time.Time.String() form left by earlier builds - and SQL compares those as text, by wall
 	// clock and leading character, so a legacy row interleaves wrongly with a current one. The scan stays bounded:
 	// it is filtered to a single user by idx_tokens_user, so resolving each value to a real instant is cheap.
 	// "ORDER BY id DESC" below is only a tie-break between tokens created in the same second.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect, `
-		SELECT id, name, token_prefix, scopes, created_at, expires_at, last_used_at
-		FROM user_tokens
-		WHERE user_id = ?
+		SELECT id, name, token_prefix, scope, created_at, expires_at, last_used_at
+		FROM tokens
+		WHERE owner_type = 'user' AND owner_id = ?
 		ORDER BY id DESC
 	`, userID)
 	if err != nil {
@@ -1000,12 +1000,12 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 	}
 
 	// Newest-first ordering is applied in Go, not by an SQL "ORDER BY created_at DESC".
-	// user_accounts.created_at holds both the canonical UTC text current writers bind and the driver's local-zone
+	// users.created_at holds both the canonical UTC text current writers bind and the driver's local-zone
 	// time.Time.String() form left by earlier builds; SQL compares those as text, so a legacy account can be shown
 	// as newer or older than it is. This query has no LIMIT and already reads every account row, so resolving each
 	// value to an instant and sorting in Go adds no extra scan; "ORDER BY id DESC" is only a same-second tie-break.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
-		"SELECT id, email, username, role, email_verified, two_factor_enabled, created_at, updated_at FROM user_accounts ORDER BY id DESC",
+		"SELECT id, email, username, role, email_verified, two_factor_enabled, created_at, updated_at FROM users ORDER BY id DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
@@ -1046,18 +1046,18 @@ func (r *queryResolver) AdminServerAdmins(ctx context.Context) (*ServerAdminOver
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	adminModel := &models.AdminModel{DB: r.ServerDB}
+	adminModel := &models.AdminModel{DB: r.adminAccountsDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		return nil, fmt.Errorf("failed to count admins: %w", err)
 	}
 
-	currentAdmin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	currentAdmin, err := loadGraphQLCurrentAdmin(ctx, r.adminAccountsDB())
 	if err != nil {
 		return nil, err
 	}
 
-	onlineAdmins, err := loadGraphQLOnlineAdminUsernames(ctx, r.ServerDB)
+	onlineAdmins, err := loadGraphQLOnlineAdminUsernames(ctx, r.ServerDB, r.adminAccountsDB())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load online admins: %w", err)
 	}
@@ -1082,7 +1082,7 @@ func (r *queryResolver) AdminServerAdmin(ctx context.Context, id string) (*Serve
 		return nil, fmt.Errorf("invalid admin id")
 	}
 
-	currentAdmin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	currentAdmin, err := loadGraphQLCurrentAdmin(ctx, r.adminAccountsDB())
 	if err != nil {
 		return nil, err
 	}
@@ -1193,7 +1193,7 @@ func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, er
 		return nil, fmt.Errorf("unauthorized: admin session required")
 	}
 
-	adminModel := &models.AdminModel{DB: r.ServerDB}
+	adminModel := &models.AdminModel{DB: r.adminAccountsDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin token metadata: %w", err)
@@ -1239,7 +1239,7 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 	}
 
 	// Newest-first ordering and the limit/offset page are applied in Go, not by "ORDER BY timestamp DESC LIMIT ?
-	// OFFSET ?". server_audit_log.timestamp holds both the canonical UTC text current writers bind and the
+	// OFFSET ?". audit_log.timestamp holds both the canonical UTC text current writers bind and the
 	// driver's local-zone time.Time.String() form left by earlier builds, and SQL orders those two encodings as
 	// text - by wall clock and leading character - so the page boundary fell in the wrong place and legacy entries
 	// were served on the wrong page or dropped off the end entirely.
@@ -1251,7 +1251,7 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 	// rows returned are the ones the original query intended.
 	candidateLimit := offsetVal + limitVal + graphQLAuditLogCandidateOverscan
 	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT id, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, timestamp FROM server_audit_log ORDER BY id DESC LIMIT ?",
+		"SELECT id, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, timestamp FROM audit_log ORDER BY id DESC LIMIT ?",
 		candidateLimit,
 	)
 	if err != nil {
@@ -1349,7 +1349,7 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 	activeCutoff := time.Now().UTC().AddDate(0, 0, -30)
 	activeRows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
 		SELECT last_login_at
-		FROM user_accounts
+		FROM users
 		WHERE last_login_at IS NOT NULL
 	`)
 	if err != nil {
@@ -1425,7 +1425,7 @@ func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error
 	}
 
 	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM server_scheduler_state ORDER BY task_name",
+		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM scheduler_tasks ORDER BY task_name",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
@@ -1610,12 +1610,12 @@ func (r *queryResolver) AdminPasskeys(ctx context.Context) ([]*AdminPasskey, err
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	admin, err := loadGraphQLCurrentAdmin(ctx, r.adminAccountsDB())
 	if err != nil {
 		return nil, err
 	}
 
-	summaries, err := handler.ListAdminPasskeys(r.ServerDB, admin.ID)
+	summaries, err := handler.ListAdminPasskeys(r.adminAccountsDB(), admin.ID)
 	if err != nil {
 		return nil, err
 	}

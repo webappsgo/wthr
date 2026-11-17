@@ -71,25 +71,25 @@ func setupWeatherNotificationsTestDB(t *testing.T) (usersDB, serverDB *sql.DB) {
 	return usersDB, serverDB
 }
 
-// seedWeatherUser inserts the owning user_accounts row for a user id.
+// seedWeatherUser inserts the owning users row for a user id.
 // user_saved_locations, user_weather_alert_history,
 // user_notification_channel_preferences and notification_subscriptions all
-// declare FOREIGN KEY (user_id) REFERENCES user_accounts(id) in the real
+// declare FOREIGN KEY (user_id) REFERENCES users(id) in the real
 // UsersSchema, and username/email/password_hash are NOT NULL, so the parent
 // row must exist and be fully populated before any dependent insert.
 // OR IGNORE keeps it safe to call once per dependent row.
 func seedWeatherUser(t *testing.T, usersDB *sql.DB, id int, role string) {
 	t.Helper()
 	if _, err := usersDB.Exec(
-		`INSERT OR IGNORE INTO user_accounts (id, username, email, password_hash, role) VALUES (?, ?, ?, 'x', ?)`,
+		`INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?, ?, ?, 'x', ?)`,
 		id, fmt.Sprintf("user%d", id), fmt.Sprintf("user%d@example.com", id), role,
 	); err != nil {
-		t.Fatalf("seed user_accounts(%d): %v", id, err)
+		t.Fatalf("seed users(%d): %v", id, err)
 	}
 }
 
 // seedWeatherLocation inserts a user_saved_locations row, seeding its owning
-// user_accounts row first. user_weather_alert_history references
+// users row first. user_weather_alert_history references
 // user_saved_locations(id), so dedup fixtures need a real location row.
 func seedWeatherLocation(t *testing.T, usersDB *sql.DB, locationID, userID int, alertsEnabled int) {
 	t.Helper()

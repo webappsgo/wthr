@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/config"
 	paths "github.com/webappsgo/wthr/src/path"
 	utils "github.com/webappsgo/wthr/src/util"
@@ -134,12 +135,12 @@ func newVerifiedSetupRequest(t *testing.T, body map[string]interface{}) (*http.R
 }
 
 // TestCreateAdmin covers the Primary Admin creation success path (session +
-// API token cookies issued, row present in server_admin_credentials), the
+// API token cookies issued, row present in admins), the
 // unverified-setup-token 401 guard, and the too-short-password validation
 // error.
 func TestCreateAdmin(t *testing.T) {
 	t.Run("success creates the primary admin and issues cookies", func(t *testing.T) {
-		h, serverDB := newSetupTestHandler(t)
+		h, _ := newSetupTestHandler(t)
 
 		r, w := newVerifiedSetupRequest(t, map[string]interface{}{
 			"username":         "administrator",
@@ -153,7 +154,7 @@ func TestCreateAdmin(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?`, "administrator").Scan(&count); err != nil {
+		if err := database.GetUsersDB().QueryRow(`SELECT COUNT(*) FROM admins WHERE username = ?`, "administrator").Scan(&count); err != nil {
 			t.Fatalf("query admin count: %v", err)
 		}
 		if count != 1 {
@@ -190,7 +191,7 @@ func TestCreateAdmin(t *testing.T) {
 	})
 
 	t.Run("too-short password is rejected with 400 before touching the DB", func(t *testing.T) {
-		h, serverDB := newSetupTestHandler(t)
+		h, _ := newSetupTestHandler(t)
 		r, w := newVerifiedSetupRequest(t, map[string]interface{}{
 			"username":         "administrator",
 			"email":            "admin@example.com",
@@ -203,7 +204,7 @@ func TestCreateAdmin(t *testing.T) {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM server_admin_credentials`).Scan(&count); err != nil {
+		if err := database.GetUsersDB().QueryRow(`SELECT COUNT(*) FROM admins`).Scan(&count); err != nil {
 			t.Fatalf("query admin count: %v", err)
 		}
 		if count != 0 {
@@ -238,8 +239,8 @@ func TestGetSetupStatus(t *testing.T) {
 
 	t.Run("setup marked completed reports completed", func(t *testing.T) {
 		h, serverDB := newSetupTestHandler(t)
-		if _, err := serverDB.Exec(`
-			INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+		if _, err := database.GetUsersDB().Exec(`
+			INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 			VALUES ('administrator', 'admin@example.com', 'hash', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`); err != nil {
 			t.Fatalf("seed admin: %v", err)
@@ -267,8 +268,8 @@ func TestGetSetupStatus(t *testing.T) {
 	})
 
 	t.Run("DB failure returns 500", func(t *testing.T) {
-		h, serverDB := newSetupTestHandler(t)
-		if _, err := serverDB.Exec(`DROP TABLE server_admin_credentials`); err != nil {
+		h, _ := newSetupTestHandler(t)
+		if _, err := database.GetUsersDB().Exec(`DROP TABLE admins`); err != nil {
 			t.Fatalf("drop table: %v", err)
 		}
 
@@ -332,7 +333,7 @@ func TestSetupStatusHandler_Wizard(t *testing.T) {
 // validation-error 400 (weak password), and the already-completed 403.
 func TestSetupWizardHandler(t *testing.T) {
 	t.Run("valid request creates the first admin", func(t *testing.T) {
-		serverDB := newSetupWizardTestDBs(t)
+		newSetupWizardTestDBs(t)
 		writeRealSetupToken(t, "wizard-setup-token")
 
 		reqBody, _ := json.Marshal(SetupWizardRequest{
@@ -350,7 +351,7 @@ func TestSetupWizardHandler(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?`, "administrator").Scan(&count); err != nil {
+		if err := database.GetUsersDB().QueryRow(`SELECT COUNT(*) FROM admins WHERE username = ?`, "administrator").Scan(&count); err != nil {
 			t.Fatalf("query admin count: %v", err)
 		}
 		if count != 1 {
@@ -399,9 +400,9 @@ func TestSetupWizardHandler(t *testing.T) {
 	})
 
 	t.Run("setup already completed is rejected with 403", func(t *testing.T) {
-		serverDB := newSetupWizardTestDBs(t)
-		if _, err := serverDB.Exec(`
-			INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+		newSetupWizardTestDBs(t)
+		if _, err := database.GetUsersDB().Exec(`
+			INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 			VALUES ('existing', 'existing@example.com', 'hash', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`); err != nil {
 			t.Fatalf("seed existing admin: %v", err)
@@ -530,9 +531,9 @@ func TestSetupRequiredMiddleware(t *testing.T) {
 	})
 
 	t.Run("once an admin exists, requests pass through", func(t *testing.T) {
-		serverDB := newSetupWizardTestDBs(t)
-		if _, err := serverDB.Exec(`
-			INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+		newSetupWizardTestDBs(t)
+		if _, err := database.GetUsersDB().Exec(`
+			INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 			VALUES ('administrator', 'admin@example.com', 'hash', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`); err != nil {
 			t.Fatalf("seed admin: %v", err)

@@ -181,7 +181,7 @@ func (s *Scheduler) AddTask(name string, schedule string, fn func() error) error
 	return nil
 }
 
-// ensureTaskStateRow creates the task's server_scheduler_state row if it does
+// ensureTaskStateRow creates the task's scheduler_tasks row if it does
 // not exist yet, so every later state write has a target. Existing rows keep
 // their counters and only have their schedule/next_run refreshed.
 func (s *Scheduler) ensureTaskStateRow(task *Task) {
@@ -195,7 +195,7 @@ func (s *Scheduler) ensureTaskStateRow(task *Task) {
 	}
 
 	if _, err := s.db.Exec(
-		`INSERT OR IGNORE INTO server_scheduler_state (task_id, task_name, schedule, next_run)
+		`INSERT OR IGNORE INTO scheduler_tasks (task_id, task_name, schedule, next_run)
 		 VALUES (?, ?, ?, ?)`,
 		task.Name, task.Name, task.Schedule, nextRun,
 	); err != nil {
@@ -204,7 +204,7 @@ func (s *Scheduler) ensureTaskStateRow(task *Task) {
 	}
 
 	if _, err := s.db.Exec(
-		"UPDATE server_scheduler_state SET task_name = ?, schedule = ?, next_run = ? WHERE task_id = ?",
+		"UPDATE scheduler_tasks SET task_name = ?, schedule = ?, next_run = ? WHERE task_id = ?",
 		task.Name, task.Schedule, nextRun, task.Name,
 	); err != nil {
 		log.Printf("WARN: Failed to refresh scheduler state row for task '%s': %v", task.Name, err)
@@ -434,7 +434,7 @@ func (s *Scheduler) releaseNodeLocks() {
 	}
 
 	if _, err := s.db.Exec(
-		"UPDATE server_scheduler_state SET locked_by = NULL, locked_at = NULL WHERE locked_by = ?",
+		"UPDATE scheduler_tasks SET locked_by = NULL, locked_at = NULL WHERE locked_by = ?",
 		s.nodeID,
 	); err != nil {
 		log.Printf("WARN: Failed to release scheduler locks for node %s: %v", s.nodeID, err)
@@ -451,7 +451,7 @@ func (s *Scheduler) markTasksInterrupted(names []string) {
 
 	for _, name := range names {
 		if _, err := s.db.Exec(
-			"UPDATE server_scheduler_state SET last_status = ?, last_error = ?, fail_count = fail_count + 1 WHERE task_id = ?",
+			"UPDATE scheduler_tasks SET last_status = ?, last_error = ?, fail_count = fail_count + 1 WHERE task_id = ?",
 			"interrupted", "interrupted by server shutdown", name,
 		); err != nil {
 			log.Printf("WARN: Failed to mark task '%s' interrupted: %v", name, err)
@@ -466,7 +466,7 @@ func isGlobalTask(taskName string) bool {
 
 // acquireTaskLock attempts to acquire a distributed lock for a task.
 // AI.md PART 19: Cluster-aware task locking.
-// schedule is the task's own cron expression: server_scheduler_state.schedule
+// schedule is the task's own cron expression: scheduler_tasks.schedule
 // is NOT NULL, and this insert is the row's first writer on a fresh database,
 // so the real expression has to travel with the lock request rather than be
 // backfilled later by whoever happens to update the row next.
@@ -490,7 +490,7 @@ func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 	var lockedBy sql.NullString
 	var lockedAt interface{}
 	err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT locked_by, locked_at FROM server_scheduler_state WHERE task_id = ?",
+		"SELECT locked_by, locked_at FROM scheduler_tasks WHERE task_id = ?",
 		taskName,
 	).Scan(&lockedBy, &lockedAt)
 
@@ -499,7 +499,7 @@ func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 	// simply does not get the lock this tick.
 	if err == sql.ErrNoRows {
 		result, insertErr := database.ExecContext(ctx, db, database.TimeoutWrite, `
-			INSERT INTO server_scheduler_state (task_id, task_name, schedule, locked_by, locked_at, enabled)
+			INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 			VALUES (?, ?, ?, ?, ?, true)
 			ON CONFLICT(task_id) DO NOTHING
 		`, taskName, taskName, schedule, s.nodeID, nowText)
@@ -537,13 +537,13 @@ func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 	var result sql.Result
 	if lockedBy.Valid {
 		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
-			UPDATE server_scheduler_state
+			UPDATE scheduler_tasks
 			SET schedule = ?, locked_by = ?, locked_at = ?
 			WHERE task_id = ? AND locked_by = ?
 		`, schedule, s.nodeID, nowText, taskName, lockedBy.String)
 	} else {
 		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
-			UPDATE server_scheduler_state
+			UPDATE scheduler_tasks
 			SET schedule = ?, locked_by = ?, locked_at = ?
 			WHERE task_id = ? AND locked_by IS NULL
 		`, schedule, s.nodeID, nowText, taskName)
@@ -564,7 +564,7 @@ func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 	// the holder to tell the two apart.
 	var confirmed sql.NullString
 	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?",
+		"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?",
 		taskName,
 	).Scan(&confirmed); err != nil {
 		return false
@@ -580,7 +580,7 @@ func (s *Scheduler) releaseTaskLock(taskName string) {
 	}
 
 	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		UPDATE server_scheduler_state
+		UPDATE scheduler_tasks
 		SET locked_by = NULL, locked_at = NULL
 		WHERE task_id = ? AND locked_by = ?
 	`, taskName, s.nodeID)
@@ -698,7 +698,7 @@ func (s *Scheduler) applyRetryPolicy(task *Task, end time.Time, runErr error) {
 	}
 }
 
-// persistTaskState writes the outcome of a run into server_scheduler_state so
+// persistTaskState writes the outcome of a run into scheduler_tasks so
 // the admin panel, health endpoint, and a restarted process all see real
 // last_run/last_status/next_run/run_count/fail_count values.
 func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
@@ -725,7 +725,7 @@ func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
 	}
 
 	if _, err := s.db.Exec(
-		`UPDATE server_scheduler_state
+		`UPDATE scheduler_tasks
 		 SET last_run = ?, last_status = ?, last_error = ?, next_run = ?,
 		     run_count = run_count + 1, fail_count = fail_count + ?
 		 WHERE task_id = ?`,
@@ -751,7 +751,7 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 		details = fmt.Sprintf("Failed: %v", err)
 	}
 
-	// server_audit_log has no user_id column: the actor is described by the
+	// audit_log has no user_id column: the actor is described by the
 	// actor_type/actor_id pair, and ulid is UNIQUE NOT NULL. This mirrors the
 	// canonical writer in src/server/middleware/audit.go, including its
 	// crypto/rand-seeded ULID, so both writers produce identical row shapes.
@@ -759,7 +759,7 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 	auditID := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
 	_, insertErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'scheduler', ?, ?, 'scheduler', ?, ?, 'system', 'scheduler', ?)
 	`, auditID, now.UTC().Format(sqlTimestampLayout), s.nodeID, taskName, taskName, details, status)
 
@@ -819,7 +819,7 @@ func CleanupOldAuditLogs() error {
 	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 	retentionDays := settingsModel.GetInt("scheduler.cleanup_audit_logs_days", 90)
 
-	// The retained window is measured against server_audit_log.timestamp (the
+	// The retained window is measured against audit_log.timestamp (the
 	// table has no created_at column). That column has two producers - SQLite's
 	// CURRENT_TIMESTAMP default and the explicit writes from this package and
 	// src/server/middleware/audit.go - so the age test runs in Go against a UTC
@@ -827,7 +827,7 @@ func CleanupOldAuditLogs() error {
 	// NULL or unparseable are left alone rather than deleted.
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_audit_log", "id", "timestamp", cutoff)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "audit_log", "id", "timestamp", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup audit logs: %w", err)
 	}
@@ -845,7 +845,7 @@ func CheckWeatherAlerts() error {
 	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT l.id, l.name, l.latitude, l.longitude, l.user_id
 		FROM user_saved_locations l
-		JOIN user_accounts u ON l.user_id = u.id
+		JOIN users u ON l.user_id = u.id
 		WHERE l.alerts_enabled = 1
 	`)
 	if err != nil {
@@ -1168,7 +1168,7 @@ func logBackupSkippedDiskFullAudit(db *sql.DB, reason string) {
 
 	now := time.Now()
 	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'scheduler', 'daily', 'backup.skipped_disk_full', 'backup', '', ?, 'system', 'scheduler', 'error')
 	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), string(details))
 
@@ -1195,7 +1195,7 @@ func logBackupDailyUpdatedAudit(db *sql.DB, dailyPath string) {
 
 	now := time.Now()
 	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'scheduler', 'daily', 'backup.daily_updated', 'backup', ?, ?, 'system', 'scheduler', 'success')
 	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), filepath.Base(dailyPath), string(details))
 
@@ -1232,7 +1232,7 @@ func logBackupRetentionAudit(db *sql.DB, actorType, actorID, backupPath string, 
 
 	now := time.Now()
 	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, ?, ?, 'backup.retention_cleanup', 'backup', ?, ?, 'system', 'scheduler', 'success')
 	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), actorType, actorID, filepath.Base(backupPath), string(details))
 
@@ -1293,7 +1293,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 
 // CleanupExpiredTokens removes expired API tokens
 // AI.md PART 19: token cleanup every 15 minutes
-// user_tokens (database.UsersSchema) is this project's only API-token table and
+// tokens (database.UsersSchema) is this project's only API-token table and
 // it lives in the users database, so the cleanup runs against
 // database.GetUsersDB(). The one-time admin setup token is a file at
 // {config_dir}/setup_token.txt (src/util/firstrun.go), not a database row, so
@@ -1305,7 +1305,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 func CleanupExpiredTokens() error {
 	now := time.Now().UTC()
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_tokens", "id", "expires_at", now)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "tokens", "id", "expires_at", now)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup expired API tokens: %w", err)
 	}
@@ -1500,7 +1500,7 @@ func CleanupRateLimitCounters() error {
 	// Reset hourly counters that are older than 1 hour
 	cutoff := time.Now().UTC().Add(-1 * time.Hour)
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_rate_limits", "id", "window_start", cutoff)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "rate_limits", "id", "window_start", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup rate limits: %w", err)
 	}

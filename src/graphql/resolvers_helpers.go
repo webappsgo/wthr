@@ -389,57 +389,67 @@ func loadGraphQLCurrentAdmin(ctx context.Context, db *sql.DB) (*models.Admin, er
 
 	return admin, nil
 }
-func loadGraphQLOnlineAdminUsernames(ctx context.Context, db *sql.DB) ([]string, error) {
-	// is_active stays in SQL - it is a plain integer predicate. The unexpired
-	// test does not: "sas.expires_at > CURRENT_TIMESTAMP" is a lexicographic
-	// TEXT comparison over a column holding two layouts (canonical UTC text and
-	// the local-zone time.Time.String() form older builds wrote), so it listed
-	// admins whose sessions had already expired and hid admins whose sessions
-	// were still live. Each row's expires_at is now parsed in Go instead.
-	//
-	// SELECT DISTINCT is gone with it: the expiry decision needs one row per
-	// session, not one row per username, so the join now returns every session
-	// of every active admin and the loop collapses them. Because the rows still
-	// arrive ordered by username, keeping the first survivor per username
-	// yields exactly the same ascending, duplicate-free list the DISTINCT
-	// produced.
-	rows, err := database.QueryContext(ctx, db, database.TimeoutComplexSelect, `
-	SELECT sac.username, sas.expires_at
-	FROM server_admin_credentials sac
-	INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
-	WHERE sac.is_active = 1 AND sas.expires_at IS NOT NULL
-	ORDER BY sac.username ASC
+func loadGraphQLOnlineAdminUsernames(ctx context.Context, sessionDB, accountsDB *sql.DB) ([]string, error) {
+	// The unexpired test is not done in SQL: "expires_at > CURRENT_TIMESTAMP" is a
+	// lexicographic TEXT comparison over a column holding two layouts (canonical
+	// UTC text and the local-zone time.Time.String() form older builds wrote), so
+	// each row's expires_at is parsed in Go instead and a NULL or unparseable
+	// expiry never counts as online. admin_sessions lives in server.db and admins
+	// in users.db (AI.md PART 12), so the sessions are read first and the active
+	// admin accounts second; the result stays ordered ascending by username with
+	// no duplicates.
+	sessionRows, err := database.QueryContext(ctx, sessionDB, database.TimeoutComplexSelect, `
+	SELECT admin_id, expires_at
+	FROM admin_sessions
+	WHERE expires_at IS NOT NULL
 `)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query online admins: %w", err)
 	}
-	defer rows.Close()
+	defer sessionRows.Close()
 
 	now := time.Now().UTC()
-	seen := make(map[string]struct{})
-
-	var usernames []string
-	for rows.Next() {
-		var username string
+	onlineAdminIDs := make(map[int64]struct{})
+	for sessionRows.Next() {
+		var adminID int64
 		var storedExpiresAt interface{}
-		if err := rows.Scan(&username, &storedExpiresAt); err != nil {
-			return nil, fmt.Errorf("failed to scan online admin username: %w", err)
+		if err := sessionRows.Scan(&adminID, &storedExpiresAt); err != nil {
+			return nil, fmt.Errorf("failed to scan online admin session: %w", err)
 		}
-
-		// Fail closed: a NULL or unparseable expiry never counts as online.
-		if !dbtime.IsAfter(storedExpiresAt, now) {
-			continue
+		if dbtime.IsAfter(storedExpiresAt, now) {
+			onlineAdminIDs[adminID] = struct{}{}
 		}
-
-		if _, duplicate := seen[username]; duplicate {
-			continue
-		}
-		seen[username] = struct{}{}
-
-		usernames = append(usernames, username)
+	}
+	if err := sessionRows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate online admin sessions: %w", err)
+	}
+	if len(onlineAdminIDs) == 0 {
+		return nil, nil
 	}
 
-	if err := rows.Err(); err != nil {
+	adminRows, err := database.QueryContext(ctx, accountsDB, database.TimeoutComplexSelect, `
+	SELECT id, username
+	FROM admins
+	WHERE is_active = 1
+	ORDER BY username ASC
+`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query online admin usernames: %w", err)
+	}
+	defer adminRows.Close()
+
+	var usernames []string
+	for adminRows.Next() {
+		var adminID int64
+		var username string
+		if err := adminRows.Scan(&adminID, &username); err != nil {
+			return nil, fmt.Errorf("failed to scan online admin username: %w", err)
+		}
+		if _, online := onlineAdminIDs[adminID]; online {
+			usernames = append(usernames, username)
+		}
+	}
+	if err := adminRows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate online admin usernames: %w", err)
 	}
 
@@ -570,7 +580,7 @@ func mapSchedulerTaskHistory(run scheduler.TaskRun) *TaskHistory {
 // returns is re-bounded against startOfDay/lastMinuteStart in Go after being
 // resolved to a real instant, so the three totals are exact regardless of how
 // far back the prefilter reaches. It stays in place even though every current
-// producer of server_audit_log.timestamp now writes canonical UTC text -
+// producer of audit_log.timestamp now writes canonical UTC text -
 // databases created before that are still on disk, and dropping the margin
 // would silently exclude their rows from today's counts.
 const graphQLAuditLogSkewWindow = 15 * time.Hour
@@ -581,7 +591,7 @@ func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestSta
 	lastMinuteStart := now.Add(-time.Minute)
 
 	// The three counts were COUNT(*) queries bounded by date('now', 'start of
-	// day') and datetime('now', '-1 minute'). server_audit_log.timestamp holds
+	// day') and datetime('now', '-1 minute'). audit_log.timestamp holds
 	// two layouts - canonical UTC text and the local-zone
 	// time.Time.String() form written elsewhere - so those lexicographic
 	// comparisons counted rows from the wrong window, and any datetime() wrapper
@@ -595,7 +605,7 @@ func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestSta
 	// the three totals are the ones the original queries intended.
 	rows, err := database.QueryContext(ctx, serverDB, database.TimeoutComplexSelect, `
 	SELECT timestamp, status
-	FROM server_audit_log
+	FROM audit_log
 	WHERE timestamp >= ?
 `, dbtime.FormatSQLTimestamp(startOfDay.Add(-graphQLAuditLogSkewWindow)))
 	if err != nil {

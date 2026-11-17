@@ -81,7 +81,7 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 
 	t.Run("db error returns 500", func(t *testing.T) {
 		h, _, usersDB := newAdminTestHandler(t)
-		if _, err := usersDB.Exec("DROP TABLE user_accounts"); err != nil {
+		if _, err := usersDB.Exec("DROP TABLE users"); err != nil {
 			t.Fatalf("drop table: %v", err)
 		}
 
@@ -340,7 +340,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 }
 
-// TestAdminHandler_GenerateToken_RevokeToken covers the user_tokens-backed
+// TestAdminHandler_GenerateToken_RevokeToken covers the tokens-backed
 // token lifecycle (matches real UsersSchema).
 func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
@@ -411,7 +411,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 
 // TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers covers
 // the branch used when no ?user_id= query param is given: the admin-wide
-// token view reads user_tokens LEFT JOIN user_accounts out of users.db, both
+// token view reads tokens LEFT JOIN users out of users.db, both
 // of which are real tables in database.UsersSchema. Rows for every user must
 // come back, joined to the owning account's email.
 func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testing.T) {
@@ -427,7 +427,7 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 		t.Fatalf("seed user grace: %v", err)
 	}
 
-	// user_tokens requires user_id, token_hash and token_prefix (all NOT NULL
+	// tokens requires user_id, token_hash and token_prefix (all NOT NULL
 	// in UsersSchema); created_at defaults to CURRENT_TIMESTAMP.
 	for _, seed := range []struct {
 		userID int64
@@ -437,7 +437,7 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 		{frank.ID, "hash-frank", "frank token"},
 		{grace.ID, "hash-grace", "grace token"},
 	} {
-		if _, err := usersDB.Exec(`INSERT INTO user_tokens (user_id, token_hash, token_prefix, name) VALUES (?, ?, 'usr_', ?)`,
+		if _, err := usersDB.Exec(`INSERT INTO tokens (owner_type, owner_id, token_hash, token_prefix, name) VALUES ('user', ?, ?, 'usr_', ?)`,
 			seed.userID, seed.hash, seed.name); err != nil {
 			t.Fatalf("seed token for user %d: %v", seed.userID, err)
 		}
@@ -477,8 +477,8 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 // TestAdminHandler_ListAuditLogs_QueriesNonexistentColumns is a regression
 // test documenting a genuine production bug in
 // src/server/handler/admin.go ListAuditLogs: the query selects
-// a.user_id, a.resource, a.created_at from server_audit_log, but the real
-// ServerSchema's server_audit_log table (src/database/server_schema.go) has
+// a.user_id, a.resource, a.created_at from audit_log, but the real
+// ServerSchema's audit_log table (src/database/server_schema.go) has
 // no such columns - the actual columns are actor_id, resource_type,
 // resource_id, and timestamp. This endpoint always returns 500 against the
 // real schema instead of listing audit log entries.
@@ -488,13 +488,13 @@ func TestAdminHandler_ListAuditLogs_QueriesNonexistentColumns(t *testing.T) {
 	h.ListAuditLogs(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("BUG admin.go ListAuditLogs: status = %d, want 200 (query references nonexistent server_audit_log columns user_id/resource/created_at); body=%s", w.Code, w.Body.String())
+		t.Errorf("BUG admin.go ListAuditLogs: status = %d, want 200 (query references nonexistent audit_log columns user_id/resource/created_at); body=%s", w.Code, w.Body.String())
 	}
 }
 
 // TestAdminHandler_ClearAuditLogs_QueriesNonexistentColumn documents the
 // same root-cause bug as ListAuditLogs applied to ClearAuditLogs: it
-// DELETEs "WHERE created_at < ?" but server_audit_log's real time column is
+// DELETEs "WHERE created_at < ?" but audit_log's real time column is
 // "timestamp", so this always 500s instead of clearing old entries.
 func TestAdminHandler_ClearAuditLogs_QueriesNonexistentColumn(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
@@ -502,12 +502,12 @@ func TestAdminHandler_ClearAuditLogs_QueriesNonexistentColumn(t *testing.T) {
 	h.ClearAuditLogs(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("BUG admin.go ClearAuditLogs: status = %d, want 200 (DELETE references nonexistent server_audit_log.created_at column, real column is 'timestamp'); body=%s", w.Code, w.Body.String())
+		t.Errorf("BUG admin.go ClearAuditLogs: status = %d, want 200 (DELETE references nonexistent audit_log.created_at column, real column is 'timestamp'); body=%s", w.Code, w.Body.String())
 	}
 }
 
 // TestAdminHandler_GetLogsStats_CountsRecentRowsByInstant covers GetLogsStats
-// against the real server_audit_log columns (status/timestamp). The
+// against the real audit_log columns (status/timestamp). The
 // recent_24h figure used to be produced by
 // "WHERE timestamp >= datetime('now', '-1 day')", which returns NULL for a row
 // stored in the driver's local-zone time.Time.String() layout: the zone-skewed
@@ -538,7 +538,7 @@ func TestAdminHandler_GetLogsStats_CountsRecentRowsByInstant(t *testing.T) {
 		{"ulid-unparseable", "success", "not-a-timestamp"},
 	}
 	for _, seed := range seeds {
-		if _, err := serverDB.Exec(`INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, status)
+		if _, err := serverDB.Exec(`INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, status)
 			VALUES (?, ?, 'admin', 1, 'test.action', ?)`, seed.ulid, seed.timestamp, seed.status); err != nil {
 			t.Fatalf("seed audit log %s: %v", seed.ulid, err)
 		}
@@ -569,11 +569,11 @@ func TestAdminHandler_GetLogsStats_CountsRecentRowsByInstant(t *testing.T) {
 }
 
 // TestAdminHandler_GetTasksStats_Success covers the scheduler stats
-// endpoint, whose queries correctly reference real server_scheduler_state
+// endpoint, whose queries correctly reference real scheduler_tasks
 // columns (enabled, last_status).
 func TestAdminHandler_GetTasksStats_Success(t *testing.T) {
 	h, serverDB, _ := newAdminTestHandler(t)
-	if _, err := serverDB.Exec(`INSERT INTO server_scheduler_state (task_id, task_name, schedule, enabled, last_status) VALUES ('t1', 'rotate-logs', 'daily', 1, 'ok')`); err != nil {
+	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (task_id, task_name, schedule, enabled, last_status) VALUES ('t1', 'rotate-logs', 'daily', 1, 'ok')`); err != nil {
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
@@ -614,15 +614,15 @@ func TestAdminHandler_GetSystemStats_Success(t *testing.T) {
 // "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND
 // name='scheduled_tasks'" to decide whether to seed/query scheduler state,
 // but the real table used everywhere else in this file is
-// "server_scheduler_state", not "scheduled_tasks". Since a table literally
+// "scheduler_tasks", not "scheduled_tasks". Since a table literally
 // named "scheduled_tasks" never exists, this check always evaluates to
 // tableExists == 0 and the handler always returns an empty array - even
-// when server_scheduler_state has rows (seeded by the internal scheduler
+// when scheduler_tasks has rows (seeded by the internal scheduler
 // per PART 19). Admins can never see real scheduled task status through
 // this endpoint.
 func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing.T) {
 	h, serverDB, _ := newAdminTestHandler(t)
-	if _, err := serverDB.Exec(`INSERT INTO server_scheduler_state (task_id, task_name, schedule, enabled) VALUES ('t1', 'rotate-logs', 'daily', 1)`); err != nil {
+	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (task_id, task_name, schedule, enabled) VALUES ('t1', 'rotate-logs', 'daily', 1)`); err != nil {
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
@@ -637,7 +637,7 @@ func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if len(tasks) == 0 {
-		t.Errorf("BUG admin.go GetScheduledTasks: returned empty task list despite a seeded server_scheduler_state row (handler checks for a nonexistent 'scheduled_tasks' table instead of 'server_scheduler_state', so it always short-circuits to an empty response)")
+		t.Errorf("BUG admin.go GetScheduledTasks: returned empty task list despite a seeded scheduler_tasks row (handler checks for a nonexistent 'scheduled_tasks' table instead of 'scheduler_tasks', so it always short-circuits to an empty response)")
 	}
 }
 

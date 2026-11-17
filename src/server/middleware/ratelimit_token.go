@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -84,7 +85,7 @@ func validTokenForRateLimit(token string) bool {
 	switch DetectTokenType(token) {
 	case TokenTypeAdmin:
 		if serverDB != nil {
-			_, err := (&model.AdminModel{DB: serverDB}).GetByAPIToken(token)
+			_, err := (&model.AdminModel{DB: database.UsersDBOr(serverDB)}).GetByAPIToken(token)
 			valid = err == nil
 		}
 	case TokenTypeUser:

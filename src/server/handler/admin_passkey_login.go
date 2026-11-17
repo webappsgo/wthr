@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -243,7 +244,12 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, fmt.Errorf("failed to update passkey: %w", err)
 	}
 
-	adminSessionModel := &models.AdminSessionModel{DB: db}
+	// admin_sessions lives in server.db while admins and passkeys live in users.db
+	sessionDB := database.GetServerDB()
+	if sessionDB == nil {
+		sessionDB = db
+	}
+	adminSessionModel := &models.AdminSessionModel{DB: sessionDB}
 	adminSession, err := adminSessionModel.CreateSession(admin.ID, clientIP, userAgent, sessionDuration)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin session: %w", err)

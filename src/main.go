@@ -505,8 +505,8 @@ func main() {
 
 	// Initialize database - TEMPLATE.md PART 31: Dual database architecture
 	// SQLite dual database: server.db + users.db
-	// server.db = admin credentials, config, scheduler, audit log
-	// users.db = user accounts, tokens, sessions, locations
+	// server.db = admin sessions, config, scheduler, audit log
+	// users.db = Server Admins, user accounts, tokens, sessions, passkeys, locations
 	dualDB, err := database.InitDualDB(dirPaths.Data)
 	if err != nil {
 		appLogger.Error("Failed to initialize dual database system: %v", err)
@@ -1119,7 +1119,7 @@ func main() {
 	}
 
 	// Create weather notification service - it reads notification_subscriptions,
-	// user_notification_channel_preferences, user_saved_locations, user_accounts and
+	// user_notification_channel_preferences, user_saved_locations, users and
 	// user_weather_alert_history, all declared in database.UsersSchema
 	weatherNotifications := service.NewWeatherNotificationService(dualDB.Users, weatherService, deliverySystem, templateEngine)
 
@@ -1361,14 +1361,14 @@ func main() {
 		if notificationService == nil {
 			return fmt.Errorf("update notification service is not initialized")
 		}
-		admins, err := (&model.AdminModel{DB: dualDB.Server}).GetAll()
+		admins, err := (&model.AdminModel{DB: dualDB.Users}).GetAll()
 		if err != nil {
 			return err
 		}
 		title := "Update available"
 		for _, admin := range admins {
 			var exists int
-			err := dualDB.Server.QueryRow(`SELECT COUNT(*) FROM server_admin_notifications WHERE admin_id = ? AND title = ? AND message = ?`, admin.ID, title, release.TagName).Scan(&exists)
+			err := dualDB.Users.QueryRow(`SELECT COUNT(*) FROM admin_notifications WHERE admin_id = ? AND title = ? AND message = ?`, admin.ID, title, release.TagName).Scan(&exists)
 			if err != nil {
 				return err
 			}
@@ -1447,8 +1447,10 @@ func main() {
 	dashboardHandler := &handler.DashboardHandler{DB: db.DB}
 	adminHandler := &handler.AdminHandler{DB: db.DB}
 	serverDB := database.GetServerDB()
-	adminPasskeyHandler := handler.NewAdminPasskeyHandler(serverDB)
-	adminInviteService := service.NewAdminInviteService(serverDB, "", smtpService)
+	// Server Admin accounts, preferences, invites and passkeys live in users.db (AI.md PART 12)
+	adminAccountsDB := database.GetUsersDB()
+	adminPasskeyHandler := handler.NewAdminPasskeyHandler(adminAccountsDB)
+	adminInviteService := service.NewAdminInviteService(adminAccountsDB, "", smtpService)
 	userInviteModel := &model.UserInviteModel{DB: database.GetUsersDB()}
 	locationHandler := &handler.LocationHandler{
 		DB:               db.DB,
@@ -1467,8 +1469,8 @@ func main() {
 		ServerDB:   dualDB.Server,
 		WSHub:      wsHub,
 		UserNotif:  &model.UserNotificationModel{DB: dualDB.Users},
-		AdminNotif: &model.AdminNotificationModel{DB: dualDB.Server},
-		Prefs:      &model.NotificationPreferencesModel{UserDB: dualDB.Users, ServerDB: dualDB.Server},
+		AdminNotif: &model.AdminNotificationModel{DB: dualDB.Users},
+		Prefs:      &model.NotificationPreferencesModel{UserDB: dualDB.Users},
 	}
 
 	// Create WebUI notification API handlers (TEMPLATE.md Part 25)
@@ -1864,7 +1866,7 @@ func main() {
 		// CURRENT_TIMESTAMP literal, which yields a different type and zone on
 		// PostgreSQL, MySQL and SQL Server than it does on SQLite.
 		_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
-			UPDATE user_accounts
+			UPDATE users
 			SET email_verified = 1, updated_at = ?
 			WHERE id = ?
 		`, dbtime.FormatSQLTimestamp(time.Now()), userID)
@@ -1877,7 +1879,7 @@ func main() {
 		}
 
 		// Delete used token
-		if _, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verificationID); err != nil {
+		if _, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM email_verifications WHERE id = ?`, verificationID); err != nil {
 			log.Printf("WARNING: verify-email: failed to delete used verification token %d: %v", verificationID, err)
 		}
 
@@ -2133,7 +2135,7 @@ func main() {
 
 		// updated_at is bound as canonical UTC text so every driver stores the same
 		// layout the rest of the project reads back.
-		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
+		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
 			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
@@ -3056,7 +3058,7 @@ func main() {
 	// Log all admin API actions
 	adminAPI.Use(middleware.AuditLogger(db.DB))
 	{
-		adminModel := &model.AdminModel{DB: serverDB}
+		adminModel := &model.AdminModel{DB: adminAccountsDB}
 
 		// AI.md PART 17: the admin's own account API lives under
 		// /api/{api_version}/server/{admin_path}/{admin_username}/
@@ -3080,49 +3082,72 @@ func main() {
 			return admin, true
 		}
 
-		// server_admin_preferences (src/database/server_schema.go) stores
+		// admin_preferences (src/database/server_schema.go) stores
 		// preferences as a single JSON blob column (admin_id, preferences,
 		// updated_at) — not individual theme/language/... columns.
 		loadAdminPreferences := func(adminID int64) (*model.AdminPreferences, error) {
-			return loadAdminPreferencesRow(serverDB, adminID)
+			return loadAdminPreferencesRow(adminAccountsDB, adminID)
 		}
 
 		getOnlineAdminUsernames := func() ([]string, error) {
-			// Comparing sas.expires_at against CURRENT_TIMESTAMP in SQL is a text comparison that
-			// misreads any row stored in a legacy local-zone layout, so the still-valid sessions
-			// are selected with their raw expiry and filtered in Go via dbtime. The rows stay
-			// ordered by username so duplicate sessions for one admin collapse without a sort.
-			rows, err := database.QueryContext(context.Background(), serverDB, database.TimeoutComplexSelect, `
-				SELECT sac.username, sas.expires_at
-				FROM server_admin_credentials sac
-				INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
-				WHERE sac.is_active = 1 AND sas.expires_at IS NOT NULL
-				ORDER BY sac.username ASC
+			// Comparing expires_at against CURRENT_TIMESTAMP in SQL is a text comparison that
+			// misreads any row stored in a legacy local-zone layout, so the sessions are read
+			// with their raw expiry and filtered in Go via dbtime. admin_sessions lives in
+			// server.db and admins in users.db (AI.md PART 12), so the two are read separately
+			// and joined here on admin_id.
+			sessionRows, err := database.QueryContext(context.Background(), serverDB, database.TimeoutComplexSelect, `
+				SELECT admin_id, expires_at
+				FROM admin_sessions
+				WHERE expires_at IS NOT NULL
 			`)
 			if err != nil {
 				return nil, fmt.Errorf("failed to query online admins: %w", err)
 			}
-			defer rows.Close()
+			defer sessionRows.Close()
 
 			sessionCutoff := time.Now().UTC()
 
-			var usernames []string
-			for rows.Next() {
-				var username string
+			activeAdminIDs := make(map[int64]struct{})
+			for sessionRows.Next() {
+				var adminID int64
 				var storedExpiry interface{}
-				if err := rows.Scan(&username, &storedExpiry); err != nil {
-					return nil, fmt.Errorf("failed to scan online admin username: %w", err)
+				if err := sessionRows.Scan(&adminID, &storedExpiry); err != nil {
+					return nil, fmt.Errorf("failed to scan online admin session: %w", err)
 				}
-				if !dbtime.IsAfter(storedExpiry, sessionCutoff) {
-					continue
+				if dbtime.IsAfter(storedExpiry, sessionCutoff) {
+					activeAdminIDs[adminID] = struct{}{}
 				}
-				if len(usernames) > 0 && usernames[len(usernames)-1] == username {
-					continue
-				}
-				usernames = append(usernames, username)
+			}
+			if err := sessionRows.Err(); err != nil {
+				return nil, fmt.Errorf("failed to iterate online admin sessions: %w", err)
+			}
+			if len(activeAdminIDs) == 0 {
+				return nil, nil
 			}
 
-			if err := rows.Err(); err != nil {
+			adminRows, err := database.QueryContext(context.Background(), adminAccountsDB, database.TimeoutComplexSelect, `
+				SELECT id, username
+				FROM admins
+				WHERE is_active = 1
+				ORDER BY username ASC
+			`)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query online admin usernames: %w", err)
+			}
+			defer adminRows.Close()
+
+			var usernames []string
+			for adminRows.Next() {
+				var adminID int64
+				var username string
+				if err := adminRows.Scan(&adminID, &username); err != nil {
+					return nil, fmt.Errorf("failed to scan online admin username: %w", err)
+				}
+				if _, online := activeAdminIDs[adminID]; online {
+					usernames = append(usernames, username)
+				}
+			}
+			if err := adminRows.Err(); err != nil {
 				return nil, fmt.Errorf("failed to iterate online admin usernames: %w", err)
 			}
 
@@ -3131,9 +3156,9 @@ func main() {
 
 		countOtherActiveSuperAdmins := func(excludeID int64) (int, error) {
 			var count int
-			err := database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect, `
+			err := database.QueryRowContext(context.Background(), adminAccountsDB, database.TimeoutSimpleSelect, `
 				SELECT COUNT(*)
-				FROM server_admin_credentials
+				FROM admins
 				WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
 			`, excludeID).Scan(&count)
 			if err != nil {
@@ -3828,8 +3853,8 @@ func main() {
 
 			// updated_at is bound as canonical UTC text so this writer agrees with the
 			// INSERT above and with every reader of the column.
-			if _, err := database.ExecContext(context.Background(), serverDB, database.TimeoutWrite, `
-				UPDATE server_admin_preferences
+			if _, err := database.ExecContext(context.Background(), adminAccountsDB, database.TimeoutWrite, `
+				UPDATE admin_preferences
 				SET preferences = ?, updated_at = ?
 				WHERE admin_id = ?
 			`, string(updatedJSON), dbtime.FormatSQLTimestamp(time.Now()), admin.ID); err != nil {
@@ -4757,16 +4782,16 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Get database statistics
 	var userCount, locationCount, tokenCount int
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts").Scan(&userCount); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM users").Scan(&userCount); err != nil {
 		log.Printf("WARNING: showServerStatus: failed to count users: %v", err)
 	}
 	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount); err != nil {
 		log.Printf("WARNING: showServerStatus: failed to count saved locations: %v", err)
 	}
-	// user_tokens.expires_at may hold the canonical UTC layout or a legacy local-zone value, and
+	// tokens.expires_at may hold the canonical UTC layout or a legacy local-zone value, and
 	// SQLite's datetime() returns NULL for the latter, so an SQL comparison would silently count
 	// zero. The candidate rows are read instead and compared in Go via dbtime.
-	tokenRows, tokenErr := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT expires_at FROM user_tokens WHERE expires_at IS NOT NULL")
+	tokenRows, tokenErr := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT expires_at FROM tokens WHERE expires_at IS NOT NULL")
 	if tokenErr != nil {
 		log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", tokenErr)
 	} else {
@@ -4863,10 +4888,10 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 }
 
 // lookupEmailVerification returns the id and user id of the pending
-// user_email_verifications row identified by token, reporting false when no
+// email_verifications row identified by token, reporting false when no
 // such token exists or when the row has already expired at instant now.
 //
-// user_email_verifications.expires_at has more than one producer, so it can
+// email_verifications.expires_at has more than one producer, so it can
 // hold the canonical UTC text this project writes or a legacy local-zone
 // time.Time.String() value left by a raw bound time.Time. An SQL predicate such
 // as "expires_at > ?" compares those as text and therefore accepts or rejects a
@@ -4876,7 +4901,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 // fails closed instead of verifying an address forever.
 //
 // token is the raw value from the emailed link. It is hashed before the lookup
-// because user_email_verifications.token stores only model.HashAPIToken(token)
+// because email_verifications.token stores only model.HashAPIToken(token)
 // — PART 11 forbids keeping a usable token at rest — so matching on the raw
 // value found no row at all and no verification link could be redeemed here.
 func lookupEmailVerification(db *sql.DB, token string, now time.Time) (int64, int64, bool) {
@@ -4886,7 +4911,7 @@ func lookupEmailVerification(db *sql.DB, token string, now time.Time) (int64, in
 
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, expires_at
-		FROM user_email_verifications
+		FROM email_verifications
 		WHERE token = ?
 	`, model.HashAPIToken(token)).Scan(&verificationID, &userID, &storedExpiry)
 	if err != nil {
@@ -4901,7 +4926,7 @@ func lookupEmailVerification(db *sql.DB, token string, now time.Time) (int64, in
 }
 
 // defaultAdminPreferencesJSON encodes the preference defaults a new admin
-// starts with. server_admin_preferences (src/database/server_schema.go) stores
+// starts with. admin_preferences (src/database/server_schema.go) stores
 // preferences as a single JSON blob column (admin_id, preferences, updated_at)
 // — not individual theme/language/... columns.
 func defaultAdminPreferencesJSON(adminID int64) (string, error) {
@@ -4929,10 +4954,10 @@ func loadAdminPreferencesRow(db *sql.DB, adminID int64) (*model.AdminPreferences
 	// CURRENT_TIMESTAMP literal with a bound parameter adds a third placeholder to
 	// the projection, ahead of the existing NOT EXISTS bind.
 	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
+		INSERT INTO admin_preferences (admin_id, preferences, updated_at)
 		SELECT ?, ?, ?
 		WHERE NOT EXISTS (
-			SELECT 1 FROM server_admin_preferences WHERE admin_id = ?
+			SELECT 1 FROM admin_preferences WHERE admin_id = ?
 		)
 	`, adminID, defaultJSON, dbtime.FormatSQLTimestamp(time.Now()), adminID); err != nil {
 		return nil, fmt.Errorf("failed to ensure admin preferences: %w", err)
@@ -4946,7 +4971,7 @@ func loadAdminPreferencesRow(db *sql.DB, adminID int64) (*model.AdminPreferences
 	var storedUpdatedAt interface{}
 	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT preferences, updated_at
-		FROM server_admin_preferences
+		FROM admin_preferences
 		WHERE admin_id = ?
 	`, adminID).Scan(&prefsJSON, &storedUpdatedAt)
 	if err != nil {

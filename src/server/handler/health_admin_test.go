@@ -51,13 +51,13 @@ func TestBuildAdminServerStatusResponse_Healthy(t *testing.T) {
 	}
 }
 
-// seedAuditEntry inserts one server_audit_log row with an explicit timestamp
+// seedAuditEntry inserts one audit_log row with an explicit timestamp
 // text, so a test can plant the exact on-disk encoding it wants to exercise
 // (ulid and action are NOT NULL in ServerSchema).
 func seedAuditEntry(t *testing.T, db *sql.DB, ulid, status, timestamp string) {
 	t.Helper()
 	if _, err := db.Exec(`
-		INSERT INTO server_audit_log (ulid, action, status, timestamp)
+		INSERT INTO audit_log (ulid, action, status, timestamp)
 		VALUES (?, 'test.action', ?, ?)
 	`, ulid, status, timestamp); err != nil {
 		t.Fatalf("seed audit entry %s: %v", ulid, err)

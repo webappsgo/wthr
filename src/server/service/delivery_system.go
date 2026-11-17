@@ -354,10 +354,10 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 		// Fallback to user's email
 		if nq.ChannelType == "email" {
 			var email string
-			// Reads users.db: user_accounts is declared in
+			// Reads users.db: users is declared in
 			// database.UsersSchema, not ServerSchema, so the injected server
 			// handle is not the right database for this fallback lookup.
-			database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM user_accounts WHERE id = ?", nq.UserID.Int64).Scan(&email)
+			database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM users WHERE id = ?", nq.UserID.Int64).Scan(&email)
 			return email
 		}
 	}

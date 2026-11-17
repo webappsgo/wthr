@@ -329,7 +329,7 @@ func TestNotificationPreferencesModel_GetUserPreferences(t *testing.T) {
 	serverDB := setupTestDB(t)
 	defer serverDB.Close()
 
-	model := &NotificationPreferencesModel{UserDB: db, ServerDB: serverDB}
+	model := &NotificationPreferencesModel{UserDB: db}
 
 	// Get default preferences (no record exists)
 	prefs, err := model.GetUserPreferences(1)
@@ -368,7 +368,7 @@ func TestNotificationPreferencesModel_UpdateUserPreferences(t *testing.T) {
 	serverDB := setupTestDB(t)
 	defer serverDB.Close()
 
-	model := &NotificationPreferencesModel{UserDB: db, ServerDB: serverDB}
+	model := &NotificationPreferencesModel{UserDB: db}
 
 	// Update preferences
 	newPrefs := &NotificationPreferences{
@@ -612,7 +612,7 @@ func TestAdminNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 			defer db.Close()
 
 			model := &AdminNotificationModel{DB: db}
-			insertNotificationExpiryFixture(t, db, "server_admin_notifications", "admin_id", "fixture-admin-1", 7, tc.expiresAt(time.Now().UTC()))
+			insertNotificationExpiryFixture(t, db, "admin_notifications", "admin_id", "fixture-admin-1", 7, tc.expiresAt(time.Now().UTC()))
 
 			want := tc.liveCount()
 

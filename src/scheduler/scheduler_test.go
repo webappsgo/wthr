@@ -20,9 +20,9 @@ import (
 var dbCounter int64
 
 // testUserID is the id of the account newSchedulerTestDBs seeds into
-// user_accounts. Every users-database table this package writes to
-// (user_saved_locations, user_notifications, user_sessions, user_tokens) carries
-// a foreign key to user_accounts(id), so the parent row has to exist before any
+// users. Every users-database table this package writes to
+// (user_saved_locations, user_notifications, user_sessions, tokens) carries
+// a foreign key to users(id), so the parent row has to exist before any
 // test can insert a child row.
 const testUserID = 1
 
@@ -51,17 +51,21 @@ func newSchedulerTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 	if _, err := serverDB.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("failed to apply database.ServerSchema: %v", err)
 	}
+	// Server Admin accounts live in users.db (AI.md PART 12); this single connection serves as both
+	if _, err := serverDB.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("failed to apply database.UsersSchema: %v", err)
+	}
 	if _, err := usersDB.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("failed to apply database.UsersSchema: %v", err)
 	}
 
-	// user_accounts requires a unique username, a unique email and a password
+	// users requires a unique username, a unique email and a password
 	// hash; every value here is a placeholder, only the id matters to callers.
 	if _, err := usersDB.Exec(`
-		INSERT INTO user_accounts (id, username, email, password_hash)
+		INSERT INTO users (id, username, email, password_hash)
 		VALUES (?, 'scheduler-fixture', 'scheduler-fixture@example.invalid', 'x')
 	`, testUserID); err != nil {
-		t.Fatalf("failed to seed user_accounts: %v", err)
+		t.Fatalf("failed to seed users: %v", err)
 	}
 
 	database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
@@ -382,7 +386,7 @@ func TestIsGlobalTask(t *testing.T) {
 // --- acquireTaskLock / releaseTaskLock (cluster-aware locking) -----------------------
 
 // testLockSchedule is the cron expression the lock tests hand to
-// acquireTaskLock. server_scheduler_state.schedule is NOT NULL, so an insert
+// acquireTaskLock. scheduler_tasks.schedule is NOT NULL, so an insert
 // that omits it fails outright, and a caller that substituted a placeholder
 // would leave the row describing a schedule the task does not have.
 const testLockSchedule = "0 2 * * *"
@@ -404,7 +408,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		}
 		var lockedBy, schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by, schedule FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by, schedule FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 		).Scan(&lockedBy, &schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -422,7 +426,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		newSchedulerTestDBs(t)
 		s := NewScheduler(nil)
 		_, err := database.GetServerDB().Exec(
-			`INSERT INTO server_scheduler_state (task_id, task_name, schedule, locked_by, locked_at, enabled)
+			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 			 VALUES (?, ?, ?, ?, ?, 1)`,
 			"backup-daily", "backup-daily", testLockSchedule, "other-node", time.Now(),
 		)
@@ -440,7 +444,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		s := NewScheduler(nil)
 		expiredAt := time.Now().Add(-LockTimeout - time.Minute)
 		_, err := database.GetServerDB().Exec(
-			`INSERT INTO server_scheduler_state (task_id, task_name, schedule, locked_by, locked_at, enabled)
+			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 			 VALUES (?, ?, ?, ?, ?, 1)`,
 			"backup-daily", "backup-daily", testLockSchedule, "other-node", expiredAt,
 		)
@@ -453,7 +457,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		}
 		var lockedBy string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -476,7 +480,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		// leaving the old expression behind.
 		var schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT schedule FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+			"SELECT schedule FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 		).Scan(&schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -492,7 +496,7 @@ func seedTaskLock(t *testing.T, taskName, holder string, lockedAt interface{}) {
 	t.Helper()
 
 	if _, err := database.GetServerDB().Exec(
-		`INSERT INTO server_scheduler_state (task_id, task_name, schedule, locked_by, locked_at, enabled)
+		`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 		 VALUES (?, ?, ?, ?, ?, 1)`,
 		taskName, taskName, testLockSchedule, holder, lockedAt,
 	); err != nil {
@@ -506,7 +510,7 @@ func lockHolder(t *testing.T, taskName string) sql.NullString {
 
 	var holder sql.NullString
 	if err := database.GetServerDB().QueryRow(
-		"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?", taskName,
+		"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", taskName,
 	).Scan(&holder); err != nil {
 		t.Fatalf("query lock row: %v", err)
 	}
@@ -612,7 +616,7 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 	// way out, so the assertion sees the bytes actually stored.
 	var stored string
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query locked_at: %v", err)
 	}
@@ -626,7 +630,7 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 		t.Fatal("refresh of our own lock should succeed")
 	}
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query refreshed locked_at: %v", err)
 	}
@@ -680,7 +684,7 @@ func TestScheduler_ReleaseTaskLock(t *testing.T) {
 
 		var lockedBy sql.NullString
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -941,7 +945,7 @@ func TestCleanupOldSessions(t *testing.T) {
 	assertSurvivors(t, usersDB, "user_sessions", fixtures)
 }
 
-// CleanupOldAuditLogs prunes server_audit_log against its timestamp column (the
+// CleanupOldAuditLogs prunes audit_log against its timestamp column (the
 // table has no created_at), and the age test has to compare absolute instants:
 // the rows below are seeded in fixed zones far from UTC so their wall-clock text
 // orders the opposite way from the instants they represent.
@@ -965,7 +969,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 		// ulid is UNIQUE NOT NULL and action is NOT NULL in the real schema; the
 		// column set here is the one both this package and
 		// src/server/middleware/audit.go write.
-		seedTimestampRows(t, serverDB, "server_audit_log", "timestamp", fixtures,
+		seedTimestampRows(t, serverDB, "audit_log", "timestamp", fixtures,
 			seedColumn{name: "ulid", value: func(id int64) interface{} { return fmt.Sprintf("audit-ulid-%d", id) }},
 			seedColumn{name: "actor_type", value: func(int64) interface{} { return "scheduler" }},
 			seedColumn{name: "action", value: func(id int64) interface{} { return fmt.Sprintf("task-%d", id) }},
@@ -975,7 +979,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 			t.Fatalf("CleanupOldAuditLogs() error: %v", err)
 		}
 
-		assertSurvivors(t, serverDB, "server_audit_log", fixtures)
+		assertSurvivors(t, serverDB, "audit_log", fixtures)
 	})
 
 	t.Run("configured retention (scheduler.cleanup_audit_logs_days) overrides the default", func(t *testing.T) {
@@ -996,7 +1000,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 			{id: 2, name: "1 day old, inside 5-day window", value: time.Now().AddDate(0, 0, -1), survives: true},
 		}
 
-		seedTimestampRows(t, serverDB, "server_audit_log", "timestamp", fixtures,
+		seedTimestampRows(t, serverDB, "audit_log", "timestamp", fixtures,
 			seedColumn{name: "ulid", value: func(id int64) interface{} { return fmt.Sprintf("audit-ulid-cfg-%d", id) }},
 			seedColumn{name: "actor_type", value: func(int64) interface{} { return "scheduler" }},
 			seedColumn{name: "action", value: func(id int64) interface{} { return fmt.Sprintf("task-cfg-%d", id) }},
@@ -1006,7 +1010,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 			t.Fatalf("CleanupOldAuditLogs() error: %v", err)
 		}
 
-		assertSurvivors(t, serverDB, "server_audit_log", fixtures)
+		assertSurvivors(t, serverDB, "audit_log", fixtures)
 	})
 }
 
@@ -1030,7 +1034,7 @@ var (
 	tokenZoneEast = time.FixedZone("EAST", 13*60*60)
 )
 
-// seedUserToken inserts one row into the real user_tokens table. token_hash and
+// seedUserToken inserts one row into the real tokens table. token_hash and
 // token_prefix are NOT NULL in database.UsersSchema, so every row needs its own
 // unique hash; the value written into expires_at is passed through verbatim so
 // each case controls the exact stored layout and zone.
@@ -1038,14 +1042,14 @@ func seedUserToken(t *testing.T, db *sql.DB, id int64, expiresAt interface{}) {
 	t.Helper()
 
 	if _, err := db.Exec(
-		"INSERT INTO user_tokens (id, user_id, token_hash, token_prefix, name, expires_at) VALUES (?, ?, ?, 'usr_1234', 'test token', ?)",
-		id, testUserID, fmt.Sprintf("hash-%d", id), expiresAt,
+		"INSERT INTO tokens (id, owner_type, owner_id, token_hash, token_prefix, name, expires_at) VALUES (?, 'user', ?, ?, 'usr_1234', 'test token ' || ?, ?)",
+		id, testUserID, fmt.Sprintf("hash-%d", id), id, expiresAt,
 	); err != nil {
-		t.Fatalf("seed user_tokens id=%d: %v", id, err)
+		t.Fatalf("seed tokens id=%d: %v", id, err)
 	}
 }
 
-// CleanupExpiredTokens must prune user_tokens - the project's only API-token
+// CleanupExpiredTokens must prune tokens - the project's only API-token
 // table, which lives in the users database - removing only tokens whose expiry
 // has actually passed, across every stored timestamp layout and zone, and must
 // never touch a token with a NULL expiry.
@@ -1069,7 +1073,7 @@ func TestCleanupExpiredTokens(t *testing.T) {
 		t.Fatalf("CleanupExpiredTokens() error: %v", err)
 	}
 
-	assertSurvivors(t, usersDB, "user_tokens", fixtures)
+	assertSurvivors(t, usersDB, "tokens", fixtures)
 }
 
 // CleanupRateLimitCounters prunes windows that started more than an hour ago, so
@@ -1080,7 +1084,7 @@ func TestCleanupRateLimitCounters(t *testing.T) {
 	fixtures := timestampFixtures(time.Now().Add(-1 * time.Hour))
 	// identifier and endpoint are NOT NULL in the real schema and form a UNIQUE
 	// key together with window_start, so each row gets its own identifier.
-	seedTimestampRows(t, serverDB, "server_rate_limits", "window_start", fixtures,
+	seedTimestampRows(t, serverDB, "rate_limits", "window_start", fixtures,
 		seedColumn{name: "identifier", value: func(id int64) interface{} { return fmt.Sprintf("10.0.0.%d", id) }},
 		seedColumn{name: "endpoint", value: func(int64) interface{} { return "/api/v1/weather" }},
 	)
@@ -1089,7 +1093,7 @@ func TestCleanupRateLimitCounters(t *testing.T) {
 		t.Fatalf("CleanupRateLimitCounters() error: %v", err)
 	}
 
-	assertSurvivors(t, serverDB, "server_rate_limits", fixtures)
+	assertSurvivors(t, serverDB, "rate_limits", fixtures)
 }
 
 // parseStoredTimestamp underpins every cleanup comparison, so each layout the
@@ -1302,7 +1306,7 @@ func TestSchedulerLogTaskExecution(t *testing.T) {
 		s.logTaskExecution("task-a", 10*time.Millisecond, nil)
 
 		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&count); err != nil {
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
 			t.Fatalf("count audit log: %v", err)
 		}
 		if count != 0 {
@@ -1320,7 +1324,7 @@ func TestSchedulerLogTaskExecution(t *testing.T) {
 		s.logTaskExecution("task-a2", 10*time.Millisecond, nil)
 
 		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&count); err != nil {
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
 			t.Fatalf("count audit log: %v", err)
 		}
 		if count != 0 {
@@ -1343,7 +1347,7 @@ func TestSchedulerLogTaskExecution(t *testing.T) {
 		var status, details, auditULID, actorType, actorID string
 		var storedTimestamp interface{}
 		if err := serverDB.QueryRow(
-			"SELECT status, details, ulid, actor_type, actor_id, timestamp FROM server_audit_log WHERE action = 'task-b' AND resource_id = 'task-b'",
+			"SELECT status, details, ulid, actor_type, actor_id, timestamp FROM audit_log WHERE action = 'task-b' AND resource_id = 'task-b'",
 		).Scan(&status, &details, &auditULID, &actorType, &actorID, &storedTimestamp); err != nil {
 			t.Fatalf("query audit log row: %v", err)
 		}
@@ -1385,7 +1389,7 @@ func TestSchedulerLogTaskExecution(t *testing.T) {
 
 		var status, details string
 		if err := serverDB.QueryRow(
-			"SELECT status, details FROM server_audit_log WHERE action = 'task-c' AND resource_id = 'task-c'",
+			"SELECT status, details FROM audit_log WHERE action = 'task-c' AND resource_id = 'task-c'",
 		).Scan(&status, &details); err != nil {
 			t.Fatalf("query audit log row: %v", err)
 		}
@@ -1579,7 +1583,7 @@ func TestLogBackupSkippedDiskFullAudit(t *testing.T) {
 
 		var action, status, detailsJSON string
 		if err := serverDB.QueryRow(
-			"SELECT action, status, details FROM server_audit_log WHERE action = 'backup.skipped_disk_full'",
+			"SELECT action, status, details FROM audit_log WHERE action = 'backup.skipped_disk_full'",
 		).Scan(&action, &status, &detailsJSON); err != nil {
 			t.Fatalf("expected a backup.skipped_disk_full audit row: %v", err)
 		}
@@ -1612,7 +1616,7 @@ func TestLogBackupDailyUpdatedAudit(t *testing.T) {
 
 		var status, resourceID, detailsJSON string
 		if err := serverDB.QueryRow(
-			"SELECT status, resource_id, details FROM server_audit_log WHERE action = 'backup.daily_updated'",
+			"SELECT status, resource_id, details FROM audit_log WHERE action = 'backup.daily_updated'",
 		).Scan(&status, &resourceID, &detailsJSON); err != nil {
 			t.Fatalf("expected a backup.daily_updated audit row: %v", err)
 		}
@@ -1634,7 +1638,7 @@ func TestLogBackupDailyUpdatedAudit(t *testing.T) {
 }
 
 // TestScheduler_ServerStateOnServerDB proves the scheduler's persistent state
-// lives in the database that actually declares server_scheduler_state.
+// lives in the database that actually declares scheduler_tasks.
 // AI.md PART 19: "Persistent State | Task state survives restarts (stored in
 // server.db)". newSchedulerTestDBs applies database.ServerSchema to the server
 // handle and database.UsersSchema to the users handle, so passing the server
@@ -1650,10 +1654,10 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 
 		var schedule, nextRun string
 		if err := serverDB.QueryRow(
-			"SELECT schedule, next_run FROM server_scheduler_state WHERE task_id = ?",
+			"SELECT schedule, next_run FROM scheduler_tasks WHERE task_id = ?",
 			"regression-task",
 		).Scan(&schedule, &nextRun); err != nil {
-			t.Fatalf("expected a server_scheduler_state row on the server DB: %v", err)
+			t.Fatalf("expected a scheduler_tasks row on the server DB: %v", err)
 		}
 		if schedule != "@daily" {
 			t.Errorf("schedule = %q, want %q", schedule, "@daily")
@@ -1674,7 +1678,7 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 		var lastStatus string
 		var runCount, failCount int
 		if err := serverDB.QueryRow(
-			"SELECT last_status, run_count, fail_count FROM server_scheduler_state WHERE task_id = ?",
+			"SELECT last_status, run_count, fail_count FROM scheduler_tasks WHERE task_id = ?",
 			"persist-task",
 		).Scan(&lastStatus, &runCount, &failCount); err != nil {
 			t.Fatalf("expected the run outcome to be persisted: %v", err)
@@ -1693,10 +1697,10 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 	t.Run("users DB has no scheduler state table", func(t *testing.T) {
 		var name string
 		err := usersDB.QueryRow(
-			"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'server_scheduler_state'",
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'scheduler_tasks'",
 		).Scan(&name)
 		if err == nil {
-			t.Fatal("users DB unexpectedly declares server_scheduler_state")
+			t.Fatal("users DB unexpectedly declares scheduler_tasks")
 		}
 		if err != sql.ErrNoRows {
 			t.Fatalf("unexpected error querying sqlite_master: %v", err)

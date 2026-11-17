@@ -17,16 +17,15 @@ type DB struct {
 }
 
 // IsFirstRun checks if this is the first run (no server admins exist)
-// Per AI.md: Server Admins are in server_admin_credentials table (server DB)
+// Per AI.md PART 12: Server Admins are in the admins table of users.db
 func (db *DB) IsFirstRun() (bool, error) {
-	// Server admin credentials are in the server database, not users database
-	serverDB := GetServerDB()
-	if serverDB == nil {
-		return false, fmt.Errorf("server database not initialized")
+	usersDB := GetUsersDB()
+	if usersDB == nil {
+		return false, fmt.Errorf("users database not initialized")
 	}
 
 	var count int
-	err := QueryRowContext(context.Background(), serverDB, TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+	err := QueryRowContext(context.Background(), usersDB, TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -52,7 +51,7 @@ func (db *DB) HealthCheck() (status string, latencyMs int64, err error) {
 
 // GetSessionCount returns the number of currently active sessions across both
 // session tables the live schema actually creates: user_sessions in the users
-// database (UsersSchema) and server_admin_sessions in the server database
+// database (UsersSchema) and admin_sessions in the server database
 // (ServerSchema). It reads those handles through GetUsersDB/GetServerDB rather
 // than the receiver's own connection because a *DB may be bound to either one,
 // and an active-session total that silently omitted half the sessions would be
@@ -70,7 +69,7 @@ func (db *DB) GetSessionCount() (int, error) {
 	}
 	total += userCount
 
-	adminCount, err := countActiveSessions(GetServerDB(), "server_admin_sessions")
+	adminCount, err := countActiveSessions(GetServerDB(), "admin_sessions")
 	if err != nil {
 		return 0, err
 	}

@@ -72,15 +72,7 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 		// comparison also works on PostgreSQL and MySQL, which have no
 		// datetime('now'). dbtime.IsAfter reports false for NULL and for
 		// unparseable values, so an uninterpretable session stays invalid.
-		var adminID int
-		var storedExpiresAt interface{}
-		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-			SELECT sessions.admin_id, sessions.expires_at
-			FROM server_admin_sessions AS sessions
-			INNER JOIN server_admin_credentials AS admins
-				ON admins.id = sessions.admin_id AND admins.is_active = 1
-			WHERE sessions.token_hash = ?
-		`, model.HashAdminSessionToken(adminSessionID)).Scan(&adminID, &storedExpiresAt)
+		_, storedExpiresAt, err := model.LookupActiveAdminSession(database.GetServerDB(), database.GetUsersDB(), model.HashAdminSessionToken(adminSessionID))
 		if err == nil && dbtime.IsAfter(storedExpiresAt, time.Now()) {
 			http.Redirect(w, r, adminPath, http.StatusFound)
 			return
@@ -122,7 +114,7 @@ func (h *AuthHandler) ShowRegisterPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleLogin processes login requests
-// Per spec: checks server_admin_credentials FIRST, then user_accounts
+// Per spec: checks admins FIRST, then users
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 
@@ -160,8 +152,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 1: Check server_admin_credentials FIRST
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	// Step 1: Check admins FIRST
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	admin, adminErr := adminModel.VerifyCredentials(req.Identifier, req.Password)
 
 	if adminErr == nil && admin != nil {
@@ -170,8 +162,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// before issuing the admin_session cookie. Per AI.md PART 17 line
 		// 28679 a passkey can be used as a primary login or as 2FA — for
 		// admins we use it strictly as a 2nd factor here.
-		serverDB := database.GetServerDB()
-		hasPasskeys, hpkErr := AdminHasPasskeys(serverDB, admin.ID)
+		hasPasskeys, hpkErr := AdminHasPasskeys(database.GetUsersDB(), admin.ID)
 		if hpkErr != nil {
 			respondWithError(w, r, http.StatusInternalServerError, "Failed to load passkey status")
 			return
@@ -259,7 +250,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 2: Check user_accounts
+	// Step 2: Check users
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {

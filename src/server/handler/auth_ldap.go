@@ -65,7 +65,7 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var userID int64
 	err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect,
-		"SELECT id FROM user_accounts WHERE username = ? AND is_active = 1 AND is_banned = 0",
+		"SELECT id FROM users WHERE username = ? AND is_active = 1 AND is_banned = 0",
 		req.Username,
 	).Scan(&userID)
 
@@ -91,7 +91,7 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		// zone on PostgreSQL, MySQL and SQL Server than it does on SQLite.
 		now := dbtime.FormatSQLTimestamp(time.Now())
 		result, insertErr := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
-			INSERT INTO user_accounts (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
+			INSERT INTO users (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'user', 1, 1, ?, ?)
 		`, req.Username, email, displayName, pwHash, now, now)
 		if insertErr != nil {

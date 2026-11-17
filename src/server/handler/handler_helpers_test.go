@@ -30,6 +30,13 @@ func newTestServerDB(t *testing.T) *sql.DB {
 		db.Close()
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
+	// Many tests wire this one connection as both the server and the users
+	// handle (setGlobalTestDualDB(t, db, db)), and Server Admin accounts live in
+	// users.db (AI.md PART 12), so the users tables are applied here as well.
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		db.Close()
+		t.Fatalf("apply UsersSchema: %v", err)
+	}
 	t.Cleanup(func() { db.Close() })
 	return db
 }

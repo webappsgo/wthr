@@ -35,7 +35,7 @@ type UserPasskeyModel struct {
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
-// table UserPasskeyModel touches (user_passkeys) is declared in
+// table UserPasskeyModel touches (passkeys) is declared in
 // database.UsersSchema, so the injected handle is the correct database for
 // every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
@@ -48,68 +48,6 @@ func (m *UserPasskeyModel) getDB() *sql.DB {
 	}
 
 	return database.GetUsersDB()
-}
-
-func (m *UserPasskeyModel) ensurePasskeySchema() error {
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(user_passkeys)`)
-	if err != nil {
-		return fmt.Errorf("failed to inspect user_passkeys schema: %w", err)
-	}
-	defer rows.Close()
-
-	hasTransport := false
-	hasAttestationType := false
-	hasBackupEligible := false
-	hasBackupState := false
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var columnType string
-		var notNull int
-		var defaultValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan user_passkeys schema: %w", err)
-		}
-
-		switch name {
-		case "transport":
-			hasTransport = true
-		case "attestation_type":
-			hasAttestationType = true
-		case "backup_eligible":
-			hasBackupEligible = true
-		case "backup_state":
-			hasBackupState = true
-		}
-	}
-
-	if !hasTransport {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
-			return fmt.Errorf("failed to add user_passkeys.transport: %w", err)
-		}
-	}
-
-	if !hasAttestationType {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("failed to add user_passkeys.attestation_type: %w", err)
-		}
-	}
-
-	if !hasBackupEligible {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("failed to add user_passkeys.backup_eligible: %w", err)
-		}
-	}
-
-	if !hasBackupState {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("failed to add user_passkeys.backup_state: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func encodePasskeyBytes(data []byte) string {
@@ -217,16 +155,12 @@ func (m *UserPasskeyModel) scanPasskey(rowScanner interface {
 }
 
 func (m *UserPasskeyModel) ListByUserID(userID int64) ([]*UserPasskey, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return nil, err
-	}
-
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
-		FROM user_passkeys
-		WHERE user_id = ?
+		FROM passkeys
+		WHERE user_type = 'user' AND user_id = ?
 		ORDER BY created_at ASC, id ASC
 	`, userID)
 	if err != nil {
@@ -247,12 +181,8 @@ func (m *UserPasskeyModel) ListByUserID(userID int64) ([]*UserPasskey, error) {
 }
 
 func (m *UserPasskeyModel) CountByUserID(userID int64) (int, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return 0, err
-	}
-
 	var count int
-	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?`, userID).Scan(&count); err != nil {
+	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM passkeys WHERE user_type = 'user' AND user_id = ?`, userID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count passkeys: %w", err)
 	}
 
@@ -313,10 +243,6 @@ func (m *UserPasskeyModel) ListCredentialsByUserID(userID int64) ([]webauthn.Cre
 }
 
 func (m *UserPasskeyModel) CreateUserPasskey(userID int64, name string, credential *webauthn.Credential) (*UserPasskey, error) {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return nil, err
-	}
-
 	transportJSON, err := marshalPasskeyTransport(credential.Transport)
 	if err != nil {
 		return nil, err
@@ -327,11 +253,11 @@ func (m *UserPasskeyModel) CreateUserPasskey(userID int64, name string, credenti
 	// server-zone timestamp on another. The bind parameter sits in the position
 	// CURRENT_TIMESTAMP occupied, so it is the last value in the argument list.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_passkeys (
-			user_id, credential_id, public_key, aaguid, sign_count, name, transport,
+		INSERT INTO passkeys (
+			user_type, user_id, credential_id, public_key, aaguid, sign_count, name, transport,
 			attestation_type, backup_eligible, backup_state, created_at, last_used_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+		VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
 	`,
 		userID,
 		encodePasskeyBytes(credential.ID),
@@ -358,7 +284,7 @@ func (m *UserPasskeyModel) CreateUserPasskey(userID int64, name string, credenti
 		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
-		FROM user_passkeys
+		FROM passkeys
 		WHERE id = ?
 	`, id)
 
@@ -371,10 +297,6 @@ func (m *UserPasskeyModel) CreateUserPasskey(userID int64, name string, credenti
 }
 
 func (m *UserPasskeyModel) UpdateCredential(userID int64, credential *webauthn.Credential) error {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return err
-	}
-
 	transportJSON, err := marshalPasskeyTransport(credential.Transport)
 	if err != nil {
 		return err
@@ -385,10 +307,10 @@ func (m *UserPasskeyModel) UpdateCredential(userID int64, credential *webauthn.C
 	// placeholder sits second in the SET list, so its value is passed second in
 	// the argument list, right after sign_count.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_passkeys
+		UPDATE passkeys
 		SET sign_count = ?, last_used_at = ?, transport = ?, attestation_type = ?,
 		    backup_eligible = ?, backup_state = ?, aaguid = ?
-		WHERE user_id = ? AND credential_id = ?
+		WHERE user_type = 'user' AND user_id = ? AND credential_id = ?
 	`,
 		credential.Authenticator.SignCount,
 		sqlTimestamp(time.Now()),
@@ -416,11 +338,7 @@ func (m *UserPasskeyModel) UpdateCredential(userID int64, credential *webauthn.C
 }
 
 func (m *UserPasskeyModel) DeleteByID(userID int64, passkeyID int64) error {
-	if err := m.ensurePasskeySchema(); err != nil {
-		return err
-	}
-
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_passkeys WHERE id = ? AND user_id = ?`, passkeyID, userID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM passkeys WHERE id = ? AND user_type = 'user' AND user_id = ?`, passkeyID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete passkey: %w", err)
 	}

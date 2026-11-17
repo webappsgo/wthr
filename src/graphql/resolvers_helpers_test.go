@@ -1253,12 +1253,12 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 	createdAt := now.UTC().Format("2006-01-02 15:04:05")
 
 	seedAdmin := func(username string, active bool) int64 {
-		admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount(username, username+"@example.com", "password123", false)
+		admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount(username, username+"@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("create admin %q: %v", username, err)
 		}
 		if !active {
-			if _, err := ddb.Server.Exec(`UPDATE server_admin_credentials SET is_active = 0 WHERE id = ?`, admin.ID); err != nil {
+			if _, err := ddb.Users.Exec(`UPDATE admins SET is_active = 0 WHERE id = ?`, admin.ID); err != nil {
 				t.Fatalf("deactivate admin %q: %v", username, err)
 			}
 		}
@@ -1267,7 +1267,7 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 
 	seedSession := func(id string, adminID int64, expiresAt string) {
 		if _, err := ddb.Server.Exec(`
-			INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+			INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 		`, id, "test-hash-"+id, adminID, "127.0.0.1", "test-agent", expiresAt, createdAt); err != nil {
 			t.Fatalf("seed session %q: %v", id, err)
@@ -1296,7 +1296,7 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 	brokenAdmin := seedAdmin("brokenadmin", true)
 	seedSession("broken-session", brokenAdmin, "whenever-o-clock")
 
-	got, err := loadGraphQLOnlineAdminUsernames(context.Background(), ddb.Server)
+	got, err := loadGraphQLOnlineAdminUsernames(context.Background(), ddb.Server, ddb.Users)
 	if err != nil {
 		t.Fatalf("loadGraphQLOnlineAdminUsernames: %v", err)
 	}
@@ -1332,7 +1332,7 @@ func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) 
 
 	seedAuditEntry := func(ulid, timestamp, status string) {
 		if _, err := ddb.Server.Exec(`
-			INSERT INTO server_audit_log (ulid, timestamp, actor_type, action, status)
+			INSERT INTO audit_log (ulid, timestamp, actor_type, action, status)
 			VALUES (?, ?, ?, ?, ?)
 		`, ulid, timestamp, "admin", "test.request", status); err != nil {
 			t.Fatalf("seed audit entry %q: %v", ulid, err)

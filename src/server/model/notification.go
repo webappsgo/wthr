@@ -509,17 +509,17 @@ type AdminNotificationModel struct {
 }
 
 // getDB returns the DB handle this model was constructed with.
-// server_admin_notifications is declared in database.ServerSchema, so the
+// admin_notifications is declared in database.UsersSchema, so the
 // injected handle is the correct database for every query below. Fallback: when
 // the injected handle is nil (unit tests, or construction before the global dual
-// DB is wired) the process-global server handle is used instead, so a nil handle
+// DB is wired) the process-global users handle is used instead, so a nil handle
 // degrades to the previous behavior rather than panicking.
 func (m *AdminNotificationModel) getDB() *sql.DB {
 	if m.DB != nil {
 		return m.DB
 	}
 
-	return database.GetServerDB()
+	return database.GetUsersDB()
 }
 
 // CreateUserNotification creates a new admin notification
@@ -542,7 +542,7 @@ func (m *AdminNotificationModel) CreateAdminNotification(adminID int, notifType 
 	}
 
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_notifications (id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
+		INSERT INTO admin_notifications (id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, adminID, notifType, display, title, message, actionJSON, false, false, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
@@ -561,7 +561,7 @@ func (m *AdminNotificationModel) GetByID(id string) (*Notification, error) {
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
-		FROM server_admin_notifications WHERE id = ?
+		FROM admin_notifications WHERE id = ?
 	`, id).Scan(&notif.ID, &notif.AdminID, &notif.Type, &notif.Display, &notif.Title,
 		&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &storedCreatedAt, &storedExpiresAt)
 
@@ -602,7 +602,7 @@ func (m *AdminNotificationModel) GetByID(id string) (*Notification, error) {
 func (m *AdminNotificationModel) GetByAdminID(adminID int, limit, offset int) ([]*Notification, error) {
 	query := `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
-		FROM server_admin_notifications
+		FROM admin_notifications
 		WHERE admin_id = ? AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`
@@ -621,7 +621,7 @@ func (m *AdminNotificationModel) GetByAdminID(adminID int, limit, offset int) ([
 func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error) {
 	query := `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
-		FROM server_admin_notifications
+		FROM admin_notifications
 		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`
@@ -640,7 +640,7 @@ func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error)
 // is the same instant comparison every other read in this file performs.
 func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT expires_at FROM server_admin_notifications
+		SELECT expires_at FROM admin_notifications
 		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
 	`, adminID)
 	if err != nil {
@@ -653,7 +653,7 @@ func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
 
 // MarkAsRead marks a notification as read
 func (m *AdminNotificationModel) MarkAsRead(id string, adminID int) error {
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE server_admin_notifications SET read = 1 WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE admin_notifications SET read = 1 WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -672,13 +672,13 @@ func (m *AdminNotificationModel) MarkAsRead(id string, adminID int) error {
 
 // MarkAllAsRead marks all notifications as read for an admin
 func (m *AdminNotificationModel) MarkAllAsRead(adminID int) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE server_admin_notifications SET read = 1 WHERE admin_id = ? AND read = 0", adminID)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE admin_notifications SET read = 1 WHERE admin_id = ? AND read = 0", adminID)
 	return err
 }
 
 // Dismiss dismisses a notification
 func (m *AdminNotificationModel) Dismiss(id string, adminID int) error {
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE server_admin_notifications SET dismissed = 1 WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "UPDATE admin_notifications SET dismissed = 1 WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -697,7 +697,7 @@ func (m *AdminNotificationModel) Dismiss(id string, adminID int) error {
 
 // DeleteUserNotification deletes a notification
 func (m *AdminNotificationModel) DeleteAdminNotification(id string, adminID int) error {
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM server_admin_notifications WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM admin_notifications WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -720,15 +720,15 @@ func (m *AdminNotificationModel) DeleteAdminNotification(id string, adminID int)
 // writer's local zone, so a lexicographic SQL comparison deleted rows that had
 // not expired. Rows whose expires_at is NULL or unparseable are left alone.
 func (m *AdminNotificationModel) CleanupExpired() (int64, error) {
-	return deleteRowsWithTimestampBefore(m.getDB(), "server_admin_notifications", "id", "expires_at", time.Now().UTC(), true)
+	return deleteRowsWithTimestampBefore(m.getDB(), "admin_notifications", "id", "expires_at", time.Now().UTC(), true)
 }
 
 // EnforceLimit enforces the 100 notification limit per admin
 func (m *AdminNotificationModel) EnforceLimit(adminID int, limit int) (int64, error) {
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM server_admin_notifications
+		DELETE FROM admin_notifications
 		WHERE admin_id = ? AND id NOT IN (
-			SELECT id FROM server_admin_notifications
+			SELECT id FROM admin_notifications
 			WHERE admin_id = ?
 			ORDER BY created_at DESC
 			LIMIT ?
@@ -751,7 +751,7 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	}
 
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT type, display, read, dismissed, expires_at FROM server_admin_notifications
+		SELECT type, display, read, dismissed, expires_at FROM admin_notifications
 		WHERE admin_id = ? AND expires_at IS NOT NULL
 	`, adminID)
 	if err != nil {
@@ -831,8 +831,9 @@ func (m *AdminNotificationModel) scanUnexpiredNotifications(rows *sql.Rows, now 
 
 // NotificationPreferencesModel handles notification preferences
 type NotificationPreferencesModel struct {
-	UserDB   *sql.DB
-	ServerDB *sql.DB
+	// UserDB is the users.db handle holding both user_notification_preferences and
+	// admin_notification_preferences (Server Admins live in users.db, AI.md PART 12)
+	UserDB *sql.DB
 }
 
 // getUserDB returns the users.db handle this model was constructed with.
@@ -846,19 +847,6 @@ func (m *NotificationPreferencesModel) getUserDB() *sql.DB {
 	}
 
 	return database.GetUsersDB()
-}
-
-// getServerDB returns the server.db handle this model was constructed with.
-// server_admin_notification_preferences is declared in database.ServerSchema, so
-// the injected handle is the correct database for the admin-scoped queries below.
-// Fallback: when the injected handle is nil (unit tests, or construction before
-// the global dual DB is wired) the process-global server handle is used instead.
-func (m *NotificationPreferencesModel) getServerDB() *sql.DB {
-	if m.ServerDB != nil {
-		return m.ServerDB
-	}
-
-	return database.GetServerDB()
 }
 
 // GetUserPreferences retrieves notification preferences for a user
@@ -942,10 +930,10 @@ func (m *NotificationPreferencesModel) GetAdminPreferences(adminID int) (*Notifi
 
 	var storedUpdatedAt interface{}
 
-	err := database.QueryRowContext(context.Background(), m.getServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getUserDB(), database.TimeoutSimpleSelect, `
 		SELECT enable_toast, enable_banner, enable_center, enable_sound,
 		       toast_duration_success, toast_duration_info, toast_duration_warning, updated_at
-		FROM server_admin_notification_preferences
+		FROM admin_notification_preferences
 		WHERE admin_id = ?
 	`, adminID).Scan(&prefs.EnableToast, &prefs.EnableBanner, &prefs.EnableCenter, &prefs.EnableSound,
 		&prefs.ToastDurationSuccess, &prefs.ToastDurationInfo, &prefs.ToastDurationWarning, &storedUpdatedAt)
@@ -970,8 +958,8 @@ func (m *NotificationPreferencesModel) GetAdminPreferences(adminID int) (*Notifi
 
 // UpdateAdminPreferences updates notification preferences for an admin
 func (m *NotificationPreferencesModel) UpdateAdminPreferences(adminID int, prefs *NotificationPreferences) error {
-	_, err := database.ExecContext(context.Background(), m.getServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_notification_preferences
+	_, err := database.ExecContext(context.Background(), m.getUserDB(), database.TimeoutWrite, `
+		INSERT INTO admin_notification_preferences
 		(admin_id, enable_toast, enable_banner, enable_center, enable_sound,
 		 toast_duration_success, toast_duration_info, toast_duration_warning, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

@@ -240,7 +240,7 @@ func TestInjectedHandle_UserPasswordResetModel(t *testing.T) {
 	if got.UserID != injectedUserID {
 		t.Errorf("GetReset read the wrong database: user_id = %d, want %d", got.UserID, injectedUserID)
 	}
-	if n := countRows(t, global, "user_password_resets"); n != 1 {
+	if n := countRows(t, global, "password_resets"); n != 1 {
 		t.Errorf("global users db has %d resets, want only the seeded 1 - the model wrote the wrong database", n)
 	}
 }
@@ -322,9 +322,9 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 }
 
 // TestInjectedHandle_AdminModel proves AdminModel resolves admins from the
-// injected server handle rather than the globally installed decoy.
+// injected users handle rather than the globally installed decoy.
 func TestInjectedHandle_AdminModel(t *testing.T) {
-	injected, global := newInjectedAndGlobalServerDBs(t)
+	injected, global := newInjectedAndGlobalUsersDBs(t)
 
 	if _, err := (&AdminModel{DB: global}).CreateAdminAccount("root", "global@example.com", "GlobalPassw0rd!", true); err != nil {
 		t.Fatalf("seed global admin: %v", err)
@@ -344,9 +344,9 @@ func TestInjectedHandle_AdminModel(t *testing.T) {
 }
 
 // TestInjectedHandle_AdminInviteModel proves admin invite lookups resolve
-// against the injected server handle.
+// against the injected users handle.
 func TestInjectedHandle_AdminInviteModel(t *testing.T) {
-	injected, global := newInjectedAndGlobalServerDBs(t)
+	injected, global := newInjectedAndGlobalUsersDBs(t)
 
 	if _, err := (&AdminInviteModel{DB: global}).CreateInvite("global@example.com", 1, time.Hour); err != nil {
 		t.Fatalf("seed global invite: %v", err)
@@ -389,15 +389,15 @@ func TestInjectedHandle_AdminSessionModel(t *testing.T) {
 	if got.UserAgent != "injected-agent" {
 		t.Errorf("GetSession read the wrong database: user_agent = %q", got.UserAgent)
 	}
-	if n := countRows(t, global, "server_admin_sessions"); n != 1 {
+	if n := countRows(t, global, "admin_sessions"); n != 1 {
 		t.Errorf("global server db has %d admin sessions, want only the seeded 1", n)
 	}
 }
 
 // TestInjectedHandle_AdminPasskeyModel proves admin passkey counts come from
-// the injected server handle.
+// the injected users handle.
 func TestInjectedHandle_AdminPasskeyModel(t *testing.T) {
-	injected, global := newInjectedAndGlobalServerDBs(t)
+	injected, global := newInjectedAndGlobalUsersDBs(t)
 
 	globalModel := &AdminPasskeyModel{DB: global}
 	if _, err := globalModel.CreateAdminPasskey(1, "global-1", testCredential(1)); err != nil {
@@ -443,16 +443,17 @@ func TestModelHandleAccessors(t *testing.T) {
 		{"TokenModel", func(db *sql.DB) *sql.DB { return (&TokenModel{DB: db}).getDB() }},
 		{"RecoveryKeyModel", func(db *sql.DB) *sql.DB { return (&RecoveryKeyModel{DB: db}).getDB() }},
 		{"UserPasskeyModel", func(db *sql.DB) *sql.DB { return (&UserPasskeyModel{DB: db}).getDB() }},
+		{"AdminModel", func(db *sql.DB) *sql.DB { return (&AdminModel{DB: db}).getDB() }},
+		{"AdminInviteModel", func(db *sql.DB) *sql.DB { return (&AdminInviteModel{DB: db}).getDB() }},
+		{"AdminPasskeyModel", func(db *sql.DB) *sql.DB { return (&AdminPasskeyModel{DB: db}).getDB() }},
+		{"AdminNotificationModel", func(db *sql.DB) *sql.DB { return (&AdminNotificationModel{DB: db}).getDB() }},
 	}
 
 	serverCases := []struct {
 		name    string
 		resolve func(db *sql.DB) *sql.DB
 	}{
-		{"AdminModel", func(db *sql.DB) *sql.DB { return (&AdminModel{DB: db}).getDB() }},
-		{"AdminInviteModel", func(db *sql.DB) *sql.DB { return (&AdminInviteModel{DB: db}).getDB() }},
 		{"AdminSessionModel", func(db *sql.DB) *sql.DB { return (&AdminSessionModel{DB: db}).getDB() }},
-		{"AdminPasskeyModel", func(db *sql.DB) *sql.DB { return (&AdminPasskeyModel{DB: db}).getDB() }},
 	}
 
 	injectedUsers := newModelUsersDB(t)

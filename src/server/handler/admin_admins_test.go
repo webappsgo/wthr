@@ -346,12 +346,9 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 		}
 	})
 
-	// A non-empty current_password triggers the verification query
-	// `SELECT password FROM admins WHERE id = ?`, but the schema only
-	// defines a `server_admin_credentials` table, never `admins` — so this
-	// path always fails with a 500, documenting a real production bug
-	// rather than exercising the intended success path.
-	t.Run("non-empty current password hits missing admins table", func(t *testing.T) {
+	// A non-empty current_password is verified against the stored Argon2id hash
+	// in the admins table, and the new password is stored hashed exactly once.
+	t.Run("correct current password changes the password", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "pwtargetadmin4", "password123")
 		r, w := newAdminsJSONRequest(t, http.MethodPost, "/server/administration/admins/1/password", map[string]string{
@@ -360,8 +357,26 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 		r = setAdminIDParam(r, strconv.FormatInt(admin.ID, 10))
 		r = withAdminID(r, int(admin.ID))
 		h.ChangePassword(w, r)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500 (documents admins-table bug): %s", w.Code, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+		}
+		verified, err := (&models.AdminModel{}).VerifyCredentials("pwtargetadmin4", "newpassword123")
+		if err != nil || verified == nil {
+			t.Fatalf("new password does not verify after the change: %v", err)
+		}
+	})
+
+	t.Run("wrong current password is rejected", func(t *testing.T) {
+		h, _ := newAdminsTestHandler(t)
+		admin := newAdminsTestAdmin(t, "pwtargetadmin5", "password123")
+		r, w := newAdminsJSONRequest(t, http.MethodPost, "/server/administration/admins/1/password", map[string]string{
+			"current_password": "not-the-password", "new_password": "newpassword123",
+		})
+		r = setAdminIDParam(r, strconv.FormatInt(admin.ID, 10))
+		r = withAdminID(r, int(admin.ID))
+		h.ChangePassword(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
 		}
 	})
 }

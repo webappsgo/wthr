@@ -63,7 +63,7 @@ func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)

@@ -4,7 +4,7 @@ package database
 const UsersSchema = `
 -- User Accounts table (regular users only, NO admins)
 -- Per AI.md PART 34: Multi-user support with profile fields
-CREATE TABLE IF NOT EXISTS user_accounts (
+CREATE TABLE IF NOT EXISTS users (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	username TEXT UNIQUE NOT NULL,
 	email TEXT UNIQUE NOT NULL,
@@ -38,30 +38,33 @@ CREATE TABLE IF NOT EXISTS user_accounts (
 	last_login_ip TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_username ON user_accounts(username);
-CREATE INDEX IF NOT EXISTS idx_user_email ON user_accounts(email);
-CREATE INDEX IF NOT EXISTS idx_user_phone ON user_accounts(phone);
-CREATE INDEX IF NOT EXISTS idx_user_active ON user_accounts(is_active);
-CREATE INDEX IF NOT EXISTS idx_user_banned ON user_accounts(is_banned);
+CREATE INDEX IF NOT EXISTS idx_user_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_user_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_user_active ON users(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_banned ON users(is_banned);
 
--- User API Tokens table (AI.md PART 11: usr_ prefix tokens, SHA-256 hashed)
-CREATE TABLE IF NOT EXISTS user_tokens (
+-- Unified API tokens table for every owner type (AI.md PART 11): adm_ tokens belong to
+-- admins, usr_ tokens to users. owner_id is a logical foreign key to admins.id or users.id.
+-- Only the SHA-256 hash and an 8 character display prefix are stored.
+CREATE TABLE IF NOT EXISTS tokens (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	user_id INTEGER NOT NULL,
+	owner_type TEXT NOT NULL DEFAULT 'user' CHECK(owner_type IN ('admin', 'user', 'org')),
+	owner_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
 	token_hash TEXT UNIQUE NOT NULL,
 	token_prefix TEXT NOT NULL,
-	name TEXT,
-	scopes TEXT,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	scope TEXT NOT NULL DEFAULT 'global',
 	expires_at DATETIME,
 	last_used_at DATETIME,
 	last_used_ip TEXT,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(owner_type, owner_id, name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_tokens_hash ON user_tokens(token_hash);
-CREATE INDEX IF NOT EXISTS idx_tokens_user ON user_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_tokens_expires ON user_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_tokens_hash ON tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_tokens_owner ON tokens(owner_type, owner_id);
+CREATE INDEX IF NOT EXISTS idx_tokens_expires ON tokens(expires_at);
 
 -- User Sessions table (web sessions for regular users)
 -- token_hash stores SHA-256(raw_token) per IDEA.md security requirements.
@@ -76,7 +79,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME NOT NULL,
 	last_used_at DATETIME,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
@@ -97,8 +100,8 @@ CREATE TABLE IF NOT EXISTS user_invites (
 	used_at DATETIME,
 	max_uses INTEGER DEFAULT 1,
 	use_count INTEGER DEFAULT 0,
-	FOREIGN KEY (invited_by) REFERENCES user_accounts(id) ON DELETE SET NULL,
-	FOREIGN KEY (used_by) REFERENCES user_accounts(id) ON DELETE SET NULL
+	FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
+	FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_invites_code ON user_invites(code);
@@ -116,7 +119,7 @@ CREATE TABLE IF NOT EXISTS user_saved_locations (
 	alerts_enabled BOOLEAN DEFAULT 1,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_locations_user ON user_saved_locations(user_id);
@@ -145,7 +148,7 @@ CREATE TABLE IF NOT EXISTS user_weather_alert_history (
 	location_id INTEGER NOT NULL,
 	alert_type TEXT NOT NULL,
 	sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 	FOREIGN KEY (location_id) REFERENCES user_saved_locations(id) ON DELETE CASCADE
 );
 
@@ -166,7 +169,7 @@ CREATE TABLE IF NOT EXISTS user_notifications (
 	dismissed BOOLEAN DEFAULT 0,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_user ON user_notifications(user_id);
@@ -185,7 +188,7 @@ CREATE TABLE IF NOT EXISTS user_notification_preferences (
 	toast_duration_info INTEGER DEFAULT 5,
 	toast_duration_warning INTEGER DEFAULT 10,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Per-channel delivery preferences for a user (one row per user + channel type)
@@ -201,7 +204,7 @@ CREATE TABLE IF NOT EXISTS user_notification_channel_preferences (
 	config TEXT,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 	UNIQUE(user_id, channel_type)
 );
 
@@ -219,7 +222,7 @@ CREATE TABLE IF NOT EXISTS notification_subscriptions (
 	config TEXT,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 	UNIQUE(user_id, subscription_type, subscription_category)
 );
 
@@ -234,7 +237,7 @@ CREATE TABLE IF NOT EXISTS recovery_keys (
 	key_hash TEXT NOT NULL,
 	used_at DATETIME,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_recovery_user ON recovery_keys(user_id);
@@ -254,12 +257,91 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 	email_notifications BOOLEAN DEFAULT 1,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Passkeys/WebAuthn Credentials table
-CREATE TABLE IF NOT EXISTS user_passkeys (
+-- Admins table (Server Admins live in users.db per AI.md PART 12; regular accounts are in users)
+-- AI.md PART 11: API tokens stored as SHA-256 hash, never plaintext
+CREATE TABLE IF NOT EXISTS admins (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	username TEXT UNIQUE NOT NULL,
+	email TEXT UNIQUE NOT NULL,
+	password_hash TEXT NOT NULL,
+	is_super_admin BOOLEAN DEFAULT 0,
+	is_active BOOLEAN DEFAULT 1,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	last_login_at DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_username ON admins(username);
+CREATE INDEX IF NOT EXISTS idx_admin_email ON admins(email);
+
+-- Admin Invite Tokens table (TEMPLATE.md Part 31: 15-minute expiry)
+CREATE TABLE IF NOT EXISTS admin_invites (
+	token TEXT PRIMARY KEY,
+	invited_email TEXT NOT NULL,
+	invited_by INTEGER NOT NULL,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	expires_at DATETIME NOT NULL,
+	used_by INTEGER,
+	used_at DATETIME,
+	FOREIGN KEY (invited_by) REFERENCES admins(id) ON DELETE CASCADE,
+	FOREIGN KEY (used_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_invites_email ON admin_invites(invited_email);
+CREATE INDEX IF NOT EXISTS idx_admin_invites_expires ON admin_invites(expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_invites_invited_by ON admin_invites(invited_by);
+
+-- Admin Notifications table (TEMPLATE.md Part 25: WebUI notifications for admins)
+CREATE TABLE IF NOT EXISTS admin_notifications (
+	id TEXT PRIMARY KEY,
+	admin_id INTEGER NOT NULL,
+	type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
+	display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
+	title TEXT NOT NULL,
+	message TEXT NOT NULL,
+	action_json TEXT,
+	read BOOLEAN DEFAULT 0,
+	dismissed BOOLEAN DEFAULT 0,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	expires_at DATETIME,
+	FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_notif_admin ON admin_notifications(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_notif_read ON admin_notifications(read);
+CREATE INDEX IF NOT EXISTS idx_admin_notif_created ON admin_notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_notif_expires ON admin_notifications(expires_at);
+
+-- Admin Notification Preferences table (TEMPLATE.md Part 25)
+CREATE TABLE IF NOT EXISTS admin_notification_preferences (
+	admin_id INTEGER PRIMARY KEY,
+	enable_toast BOOLEAN DEFAULT 1,
+	enable_banner BOOLEAN DEFAULT 1,
+	enable_center BOOLEAN DEFAULT 1,
+	enable_sound BOOLEAN DEFAULT 0,
+	toast_duration_success INTEGER DEFAULT 5,
+	toast_duration_info INTEGER DEFAULT 5,
+	toast_duration_warning INTEGER DEFAULT 10,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+
+-- Admin Preferences table (settings per admin)
+CREATE TABLE IF NOT EXISTS admin_preferences (
+	admin_id INTEGER PRIMARY KEY,
+	preferences TEXT NOT NULL,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+
+-- Passkeys/WebAuthn credentials for both account types (AI.md PART 12 unified table).
+-- user_type is 'admin' (admins.id) or 'user' (users.id); user_id is a logical foreign key.
+CREATE TABLE IF NOT EXISTS passkeys (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_type TEXT NOT NULL DEFAULT 'user' CHECK(user_type IN ('admin', 'user')),
 	user_id INTEGER NOT NULL,
 	credential_id TEXT UNIQUE NOT NULL,
 	public_key TEXT NOT NULL,
@@ -271,12 +353,11 @@ CREATE TABLE IF NOT EXISTS user_passkeys (
 	backup_eligible BOOLEAN NOT NULL DEFAULT 0,
 	backup_state BOOLEAN NOT NULL DEFAULT 0,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	last_used_at DATETIME,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	last_used_at DATETIME
 );
 
-CREATE INDEX IF NOT EXISTS idx_passkey_user ON user_passkeys(user_id);
-CREATE INDEX IF NOT EXISTS idx_passkey_cred ON user_passkeys(credential_id);
+CREATE INDEX IF NOT EXISTS idx_passkey_owner ON passkeys(user_type, user_id);
+CREATE INDEX IF NOT EXISTS idx_passkey_cred ON passkeys(credential_id);
 
 -- OIDC Identity Mappings table (external identity providers)
 CREATE TABLE IF NOT EXISTS user_oidc_mappings (
@@ -292,7 +373,7 @@ CREATE TABLE IF NOT EXISTS user_oidc_mappings (
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	last_login_at DATETIME,
 	UNIQUE(provider_name, provider_user_id),
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_oidc_user ON user_oidc_mappings(user_id);
@@ -311,14 +392,14 @@ CREATE TABLE IF NOT EXISTS user_ldap_mappings (
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	last_sync_at DATETIME,
 	UNIQUE(ldap_server, ldap_dn),
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_ldap_user ON user_ldap_mappings(user_id);
 CREATE INDEX IF NOT EXISTS idx_ldap_server ON user_ldap_mappings(ldap_server, ldap_dn);
 
 -- Email Verification Tokens table
-CREATE TABLE IF NOT EXISTS user_email_verifications (
+CREATE TABLE IF NOT EXISTS email_verifications (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
 	email TEXT NOT NULL,
@@ -326,15 +407,15 @@ CREATE TABLE IF NOT EXISTS user_email_verifications (
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME NOT NULL,
 	used_at DATETIME,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_verify_token ON user_email_verifications(token);
-CREATE INDEX IF NOT EXISTS idx_email_verify_user ON user_email_verifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_email_verify_expires ON user_email_verifications(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verify_token ON email_verifications(token);
+CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verify_expires ON email_verifications(expires_at);
 
 -- Password Reset Tokens table
-CREATE TABLE IF NOT EXISTS user_password_resets (
+CREATE TABLE IF NOT EXISTS password_resets (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
 	token TEXT UNIQUE NOT NULL,
@@ -342,12 +423,12 @@ CREATE TABLE IF NOT EXISTS user_password_resets (
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME NOT NULL,
 	used_at DATETIME,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_password_reset_token ON user_password_resets(token);
-CREATE INDEX IF NOT EXISTS idx_password_reset_user ON user_password_resets(user_id);
-CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON user_password_resets(expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_resets(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_resets(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_resets(expires_at);
 
 -- User Activity Log table (login history, security events)
 CREATE TABLE IF NOT EXISTS user_activity_log (
@@ -360,7 +441,7 @@ CREATE TABLE IF NOT EXISTS user_activity_log (
 	location TEXT,
 	status TEXT DEFAULT 'success',
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_user ON user_activity_log(user_id);

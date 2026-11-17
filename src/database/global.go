@@ -53,3 +53,23 @@ func IsDualMode() bool {
 	defer globalMutex.RUnlock()
 	return globalDualDB != nil
 }
+
+// UsersDBOr returns the process-global users.db handle, or fallback when no
+// dual database is wired (single-handle unit tests). Server Admin accounts live
+// in users.db (AI.md PART 12) while admin sessions live in server.db, so code
+// that was handed one handle uses this to reach the other side.
+func UsersDBOr(fallback *sql.DB) *sql.DB {
+	if users := GetUsersDB(); users != nil {
+		return users
+	}
+	return fallback
+}
+
+// ServerDBOr returns the process-global server.db handle, or fallback when no
+// dual database is wired (single-handle unit tests).
+func ServerDBOr(fallback *sql.DB) *sql.DB {
+	if server := GetServerDB(); server != nil {
+		return server
+	}
+	return fallback
+}

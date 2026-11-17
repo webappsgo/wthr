@@ -15,7 +15,7 @@ var tokenV2DBCounter int64
 
 // newTokenV2UsersDB opens a fresh in-memory users database carrying the real
 // database.UsersSchema — the same DDL initUsersDB applies to users.db, which
-// owns the canonical user_tokens table TokenModelV2 reads and writes.
+// owns the canonical tokens table TokenModelV2 reads and writes.
 func newTokenV2UsersDB(t *testing.T) *sql.DB {
 	t.Helper()
 	n := atomic.AddInt64(&tokenV2DBCounter, 1)
@@ -121,7 +121,7 @@ func TestValidateTokenFormat(t *testing.T) {
 }
 
 // TestTokenModelV2_CreateToken covers owner/scope validation, the
-// user-only ownership constraint of user_tokens, and expiration calculation.
+// user-only ownership constraint of tokens, and expiration calculation.
 func TestTokenModelV2_CreateToken(t *testing.T) {
 	db := newTokenV2UsersDB(t)
 	model := &TokenModelV2{DB: db}
@@ -164,15 +164,23 @@ func TestTokenModelV2_CreateToken(t *testing.T) {
 		}
 	})
 
-	t.Run("admin owner rejected", func(t *testing.T) {
-		if _, err := model.CreateToken(OwnerTypeAdmin, 2, "Admin", ScopeGlobal, 0); err == nil {
-			t.Error("CreateToken() expected error for admin owner, which is stored in server.db")
+	t.Run("admin owner stored with the adm_ prefix", func(t *testing.T) {
+		tok, err := model.CreateToken(OwnerTypeAdmin, 2, "Admin", ScopeGlobal, 0)
+		if err != nil {
+			t.Fatalf("CreateToken() error = %v for an admin owner", err)
+		}
+		if tok.OwnerType != OwnerTypeAdmin || !strings.HasPrefix(tok.Token, PrefixAdmin) {
+			t.Errorf("CreateToken() = owner %q token %q, want an admin-owned adm_ token", tok.OwnerType, tok.Token)
+		}
+		validated, err := model.ValidateToken(tok.Token)
+		if err != nil || validated.OwnerType != OwnerTypeAdmin || validated.OwnerID != 2 {
+			t.Errorf("ValidateToken() = %+v, %v, want the admin owner round-tripped", validated, err)
 		}
 	})
 
 	t.Run("org owner rejected", func(t *testing.T) {
 		if _, err := model.CreateToken(OwnerTypeOrg, 3, "Org", ScopeGlobal, 0); err == nil {
-			t.Error("CreateToken() expected error for org owner, which user_tokens cannot hold")
+			t.Error("CreateToken() expected error for org owner, which tokens cannot hold")
 		}
 	})
 }
@@ -284,15 +292,15 @@ func TestTokenModelV2_UpdateLastUsedListDeleteRotate(t *testing.T) {
 		}
 	})
 
-	t.Run("non-user owner types are rejected", func(t *testing.T) {
-		if _, err := model.ListTokens(OwnerTypeAdmin, 20); err == nil {
-			t.Error("ListTokens() expected error for admin owner")
+	t.Run("org owner types are rejected", func(t *testing.T) {
+		if _, err := model.ListTokens(OwnerTypeOrg, 20); err == nil {
+			t.Error("ListTokens() expected error for org owner")
 		}
 		if err := model.DeleteToken(created.ID, OwnerTypeOrg, 20); err == nil {
 			t.Error("DeleteToken() expected error for org owner")
 		}
 		if _, err := model.RotateToken(created.ID, OwnerTypeAdmin, 20); err == nil {
-			t.Error("RotateToken() expected error for admin owner")
+			t.Error("RotateToken() expected error when the token belongs to a different owner type")
 		}
 	})
 

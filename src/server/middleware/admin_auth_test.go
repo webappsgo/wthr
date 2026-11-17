@@ -19,8 +19,8 @@ import (
 )
 
 // openAdminAuthTestServerDB opens an in-memory server.db seeded with the
-// real ServerSchema (which defines server_admin_credentials and
-// server_admin_sessions - the two tables admin_auth.go queries directly via
+// real ServerSchema (which defines admins and
+// admin_sessions - the two tables admin_auth.go queries directly via
 // its own db parameter, unlike auth.go/server_context.go/setup.go which
 // bypass their db parameter entirely via database.GetServerDB()).
 func openAdminAuthTestServerDB(t *testing.T) *sql.DB {
@@ -32,6 +32,10 @@ func openAdminAuthTestServerDB(t *testing.T) *sql.DB {
 	}
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
+	}
+	// Server Admin accounts live in users.db (AI.md PART 12); this single connection serves as both
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("apply UsersSchema: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
@@ -71,7 +75,7 @@ func seedAdminCredential(t *testing.T, db *sql.DB, username, password string) in
 	// Bound through dbtime rather than left to CURRENT_TIMESTAMP so the fixture
 	// uses the same writer convention as production code.
 	res, err := db.Exec(`
-		INSERT INTO server_admin_credentials (username, email, password_hash, created_at)
+		INSERT INTO admins (username, email, password_hash, created_at)
 		VALUES (?, ?, ?, ?)
 	`, username, username+"@example.com", hash, dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
@@ -133,7 +137,7 @@ func TestRequireAdminAuth_NoDBReturns503(t *testing.T) {
 }
 
 // TestRequireAdminAuth_InvalidSessionShowsLoginPage verifies a cookie value
-// with no matching, unexpired row in server_admin_sessions is rejected back
+// with no matching, unexpired row in admin_sessions is rejected back
 // to the login page rather than authenticating.
 func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
 	setAdminTestRenderer(t)
@@ -157,7 +161,7 @@ func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
 }
 
 // TestRequireAdminAuth_ValidSessionReachesHandler seeds a real
-// server_admin_sessions row with a future expiry and verifies the request
+// admin_sessions row with a future expiry and verifies the request
 // reaches the wrapped handler with admin_id populated in context.
 func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	setAdminTestRenderer(t)
@@ -169,7 +173,7 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	// Both timestamps go in as canonical UTC text via dbtime, matching what
 	// AdminLoginHandler itself writes.
 	if _, err := serverDB.Exec(`
-		INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+		INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, "00000000-0000-4000-8000-000000000001", models.HashAdminSessionToken(token), adminID, "127.0.0.1", "test-agent", dbtime.FormatSQLTimestamp(now.Add(time.Hour)), dbtime.FormatSQLTimestamp(now)); err != nil {
 		t.Fatalf("seed admin session: %v", err)
@@ -208,7 +212,7 @@ func TestRequireAdminAuthRejectsSessionForInactiveAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create admin session: %v", err)
 	}
-	if _, err := serverDB.Exec(`UPDATE server_admin_credentials SET is_active = 0 WHERE id = ?`, adminID); err != nil {
+	if _, err := serverDB.Exec(`UPDATE admins SET is_active = 0 WHERE id = ?`, adminID); err != nil {
 		t.Fatalf("disable admin: %v", err)
 	}
 
@@ -291,7 +295,7 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 
 			const token = "zone-safety-session-token"
 			if _, err := serverDB.Exec(`
-				INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+				INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?)
 			`, "00000000-0000-4000-8000-000000000002", models.HashAdminSessionToken(token), adminID, "127.0.0.1", "test-agent", tc.expiresAt, dbtime.FormatSQLTimestamp(now)); err != nil {
 				t.Fatalf("seed admin session: %v", err)
@@ -409,14 +413,14 @@ func TestAdminLoginHandler(t *testing.T) {
 		}
 
 		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_sessions").Scan(&count); err != nil {
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM admin_sessions").Scan(&count); err != nil {
 			t.Fatalf("count sessions: %v", err)
 		}
 		if count != 1 {
-			t.Errorf("server_admin_sessions row count = %d, want 1 after a successful login", count)
+			t.Errorf("admin_sessions row count = %d, want 1 after a successful login", count)
 		}
 		var rowID, tokenHash string
-		if err := serverDB.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
+		if err := serverDB.QueryRow(`SELECT id, token_hash FROM admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
 			t.Fatalf("read created admin session: %v", err)
 		}
 		if rowID == sessionToken || tokenHash != models.HashAdminSessionToken(sessionToken) {

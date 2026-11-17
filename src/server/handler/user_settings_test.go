@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -61,16 +62,16 @@ func withUSURLParam(r *http.Request, key, value string) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
-// seedUserAccountRow inserts a minimal row into user_accounts so loadSettings
+// seedUserAccountRow inserts a minimal row into users so loadSettings
 // (and anything that joins against it) has a row to find for the given id.
 func seedUserAccountRow(t *testing.T, db *sql.DB, id int64, email, username string) {
 	t.Helper()
 	_, err := db.Exec(`
-		INSERT INTO user_accounts (id, email, username, display_name, password_hash, bio, location, website, timezone, language, role, visibility, is_active, email_verified, created_at, updated_at)
+		INSERT INTO users (id, email, username, display_name, password_hash, bio, location, website, timezone, language, role, visibility, is_active, email_verified, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, email, username, username, "argon2id$dummy", "", "", "", "UTC", "en", "user", "public", true, true, time.Now(), time.Now())
 	if err != nil {
-		t.Fatalf("seed user_accounts: %v", err)
+		t.Fatalf("seed users: %v", err)
 	}
 }
 
@@ -97,7 +98,7 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 		}
 	})
 
-	t.Run("authenticated user with no user_accounts row gets 500, not a panic", func(t *testing.T) {
+	t.Run("authenticated user with no users row gets 500, not a panic", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
@@ -118,7 +119,7 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 	// fails on every single call with "no such column: id", which loadSettings
 	// propagates as an error, and GetSettings turns into an unconditional
 	// 500 {"error":"Failed to get preferences"} for every authenticated user.
-	// Repro: seed a user_accounts row, call GetSettings — expect 200, get 500.
+	// Repro: seed a users row, call GetSettings — expect 200, get 500.
 	// This test encodes the CORRECT expected behavior (200 + populated
 	// settings) and is expected to fail until getOrCreatePreferences' SELECT
 	// (and its models.UserPreferences.Scan target list) drops the `id` column.
@@ -270,13 +271,28 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateToken rejects a duplicate token name for the same user", func(t *testing.T) {
+		db := newTestUsersDB(t)
+		h := NewUserSettingsHandler(db)
+		seedUserAccountRow(t, db, 1, "g@example.com", "gina")
+
+		for i, want := range []int{http.StatusOK, http.StatusConflict} {
+			r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "same"})
+			r = withUSCurrentUser(r, 1)
+			h.CreateToken(w, r)
+			if w.Code != want {
+				t.Fatalf("attempt %d: status = %d, want %d; body=%s", i, w.Code, want, w.Body.String())
+			}
+		}
+	})
+
 	t.Run("CreateToken enforces max 5 tokens per user", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "g@example.com", "gina")
 
 		for i := 0; i < 5; i++ {
-			r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "tok"})
+			r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: fmt.Sprintf("tok-%d", i)})
 			r = withUSCurrentUser(r, 1)
 			h.CreateToken(w, r)
 			if w.Code != http.StatusOK {
@@ -577,8 +593,8 @@ func TestGetUserTokens_LegacyTimestampLayoutsSurvive(t *testing.T) {
 
 	for i, row := range rows {
 		_, err := db.Exec(`
-			INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at, last_used_at)
-			VALUES (?, ?, 'usr_', ?, 'read', ?, ?, ?)
+			INSERT INTO tokens (owner_type, owner_id, token_hash, token_prefix, name, scope, created_at, expires_at, last_used_at)
+			VALUES ('user', ?, ?, 'usr_', ?, 'read', ?, ?, ?)
 		`, 1, strconv.Itoa(i)+"-hash", row.name, row.createdAt, row.createdAt, row.createdAt)
 		if err != nil {
 			t.Fatalf("seed token row %q: %v", row.name, err)

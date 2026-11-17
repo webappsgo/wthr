@@ -27,7 +27,7 @@ func newNotificationsTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// seedNotificationUsers inserts the user_accounts parent rows that
+// seedNotificationUsers inserts the users parent rows that
 // user_notifications.user_id references. username, email and password_hash are
 // all NOT NULL in the real DDL, so every seeded account supplies them.
 func seedNotificationUsers(t *testing.T, db *sql.DB, ids ...int) {
@@ -35,10 +35,10 @@ func seedNotificationUsers(t *testing.T, db *sql.DB, ids ...int) {
 
 	for _, id := range ids {
 		suffix := strconv.Itoa(id)
-		_, err := db.Exec(`INSERT INTO user_accounts (id, username, email, password_hash) VALUES (?, ?, ?, ?)`,
+		_, err := db.Exec(`INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)`,
 			id, "user"+suffix, "user"+suffix+"@example.test", "argon2id$placeholder")
 		if err != nil {
-			t.Fatalf("seed user_accounts id=%d: %v", id, err)
+			t.Fatalf("seed users id=%d: %v", id, err)
 		}
 	}
 }

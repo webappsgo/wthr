@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -50,7 +51,7 @@ func HandleAuthCheck(serverDB, usersDB *sql.DB, cfg *config.AppConfig) http.Hand
 		switch middleware.DetectTokenType(token) {
 		case middleware.TokenTypeAdmin:
 			if serverDB != nil {
-				if admin, err := (&model.AdminModel{DB: serverDB}).GetByAPIToken(token); err == nil && admin != nil {
+				if admin, err := (&model.AdminModel{DB: database.UsersDBOr(serverDB)}).GetByAPIToken(token); err == nil && admin != nil {
 					RespondData(w, r, map[string]string{"kind": "owner"})
 					return
 				}

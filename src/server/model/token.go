@@ -33,7 +33,7 @@ type TokenModel struct {
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
-// table TokenModel touches (user_tokens) is declared in database.UsersSchema,
+// table TokenModel touches (tokens) is declared in database.UsersSchema,
 // so the injected handle is the correct database for every query below.
 // Fallback: when the injected handle is nil (unit tests, or construction
 // before the global dual DB is wired) the process-global users handle is used
@@ -82,8 +82,8 @@ func (m *TokenModel) CreateAPIToken(userID int, name string) (*APIToken, error) 
 	tokenPrefix := GetUserTokenPrefix(token)
 
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, created_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO tokens (owner_type, owner_id, token_hash, token_prefix, name, created_at)
+		VALUES ('user', ?, ?, ?, ?, ?)
 	`, userID, tokenHash, tokenPrefix, name, time.Now())
 
 	if err != nil {
@@ -116,8 +116,8 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 	var expiresAt sql.NullTime
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, token_prefix, name, created_at, last_used_at, expires_at
-		FROM user_tokens WHERE token_hash = ?
+		SELECT id, owner_id, token_prefix, name, created_at, last_used_at, expires_at
+		FROM tokens WHERE owner_type = 'user' AND token_hash = ?
 	`, tokenHash).Scan(&apiToken.ID, &apiToken.UserID, &apiToken.TokenPrefix, &apiToken.Name,
 		&apiToken.CreatedAt, &lastUsed, &expiresAt)
 
@@ -147,8 +147,8 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 // GetByUserID retrieves all tokens for a user
 func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, token_prefix, name, created_at, last_used_at
-		FROM user_tokens WHERE user_id = ?
+		SELECT id, owner_id, token_prefix, name, created_at, last_used_at
+		FROM tokens WHERE owner_type = 'user' AND owner_id = ?
 		ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -176,7 +176,7 @@ func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE user_tokens SET last_used_at = ?
+		UPDATE tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
 	return err
@@ -184,12 +184,12 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 
 // DeleteAPIToken deletes a token
 func (m *TokenModel) DeleteAPIToken(id int) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM tokens WHERE id = ? AND owner_type = 'user'", id)
 	return err
 }
 
 // DeleteByUserID deletes all tokens for a user
 func (m *TokenModel) DeleteByUserID(userID int) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE user_id = ?", userID)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM tokens WHERE owner_type = 'user' AND owner_id = ?", userID)
 	return err
 }

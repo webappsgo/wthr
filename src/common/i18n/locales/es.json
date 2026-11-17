@@ -2600,6 +2600,7 @@
   "errors.user.settings.failed_to_update_settings": "Error al actualizar la configuración",
   "errors.user.settings.invalid_session_id": "ID de sesión no válido",
   "errors.user.settings.maximum_5_tokens_per_user": "Máximo de 5 tokens por usuario",
+  "errors.user.settings.token_name_exists": "Ya existe un token con este nombre",
   "errors.user.settings.session_does_not_belong_to_you": "La sesión no le pertenece",
   "errors.user.settings.session_id_required": "Se requiere el ID de sesión",
   "errors.user.settings.session_not_found": "Sesión no encontrada",

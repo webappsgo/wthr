@@ -15,10 +15,10 @@ import (
 
 // DualDB holds connections to both server and users databases per TEMPLATE.md PART 31
 type DualDB struct {
-	// Server database (server.db) - admin credentials, config, scheduler, etc.
+	// Server database (server.db) - admin sessions, config, scheduler, audit log, etc.
 	Server *sql.DB
 
-	// Users database (users.db) - user accounts, tokens, sessions, etc.
+	// Users database (users.db) - Server Admins, user accounts, tokens, sessions, passkeys, etc.
 	Users *sql.DB
 }
 
@@ -55,6 +55,13 @@ func InitDualDB(dataDir string) (*DualDB, error) {
 		return nil, fmt.Errorf("failed to initialize users database: %w", err)
 	}
 
+	// Server Admin data moved from server.db to users.db (AI.md PART 12)
+	if err := migrateLegacyAdminTables(serverDB, usersDB); err != nil {
+		serverDB.Close()
+		usersDB.Close()
+		return nil, fmt.Errorf("failed to carry legacy admin data forward: %w", err)
+	}
+
 	return &DualDB{
 		Server: serverDB,
 		Users:  usersDB,
@@ -88,10 +95,22 @@ func initServerDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
+	// Databases created before AI.md PART 12 naming keep their data under the
+	// legacy table names; rename them before the base schema runs
+	if err := renameLegacyTables(db, serverLegacyRenames); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to rename legacy server tables: %w", err)
+	}
+
 	// Create server schema
 	if _, err := ExecContext(context.Background(), db, TimeoutMigration, ServerSchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to create server schema: %w", err)
+	}
+
+	if err := copyLegacyAdminSessions(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to carry legacy admin sessions forward: %w", err)
 	}
 
 	if err := applySchemaUpdates(db, serverSchemaUpdates); err != nil {
@@ -131,6 +150,13 @@ func initUsersDB(path string) (*sql.DB, error) {
 	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	// Databases created before AI.md PART 12 naming keep their data under the
+	// legacy table names; rename them before the base schema runs
+	if err := renameLegacyTables(db, usersLegacyRenames); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to rename legacy users tables: %w", err)
 	}
 
 	// Create users schema

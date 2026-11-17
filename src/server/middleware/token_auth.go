@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
@@ -100,7 +101,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 			switch tokenType {
 			case TokenTypeAdmin:
 				// Validate admin token (adm_)
-				adminModel := &model.AdminModel{DB: serverDB}
+				adminModel := &model.AdminModel{DB: database.UsersDBOr(serverDB)}
 				admin, err := adminModel.GetByAPIToken(token)
 				if err != nil {
 					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")

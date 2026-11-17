@@ -178,8 +178,8 @@ func TestAdminSessionExpired(t *testing.T) {
 // AdminSessionModel, all of which read via database.GetServerDB().
 func newAdminTestDB(t *testing.T) {
 	t.Helper()
-	serverDB := newModelServerDB(t)
-	setModelGlobalDualDB(t, serverDB, nil)
+	// admins live in users.db and admin_sessions in server.db (AI.md PART 12)
+	setModelGlobalDualDB(t, newModelServerDB(t), newModelUsersDB(t))
 }
 
 // TestAdminModelCreateAndGet covers Create, GetByID, GetByEmail, GetAll,
@@ -579,7 +579,7 @@ func TestAdminSessionModel(t *testing.T) {
 			t.Fatalf("row id = %q, want a UUID: %v", sess.ID, err)
 		}
 		var storedHash string
-		if err := database.GetServerDB().QueryRow(`SELECT token_hash FROM server_admin_sessions WHERE id = ?`, sess.ID).Scan(&storedHash); err != nil {
+		if err := database.GetServerDB().QueryRow(`SELECT token_hash FROM admin_sessions WHERE id = ?`, sess.ID).Scan(&storedHash); err != nil {
 			t.Fatalf("read stored token hash: %v", err)
 		}
 		if storedHash != HashAdminSessionToken(sess.SessionID) {

@@ -60,7 +60,7 @@ func TestTokenModel_CreateAndGetByToken(t *testing.T) {
 	}
 
 	var storedHash string
-	if err := db.QueryRow("SELECT token_hash FROM user_tokens WHERE id = ?", created.ID).Scan(&storedHash); err != nil {
+	if err := db.QueryRow("SELECT token_hash FROM tokens WHERE id = ?", created.ID).Scan(&storedHash); err != nil {
 		t.Fatalf("query stored hash: %v", err)
 	}
 	if storedHash == created.Token {
@@ -101,7 +101,7 @@ func TestTokenModel_GetByToken_Expiry(t *testing.T) {
 
 	setExpiry := func(t *testing.T, id int, at time.Time) {
 		t.Helper()
-		if _, err := db.Exec("UPDATE user_tokens SET expires_at = ? WHERE id = ?", at, id); err != nil {
+		if _, err := db.Exec("UPDATE tokens SET expires_at = ? WHERE id = ?", at, id); err != nil {
 			t.Fatalf("set expires_at: %v", err)
 		}
 	}

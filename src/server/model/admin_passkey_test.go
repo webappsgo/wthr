@@ -5,10 +5,10 @@ import (
 )
 
 // TestAdminPasskeyModel_CreateListCountDelete mirrors the user passkey
-// lifecycle test but against the server-admin table/DB, verifying the two
+// lifecycle test but against the unified passkeys table in users.db, verifying the two
 // models don't cross-contaminate storage.
 func TestAdminPasskeyModel_CreateListCountDelete(t *testing.T) {
-	db := newModelServerDB(t)
+	db := newModelUsersDB(t)
 	model := &AdminPasskeyModel{DB: db}
 	adminID := int64(1)
 
@@ -121,17 +121,17 @@ func TestAdminPasskeyModel_CreateListCountDelete(t *testing.T) {
 }
 
 // TestAdminPasskeyModel_GetDB_FallsBackToGlobal mirrors the user-passkey
-// fallback test for the server DB accessor.
+// fallback test for the users DB accessor.
 func TestAdminPasskeyModel_GetDB_FallsBackToGlobal(t *testing.T) {
-	db := newModelServerDB(t)
+	db := newModelUsersDB(t)
 	model := &AdminPasskeyModel{DB: db}
 	if model.getDB() != db {
 		t.Error("getDB() should return the injected DB")
 	}
 
-	setModelGlobalDualDB(t, db, nil)
+	setModelGlobalDualDB(t, nil, db)
 	fallback := &AdminPasskeyModel{}
 	if fallback.getDB() != db {
-		t.Error("getDB() should fall back to database.GetServerDB() when DB field is nil")
+		t.Error("getDB() should fall back to database.GetUsersDB() when DB field is nil")
 	}
 }

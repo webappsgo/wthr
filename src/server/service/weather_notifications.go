@@ -45,7 +45,7 @@ func NewWeatherNotificationService(db *sql.DB, ws *WeatherService, ds *DeliveryS
 }
 
 // usersDB returns the users.db handle this service was constructed with. Every
-// table this service reads or writes (user_saved_locations, user_accounts,
+// table this service reads or writes (user_saved_locations, users,
 // user_notification_channel_preferences, notification_subscriptions,
 // user_weather_alert_history) is declared in database.UsersSchema, so the
 // injected handle is the correct database for all of them. Rows queued for
@@ -433,7 +433,7 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 	// Get all admin users
 	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutComplexSelect, `
 		SELECT u.id
-		FROM user_accounts u
+		FROM users u
 		JOIN notification_subscriptions ns ON ns.user_id = u.id
 		WHERE u.role = 'admin'
 		  AND ns.subscription_type = 'system_notifications'

@@ -278,11 +278,12 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get all tokens for admin view - user_tokens lives in users.db (real UsersSchema)
+	// Get all tokens for admin view - tokens lives in users.db (real UsersSchema)
 	rows, err = database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
-		SELECT t.id, t.user_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
-		FROM user_tokens t
-		LEFT JOIN user_accounts u ON t.user_id = u.id
+		SELECT t.id, t.owner_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
+		FROM tokens t
+		LEFT JOIN users u ON t.owner_id = u.id
+		WHERE t.owner_type = 'user'
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
@@ -394,12 +395,12 @@ func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// server_audit_log's real columns are actor_id/resource_type/resource_id/timestamp
+	// audit_log's real columns are actor_id/resource_type/resource_id/timestamp
 	// per src/database/server_schema.go, not user_id/resource/created_at.
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT a.id, a.actor_type, a.actor_id, a.action, a.resource_type, a.resource_id,
 		       a.details, a.ip_address, a.user_agent, a.timestamp
-		FROM server_audit_log a
+		FROM audit_log a
 		ORDER BY a.timestamp DESC
 		LIMIT ?
 	`, limit)
@@ -452,7 +453,7 @@ func (h *AdminHandler) ClearAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, "DELETE FROM server_audit_log WHERE timestamp < ?", cutoff)
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, "DELETE FROM audit_log WHERE timestamp < ?", cutoff)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_clear_logs"))
 		return
@@ -469,18 +470,18 @@ func (h *AdminHandler) ClearAuditLogs(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	var totalLogs, errorLogs, successLogs, recentLogs int64
 
-	// server_audit_log's real columns are status/timestamp (server_schema.go),
+	// audit_log's real columns are status/timestamp (server_schema.go),
 	// not success/created_at. Scan errors must be propagated, not swallowed.
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&totalLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&totalLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count total audit logs: %w", err).Error())
 		return
 	}
 
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count error audit logs: %w", err).Error())
 		return
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count success audit logs: %w", err).Error())
 		return
 	}
@@ -492,7 +493,7 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	// not exist on PostgreSQL or MySQL.
 	recentRows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT timestamp
-		FROM server_audit_log
+		FROM audit_log
 		WHERE timestamp IS NOT NULL
 	`)
 	if err != nil {
@@ -535,18 +536,18 @@ func (h *AdminHandler) GetTasksStats(w http.ResponseWriter, r *http.Request) {
 	var totalTasks, enabledTasks, disabledTasks, failedTasks int64
 
 	// Get total count
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&totalTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count total tasks: %v", err)
 	}
 
 	// Get counts by status
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 1").Scan(&enabledTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count enabled tasks: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 0").Scan(&disabledTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 0").Scan(&disabledTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count disabled tasks: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE last_status = 'failed'").Scan(&failedTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE last_status = 'failed'").Scan(&failedTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count failed tasks: %v", err)
 	}
 
@@ -570,7 +571,7 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count saved locations: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens").Scan(&totalTokens); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens").Scan(&totalTokens); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count tokens: %v", err)
 	}
 	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_sessions").Scan(&totalSessions); err != nil {
@@ -595,10 +596,10 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 
 // GetScheduledTasks returns status of all scheduled tasks
 func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request) {
-	// Check if tasks are already seeded (real table is server_scheduler_state
+	// Check if tasks are already seeded (real table is scheduler_tasks
 	// per src/database/server_schema.go - there is no "scheduled_tasks" table)
 	var count int
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&count); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&count); err != nil {
 		log.Printf("ERROR: GetScheduledTasks: failed to count existing tasks: %v", err)
 	}
 
@@ -610,7 +611,7 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 	// Get scheduled tasks from database
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT task_name, schedule, enabled, last_run, next_run, last_status
-		FROM server_scheduler_state
+		FROM scheduler_tasks
 		ORDER BY task_name
 	`)
 	if err != nil {
@@ -691,14 +692,14 @@ func (h *AdminHandler) seedScheduledTasks() {
 	}
 
 	for _, task := range defaultTasks {
-		// server_scheduler_state's real primary key is task_id (TEXT), not an
+		// scheduler_tasks's real primary key is task_id (TEXT), not an
 		// autoincrement id, and there is no task_type column - use the task
 		// name itself as the stable task_id.
 		// next_run is bound as canonical UTC text rather than produced by
 		// SQLite's datetime('now') so the seed works identically on every
 		// supported driver.
 		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-			INSERT OR IGNORE INTO server_scheduler_state (task_id, task_name, schedule, enabled, next_run)
+			INSERT OR IGNORE INTO scheduler_tasks (task_id, task_name, schedule, enabled, next_run)
 			VALUES (?, ?, ?, 1, ?)
 		`, task.Name, task.Name, task.Schedule, dbtime.FormatSQLTimestamp(time.Now()))
 
@@ -723,7 +724,7 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)

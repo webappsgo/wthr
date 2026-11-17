@@ -318,9 +318,9 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		password = input.Password
 	}
 
-	// Check if admin username already exists in server_admin_credentials
+	// Check if admin username already exists in admins
 	var count int
-	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?", username).Scan(&count)
+	err = database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins WHERE username = ?", username).Scan(&count)
 	if err != nil {
 		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.database_error"))
 		return
@@ -338,13 +338,13 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create administrator account in server_admin_credentials (NOT user_accounts).
+	// Create administrator account in admins (NOT users).
 	// created_at/updated_at are bound as canonical UTC text rather than produced
 	// by SQL's CURRENT_TIMESTAMP, which yields a different type and zone on
 	// PostgreSQL, MySQL and SQL Server than it does on SQLite.
 	createdAt := dbtime.FormatSQLTimestamp(time.Now())
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+		INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 		VALUES (?, ?, ?, 1, 1, ?, ?)
 	`, username, email, hashedPassword, createdAt, createdAt)
 
@@ -400,16 +400,8 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hash and store the API token
-	tokenHash := util.HashAPIToken(apiToken)
-	// updated_at is bound as canonical UTC text rather than produced by SQL's
-	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
-	// MySQL and SQL Server than it does on SQLite.
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		UPDATE server_admin_credentials
-		SET api_token_hash = ?, api_token_prefix = 'adm_', updated_at = ?
-		WHERE id = ?
-	`, tokenHash, dbtime.FormatSQLTimestamp(time.Now()), adminID)
+	// Store the API token's SHA-256 hash and display prefix in the unified tokens table
+	err = (&model.AdminModel{DB: database.GetUsersDB()}).StoreDefaultAPIToken(adminID, apiToken)
 	if err != nil {
 		// Log but don't fail - admin was created successfully
 		log.Printf("WARNING: CreateAdmin: failed to store admin API token: %v", err)
@@ -690,7 +682,7 @@ func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
 
 	// Get admin email for SSL contact
 	var adminEmail string
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT email FROM server_admin_credentials LIMIT 1").Scan(&adminEmail)
+	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM admins LIMIT 1").Scan(&adminEmail)
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_services.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":        Translate(r, "setup.optional_services") + " - " + title,
@@ -810,7 +802,7 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Check if a primary admin exists
 	var adminCount int
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&adminCount)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"status":  "error",

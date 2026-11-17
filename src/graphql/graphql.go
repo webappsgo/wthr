@@ -149,7 +149,7 @@ func buildGraphQLTokenContext(ctx context.Context, authHeader string) (context.C
 
 	switch middleware.DetectTokenType(token) {
 	case middleware.TokenTypeAdmin:
-		adminModel := &models.AdminModel{DB: database.GetServerDB()}
+		adminModel := &models.AdminModel{DB: database.GetUsersDB()}
 		admin, err := adminModel.GetByAPIToken(token)
 		if err != nil {
 			return nil, fmt.Errorf("invalid admin token")
@@ -185,15 +185,7 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 	// local-zone time.Time.String() form an older build wrote, so a session
 	// stored in a zone behind UTC authenticated long after it had expired,
 	// while one stored ahead of UTC was rejected while still valid.
-	var adminID int
-	var storedExpiresAt interface{}
-	err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-		SELECT sessions.admin_id, sessions.expires_at
-		FROM server_admin_sessions AS sessions
-		INNER JOIN server_admin_credentials AS admins
-			ON admins.id = sessions.admin_id AND admins.is_active = 1
-		WHERE sessions.token_hash = ?
-	`, models.HashAdminSessionToken(sessionID)).Scan(&adminID, &storedExpiresAt)
+	adminID, storedExpiresAt, err := models.LookupActiveAdminSession(serverDB, database.UsersDBOr(serverDB), models.HashAdminSessionToken(sessionID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ctx, nil
@@ -227,7 +219,7 @@ func buildGraphQLUserSessionContext(ctx context.Context, sessionID string) (cont
 }
 
 func withGraphQLAdminContext(ctx context.Context, adminID int) (context.Context, error) {
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &models.AdminModel{DB: database.GetUsersDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load authenticated admin: %w", err)

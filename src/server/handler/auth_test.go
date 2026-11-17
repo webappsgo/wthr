@@ -30,7 +30,7 @@ func newAuthTestHandler(t *testing.T) (*AuthHandler, *sql.DB, *sql.DB) {
 }
 
 // seedAdmin inserts an active, passkey-less super admin directly into
-// server_admin_credentials with a real Argon2id hash so VerifyCredentials
+// admins with a real Argon2id hash so VerifyCredentials
 // exercises the genuine password-verification code path.
 func seedAdmin(t *testing.T, db *sql.DB, username, email, password string) int64 {
 	t.Helper()
@@ -39,7 +39,7 @@ func seedAdmin(t *testing.T, db *sql.DB, username, email, password string) int64
 		t.Fatalf("hash admin password: %v", err)
 	}
 	res, err := db.Exec(`
-		INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+		INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 		VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, username, email, hash)
 	if err != nil {
@@ -49,7 +49,7 @@ func seedAdmin(t *testing.T, db *sql.DB, username, email, password string) int64
 	return id
 }
 
-// seedAuthUser inserts an active user account directly into user_accounts
+// seedAuthUser inserts an active user account directly into users
 // with a real Argon2id hash, mirroring UserModel.Create's column set.
 func seedAuthUser(t *testing.T, db *sql.DB, username, email, password string) int64 {
 	t.Helper()
@@ -58,7 +58,7 @@ func seedAuthUser(t *testing.T, db *sql.DB, username, email, password string) in
 		t.Fatalf("hash user password: %v", err)
 	}
 	res, err := db.Exec(`
-		INSERT INTO user_accounts (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
+		INSERT INTO users (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, 'user', 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, username, email, hash)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestHandleLogin_Admin(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
-		seedAdmin(t, database.GetServerDB(), "root-admin", "root@example.com", "correct-horse-battery")
+		seedAdmin(t, database.GetUsersDB(), "root-admin", "root@example.com", "correct-horse-battery")
 
 		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "root-admin",
@@ -115,7 +115,7 @@ func TestHandleLogin_Admin(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
-		seedAdmin(t, database.GetServerDB(), "root-admin", "root@example.com", "correct-horse-battery")
+		seedAdmin(t, database.GetUsersDB(), "root-admin", "root@example.com", "correct-horse-battery")
 
 		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "root-admin",
@@ -216,7 +216,7 @@ func TestHandleLogin_User(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		uid := seedAuthUser(t, usersDB, "bob", "bob@example.com", "hunter2hunter2")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, uid); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, uid); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
@@ -247,7 +247,7 @@ func TestHandleLogin_User(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		uid := seedAuthUser(t, usersDB, "carol", "carol@example.com", "hunter2hunter2")
-		if _, err := usersDB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, uid); err != nil {
+		if _, err := usersDB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, uid); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
@@ -305,11 +305,11 @@ func TestHandleRegister(t *testing.T) {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
 		}
 		var count int
-		if err := usersDB.QueryRow(`SELECT COUNT(*) FROM user_accounts WHERE username = 'newuser'`).Scan(&count); err != nil {
+		if err := usersDB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = 'newuser'`).Scan(&count); err != nil {
 			t.Fatalf("query created user: %v", err)
 		}
 		if count != 1 {
-			t.Errorf("expected exactly 1 user_accounts row for newuser, got %d", count)
+			t.Errorf("expected exactly 1 users row for newuser, got %d", count)
 		}
 	})
 
@@ -495,7 +495,7 @@ func TestUpdateProfile(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 		var displayName, phone string
-		if err := usersDB.QueryRow(`SELECT display_name, phone FROM user_accounts WHERE id = ?`, uid).Scan(&displayName, &phone); err != nil {
+		if err := usersDB.QueryRow(`SELECT display_name, phone FROM users WHERE id = ?`, uid).Scan(&displayName, &phone); err != nil {
 			t.Fatalf("query updated user: %v", err)
 		}
 		if displayName != "New Name" || phone != "555-1234" {
@@ -630,13 +630,13 @@ func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h, serverDB, _ := newAuthTestHandler(t)
+			h, serverDB, usersDB := newAuthTestHandler(t)
 			config.SetGlobalConfig(&config.AppConfig{})
 			t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-			adminID := seedAdmin(t, serverDB, "sessionadmin", "sessionadmin@example.com", "supersecret1")
+			adminID := seedAdmin(t, usersDB, "sessionadmin", "sessionadmin@example.com", "supersecret1")
 			if _, err := serverDB.Exec(`
-				INSERT INTO server_admin_sessions (id, token_hash, admin_id, expires_at)
+				INSERT INTO admin_sessions (id, token_hash, admin_id, expires_at)
 				VALUES (?, ?, ?, ?)
 			`, "00000000-0000-4000-8000-000000000003", models.HashAdminSessionToken(tc.sessionID), adminID, tc.expiresAt); err != nil {
 				t.Fatalf("seed admin session: %v", err)

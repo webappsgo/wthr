@@ -101,7 +101,7 @@ type AdminPasskeyRegistrationOptionsResult struct {
 
 // BeginAdminPasskeyRegistrationToken starts an admin-side registration
 // ceremony. Mirrors BeginPasskeyRegistrationToken (user-side) but verifies
-// against admin credentials and stores against server_admin_passkeys. The
+// against admin credentials and stores against passkeys (user_type admin). The
 // ceremony state goes through the same `passkeyCeremonyCache` as the user
 // side — entries carry the kind (`registration`) plus a separate user-handle
 // prefix (`adm:`) so the two sides cannot be confused at verify time.

@@ -57,15 +57,19 @@ func openSetupTestServerDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
+	// Server Admin accounts live in users.db (AI.md PART 12); this single connection serves as both
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("apply UsersSchema: %v", err)
+	}
 	t.Cleanup(func() { db.Close() })
 
 	// SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
-	// all query database.GetServerDB() directly, so they no longer take a
+	// all query the global database handles directly, so they no longer take a
 	// db parameter; this global dual-DB registration is what they actually
 	// read (the same dead DB parameter pattern remains in
 	// auth.go/server_context.go/admin.go's GetByAPIToken, tracked
 	// separately in TODO.AI.md).
-	database.SetGlobalDualDB(&database.DualDB{Server: db})
+	database.SetGlobalDualDB(&database.DualDB{Server: db, Users: db})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 	return db
@@ -76,7 +80,7 @@ func seedSetupAdmin(t *testing.T, db *sql.DB) {
 	// Bound through dbtime rather than left to CURRENT_TIMESTAMP so the fixture
 	// uses the same writer convention as production code.
 	if _, err := db.Exec(`
-		INSERT INTO server_admin_credentials (username, email, password_hash, created_at)
+		INSERT INTO admins (username, email, password_hash, created_at)
 		VALUES (?, ?, ?, ?)
 	`, "root", "root@example.com", "x", dbtime.FormatSQLTimestamp(time.Now())); err != nil {
 		t.Fatalf("seed admin credential: %v", err)
