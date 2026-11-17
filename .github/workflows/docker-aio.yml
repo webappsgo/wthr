@@ -2,6 +2,7 @@ name: Docker AIO Build
 
 on:
   push:
+    # ALL branches
     branches: ['**']
     tags:
       - 'v*'
@@ -76,43 +77,6 @@ jobs:
 
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
-      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
-        id: meta
-        with:
-          images: ghcr.io/${ env.IMAGE_NAME }
-          labels: |
-            maintainer=webappsgo <casjay@yahoo.com>
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr-aio
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - all-in-one (debian + postgresql + valkey + tor)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            com.github.containers.toolbox=false
-            org.opencontainers.image.licenses=MIT
-          annotations: |
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr-aio
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - all-in-one (debian + postgresql + valkey + tor)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            org.opencontainers.image.licenses=MIT
-
       - name: Build and push (all-in-one)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
@@ -127,5 +91,27 @@ jobs:
             BUILD_DATE=${{ env.BUILD_DATE }}
             BUILD_EPOCH=${{ env.BUILD_EPOCH }}
             COMMIT_ID=${{ env.COMMIT_ID }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: |
+            org.opencontainers.image.vendor=webappsgo
+            org.opencontainers.image.authors=webappsgo
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            manifest:org.opencontainers.image.vendor=webappsgo
+            manifest:org.opencontainers.image.authors=webappsgo
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
+            manifest:org.opencontainers.image.version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            manifest:org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.licenses=MIT

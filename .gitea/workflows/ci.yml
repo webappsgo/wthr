@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_NAME: wthr
+
+jobs:
+  lint:
+    if: gitea.event_name != 'schedule'
+    runs-on: ubuntu-26.04
+    container:
+      image: casjaysdev/go:latest
+      options: "--user 0:0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - run: go vet ./...
+      - run: staticcheck ./...
+
+  test:
+    if: gitea.event_name != 'schedule'
+    runs-on: ubuntu-26.04
+    container:
+      image: casjaysdev/go:latest
+      options: "--user 0:0"
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Run tests with coverage
+        run: |
+          mkdir -p "/tmp/${{ gitea.repository_owner }}"
+          COVDIR=$(mktemp -d "/tmp/${{ gitea.repository_owner }}/$(basename "${{ gitea.repository }}")-XXXXXX")
+          echo "COVDIR=$COVDIR" >> "$GITEA_ENV"
+          go test -timeout 30m -cover -coverprofile="$COVDIR/coverage.out" ./...
+      - name: Enforce coverage threshold
+        run: |
+          THRESHOLD=60
+          PCT=$(go tool cover -func="$COVDIR/coverage.out" | awk '/^total:/ {gsub("%","",$3); print int($3)}')
+          echo "coverage ${PCT}% (threshold ${THRESHOLD}%)"
+          if [ "$PCT" -lt "$THRESHOLD" ]; then
+            echo "::error::coverage $PCT% < threshold $THRESHOLD%"
+            exit 1
+          fi
+
+  build:
+    if: gitea.event_name != 'schedule'
+    needs: [lint, test]
+    runs-on: ubuntu-26.04
+    container:
+      image: casjaysdev/go:latest
+      options: "--user 0:0"
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Build server
+        run: go build -buildvcs=false -trimpath -o binaries/${{ env.PROJECT_NAME }} ./src
+      - name: Build CLI
+        if: ${{ hashFiles('src/client/*.go') != '' }}
+        run: go build -buildvcs=false -trimpath -o binaries/${{ env.PROJECT_NAME }}-cli ./src/client
+      - name: Build agent
+        if: ${{ hashFiles('src/agent/*.go') != '' }}
+        run: go build -buildvcs=false -trimpath -o binaries/${{ env.PROJECT_NAME }}-agent ./src/agent
+
+  vuln-scan:
+    if: ${{ hashFiles('go.sum') != '' }}
+    runs-on: ubuntu-26.04
+    container:
+      image: casjaysdev/go:latest
+      options: "--user 0:0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - run: govulncheck ./...
+
+  secret-scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select scan mode
+        id: mode
+        run: |
+          # A full-history scan (scheduled run or new branch) reports unverified findings without failing; a push or PR range scan fails on them
+          BEFORE="${{ gitea.event.before }}"
+          if [ "${{ gitea.event_name }}" = "pull_request" ]; then
+            echo "base=${{ gitea.event.pull_request.base.sha }}" >> "$GITEA_OUTPUT"
+            echo "head=${{ gitea.event.pull_request.head.sha }}" >> "$GITEA_OUTPUT"
+            echo "results=verified,unknown" >> "$GITEA_OUTPUT"
+          elif [ "${{ gitea.event_name }}" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            echo "base=$BEFORE" >> "$GITEA_OUTPUT"
+            echo "head=${{ gitea.event.after }}" >> "$GITEA_OUTPUT"
+            echo "results=verified,unknown" >> "$GITEA_OUTPUT"
+          else
+            echo "base=" >> "$GITEA_OUTPUT"
+            echo "head=" >> "$GITEA_OUTPUT"
+            echo "results=verified" >> "$GITEA_OUTPUT"
+          fi
+      - name: TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@00155c9dc586f34d189adc83d3ac2698c2ec551f  # v3.95.8
+        with:
+          path: ./
+          base: ${{ steps.mode.outputs.base }}
+          head: ${{ steps.mode.outputs.head }}
+          extra_args: --results=${{ steps.mode.outputs.results }}
+
+  image-scan:
+    if: ${{ hashFiles('docker/Dockerfile') != '' }}
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
+      - name: Build image for scanning
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: wthr:scan
+          load: true
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: wthr:scan
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+
+  workflow-policy:
+    runs-on: ubuntu-26.04
+    container:
+      image: casjaysdev/go:latest
+      options: "--user 0:0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Check third-party Actions are SHA-pinned
+        run: |
+          BAD=$(grep -rn 'uses:' .github/workflows/ .gitea/workflows/ .forgejo/workflows/ | grep -v '#' | grep -E '@[a-zA-Z0-9._-]+$' | grep -v '@[0-9a-f]{40}' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::Unpinned Actions found:"
+            echo "$BAD"
+            exit 1
+          fi
+          echo "All Actions are SHA-pinned"

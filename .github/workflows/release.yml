@@ -5,6 +5,7 @@ on:
     tags:
       - 'v*'
       - '[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch: {}
 
 concurrency:
   group: release-${{ github.ref }}
@@ -18,7 +19,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: casjaysdev/go:latest
       options: "--user 0:0"
@@ -45,7 +46,7 @@ jobs:
             goarch: arm64
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set build info
         run: |
@@ -117,7 +118,7 @@ jobs:
           name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
-      # SBOM is release-level, not per-platform - generate once on the linux/amd64 leg
+      # SBOM is release-level - generate once on the linux/amd64 leg (cyclonedx-gomod is pre-installed in the image)
       - name: Generate SBOM
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         run: cyclonedx-gomod mod -json -output ${{ env.PROJECT_NAME }}-sbom.cdx.json
@@ -131,19 +132,19 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
-      # create the release and upload assets
+      # create GitHub release + upload assets, plus tag ownership (Ensure release tag)
       contents: write
-      # OIDC token used by build-provenance attestation
+      # OIDC token for artifact attestation
       id-token: write
-      # write the attestation itself
+      # GitHub artifact attestations (SBOM, provenance)
       attestations: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          # full history so the tag can be inspected
+          # required: full history needed to inspect and push tags
           fetch-depth: 0
 
       - name: Ensure release tag
@@ -190,7 +191,7 @@ jobs:
 
       - name: Create source archive
         run: |
-          tar --exclude='.git' --exclude='.github' --exclude='.gitea' \
+          tar --exclude='.git' --exclude='.github' --exclude='.gitea' --exclude='.forgejo' \
             --exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
             -czf binaries/${{ env.PROJECT_NAME }}-${{ env.VERSION }}-source.tar.gz .
 
@@ -211,7 +212,7 @@ jobs:
           subject-path: binaries/${{ env.PROJECT_NAME }}-*
 
       - name: Create Release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3.0.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: binaries/*

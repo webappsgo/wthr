@@ -2,6 +2,7 @@ name: Docker Build
 
 on:
   push:
+    # ALL branches
     branches: ['**']
     tags:
       - 'v*'
@@ -69,48 +70,13 @@ jobs:
             TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}"
             TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.YYMM }}"
-          elif [[ "${{ github.ref }}" == refs/heads/beta ]]; then
-            TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:beta"
+          else
+            if [[ "${{ github.ref }}" == refs/heads/beta ]]; then
+              TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:beta"
+            fi
           fi
 
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
-      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
-        id: meta
-        with:
-          images: ghcr.io/${ env.IMAGE_NAME }
-          labels: |
-            maintainer=webappsgo <casjay@yahoo.com>
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - standard image (alpine)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            com.github.containers.toolbox=false
-            org.opencontainers.image.licenses=MIT
-          annotations: |
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - standard image (alpine)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            org.opencontainers.image.licenses=MIT
 
       - name: Build and push (standard)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -126,8 +92,32 @@ jobs:
             BUILD_DATE=${{ env.BUILD_DATE }}
             BUILD_EPOCH=${{ env.BUILD_EPOCH }}
             COMMIT_ID=${{ env.COMMIT_ID }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: |
+            org.opencontainers.image.vendor=webappsgo
+            org.opencontainers.image.authors=webappsgo
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            manifest:org.opencontainers.image.vendor=webappsgo
+            manifest:org.opencontainers.image.authors=webappsgo
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
+            manifest:org.opencontainers.image.version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            manifest:org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.licenses=MIT
 
   build-devel:
     runs-on: ubuntu-26.04
@@ -157,47 +147,9 @@ jobs:
           # ghcr.io requires a lowercase image path
           echo "IMAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
           echo "COMMIT_ID=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
-          echo "VERSION=devel" >> $GITHUB_ENV
           BUILD_EPOCH=$(date -u +%s)
           echo "BUILD_EPOCH=$BUILD_EPOCH" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u -d @$BUILD_EPOCH +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_ENV
-
-      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
-        id: meta
-        with:
-          images: ghcr.io/${ env.IMAGE_NAME }
-          labels: |
-            maintainer=webappsgo <casjay@yahoo.com>
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr-devel
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - development image (alpine, debug mode)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            com.github.containers.toolbox=false
-            org.opencontainers.image.licenses=MIT
-          annotations: |
-            org.opencontainers.image.vendor=webappsgo
-            org.opencontainers.image.authors=webappsgo
-            org.opencontainers.image.title=wthr-devel
-            org.opencontainers.image.base.name=wthr
-            org.opencontainers.image.description=wthr - development image (alpine, debug mode)
-            org.opencontainers.image.schema-version=${{ env.VERSION }}
-            org.opencontainers.image.version=${{ env.VERSION }}
-            org.opencontainers.image.created=${{ env.BUILD_DATE }}
-            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
-            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.vcs-type=Git
-            org.opencontainers.image.licenses=MIT
 
       - name: Build and push (devel)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -209,9 +161,33 @@ jobs:
           provenance: false
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:devel
           build-args: |
-            VERSION=${{ env.VERSION }}
+            VERSION=devel
             BUILD_DATE=${{ env.BUILD_DATE }}
             BUILD_EPOCH=${{ env.BUILD_EPOCH }}
             COMMIT_ID=${{ env.COMMIT_ID }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: |
+            org.opencontainers.image.vendor=webappsgo
+            org.opencontainers.image.authors=webappsgo
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}-devel
+            org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - development image (alpine, debug mode)
+            org.opencontainers.image.version=devel
+            org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            manifest:org.opencontainers.image.vendor=webappsgo
+            manifest:org.opencontainers.image.authors=webappsgo
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}-devel
+            manifest:org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - development image (alpine, debug mode)
+            manifest:org.opencontainers.image.version=devel
+            manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
+            manifest:org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
+            manifest:org.opencontainers.image.licenses=MIT
