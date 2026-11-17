@@ -7,8 +7,8 @@
 Server Admins sign in at the shared `/server/auth/login` page with their username (or email) and
 password (Argon2id). An admin who has registered a passkey (WebAuthn: YubiKey, Touch ID, Windows
 Hello or any FIDO2 device) must also complete the passkey prompt before the session is created.
-Passkeys are stored in the `server.db` database; the authenticator private key never leaves the
-device. An unauthenticated request to `/server/administration` redirects to the login page.
+Passkeys are stored in the `passkeys` table of `users.db`; the authenticator private key never
+leaves the device. An unauthenticated request to `/server/administration` redirects to the login page.
 
 | Flow | Description |
 |------|-------------|
@@ -46,8 +46,8 @@ sessions are prefixed `adm:` to distinguish them from user sessions.
 | Regular User | ✗ | Saved locations, subscriptions | — |
 | Server Admin | ✓ full access | All endpoints + admin API | — |
 
-Server Admins and Regular Users are stored in **separate database files** (`server.db` and
-`users.db`). A Regular User account can never be elevated to Server Admin status through the normal
+Server Admins and Regular Users are stored in **separate tables** (`admins` and `users`) of
+`users.db`, with admin login sessions in `server.db`. A Regular User account can never be elevated to Server Admin status through the normal
 user-facing flows.
 
 ---
