@@ -63,26 +63,6 @@ func newMainUsersDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// newMainServerDB opens a fresh in-memory SQLite database with the real
-// production ServerSchema applied.
-func newMainServerDB(t *testing.T) *sql.DB {
-	t.Helper()
-
-	n := atomic.AddInt64(&mainDBCounter, 1)
-	dsn := fmt.Sprintf("file:main_server_%d?mode=memory&cache=shared", n)
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		t.Fatalf("open server db: %v", err)
-	}
-	if _, err := db.Exec(database.ServerSchema); err != nil {
-		db.Close()
-		t.Fatalf("apply ServerSchema: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	return db
-}
-
 // insertVerificationUser creates the users row the verification
 // fixtures reference and returns its id.
 func insertVerificationUser(t *testing.T, db *sql.DB) int64 {
