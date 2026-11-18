@@ -2,7 +2,9 @@
 package middleware
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
@@ -10,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -90,14 +93,23 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 				return
 			}
 
+			// AI.md PART 16: the token is regenerated on login, logout and privilege change, so a
+			// response that sets or clears a session cookie also issues a fresh token
+			w = &csrfSessionWriter{ResponseWriter: w, request: r, config: cfg}
+
 			// Always generate/provide token for templates
 			tokenCookie, err := r.Cookie(cfg.CookieName)
 			token := ""
 			if err == nil {
 				token = tokenCookie.Value
 			}
+			// A token that does not verify under csrf_token_secret (forged, or signed before a
+			// rotation) is replaced for rendering and never accepted for validation
+			if token != "" && !isCSRFTokenAuthentic(token) {
+				token = ""
+			}
 			if token == "" {
-				generated, err := generateCSRFToken(cfg.TokenLength)
+				generated, err := newCSRFToken(cfg.TokenLength)
 				if err != nil {
 					writeAPIError(w, http.StatusInternalServerError, "SERVER_ERROR", "Internal server error")
 					return
@@ -170,7 +182,7 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			if subtle.ConstantTimeCompare([]byte(requestToken), []byte(cookieToken)) != 1 {
+			if subtle.ConstantTimeCompare([]byte(requestToken), []byte(cookieToken)) != 1 || !isCSRFTokenAuthentic(cookieToken) {
 				logCSRFFailure(r, "CSRF token validation failed")
 				writeCSRFForbidden(w, "CSRF token validation failed")
 				return
@@ -268,6 +280,114 @@ func generateCSRFToken(length int) (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
+// sessionCookieNames are the browser session cookies whose change means a login or a logout.
+var sessionCookieNames = []string{SessionCookieName, "admin_session"}
+
+// csrfSessionWriter issues a new CSRF token on a response that sets or clears a session cookie.
+type csrfSessionWriter struct {
+	http.ResponseWriter
+	request     *http.Request
+	config      CSRFConfig
+	wroteHeader bool
+}
+
+// WriteHeader checks the Set-Cookie headers once, just before the status line goes out.
+func (c *csrfSessionWriter) WriteHeader(status int) {
+	if !c.wroteHeader {
+		c.wroteHeader = true
+		c.rotateOnSessionChange()
+	}
+	c.ResponseWriter.WriteHeader(status)
+}
+
+// Write sends the implicit 200 through WriteHeader so the check also runs for it.
+func (c *csrfSessionWriter) Write(body []byte) (int, error) {
+	if !c.wroteHeader {
+		c.WriteHeader(http.StatusOK)
+	}
+	return c.ResponseWriter.Write(body)
+}
+
+// Unwrap exposes the underlying writer so http.ResponseController, Flush and Hijack still work.
+func (c *csrfSessionWriter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
+
+// rotateOnSessionChange sets a fresh CSRF cookie when the response carries a session cookie
+// and does not already carry a CSRF cookie of its own.
+func (c *csrfSessionWriter) rotateOnSessionChange() {
+	changed := false
+	for _, header := range c.ResponseWriter.Header().Values("Set-Cookie") {
+		name, _, _ := strings.Cut(header, "=")
+		name = strings.TrimSpace(name)
+		if name == c.config.CookieName {
+			return
+		}
+		for _, session := range sessionCookieNames {
+			if name == session {
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return
+	}
+	if token, err := newCSRFToken(c.config.TokenLength); err == nil {
+		setCSRFCookie(c.ResponseWriter, c.request, c.config, token)
+	}
+}
+
+// csrfSignatureSeparator splits the random part of a token from its HMAC.
+const csrfSignatureSeparator = "."
+
+// newCSRFToken returns a double-submit token: random bytes plus an HMAC-SHA256 over them
+// under csrf_token_secret (AI.md PART 11 "Other Project-Level Secrets"), so a token an
+// attacker plants in a cookie cannot be forged. Before a secret store exists (tests,
+// early startup) the token is the random part alone.
+func newCSRFToken(length int) (string, error) {
+	random, err := generateCSRFToken(length)
+	if err != nil {
+		return "", err
+	}
+	store := secret.Default()
+	if store == nil {
+		return random, nil
+	}
+	key, err := store.Current(secret.CSRFTokenSecret)
+	if err != nil {
+		return "", err
+	}
+	return random + csrfSignatureSeparator + signCSRFRandom(key, random), nil
+}
+
+// signCSRFRandom returns the URL-safe HMAC of a token's random part.
+func signCSRFRandom(key []byte, random string) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(random))
+	return base64.URLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// isCSRFTokenAuthentic verifies the HMAC of a token under the current secret and, during
+// rotation, the previous one. Without a secret store every token passes this check.
+func isCSRFTokenAuthentic(token string) bool {
+	store := secret.Default()
+	if store == nil {
+		return true
+	}
+	random, signature, found := strings.Cut(token, csrfSignatureSeparator)
+	if !found || random == "" || signature == "" {
+		return false
+	}
+	candidates, err := store.Candidates(secret.CSRFTokenSecret)
+	if err != nil {
+		return false
+	}
+	for _, key := range candidates {
+		if subtle.ConstantTimeCompare([]byte(signCSRFRandom(key, random)), []byte(signature)) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // setCSRFCookie sets the CSRF token cookie
 func setCSRFCookie(w http.ResponseWriter, r *http.Request, cfg CSRFConfig, token string) {
 	secure := false
@@ -289,7 +409,9 @@ func setCSRFCookie(w http.ResponseWriter, r *http.Request, cfg CSRFConfig, token
 		Path:     "/",
 		Domain:   "",
 		Secure:   secure,
-		HttpOnly: true,
+		// AI.md PART 16 "Implementation Rules": HttpOnly=false, because the page script reads
+		// the token to send it back in the X-CSRF-Token header
+		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -297,7 +419,7 @@ func setCSRFCookie(w http.ResponseWriter, r *http.Request, cfg CSRFConfig, token
 // RegenerateCSRFToken regenerates the CSRF token and must be called on login.
 // AI.md PART 16 requires the token to change on login, logout, and privilege change.
 func RegenerateCSRFToken(w http.ResponseWriter, r *http.Request, cfg CSRFConfig) error {
-	token, err := generateCSRFToken(cfg.TokenLength)
+	token, err := newCSRFToken(cfg.TokenLength)
 	if err != nil {
 		return err
 	}
@@ -305,6 +427,12 @@ func RegenerateCSRFToken(w http.ResponseWriter, r *http.Request, cfg CSRFConfig)
 	ctx := reqctx.SetValue(r.Context(), "csrf_token", token)
 	*r = *r.WithContext(ctx)
 	return nil
+}
+
+// RegenerateCSRFTokenLive regenerates the token with the live web.csrf settings. Login,
+// logout and every privilege change call it, so a token never survives the change it guards.
+func RegenerateCSRFTokenLive(w http.ResponseWriter, r *http.Request) error {
+	return RegenerateCSRFToken(w, r, CurrentCSRFConfig())
 }
 
 // logCSRFFailure logs CSRF validation failure to audit log

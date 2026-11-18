@@ -1,12 +1,17 @@
 package middleware
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	_ "modernc.org/sqlite"
+
+	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
@@ -219,6 +224,9 @@ func TestCSRFProtection_CookieAttributes(t *testing.T) {
 	if issued.Value == "" {
 		t.Error("issued CSRF cookie has an empty value")
 	}
+	if issued.HttpOnly {
+		t.Error("the CSRF cookie must be HttpOnly=false: the page script reads it (AI.md PART 16)")
+	}
 	if issued.MaxAge != 0 {
 		t.Errorf("MaxAge = %d, want 0 - a fixed expiry silently invalidates tokens "+
 			"already rendered into open forms", issued.MaxAge)
@@ -335,5 +343,131 @@ func TestCSRFProtection_SessionAuthenticatedRegularUserIsProtected(t *testing.T)
 		t.Errorf("status = %d, want 403 - a session-authenticated regular user with no CSRF "+
 			"token must be rejected; if this fails, AuthMiddleware has stopped setting "+
 			"UserIDContextKey and regular users bypass CSRF on every mutating request", w.Code)
+	}
+}
+
+
+// csrfStoreFixture installs a secret store backed by a scratch database for one test.
+func csrfStoreFixture(t *testing.T) *secret.Store {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "server.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Exec(`CREATE TABLE app_secrets (name TEXT PRIMARY KEY, value TEXT NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, rotated_at DATETIME)`); err != nil {
+		t.Fatal(err)
+	}
+	store := secret.NewStore(db)
+	if err := store.EnsureAll(); err != nil {
+		t.Fatal(err)
+	}
+	secret.SetDefault(store)
+	t.Cleanup(func() { secret.SetDefault(nil) })
+	return store
+}
+
+func TestCSRFTokenIsSignedAndVerified(t *testing.T) {
+	csrfStoreFixture(t)
+
+	token, err := newCSRFToken(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(token, csrfSignatureSeparator) || !isCSRFTokenAuthentic(token) {
+		t.Fatalf("a freshly issued token must be signed and verify, got %q", token)
+	}
+
+	random, _, _ := strings.Cut(token, csrfSignatureSeparator)
+	for _, forged := range []string{random, random + ".", random + ".AAAA", "x." + strings.SplitN(token, ".", 2)[1], ""} {
+		if isCSRFTokenAuthentic(forged) {
+			t.Errorf("a forged token must not verify: %q", forged)
+		}
+	}
+}
+
+func TestCSRFTokenStopsVerifyingAfterTheSecretRotates(t *testing.T) {
+	store := csrfStoreFixture(t)
+	token, _ := newCSRFToken(32)
+	if err := store.Rotate(secret.CSRFTokenSecret, secret.RotateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if isCSRFTokenAuthentic(token) {
+		t.Error("a token signed before the rotation must stop verifying")
+	}
+}
+
+func TestCSRFProtection_RejectsAPlantedUnsignedCookie(t *testing.T) {
+	csrfStoreFixture(t)
+	cfg := DefaultCSRFConfig()
+	handler := CSRFProtection(cfg)(okHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/settings", strings.NewReader("csrf_token=planted"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: "planted"})
+	req = req.WithContext(reqctx.SetValue(req.Context(), "admin_id", 1))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("a cookie and form value the attacker chose must be rejected, got %d", w.Code)
+	}
+}
+
+func TestCSRFProtection_AcceptsASignedToken(t *testing.T) {
+	csrfStoreFixture(t)
+	cfg := DefaultCSRFConfig()
+	handler := CSRFProtection(cfg)(okHandler)
+	token, _ := newCSRFToken(32)
+
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/settings", strings.NewReader("csrf_token="+token))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: token})
+	req = req.WithContext(reqctx.SetValue(req.Context(), "admin_id", 1))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("a matching signed token must be accepted, got %d", w.Code)
+	}
+}
+
+func TestCSRFProtection_NewTokenWhenTheSessionCookieChanges(t *testing.T) {
+	cfg := DefaultCSRFConfig()
+	login := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: SessionCookieName, Value: "new-session", Path: "/"})
+		_, _ = w.Write([]byte("ok"))
+	})
+	handler := CSRFProtection(cfg)(login)
+
+	req := httptest.NewRequest(http.MethodGet, "/server/auth/login", nil)
+	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: "old-token"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var tokens []string
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == cfg.CookieName {
+			tokens = append(tokens, cookie.Value)
+		}
+	}
+	if len(tokens) == 0 || tokens[len(tokens)-1] == "old-token" {
+		t.Errorf("a login response must carry a new CSRF token, got %v", tokens)
+	}
+}
+
+func TestCSRFProtection_KeepsTheTokenWhenNoSessionCookieChanges(t *testing.T) {
+	cfg := DefaultCSRFConfig()
+	handler := CSRFProtection(cfg)(okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/page", nil)
+	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: "keep-me"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == cfg.CookieName && cookie.Value != "keep-me" {
+			t.Errorf("an ordinary response must not replace the token, got %q", cookie.Value)
+		}
 	}
 }

@@ -46,6 +46,7 @@ import (
 	"github.com/webappsgo/wthr/src/mode"
 	"github.com/webappsgo/wthr/src/privilege"
 	"github.com/webappsgo/wthr/src/scheduler"
+	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/buildstamp"
 	"github.com/webappsgo/wthr/src/server/handler"
@@ -536,6 +537,15 @@ func main() {
 
 	// Set global instance for handler access
 	database.SetGlobalDualDB(dualDB)
+
+	// AI.md PART 11 "Cryptographic Keys": installation_secret, cookie_signing_key and csrf_token_secret
+	// are generated on first start, before the setup token is shown
+	secretStore := secret.NewStore(dualDB.Server)
+	if err := secretStore.EnsureAll(); err != nil {
+		appLogger.Error("Failed to initialize the project secrets: %v", err)
+		os.Exit(3)
+	}
+	secret.SetDefault(secretStore)
 	dbPath := fmt.Sprintf("%s/db/server.db + %s/db/users.db", dirPaths.Data, dirPaths.Data)
 
 	// Create wrapper for handlers that use database.DB struct
@@ -769,6 +779,8 @@ func main() {
 	// CSRF protection middleware (AI.md PART 0 line 994, PART 22)
 	// Version-change purge for stale browser caches (AI.md PART 9), HTML navigations only
 	r.Use(middleware.VersionPurge())
+	// AI.md PART 11: session cookies are signed with cookie_signing_key; a forged or tampered one is dropped
+	r.Use(middleware.SessionCookieSigning())
 	r.Use(middleware.CSRFProtectionLive())
 
 	// CORS middleware per AI.md PART 16 "CORS": one policy for every route, resolved from
@@ -1244,7 +1256,16 @@ func main() {
 
 	// AI.md PART 19: token cleanup every 15 minutes
 	addScheduledTask("token_cleanup", func() error {
-		return scheduler.CleanupExpiredTokens()
+		if err := scheduler.CleanupExpiredTokens(); err != nil {
+			return err
+		}
+		// AI.md PART 11 "Retirement": expired previous secrets are deleted, and the keys that reached
+		// their automatic rotation interval are rotated
+		rotated, err := secretStore.Maintain()
+		for _, name := range rotated {
+			log.Printf("INFO: rotated %s after reaching its rotation interval", name)
+		}
+		return err
 	})
 
 	addScheduledTask("rate_limit_cleanup", func() error {

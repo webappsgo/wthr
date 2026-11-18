@@ -125,13 +125,34 @@ All responses include the following security headers:
 
 CSRF protects the browser pages and forms that authenticate with a session cookie. A state-changing
 request (`POST`, `PUT`, `PATCH`, `DELETE`) to a frontend page must carry the token (a `crypto/rand`
-value, set as a cookie and sent back in a hidden `csrf_token` field or the `X-CSRF-Token` header).
+value with an HMAC signature, set as a cookie and sent back in a hidden `csrf_token` field or the
+`X-CSRF-Token` header). A token is replaced on login and logout, and a token that does not verify
+(forged, or signed before a rotation) is never accepted.
 
 CSRF never applies to the backend: no `/api/**` route issues, requires or checks a token, whatever
 the authentication method. It is also skipped for `Authorization: Bearer` requests, public
 endpoints, `GET`/`HEAD`/`OPTIONS`, WebSocket upgrades and paths listed in `web.csrf.exempt_paths`.
 A failed check returns `403` with the error code `CSRF_FAILED`. See [Configuration](configuration.md)
 for the `web.csrf` settings.
+
+---
+
+## Project Secrets
+
+The server keeps three secrets in the `app_secrets` table of `server.db`. Each is 32 bytes from
+`crypto/rand`, generated on first start, included in every backup and never logged or returned by
+any API:
+
+| Secret | Used for | Rotation |
+|--------|----------|----------|
+| `installation_secret` | The root secret the security-report ids and the PGP key encryption are derived from | Manual from the admin panel; the previous value stays valid for 7 days |
+| `cookie_signing_key` | Signs the session cookies, so a forged or tampered cookie is dropped | Every 90 days; the previous value stays valid for 7 days |
+| `csrf_token_secret` | Signs the CSRF tokens | Every 180 days and on every admin password change |
+
+A rotation writes the previous value first, then the new one, then re-encrypts what depends on it,
+so a crash loses nothing. The daily upkeep deletes previous values once their grace period has
+passed. After an upgrade that first enables cookie signing, every existing session cookie is
+unsigned and is treated as logged out, so users and admins sign in once more.
 
 ---
 

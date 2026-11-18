@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,14 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/util"
 )
 
 // securityIDWindow is how long one {security_id} stays current (PART 11: 48 hours).
 const securityIDWindow = 172800
-
-// installationSecretName is the app_secrets row that holds the root secret.
-const installationSecretName = "installation_secret"
 
 // Report statuses in their only allowed order; wont_fix is reachable from any state.
 var securityReportStatuses = []string{"received", "triaged", "confirmed", "patching", "disclosed", "wont_fix"}
@@ -32,28 +29,21 @@ var ErrReportNotFound = errors.New("report not found")
 // ErrBadStatusMove is returned when a status update would move a report backward.
 var ErrBadStatusMove = errors.New("status cannot move backward")
 
-// InstallationSecret returns the 32-byte root secret, creating it on first use (PART 11).
+// InstallationSecret returns the 32-byte root secret (PART 11). The secret store creates it on
+// first start; this also creates it when called before startup installed the store.
 func InstallationSecret(db *sql.DB) ([]byte, error) {
-	var encoded string
-	err := db.QueryRow(`SELECT value FROM app_secrets WHERE name = ?`, installationSecretName).Scan(&encoded)
-	if err == nil {
-		return base64.StdEncoding.DecodeString(encoded)
+	store := secret.Default()
+	if store == nil {
+		store = secret.NewStore(db)
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
+	value, err := store.Current(secret.InstallationSecret)
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := store.EnsureAll(); err != nil {
+			return nil, err
+		}
+		return store.Current(secret.InstallationSecret)
 	}
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, err
-	}
-	// INSERT OR IGNORE keeps the first writer's value when two nodes race
-	if _, err := db.Exec(`INSERT OR IGNORE INTO app_secrets (name, value) VALUES (?, ?)`, installationSecretName, base64.StdEncoding.EncodeToString(secret)); err != nil {
-		return nil, err
-	}
-	if err := db.QueryRow(`SELECT value FROM app_secrets WHERE name = ?`, installationSecretName).Scan(&encoded); err != nil {
-		return nil, err
-	}
-	return base64.StdEncoding.DecodeString(encoded)
+	return value, err
 }
 
 // securityIDFor computes the id for the 48 hour window that contains t.

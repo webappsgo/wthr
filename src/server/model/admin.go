@@ -11,11 +11,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/secret"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -610,6 +612,14 @@ func (m *AdminModel) UpdatePassword(id int64, newPassword string) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// AI.md PART 11: csrf_token_secret is rotated on every admin password change, so a CSRF
+	// token issued before the change stops verifying
+	if store := secret.Default(); store != nil {
+		if rotateErr := store.Rotate(secret.CSRFTokenSecret, secret.RotateOptions{}); rotateErr != nil {
+			log.Printf("WARNING: rotating csrf_token_secret after an admin password change failed: %v", rotateErr)
+		}
 	}
 
 	return nil
