@@ -19,7 +19,6 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - Legacy stubs: `admin_geoip.tmpl` has hard-coded values and is not wired; `CheckSSLRenewal` only logs and does not renew; `CreateSystemBackup`/hourly use `AppVersion "1.0.0"` and an empty password
 - Admin UI uses JS-built lists and hard-coded English strings in `app.js` (PART 16/31)
 - Pre-existing gofmt fixes applied to cli/maintenance.go, auth_check.go, setup_test.go
-- CI: `.github/workflows/ci.yml` has failed with "workflow file issue" (no jobs run) on every push since a66f937; the file parses as valid YAML, so find the GitHub-side rejection (check the Actions UI annotation) and fix it
 - ORDER (dependencies decide, number is only a tiebreaker): 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11. Item 1 blocks the PID directory ownership and Tor/I2P child credentials; item 2 blocks every setting that moves into server.yml (3, 4)
 - 1. PART 8 / 24 / 25 remaining after the root phase (service user, ownership, early ports, privileged pre-bind, drop are done): step 8g spawns Tor with service-user credentials before the drop (Tor is started after the drop today, still not as root); Windows uses NSSM instead of a Virtual Service Account service; the launchd plist and the rc.d script need the PART 25 form; the HTTPS port is not pre-bound because the server does not serve TLS yet (PART 15 item)
 - 2. PART 5 / 10 config storage (see the PART 5/10 item above): server.yml source of truth, `srv_config` only in cluster mode
