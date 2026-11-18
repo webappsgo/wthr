@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 )

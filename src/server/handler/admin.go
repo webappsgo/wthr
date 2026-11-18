@@ -596,19 +596,7 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 
 // GetScheduledTasks returns status of all scheduled tasks
 func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request) {
-	// Check if tasks are already seeded (real table is scheduler_tasks
-	// per src/database/server_schema.go - there is no "scheduled_tasks" table)
-	var count int
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&count); err != nil {
-		log.Printf("ERROR: GetScheduledTasks: failed to count existing tasks: %v", err)
-	}
-
-	// If no tasks exist, seed them from the known scheduler tasks
-	if count == 0 {
-		h.seedScheduledTasks()
-	}
-
-	// Get scheduled tasks from database
+	// The scheduler registers every task in scheduler_tasks (src/database/server_schema.go) on start
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT task_name, schedule, enabled, last_run, next_run, last_status
 		FROM scheduler_tasks
@@ -662,52 +650,12 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 		tasks = append(tasks, task)
 	}
 
-	// If no tasks in database after seeding, return empty array
+	// An empty table is an empty list, never null
 	if len(tasks) == 0 {
 		tasks = []map[string]interface{}{}
 	}
 
 	writeJSON(w, http.StatusOK, tasks)
-}
-
-// seedScheduledTasks seeds the database with default scheduled tasks
-func (h *AdminHandler) seedScheduledTasks() {
-	// Define all scheduled tasks matching main.go scheduler
-	defaultTasks := []struct {
-		Name     string
-		Schedule string
-		TaskType string
-	}{
-		{"rotate-logs", "Daily at midnight", "maintenance"},
-		{"cleanup-sessions", "Every 1 hour", "cleanup"},
-		{"cleanup-rate-limits", "Every 1 hour", "cleanup"},
-		{"cleanup-audit-logs", "Every 24 hours", "cleanup"},
-		{"check-weather-alerts", "Every 15 minutes", "weather"},
-		{"daily-forecast", "Every 24 hours", "weather"},
-		{"process-notification-queue", "Every 2 minutes", "notifications"},
-		{"cleanup-notifications", "Every 24 hours", "cleanup"},
-		{"system-backup", "Every 6 hours", "backup"},
-		{"refresh-weather-cache", "Every 30 minutes", "weather"},
-		{"update-geoip-database", "Every 7 days", "maintenance"},
-	}
-
-	for _, task := range defaultTasks {
-		// scheduler_tasks's real primary key is task_id (TEXT), not an
-		// autoincrement id, and there is no task_type column - use the task
-		// name itself as the stable task_id.
-		// next_run is bound as canonical UTC text rather than produced by
-		// SQLite's datetime('now') so the seed works identically on every
-		// supported driver.
-		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-			INSERT OR IGNORE INTO scheduler_tasks (task_id, task_name, schedule, enabled, next_run)
-			VALUES (?, ?, ?, 1, ?)
-		`, task.Name, task.Name, task.Schedule, dbtime.FormatSQLTimestamp(time.Now()))
-
-		if err != nil {
-			log.Printf("ERROR: seedScheduledTasks: failed to seed task %q: %v", task.Name, err)
-			continue
-		}
-	}
 }
 
 // ShowSettingsPage renders the admin settings page

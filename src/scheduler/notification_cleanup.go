@@ -32,8 +32,8 @@ const maxNotificationsPerRecipient = 100
 // notificationCleanupTaskName and notificationLimitTaskName are the scheduler
 // task ids these two jobs register under.
 const (
-	notificationCleanupTaskName = "cleanup-notifications"
-	notificationLimitTaskName   = "enforce-notification-limits"
+	notificationCleanupTaskName = "notification_cleanup"
+	notificationLimitTaskName   = "notification_limit_enforcement"
 )
 
 // CleanupExpiredNotifications removes expired notifications (>30 days old)

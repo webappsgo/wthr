@@ -1,0 +1,137 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $csrf := .csrf_token -}}
+{{- $name := .task.Name -}}
+  <div class="admin-header">
+    <h1>{{t $lang (printf "admin.scheduler.task.%s" $name)}}</h1>
+    <p class="admin-page-intro"><code>{{$name}}</code> &middot; <a href="{{$ap}}/scheduler">{{t $lang "admin.scheduler.back_to_list"}}</a></p>
+  </div>
+  {{template "flash" .}}
+
+  <section class="admin-section" aria-labelledby="scheduler-task-summary">
+    <div class="section-header"><h2 id="scheduler-task-summary">{{t $lang "admin.scheduler.summary_heading"}}</h2></div>
+    <dl class="scheduler-summary">
+      <dt>{{t $lang "admin.scheduler.col_status"}}</dt>
+      <dd><span class="scheduler-status scheduler-status-{{.task.Status}}">{{t $lang (printf "admin.scheduler.status.%s" .task.Status)}}</span></dd>
+      <dt>{{t $lang "admin.scheduler.col_schedule"}}</dt>
+      <dd><code>{{.task.Schedule}}</code></dd>
+      <dt>{{t $lang "admin.scheduler.col_scope"}}</dt>
+      <dd>{{if .task.Global}}{{t $lang "admin.scheduler.scope_global"}}{{else}}{{t $lang "admin.scheduler.scope_local"}}{{end}}</dd>
+      <dt>{{t $lang "admin.scheduler.col_last_run"}}</dt>
+      <dd>{{if .task.LastRun}}{{.task.LastRun}}{{else}}{{t $lang "admin.scheduler.never"}}{{end}}</dd>
+      <dt>{{t $lang "admin.scheduler.col_next_run"}}</dt>
+      <dd>{{if and .task.NextRun .task.Enabled}}{{.task.NextRun}}{{else}}{{t $lang "admin.scheduler.none"}}{{end}}</dd>
+      <dt>{{t $lang "admin.scheduler.run_count"}}</dt>
+      <dd>{{.task.RunCount}}</dd>
+      <dt>{{t $lang "admin.scheduler.fail_count"}}</dt>
+      <dd>{{.task.FailCount}}</dd>
+    </dl>
+    <form method="POST" action="{{$ap}}/scheduler" class="scheduler-inline-form">
+      <input type="hidden" name="csrf_token" value="{{$csrf}}">
+      <input type="hidden" name="task" value="{{$name}}">
+      <input type="hidden" name="return" value="task">
+      <button type="submit" name="action" value="run" class="btn btn-primary">{{t $lang "admin.scheduler.action_run"}}</button>
+      {{if .task.Enabled}}
+        {{if not .task.Critical}}<button type="submit" name="action" value="disable" class="btn btn-secondary">{{t $lang "admin.scheduler.action_disable"}}</button>{{end}}
+      {{else}}
+        <button type="submit" name="action" value="enable" class="btn btn-secondary">{{t $lang "admin.scheduler.action_enable"}}</button>
+      {{end}}
+    </form>
+    {{if .task.Critical}}<p class="help-text">{{t $lang "admin.scheduler.critical_badge"}}</p>{{end}}
+  </section>
+
+  <section class="admin-section" aria-labelledby="scheduler-task-settings">
+    <div class="section-header"><h2 id="scheduler-task-settings">{{t $lang "admin.scheduler.task_settings_heading"}}</h2></div>
+    <form method="POST" action="{{$ap}}/scheduler" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{$csrf}}">
+      <input type="hidden" name="action" value="task">
+      <input type="hidden" name="task" value="{{$name}}">
+      <input type="hidden" name="return" value="task">
+      <div class="form-group">
+        <label for="task-schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
+        <input type="text" id="task-schedule" name="schedule" value="{{.settings.Schedule}}" required aria-describedby="task-schedule-help">
+        <p class="help-text" id="task-schedule-help">{{t $lang "admin.scheduler.schedule_help"}}</p>
+      </div>
+      {{if not .task.Critical}}
+      <div class="form-group form-group-check">
+        <label><input type="checkbox" name="enabled" {{if .settings.Enabled}}checked{{end}}> {{t $lang "admin.scheduler.enabled_label"}}</label>
+      </div>
+      {{end}}
+      {{if or (eq $name "blocklist_update") (eq $name "cve_update")}}
+      <div class="form-group form-group-check">
+        <label><input type="checkbox" name="retry_on_fail" {{if .settings.RetryOnFail}}checked{{end}}> {{t $lang "admin.scheduler.retry_on_fail_label"}}</label>
+      </div>
+      <div class="form-group">
+        <label for="task-retry-delay">{{t $lang "admin.scheduler.retry_delay_label"}}</label>
+        <input type="text" id="task-retry-delay" name="retry_delay" value="{{.settings.RetryDelay}}" aria-describedby="task-retry-delay-help">
+        <p class="help-text" id="task-retry-delay-help">{{t $lang "admin.scheduler.retry_delay_help"}}</p>
+      </div>
+      {{end}}
+      {{if eq $name "log_rotation"}}
+      <div class="form-group">
+        <label for="task-max-age">{{t $lang "admin.scheduler.max_age_label"}}</label>
+        <input type="text" id="task-max-age" name="max_age" value="{{.settings.MaxAge}}" aria-describedby="task-max-age-help">
+        <p class="help-text" id="task-max-age-help">{{t $lang "admin.scheduler.max_age_help"}}</p>
+      </div>
+      <div class="form-group">
+        <label for="task-max-size">{{t $lang "admin.scheduler.max_size_label"}}</label>
+        <input type="text" id="task-max-size" name="max_size" value="{{.settings.MaxSize}}" aria-describedby="task-max-size-help">
+        <p class="help-text" id="task-max-size-help">{{t $lang "admin.scheduler.max_size_help"}}</p>
+      </div>
+      <div class="form-group form-group-check">
+        <label><input type="checkbox" name="compress" {{if .settings.Compress}}checked{{end}}> {{t $lang "admin.scheduler.compress_label"}}</label>
+      </div>
+      {{end}}
+      {{if eq $name "backup_daily"}}
+      <div class="form-group form-group-check">
+        <label><input type="checkbox" name="verify" {{if .settings.Verify}}checked{{end}}> {{t $lang "admin.scheduler.verify_label"}}</label>
+      </div>
+      {{end}}
+      {{if or (eq $name "tor_health") (eq $name "i2p_health")}}
+      <div class="form-group form-group-check">
+        <label><input type="checkbox" name="restart_on_fail" {{if .settings.RestartOnFail}}checked{{end}}> {{t $lang "admin.scheduler.auto_restart_label"}}</label>
+      </div>
+      {{end}}
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.scheduler.save_action"}}</button>
+    </form>
+  </section>
+
+  <section class="admin-section" aria-labelledby="scheduler-task-history">
+    <div class="section-header"><h2 id="scheduler-task-history">{{t $lang "admin.scheduler.history_heading"}}</h2></div>
+    {{if .history}}
+    <div class="table-scroll">
+      <table class="admin-table-full scheduler-table">
+        <caption class="sr-only">{{t $lang "admin.scheduler.history_heading"}}</caption>
+        <thead>
+          <tr class="admin-table-head-row">
+            <th scope="col" class="admin-table-head-cell">{{t $lang "admin.scheduler.col_started"}}</th>
+            <th scope="col" class="admin-table-head-cell">{{t $lang "admin.scheduler.col_duration"}}</th>
+            <th scope="col" class="admin-table-head-cell">{{t $lang "admin.scheduler.col_result"}}</th>
+            <th scope="col" class="admin-table-head-cell">{{t $lang "admin.scheduler.col_error"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .history}}
+          <tr class="admin-table-body-row">
+            <td class="admin-table-body-cell">{{.Started}}</td>
+            <td class="admin-table-body-cell">{{.Duration}}</td>
+            <td class="admin-table-body-cell"><span class="scheduler-status scheduler-status-{{if eq .Status "success"}}success{{else}}failed{{end}}">{{if eq .Status "success"}}{{t $lang "admin.scheduler.status.success"}}{{else}}{{t $lang "admin.scheduler.status.failed"}}{{end}}</span></td>
+            <td class="admin-table-body-cell scheduler-error">{{.Error}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#9201;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.scheduler.history_empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.scheduler.history_empty_message"}}</p>
+    </div>
+    {{end}}
+  </section>
+{{template "admin_footer" .}}

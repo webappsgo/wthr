@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
 	"sort"
@@ -28,6 +27,7 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/common/i18n"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -49,20 +49,11 @@ type Task struct {
 	lastRun *time.Time
 	// Consecutive failed attempts already retried, drives retryDelays
 	retryCount int
-	mu         sync.Mutex
-}
-
-// Global tasks that should only run on one node in cluster mode
-// AI.md PART 19: Global Tasks (run once per cluster)
-var globalTasks = map[string]bool{
-	"ssl-renewal":           true,
-	"geoip-update":          true,
-	"blocklist-update":      true,
-	"cve-update":            true,
-	"backup-daily":          true,
-	"backup-hourly":         true,
-	"update-geoip-database": true,
-	"update-check":          true,
+	// configuredRetry is true when the task has its own retry_on_fail/retry_delay settings
+	configuredRetry bool
+	retryOnFail     bool
+	retryDelay      time.Duration
+	mu              sync.Mutex
 }
 
 // retryDelays is AI.md PART 19's retry policy: max_retries 3, retry_delay 5m,
@@ -114,6 +105,10 @@ type Scheduler struct {
 	activeMu sync.Mutex
 	// AI.md PART 19 scheduler.catch_up_window
 	catchUpWindow time.Duration
+	// Timezone cron schedules are evaluated in (server.scheduler.timezone)
+	loc *time.Location
+	// Effective server.scheduler settings; nil until Configure is called
+	settings *config.SchedulerConfig
 }
 
 // NewScheduler creates a new scheduler instance backed by a built-in
@@ -131,7 +126,88 @@ func NewScheduler(db *sql.DB) *Scheduler {
 		db:            db,
 		nodeID:        nodeID,
 		catchUpWindow: defaultCatchUpWindow,
+		loc:           time.Local,
 	}
+}
+
+// Configure applies the server.scheduler settings (AI.md PART 19): the
+// timezone cron schedules run in, the catch-up window, and each registered
+// task's schedule and enabled state. It is safe to call again after every
+// config change, which is how admin edits and file reloads reach the running
+// scheduler without a restart.
+func (s *Scheduler) Configure(cfg config.SchedulerConfig) {
+	copied := cfg
+	copied.Tasks = make(map[string]config.SchedulerTask, len(cfg.Tasks))
+	for name, task := range cfg.Tasks {
+		copied.Tasks[name] = task
+	}
+
+	s.mu.Lock()
+	s.loc = copied.SchedulerLocation()
+	s.catchUpWindow = copied.SchedulerCatchUp()
+	s.settings = &copied
+	tasks := make([]*Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		tasks = append(tasks, task)
+	}
+	s.mu.Unlock()
+
+	for _, task := range tasks {
+		s.applyTaskSettings(task)
+	}
+}
+
+// location returns the timezone schedules are evaluated in.
+func (s *Scheduler) location() *time.Location {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.loc == nil {
+		return time.Local
+	}
+	return s.loc
+}
+
+// applyTaskSettings copies a task's configured schedule and enabled state onto
+// the running task and into its scheduler_tasks row. A task with no entry in
+// server.scheduler.tasks keeps the values it was registered with; an invalid
+// schedule keeps the previous one and is logged.
+func (s *Scheduler) applyTaskSettings(task *Task) {
+	s.mu.RLock()
+	cfg := s.settings
+	loc := s.loc
+	s.mu.RUnlock()
+	if cfg == nil {
+		return
+	}
+	if _, configured := cfg.Tasks[task.Name]; !configured {
+		return
+	}
+	wanted := cfg.SchedulerTaskSettings(task.Name)
+
+	parsed, err := parseSchedule(wanted.Schedule)
+	if err != nil {
+		log.Printf("WARN: Task '%s' keeps schedule '%s': configured schedule '%s' is invalid: %v", task.Name, task.Schedule, wanted.Schedule, err)
+		parsed = nil
+	}
+
+	task.mu.Lock()
+	if parsed != nil {
+		task.Schedule = wanted.Schedule
+		task.schedule = parsed
+		task.nextRun = parsed.Next(time.Now().In(loc))
+	}
+	task.enabled = wanted.Enabled
+	task.retryOnFail = wanted.RetryOnFail
+	task.retryDelay = 0
+	if wanted.RetryDelay != "" {
+		if d, err := config.ParseDuration(wanted.RetryDelay); err == nil && d > 0 {
+			task.retryDelay = d
+		}
+	}
+	task.configuredRetry = wanted.RetryDelay != ""
+	task.mu.Unlock()
+
+	s.ensureTaskStateRow(task)
 }
 
 // SetCatchUpWindow overrides how far back startup looks for occurrences that
@@ -157,28 +233,41 @@ func getNodeID() (string, error) {
 // AddTask adds a new task to the scheduler with a cron schedule
 // AI.md PART 19: Schedule format - "0 2 * * *", "@hourly", "@daily", "@every 5m"
 func (s *Scheduler) AddTask(name string, schedule string, fn func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	parsed, err := parseSchedule(schedule)
 	if err != nil {
 		return fmt.Errorf("failed to add task '%s' with schedule '%s': %w", name, schedule, err)
 	}
 
+	s.mu.Lock()
 	task := &Task{
 		Name:     name,
 		Schedule: schedule,
 		Fn:       fn,
 		schedule: parsed,
-		nextRun:  parsed.Next(time.Now()),
+		nextRun:  parsed.Next(time.Now().In(s.locationLocked())),
 		enabled:  true,
 		lastRun:  nil,
 	}
 
 	s.tasks[name] = task
+	configured := s.settings != nil
+	s.mu.Unlock()
+
 	s.ensureTaskStateRow(task)
 
+	if configured {
+		s.applyTaskSettings(task)
+	}
+
 	return nil
+}
+
+// locationLocked returns the schedule timezone; the caller must hold s.mu.
+func (s *Scheduler) locationLocked() *time.Location {
+	if s.loc == nil {
+		return time.Local
+	}
+	return s.loc
 }
 
 // ensureTaskStateRow creates the task's scheduler_tasks row if it does
@@ -203,9 +292,13 @@ func (s *Scheduler) ensureTaskStateRow(task *Task) {
 		return
 	}
 
+	task.mu.Lock()
+	enabled := task.enabled
+	task.mu.Unlock()
+
 	if _, err := s.db.Exec(
-		"UPDATE scheduler_tasks SET task_name = ?, schedule = ?, next_run = ? WHERE task_id = ?",
-		task.Name, task.Schedule, nextRun, task.Name,
+		"UPDATE scheduler_tasks SET task_name = ?, schedule = ?, next_run = ?, enabled = ? WHERE task_id = ?",
+		task.Name, task.Schedule, nextRun, enabled, task.Name,
 	); err != nil {
 		log.Printf("WARN: Failed to refresh scheduler state row for task '%s': %v", task.Name, err)
 	}
@@ -264,7 +357,7 @@ func (s *Scheduler) runMissedTasks() {
 		due  time.Time
 	}
 
-	now := time.Now()
+	now := time.Now().In(s.location())
 	missed := make([]missedRun, 0)
 
 	for _, task := range candidates {
@@ -354,6 +447,7 @@ func (s *Scheduler) run() {
 // and advances each executed task's nextRun using its Schedule.
 func (s *Scheduler) runDueTasks(now time.Time) {
 	s.mu.RLock()
+	now = now.In(s.locationLocked())
 	due := make([]*Task, 0)
 	for _, task := range s.tasks {
 		task.mu.Lock()
@@ -461,7 +555,7 @@ func (s *Scheduler) markTasksInterrupted(names []string) {
 
 // isGlobalTask returns true if this task should only run on one node
 func isGlobalTask(taskName string) bool {
-	return globalTasks[taskName]
+	return config.IsGlobalSchedulerTask(taskName)
 }
 
 // acquireTaskLock attempts to acquire a distributed lock for a task.
@@ -658,6 +752,13 @@ func runTaskFn(task *Task) (err error) {
 	return task.Fn()
 }
 
+// isActive reports whether a task is executing on this node right now.
+func (s *Scheduler) isActive(taskName string) bool {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+	return s.active[taskName]
+}
+
 // markActive records whether a task is currently executing on this node, so
 // shutdown can name the tasks it interrupted.
 func (s *Scheduler) markActive(taskName string, active bool) {
@@ -683,18 +784,27 @@ func (s *Scheduler) applyRetryPolicy(task *Task, end time.Time, runErr error) {
 		return
 	}
 
-	if task.retryCount >= len(retryDelays) {
+	delays := retryDelays
+	if task.configuredRetry {
+		if !task.retryOnFail || task.retryDelay <= 0 {
+			task.retryCount = 0
+			return
+		}
+		delays = []time.Duration{task.retryDelay, task.retryDelay * 2, task.retryDelay * 4}
+	}
+
+	if task.retryCount >= len(delays) {
 		task.retryCount = 0
 		return
 	}
 
-	retryAt := end.Add(retryDelays[task.retryCount])
+	retryAt := end.Add(delays[task.retryCount])
 	task.retryCount++
 
 	// Never push a run later than its own schedule would have placed it.
 	if task.nextRun.IsZero() || retryAt.Before(task.nextRun) {
 		task.nextRun = retryAt
-		log.Printf("INFO: Task '%s' retry %d/%d scheduled for %s", task.Name, task.retryCount, len(retryDelays), retryAt.UTC().Format(time.RFC3339))
+		log.Printf("INFO: Task '%s' retry %d/%d scheduled for %s", task.Name, task.retryCount, len(delays), retryAt.UTC().Format(time.RFC3339))
 	}
 }
 
@@ -1440,58 +1550,6 @@ func SelfHealthCheck() error {
 	return nil
 }
 
-// CheckTorHealth checks Tor service connectivity
-// AI.md PART 19: tor_health every 10 minutes, auto-restart if needed
-func CheckTorHealth() error {
-	// Check if Tor binary exists
-	torPath, err := exec.LookPath("tor")
-	if err != nil {
-		// Tor not installed, skip silently
-		return nil
-	}
-
-	// Check if Tor service is enabled
-	var torEnabled string
-	queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.enabled'").Scan(&torEnabled)
-	if queryErr != nil || torEnabled != "true" {
-		// Tor not enabled, skip
-		return nil
-	}
-
-	// Check if Tor process is running using pgrep (Unix) or tasklist (Windows)
-	var torRunning bool
-	pgrepCmd := exec.Command("pgrep", "-x", "tor")
-	if err := pgrepCmd.Run(); err == nil {
-		torRunning = true
-	}
-
-	if !torRunning {
-		log.Printf("WARNING: Tor health check: Tor process not running")
-
-		// Check if auto-restart is enabled
-		var restartOnFail string
-		queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.restart_on_fail'").Scan(&restartOnFail)
-		if queryErr == nil && restartOnFail == "true" {
-			log.Printf("INFO: Attempting to restart Tor service...")
-			// Note: The actual restart is handled by TorService, we just log the status
-			// The TorService has its own monitoring loop that handles restarts
-			return fmt.Errorf("tor process not running (configured for auto-restart)")
-		}
-
-		return fmt.Errorf("tor process not running at %s", torPath)
-	}
-
-	// Check if onion address is configured (indicates successful Tor initialization)
-	var onionAddress string
-	addrErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.onion_address'").Scan(&onionAddress)
-	if addrErr != nil || onionAddress == "" {
-		log.Printf("WARNING: Tor health check: No .onion address configured")
-		// This might be normal during startup, don't fail
-	}
-
-	return nil
-}
-
 // CleanupRateLimitCounters resets rate limit counters
 // The 1-hour cutoff is computed in Go and each window_start is compared as a
 // UTC instant (see CleanupOldSessions), so counters inside the current window
@@ -1842,8 +1900,27 @@ func (s *Scheduler) EnableTask(taskName string) error {
 	task.mu.Lock()
 	task.enabled = true
 	task.mu.Unlock()
+	s.persistEnabled(taskName, true)
 	log.Printf("OK: Task '%s' enabled", taskName)
 	return nil
+}
+
+// persistEnabled stores a task's enabled flag in scheduler_tasks so the admin
+// panel and a restarted process see it (AI.md PART 19 "Scheduler State").
+func (s *Scheduler) persistEnabled(taskName string, enabled bool) {
+	if s.db == nil {
+		return
+	}
+	if _, err := s.db.Exec("UPDATE scheduler_tasks SET enabled = ? WHERE task_id = ?", enabled, taskName); err != nil {
+		log.Printf("WARN: Failed to persist enabled state for task '%s': %v", taskName, err)
+	}
+}
+
+// ValidSchedule reports whether spec is a cron expression, a descriptor such
+// as @daily, or an @every interval the scheduler can run.
+func ValidSchedule(spec string) bool {
+	_, err := parseSchedule(spec)
+	return err == nil
 }
 
 // DisableTask disables a task by name
@@ -1859,6 +1936,7 @@ func (s *Scheduler) DisableTask(taskName string) error {
 	task.mu.Lock()
 	task.enabled = false
 	task.mu.Unlock()
+	s.persistEnabled(taskName, false)
 	log.Printf("INFO: Task '%s' disabled", taskName)
 	return nil
 }

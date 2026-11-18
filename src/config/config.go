@@ -271,30 +271,6 @@ type LetsEncryptConfig struct {
 	Staging bool `yaml:"staging"`
 }
 
-// SchedulerConfig represents scheduler configuration per AI.md PART 4
-type SchedulerConfig struct {
-	Enabled bool                     `yaml:"enabled"`
-	Tasks   map[string]SchedulerTask `yaml:"tasks"`
-}
-
-// SchedulerTask represents a scheduled task per AI.md PART 4
-type SchedulerTask struct {
-	Enabled bool `yaml:"enabled"`
-	// Cron format or @hourly/@daily
-	Schedule    string `yaml:"schedule"`
-	RetryOnFail bool   `yaml:"retry_on_fail"`
-	// e.g., "1h"
-	RetryDelay string `yaml:"retry_delay"`
-	// e.g., "30d" (for log_rotation)
-	MaxAge string `yaml:"max_age"`
-	// e.g., "100MB" (for log_rotation)
-	MaxSize string `yaml:"max_size"`
-	// e.g., 4 (for backup)
-	Retention int `yaml:"retention"`
-	// e.g., "7d" (for ssl_renewal)
-	RenewBefore string `yaml:"renew_before"`
-}
-
 // DatabaseConfig represents database configuration per AI.md PART 4
 type DatabaseConfig struct {
 	// file, sqlite, postgres, mysql, mariadb, mssql, mongodb
@@ -351,8 +327,6 @@ type NotifyConfig struct {
 // BackupConfig represents backup settings per AI.md PART 19, PART 24
 type BackupConfig struct {
 	Encryption BackupEncryptionConfig `yaml:"encryption"`
-	// AI.md PART 19 line 24812: Enable hourly incremental backup (disabled by default)
-	HourlyEnabled bool `yaml:"hourly_enabled"`
 }
 
 // BackupEncryptionConfig represents backup encryption settings per AI.md PART 24
@@ -837,65 +811,7 @@ func loadConfig(strict bool) (*AppConfig, error) {
 					Staging:   false,
 				},
 			},
-			Scheduler: SchedulerConfig{
-				Enabled: true,
-				Tasks: map[string]SchedulerTask{
-					"geoip_update": {
-						Enabled: true,
-						// Weekly Sunday 3am
-						Schedule:    "0 3 * * 0",
-						RetryOnFail: true,
-						RetryDelay:  "1h",
-					},
-					"blocklist_update": {
-						Enabled: true,
-						// Daily 4am
-						Schedule:    "0 4 * * *",
-						RetryOnFail: true,
-						RetryDelay:  "1h",
-					},
-					"cve_update": {
-						Enabled: true,
-						// Daily 5am
-						Schedule:    "0 5 * * *",
-						RetryOnFail: true,
-						RetryDelay:  "1h",
-					},
-					"log_rotation": {
-						Enabled: true,
-						// Daily midnight
-						Schedule: "0 0 * * *",
-						MaxAge:   "30d",
-						MaxSize:  "100MB",
-					},
-					"session_cleanup": {
-						Enabled:  true,
-						Schedule: "@hourly",
-					},
-					"backup": {
-						Enabled: true,
-						// Daily 2am
-						Schedule:  "0 2 * * *",
-						Retention: 4,
-					},
-					"ssl_renewal": {
-						Enabled: true,
-						// Daily 3am
-						Schedule:    "0 3 * * *",
-						RenewBefore: "7d",
-					},
-					"health_check": {
-						Enabled: true,
-						// Every 5 minutes
-						Schedule: "*/5 * * * *",
-					},
-					"tor_health": {
-						Enabled: true,
-						// Every 10 minutes
-						Schedule: "*/10 * * * *",
-					},
-				},
-			},
+			Scheduler:   DefaultSchedulerConfig(),
 			RateLimit:   DefaultRateLimitConfig(),
 			Metrics:     DefaultMetricsConfig(),
 			Limits:      DefaultLimitsConfig(),

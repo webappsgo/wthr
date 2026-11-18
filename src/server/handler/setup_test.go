@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	paths "github.com/webappsgo/wthr/src/path"
 	utils "github.com/webappsgo/wthr/src/util"
 )

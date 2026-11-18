@@ -381,36 +381,27 @@ const ServerSchemaVersion = 6  // Increment
 
 ### Adding a Scheduled Task
 
-1. **Create task** in `src/scheduler/`
+1. **Create the task function** in `src/scheduler/`. It returns an error; a panic is recovered and
+   recorded as a failed run, so a task can never stop the scheduler.
 
 ```go
 // src/scheduler/mytask.go
 package scheduler
 
-import "time"
-
-// MyTask is a scheduled task
-type MyTask struct {
-	// Fields
-}
-
-// Run executes the task
-func (t *MyTask) Run() error {
-	// Implementation
+// MyTask is the body of the my_task scheduled task
+func MyTask() error {
 	return nil
-}
-
-// Schedule returns the task schedule
-func (t *MyTask) Schedule() string {
-	return "0 */6 * * *"  // Every 6 hours
 }
 ```
 
-2. **Register task** in `src/scheduler/scheduler.go`
+2. **Declare its defaults** in `SchedulerTaskDefs()` in `src/config/scheduler.go` (id, default
+   schedule, whether it is critical or global in a cluster).
+
+3. **Register it** in `src/main.go` next to the other tasks. Its schedule and enabled state come
+   from `server.scheduler.tasks.my_task`, falling back to the default declared in step 2.
 
 ```go
-// Add to scheduler initialization
-s.AddTask("my_task", &MyTask{})
+addScheduledTask("my_task", scheduler.MyTask)
 ```
 
 ## Debugging

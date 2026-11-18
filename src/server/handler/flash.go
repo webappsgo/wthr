@@ -48,6 +48,13 @@ var flashKeys = map[string]bool{
 	"flash.contact_failed":              true,
 	"flash.contact_captcha_failed":      true,
 	"flash.contact_captcha_unavailable": true,
+	"flash.scheduler_settings_saved":    true,
+	"flash.scheduler_task_saved":        true,
+	"flash.scheduler_task_enabled":      true,
+	"flash.scheduler_task_disabled":     true,
+	"flash.scheduler_run_started":       true,
+	"flash.scheduler_unknown_task":      true,
+	"flash.scheduler_invalid":           true,
 }
 
 // SetFlash stores a one-shot flash message for the next rendered page.

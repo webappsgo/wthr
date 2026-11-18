@@ -54,6 +54,8 @@ type TorService struct {
 	monitorStop     chan struct{}
 	// lifecycle is idle (never launched), starting, running or failed; it feeds Status()
 	lifecycle string
+	// httpPort is the local HTTP port the hidden service forwards to, kept for Restart
+	httpPort int
 }
 
 // NewTorService creates a new Tor service instance
@@ -80,6 +82,9 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 
 // StartTorService initializes and starts the Tor hidden service
 func (ts *TorService) StartTorService(httpPort int) error {
+	ts.mu.Lock()
+	ts.httpPort = httpPort
+	ts.mu.Unlock()
 	if !torBinaryFound() {
 		ts.setLifecycle(torLifecycleDisabled)
 		return ErrTorBinaryMissing
@@ -90,6 +95,17 @@ func (ts *TorService) StartTorService(httpPort int) error {
 		return err
 	}
 	return nil
+}
+
+// Restart stops the hidden service and starts it again on the same local port.
+func (ts *TorService) Restart() error {
+	ts.mu.RLock()
+	httpPort := ts.httpPort
+	ts.mu.RUnlock()
+	if err := ts.StopTorService(); err != nil {
+		return fmt.Errorf("failed to stop Tor service: %w", err)
+	}
+	return ts.StartTorService(httpPort)
 }
 
 // SetDisabled records an admin switching the hidden service off.

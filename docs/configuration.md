@@ -191,6 +191,45 @@ server:
       max_age: 1h
 ```
 
+### Scheduler
+
+Every setting is editable on the **Scheduler** admin page and applies without a restart. A task
+that the file omits uses its built-in default; a critical task is always enabled. Durations accept
+`s`, `m`, `h`, `d` and `w`.
+
+```yaml
+server:
+  scheduler:
+    timezone: America/New_York
+    catch_up_window: 1h
+    tasks:
+      geoip_update:
+        enabled: true
+        schedule: "0 3 * * 0"
+      blocklist_update:
+        enabled: true
+        schedule: "0 4 * * *"
+        retry_on_fail: true
+        retry_delay: 1h
+      log_rotation:
+        enabled: true
+        schedule: "0 0 * * *"
+        max_age: 30d
+        max_size: 100MB
+        compress: true
+      backup_daily:
+        enabled: true
+        schedule: "0 2 * * *"
+        verify: true
+      backup_hourly:
+        enabled: false
+        schedule: "@hourly"
+      tor_health:
+        enabled: true
+        schedule: "@every 10m"
+        restart_on_fail: true
+```
+
 ## Paths
 
 wthr separates configuration, data, and logs:

@@ -20,6 +20,7 @@ func validateConfig(cfg *AppConfig) bool {
 	validateServerLimits(cfg)
 	validateServerSession(cfg)
 	validateServerRateLimit(cfg)
+	validateServerScheduler(cfg)
 	validateServerI18n(cfg)
 	validateServerPages(cfg)
 	validateServerTracking(cfg)

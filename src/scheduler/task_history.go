@@ -27,7 +27,7 @@ type TaskRun struct {
 // TaskInfo provides detailed information about a task
 type TaskInfo struct {
 	Name         string     `json:"name"`
-	Interval     string     `json:"interval"`
+	Schedule     string     `json:"schedule"`
 	Enabled      bool       `json:"enabled"`
 	Running      bool       `json:"running"`
 	NextRun      *time.Time `json:"next_run,omitempty"`
@@ -202,9 +202,9 @@ func (s *Scheduler) GetAllTaskInfo() ([]TaskInfo, error) {
 
 		taskInfo := TaskInfo{
 			Name:     task.Name,
-			Interval: task.Schedule, // Now uses cron schedule string
+			Schedule: task.Schedule,
 			Enabled:  task.enabled,
-			Running:  false, // Cron handles running state internally
+			Running:  s.isActive(task.Name),
 		}
 
 		// Get next run time from the task's own schedule

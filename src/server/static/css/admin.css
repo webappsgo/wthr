@@ -1122,3 +1122,26 @@
 .timeline-left-98 { left: 98%; }
 .timeline-left-99 { left: 99%; }
 .timeline-left-100 { left: 100%; }
+
+/* Scheduler page (AI.md PART 19): status text always accompanies its marker, never color alone */
+.scheduler-task-name { white-space: nowrap; font-weight: 600; }
+.scheduler-task-id { display: block; font-weight: 400; font-size: 0.8em; opacity: 0.8; overflow-wrap: anywhere; }
+.scheduler-status { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-weight: 600; border: 1px solid currentColor; }
+.scheduler-status::before { margin-inline-end: 0.35rem; }
+.scheduler-status-success { color: var(--color-success); background: var(--color-success-bg); }
+.scheduler-status-success::before { content: "\2713"; }
+.scheduler-status-failed { color: var(--color-error); background: var(--color-error-bg); }
+.scheduler-status-failed::before { content: "\2717"; }
+.scheduler-status-running { color: var(--color-info); background: var(--color-info-bg); }
+.scheduler-status-running::before { content: "\25CF"; }
+.scheduler-status-pending { color: var(--color-warning); background: var(--color-warning-bg); }
+.scheduler-status-pending::before { content: "\25CB"; }
+.scheduler-status-disabled { color: var(--color-text-muted, inherit); opacity: 0.8; }
+.scheduler-status-disabled::before { content: "\2013"; }
+.scheduler-actions { white-space: nowrap; }
+.scheduler-inline-form { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.scheduler-legend { margin-block-start: 0.75rem; font-size: 0.9em; opacity: 0.85; }
+.scheduler-summary { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin-block-end: 1rem; }
+.scheduler-summary dt { font-weight: 600; }
+.scheduler-summary dd { margin: 0; overflow-wrap: anywhere; }
+.scheduler-error { overflow-wrap: anywhere; }

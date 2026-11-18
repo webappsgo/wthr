@@ -708,6 +708,20 @@ func (im *I2PManager) monitorLoop(ctx context.Context) {
 	}
 }
 
+// Restart closes the running provider and starts it again with the current config.
+func (im *I2PManager) Restart() error {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	if im.service != nil {
+		im.service.Close()
+		im.service = nil
+	}
+	if im.config == nil || !im.config.Enabled {
+		return nil
+	}
+	return im.startLocked()
+}
+
 // SetBackendPort points the eepsite tunnel at an already-running HTTP listener.
 // A zero port keeps the dedicated random loopback port behavior.
 func (im *I2PManager) SetBackendPort(port int) {

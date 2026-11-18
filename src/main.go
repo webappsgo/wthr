@@ -45,7 +45,6 @@ import (
 	appgraphql "github.com/webappsgo/wthr/src/graphql"
 	"github.com/webappsgo/wthr/src/mcp"
 	"github.com/webappsgo/wthr/src/mode"
-	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/buildstamp"
@@ -1150,6 +1149,9 @@ func main() {
 		return address, address != ""
 	})
 
+	// Declared before the watcher so its reload callback can reach the scheduler created below
+	var taskScheduler *scheduler.Scheduler
+
 	// Initialize config file watcher for live reload (TEMPLATE.md PART 1)
 	configPath := filepath.Join(dirPaths.Config, "server.yml")
 	configWatcher, err := service.NewConfigWatcher(configPath, func(newCfg *config.AppConfig) error {
@@ -1179,6 +1181,12 @@ func main() {
 			}
 		}
 
+		// AI.md PART 19: apply scheduler timezone, catch-up window and per-task schedules live
+		cfg.Server.Scheduler = newCfg.Server.Scheduler
+		if taskScheduler != nil {
+			taskScheduler.Configure(cfg.Server.Scheduler)
+		}
+
 		// Update global config for handlers
 		config.SetGlobalConfig(cfg)
 
@@ -1196,34 +1204,45 @@ func main() {
 	// Initialize scheduler for periodic tasks
 	// AI.md PART 19: task state persists in server.db, so the scheduler must hold
 	// the server handle - the users handle created above has no server_* tables.
-	taskScheduler := scheduler.NewScheduler(dualDB.Server)
+	taskScheduler = scheduler.NewScheduler(dualDB.Server)
+	// AI.md PART 19: timezone, catch-up window and every task's schedule and enabled state come from server.scheduler
+	taskScheduler.Configure(cfg.Server.Scheduler)
 	var notificationService *service.NotificationService
 
+	// addScheduledTask registers a built-in task under its AI.md PART 19 id; the schedule
+	// and enabled state come from server.scheduler.tasks, falling back to the built-in default
+	addScheduledTask := func(name string, fn func() error) {
+		schedule := cfg.Server.Scheduler.SchedulerTaskSettings(name).Schedule
+		if err := taskScheduler.AddTask(name, schedule, fn); err != nil {
+			log.Printf("WARNING: Failed to schedule task '%s': %v", name, err)
+		}
+	}
+
 	// Register log rotation task - AI.md PART 19: daily at midnight
-	taskScheduler.AddTask("rotate-logs", "0 0 * * *", func() error {
+	addScheduledTask("log_rotation", func() error {
 		return appLogger.RotateLogs()
 	})
 
 	// Register cleanup tasks - AI.md PART 19: session cleanup every 15 minutes
-	taskScheduler.AddTask("cleanup-sessions", "@every 15m", func() error {
+	addScheduledTask("session_cleanup", func() error {
 		return scheduler.CleanupOldSessions()
 	})
 
 	// AI.md PART 19: token cleanup every 15 minutes
-	taskScheduler.AddTask("cleanup-tokens", "@every 15m", func() error {
+	addScheduledTask("token_cleanup", func() error {
 		return scheduler.CleanupExpiredTokens()
 	})
 
-	taskScheduler.AddTask("cleanup-rate-limits", "@hourly", func() error {
+	addScheduledTask("rate_limit_cleanup", func() error {
 		return scheduler.CleanupRateLimitCounters()
 	})
 
-	taskScheduler.AddTask("cleanup-audit-logs", "@daily", func() error {
+	addScheduledTask("audit_log_cleanup", func() error {
 		return scheduler.CleanupOldAuditLogs()
 	})
 
 	// Closed security reports are deleted server.security.reports.retention_days after closing (PART 11)
-	taskScheduler.AddTask("cleanup-security-reports", "@daily", func() error {
+	addScheduledTask("security_report_cleanup", func() error {
 		serverDB := database.GetServerDB()
 		if serverDB == nil {
 			return nil
@@ -1234,12 +1253,12 @@ func main() {
 	})
 
 	// Register weather alert checks - run every 5 minutes per IDEA.md
-	taskScheduler.AddTask("check-weather-alerts", "@every 5m", func() error {
+	addScheduledTask("weather_alert_check", func() error {
 		return weatherNotifications.CheckWeatherAlerts()
 	})
 
 	// Expire stale weather alerts from user_weather_alerts every 5 minutes
-	taskScheduler.AddTask("expire-weather-alerts", "@every 5m", func() error {
+	addScheduledTask("weather_alert_expire", func() error {
 		usersDB := database.GetUsersDB()
 		if usersDB == nil {
 			return nil
@@ -1251,57 +1270,58 @@ func main() {
 	})
 
 	// Register daily forecast - AI.md PART 19: run once per day at 7 AM
-	taskScheduler.AddTask("daily-forecast", "0 7 * * *", func() error {
+	addScheduledTask("weather_daily_forecast", func() error {
 		return weatherNotifications.SendDailyForecast()
 	})
 
 	// Register notification queue processing - run every 2 minutes
-	taskScheduler.AddTask("process-notification-queue", "@every 2m", func() error {
+	addScheduledTask("notification_queue", func() error {
 		return deliverySystem.ProcessQueue()
 	})
 
 	// Register cleanup of old delivered notifications - daily
 	// Keep 30 days
-	taskScheduler.AddTask("cleanup-notifications", "@daily", func() error {
+	addScheduledTask("notification_delivery_cleanup", func() error {
 		return deliverySystem.CleanupOld(30)
 	})
 
 	// AI.md PART 19: backup daily at 02:00
-	taskScheduler.AddTask("backup-daily", "0 2 * * *", func() error {
+	addScheduledTask("backup_daily", func() error {
 		return scheduler.CreateSystemBackup()
 	})
 
-	// AI.md PART 19 line 27050: backup_hourly - hourly incremental (disabled by default)
-	// Only runs if backup.hourly_enabled is true in config
-	taskScheduler.AddTask("backup-hourly", "@hourly", func() error {
-		if !cfg.Server.Maintenance.Backup.HourlyEnabled {
-			return nil
-		}
-		p := path.GetDefaultPaths("wthr")
-		if p == nil {
-			return fmt.Errorf("failed to get paths for hourly backup")
-		}
-		return scheduler.BackupHourlyTask(p.ConfigDir, p.DataDir)()
+	// AI.md PART 19: backup_hourly is an hourly incremental, disabled by default through server.scheduler.tasks.backup_hourly.enabled
+	addScheduledTask("backup_hourly", func() error {
+		return scheduler.BackupHourlyTask(dirPaths.Config, dirPaths.Data)()
 	})
 
 	// AI.md PART 19: SSL renewal check daily at 03:00
-	taskScheduler.AddTask("ssl-renewal", "0 3 * * *", func() error {
+	addScheduledTask("ssl_renewal", func() error {
 		return scheduler.CheckSSLRenewal()
 	})
 
 	// AI.md PART 19: self health check every 5 minutes
-	taskScheduler.AddTask("healthcheck-self", "@every 5m", func() error {
+	addScheduledTask("healthcheck_self", func() error {
 		return scheduler.SelfHealthCheck()
 	})
 
 	// AI.md PART 19: Tor health check every 10 minutes (when Tor installed)
-	taskScheduler.AddTask("tor-health", "@every 10m", func() error {
-		return scheduler.CheckTorHealth()
+	addScheduledTask("tor_health", func() error {
+		restart := cfg.Server.Scheduler.SchedulerTaskSettings("tor_health").RestartOnFail
+		return scheduler.CheckOverlayHealth("tor", torService, restart)
 	})
+
+	// AI.md PART 19: I2P provider health check every 10 minutes (only registered when the I2P eepsite is opted in)
+	if cfg.Server.I2P.Enabled {
+		addScheduledTask("i2p_health", func() error {
+			restart := cfg.Server.Scheduler.SchedulerTaskSettings("i2p_health").RestartOnFail
+			return scheduler.CheckOverlayHealth("i2p", i2pManager, restart)
+		})
+	}
 
 	// Register weather cache refresh - run every 15 minutes per IDEA.md
 	// Proactively fetches weather for all saved user locations to warm the in-process cache.
-	taskScheduler.AddTask("refresh-weather-cache", "@every 15m", func() error {
+	addScheduledTask("weather_cache_refresh", func() error {
 		usersDB := database.GetUsersDB()
 		if usersDB == nil {
 			return nil
@@ -1324,29 +1344,29 @@ func main() {
 		return nil
 	})
 
-	// Register GeoIP database update - AI.md PART 19: weekly Sunday at 03:00
-	taskScheduler.AddTask("update-geoip-database", "0 3 * * 0", func() error {
-		fmt.Printf("%s Weekly GeoIP database update starting...\n", display.Emoji("🌍", "*"))
+	// AI.md PART 19: GeoIP database update weekly on Sunday at 03:00. Task activity goes to the log only, never the console.
+	addScheduledTask("geoip_update", func() error {
+		log.Printf("INFO: GeoIP database update starting")
 		if err := geoipService.UpdateDatabase(); err != nil {
-			fmt.Printf("%s GeoIP update failed: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			log.Printf("WARNING: GeoIP update failed: %v", err)
 			return err
 		}
 		return nil
 	})
 
 	// AI.md PART 19: blocklist update daily at 04:00
-	taskScheduler.AddTask("blocklist-update", "0 4 * * *", func() error {
+	addScheduledTask("blocklist_update", func() error {
 		return scheduler.UpdateBlocklist()
 	})
 
 	// AI.md PART 19: CVE database update daily at 05:00
-	taskScheduler.AddTask("cve-update", "0 5 * * *", func() error {
+	addScheduledTask("cve_update", func() error {
 		return scheduler.UpdateCVEDatabase()
 	})
 
 	// AI.md PART 19: check for eligible updates daily at 06:00. Notifications
 	// are keyed by release version so retries and later checks do not duplicate them.
-	taskScheduler.AddTask("update_check", "0 6 * * *", func() error {
+	addScheduledTask("update_check", func() error {
 		current := config.GetGlobalConfig()
 		if current == nil {
 			current = cfg
@@ -1392,7 +1412,7 @@ func main() {
 	if nodeIDForHeartbeat == "" {
 		nodeIDForHeartbeat = "default"
 	}
-	taskScheduler.AddTask("cluster-heartbeat", "@every 30s", func() error {
+	addScheduledTask("cluster_heartbeat", func() error {
 		return scheduler.ClusterHeartbeat(nodeIDForHeartbeat)
 	})
 
@@ -1417,13 +1437,13 @@ func main() {
 	severeWeatherService := service.NewSevereWeatherService()
 
 	// Pre-warm earthquake cache every 1 minute (USGS feed per features-rules)
-	taskScheduler.AddTask("poll-earthquakes", "@every 1m", func() error {
+	addScheduledTask("earthquake_poll", func() error {
 		_, _ = earthquakeService.GetEarthquakes("all_hour")
 		return nil
 	})
 
 	// Pre-warm hurricane cache every 15 minutes (NOAA NHC per features-rules)
-	taskScheduler.AddTask("poll-hurricanes", "@every 15m", func() error {
+	addScheduledTask("hurricane_poll", func() error {
 		_, _ = hurricaneService.GetActiveStorms()
 		return nil
 	})
@@ -2353,13 +2373,9 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/scheduler", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tasks_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Scheduled Tasks - Admin",
-				"page":       "scheduler",
-				"breadcrumb": "Scheduled Tasks",
-			}))
-		})
+		adminRoutes.Get("/scheduler", schedulerHandler.ShowPage)
+		adminRoutes.Post("/scheduler", schedulerHandler.SubmitPage)
+		adminRoutes.Get("/scheduler/{name}", schedulerHandler.ShowTaskPage)
 
 		adminRoutes.Get("/ssl", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
@@ -3552,7 +3568,8 @@ func main() {
 
 		// Scheduler per spec: /api/{api_version}/{admin_path}/scheduler/
 		adminAPI.Get("/scheduler", schedulerHandler.GetAllTasks)
-		adminAPI.Get("/scheduler/{name}", schedulerHandler.GetTaskHistory)
+		adminAPI.Get("/scheduler/{name}", schedulerHandler.GetTask)
+		adminAPI.Get("/scheduler/{name}/history", schedulerHandler.GetTaskHistory)
 		adminAPI.Patch("/scheduler/{name}", schedulerHandler.UpdateTask)
 		adminAPI.Post("/scheduler/{name}/run", schedulerHandler.TriggerTask)
 		adminAPI.Post("/scheduler/{name}/enable", schedulerHandler.EnableTask)

@@ -258,22 +258,29 @@ Monitor system performance and usage.
 
 ### Scheduler
 
-View and manage scheduled tasks.
+The built-in scheduler always runs; there is no switch to turn it off and no external cron is used.
+The page at **Scheduler** lists every task with its status, schedule, last run and next run, all
+shown in the scheduler timezone. It works without JavaScript: every button is a plain form.
 
-**Scheduled Tasks:**
-- **GeoIP Update** - Update GeoIP databases (weekly)
-- **Database Vacuum** - Optimize database (daily)
-- **Log Rotation** - Rotate log files (daily)
-- **Notification Cleanup** - Clean old notifications (daily)
-- **Session Cleanup** - Remove expired sessions (hourly)
-- **Cache Cleanup** - Clear stale cache entries (hourly)
+**Built-in tasks:**
+- **SSL Renewal**, **Session Cleanup**, **Token Cleanup**, **Log Rotation**, **Health Check**,
+  **Tor Health**, **I2P Health** and **Cluster Heartbeat** are critical and can never be disabled
+- **GeoIP Update**, **Blocklist Update**, **CVE Update**, **Update Check** and **Backup Daily** can
+  be disabled
+- **Backup Hourly** is an hourly incremental and is disabled by default
+- Weather, earthquake, hurricane and notification tasks run on their own schedules
 
-**Task Actions:**
-- View last run time and status
-- Run task immediately
-- Enable/disable task
-- Change schedule
-- View task history
+**Task actions:**
+- Run a task immediately
+- Enable or disable a task (critical tasks cannot be disabled)
+- Change a task's schedule: a cron expression, `@hourly`, `@daily`, `@weekly`, `@monthly` or
+  `@every 15m`
+- View a task's last 100 runs, with duration and error text
+
+**Scheduler settings:** the timezone that schedules are evaluated in (default `America/New_York`)
+and the catch-up window (default `1h`): a run missed while the server was down is executed at
+startup when it was due inside that window. Changes are saved to `server.yml` and applied
+immediately, without a restart.
 
 ### Backup & Restore
 

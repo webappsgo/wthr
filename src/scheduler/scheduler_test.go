@@ -368,9 +368,9 @@ func TestIsGlobalTask(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"backup-daily", true},
-		{"geoip-update", true},
-		{"ssl-renewal", true},
+		{"backup_daily", true},
+		{"geoip_update", true},
+		{"ssl_renewal", true},
 		{"not-a-real-task", false},
 		{"", false},
 	}
@@ -403,12 +403,12 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 	t.Run("global task with no existing lock acquires it", func(t *testing.T) {
 		newSchedulerTestDBs(t)
 		s := NewScheduler(nil)
-		if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+		if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 			t.Fatal("expected lock acquisition to succeed when no lock row exists")
 		}
 		var lockedBy, schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by, schedule FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by, schedule FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 		).Scan(&lockedBy, &schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -428,13 +428,13 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		_, err := database.GetServerDB().Exec(
 			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 			 VALUES (?, ?, ?, ?, ?, 1)`,
-			"backup-daily", "backup-daily", testLockSchedule, "other-node", time.Now(),
+			"backup_daily", "backup_daily", testLockSchedule, "other-node", time.Now(),
 		)
 		if err != nil {
 			t.Fatalf("seed lock row: %v", err)
 		}
 
-		if s.acquireTaskLock("backup-daily", testLockSchedule) {
+		if s.acquireTaskLock("backup_daily", testLockSchedule) {
 			t.Error("expected lock acquisition to fail while another node holds a fresh lock")
 		}
 	})
@@ -446,18 +446,18 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		_, err := database.GetServerDB().Exec(
 			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
 			 VALUES (?, ?, ?, ?, ?, 1)`,
-			"backup-daily", "backup-daily", testLockSchedule, "other-node", expiredAt,
+			"backup_daily", "backup_daily", testLockSchedule, "other-node", expiredAt,
 		)
 		if err != nil {
 			t.Fatalf("seed lock row: %v", err)
 		}
 
-		if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+		if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 			t.Error("expected an expired lock (older than LockTimeout) to be stealable")
 		}
 		var lockedBy string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -469,10 +469,10 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 	t.Run("global task already held by this node refreshes cleanly", func(t *testing.T) {
 		newSchedulerTestDBs(t)
 		s := NewScheduler(nil)
-		if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+		if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 			t.Fatal("first acquire should succeed")
 		}
-		if !s.acquireTaskLock("backup-daily", "*/30 * * * *") {
+		if !s.acquireTaskLock("backup_daily", "*/30 * * * *") {
 			t.Error("re-acquiring a lock already held by the same node should succeed")
 		}
 		// A re-acquire carries the task's current schedule, so a task whose cron
@@ -480,7 +480,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		// leaving the old expression behind.
 		var schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT schedule FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+			"SELECT schedule FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 		).Scan(&schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -583,13 +583,13 @@ func TestScheduler_AcquireTaskLock_MixedTimestampLayouts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			newSchedulerTestDBs(t)
 			s := NewScheduler(nil)
-			seedTaskLock(t, "backup-daily", "other-node", tt.lockedAt)
+			seedTaskLock(t, "backup_daily", "other-node", tt.lockedAt)
 
-			if got := s.acquireTaskLock("backup-daily", testLockSchedule); got != tt.steal {
+			if got := s.acquireTaskLock("backup_daily", testLockSchedule); got != tt.steal {
 				t.Fatalf("acquireTaskLock() = %v, want %v", got, tt.steal)
 			}
 
-			holder := lockHolder(t, "backup-daily")
+			holder := lockHolder(t, "backup_daily")
 			want := "other-node"
 			if tt.steal {
 				want = s.nodeID
@@ -608,7 +608,7 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 	newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
 
-	if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+	if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Fatal("acquire should succeed on a fresh row")
 	}
 
@@ -616,7 +616,7 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 	// way out, so the assertion sees the bytes actually stored.
 	var stored string
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query locked_at: %v", err)
 	}
@@ -626,11 +626,11 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 	}
 
 	// The refresh path has to keep the same encoding.
-	if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+	if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Fatal("refresh of our own lock should succeed")
 	}
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query refreshed locked_at: %v", err)
 	}
@@ -651,18 +651,18 @@ func TestScheduler_AcquireTaskLock_StealIsConditional(t *testing.T) {
 	winner := NewScheduler(nil)
 	winner.nodeID = "node-winner"
 
-	seedTaskLock(t, "backup-daily", "other-node", time.Now().UTC().Add(-2*time.Hour).Format(sqlTimestampLayout))
+	seedTaskLock(t, "backup_daily", "other-node", time.Now().UTC().Add(-2*time.Hour).Format(sqlTimestampLayout))
 
-	if !winner.acquireTaskLock("backup-daily", testLockSchedule) {
+	if !winner.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Fatal("the first node to steal an expired lock should win it")
 	}
 
 	// The freshly written lock is not expired, so the second node backs off
 	// instead of overwriting a holder that is already running the task.
-	if loser.acquireTaskLock("backup-daily", testLockSchedule) {
+	if loser.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Error("a second node must not steal a lock another node just took")
 	}
-	if holder := lockHolder(t, "backup-daily"); holder.String != winner.nodeID {
+	if holder := lockHolder(t, "backup_daily"); holder.String != winner.nodeID {
 		t.Errorf("locked_by = %q, want %q", holder.String, winner.nodeID)
 	}
 }
@@ -677,14 +677,14 @@ func TestScheduler_ReleaseTaskLock(t *testing.T) {
 	t.Run("releasing a held global lock clears locked_by", func(t *testing.T) {
 		newSchedulerTestDBs(t)
 		s := NewScheduler(nil)
-		if !s.acquireTaskLock("backup-daily", testLockSchedule) {
+		if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 			t.Fatal("acquire should succeed")
 		}
-		s.releaseTaskLock("backup-daily")
+		s.releaseTaskLock("backup_daily")
 
 		var lockedBy sql.NullString
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup-daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -1183,16 +1183,6 @@ func TestSelfHealthCheck(t *testing.T) {
 	newSchedulerTestDBs(t)
 	if err := SelfHealthCheck(); err != nil {
 		t.Errorf("SelfHealthCheck() = %v, want nil against a healthy in-memory DB", err)
-	}
-}
-
-func TestCheckTorHealth(t *testing.T) {
-	newSchedulerTestDBs(t)
-	// Regardless of whether the `tor` binary exists in this environment, without
-	// tor.enabled='true' configured (and typically without tor installed at all in
-	// the CI/build container), this must return nil and never panic.
-	if err := CheckTorHealth(); err != nil {
-		t.Logf("CheckTorHealth() returned error (acceptable if tor happens to be installed and misconfigured here): %v", err)
 	}
 }
 
