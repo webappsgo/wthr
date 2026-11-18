@@ -7895,6 +7895,20 @@
   const Pwa = {
     recoveredFlag: 'wthr_recovered',
 
+    // True once the user pressed "Update now"; only then may controllerchange reload the page
+    updateAccepted: false,
+
+    // True after the single reload so the page never reloads twice
+    reloading: false,
+
+    reloadOnce() {
+      if (Pwa.reloading) {
+        return;
+      }
+      Pwa.reloading = true;
+      window.location.reload();
+    },
+
     strings: {
       'pwa.update_available': 'A new version is available',
       'pwa.update_now': 'Update now',
@@ -7937,11 +7951,14 @@
       update.className = 'btn btn-primary';
       update.textContent = Pwa.strings['pwa.update_now'];
       update.addEventListener('click', function() {
+        Pwa.updateAccepted = true;
         navigator.serviceWorker.ready.then(function(registration) {
           if (registration.waiting) {
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            // The takeover normally fires controllerchange within a moment; if it does not, reload anyway
+            setTimeout(Pwa.reloadOnce, 5000);
           } else {
-            window.location.reload();
+            Pwa.reloadOnce();
           }
         });
       });
@@ -7958,15 +7975,12 @@
       if (!('serviceWorker' in navigator)) {
         return;
       }
-      let reloaded = false;
+      // Registered once at page load, never inside the click handler: reloads only after the user accepted the update
       navigator.serviceWorker.addEventListener('controllerchange', function() {
-        if (reloaded || !Pwa.hadController) {
-          return;
+        if (Pwa.updateAccepted) {
+          Pwa.reloadOnce();
         }
-        reloaded = true;
-        window.location.reload();
       });
-      Pwa.hadController = !!navigator.serviceWorker.controller;
       window.addEventListener('load', async function() {
         try {
           const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });

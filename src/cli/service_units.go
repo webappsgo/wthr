@@ -80,10 +80,15 @@ StandardError=journal
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/etc/{internal_org}/{internal_name}
-ReadWritePaths=/var/lib/{internal_org}/{internal_name}
-ReadWritePaths=/var/cache/{internal_org}/{internal_name}
-ReadWritePaths=/var/log/{internal_org}/{internal_name}
+# The + prefix runs the command with full privileges outside the sandbox, so the directories exist before ProtectSystem=strict applies
+ExecStartPre=+/usr/bin/install -d -m 0755 /etc/{internal_org}/{internal_name} /var/lib/{internal_org}/{internal_name} /var/cache/{internal_org}/{internal_name} /var/log/{internal_org}/{internal_name} /var/run/{internal_org}/{internal_name}
+# A leading - makes a path optional, so a path that does not exist yet never fails the namespace setup
+ReadWritePaths=-/etc/{internal_org}/{internal_name}
+ReadWritePaths=-/var/lib/{internal_org}/{internal_name}
+ReadWritePaths=-/var/cache/{internal_org}/{internal_name}
+ReadWritePaths=-/var/log/{internal_org}/{internal_name}
+ReadWritePaths=-/var/run/{internal_org}/{internal_name}
+ReadWritePaths=-/mnt/Backups/{internal_org}/{internal_name}
 
 [Install]
 WantedBy=multi-user.target
@@ -94,7 +99,7 @@ name="{internal_name}"
 description="{app_name}"
 command="{binary}"
 command_args=""
-pidfile="/var/run/{internal_org}/{internal_name}.pid"
+pidfile="/var/run/{internal_org}/{internal_name}/{internal_name}.pid"
 command_background=true
 output_log="/var/log/{internal_org}/{internal_name}/server.log"
 error_log="/var/log/{internal_org}/{internal_name}/error.log"
@@ -106,7 +111,7 @@ depend() {
 }
 
 start_pre() {
-    checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/run/{internal_org}
+    checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/run/{internal_org}/{internal_name}
     checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/log/{internal_org}/{internal_name}
 }
 `
@@ -125,7 +130,7 @@ const sysVScriptTemplate = `#!/bin/sh
 NAME={internal_name}
 DAEMON={binary}
 DAEMON_USER={internal_name}
-PIDFILE=/var/run/{internal_org}/{internal_name}.pid
+PIDFILE=/var/run/{internal_org}/{internal_name}/{internal_name}.pid
 LOGFILE=/var/log/{internal_org}/{internal_name}/server.log
 
 case "$1" in
@@ -133,6 +138,7 @@ case "$1" in
         echo "Starting $NAME..."
         mkdir -p $(dirname $PIDFILE) $(dirname $LOGFILE)
         chown -R $DAEMON_USER:$DAEMON_USER $(dirname $PIDFILE) $(dirname $LOGFILE)
+        # No --chuid: the binary drops privileges itself after binding its ports (PART 8)
         start-stop-daemon --start --quiet --background --make-pidfile \
             --pidfile $PIDFILE --exec $DAEMON \
             --no-close >> $LOGFILE 2>&1

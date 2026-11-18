@@ -66,3 +66,26 @@ func TestStaticCache(t *testing.T) {
 		t.Fatalf("mismatched stamp = %q", got)
 	}
 }
+
+// TestServiceWorkerFollowsLifecycleRules checks the AI.md PART 16 safety rules: an
+// updated worker waits for the user, navigations are bounded, and a redirect or an
+// error response is never cached.
+func TestServiceWorkerFollowsLifecycleRules(t *testing.T) {
+	w := httptest.NewRecorder()
+	ServiceWorker(w, httptest.NewRequest(http.MethodGet, "/sw.js", nil))
+	body := w.Body.String()
+
+	install := body[strings.Index(body, "'install'"):strings.Index(body, "'activate'")]
+	if strings.Contains(install, "self.skipWaiting()") {
+		t.Error("install must not call skipWaiting: an updated worker waits for the update prompt")
+	}
+	if !strings.Contains(body, "NAV_TIMEOUT_MS = 8000") || !strings.Contains(body, "withTimeout(fetch(request), NAV_TIMEOUT_MS)") {
+		t.Error("navigations must race an 8 second timer")
+	}
+	if got := strings.Count(body, "response.ok && !response.redirected"); got != 2 {
+		t.Errorf("navigation and static caching must both skip redirects and errors, found %d guards", got)
+	}
+	if !strings.Contains(body, "type === 'SKIP_WAITING'") {
+		t.Error("the worker must still honor SKIP_WAITING from the update prompt")
+	}
+}

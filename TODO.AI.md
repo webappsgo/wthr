@@ -19,3 +19,17 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - Legacy stubs: `admin_geoip.tmpl` has hard-coded values and is not wired; `CheckSSLRenewal` only logs and does not renew; `CreateSystemBackup`/hourly use `AppVersion "1.0.0"` and an empty password
 - Admin UI uses JS-built lists and hard-coded English strings in `app.js` (PART 16/31)
 - Pre-existing gofmt fixes applied to cli/maintenance.go, auth_check.go, setup_test.go
+- CI: `.github/workflows/ci.yml` has failed with "workflow file issue" (no jobs run) on every push since a66f937; the file parses as valid YAML, so find the GitHub-side rejection (check the Actions UI annotation) and fix it
+- ORDER (dependencies decide, number is only a tiebreaker): 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11. Item 1 blocks the PID directory ownership and Tor/I2P child credentials; item 2 blocks every setting that moves into server.yml (3, 4)
+- 1. PART 8 / 24 / 25 root phase: no in-process service user creation, chown, privilege drop after port binding or Windows Virtual Service Account (Windows uses NSSM today); the PID directory `/var/run/{org}/{name}/` must be created and owned in step 8b/8c
+- 2. PART 5 / 10 config storage (see the PART 5/10 item above): server.yml source of truth, `srv_config` only in cluster mode
+- 3. PART 12 CORS: hard-coded `*` with a short header list in main.go; needs `web.cors` resolution (explicit config, DOMAIN, learned proxy hosts, `*` fallback), the spec header list, credentials only for explicit origins, admin `/web` preview; CSRF must mount on frontend routes only, never `/api/**`
+- 4. PART 11 (see the PART 11 items above), including HMAC CSRF and the `web.csrf` config block
+- 5. PART 15 DNS-01 credential contract: `dns_provider` plus a flat `dns_credentials` map of lego env names, `enc:v1:` AES-256-GCM at rest, constructor-only passing to lego, `app_secrets.dns_validated_at`; nothing is implemented yet
+- 6. PART 17 / 34 (see the admin TOTP item above)
+- 7. PART 14 (see the OpenAPI item above)
+- 8. PART 31 (see the plural/JS strings item above)
+- 9. PART 10 DDL alignment (see the PART 12 schema item above); `admins.api_token_hash` still exists in `legacy_tables.go` while AI.md removed it
+- 10. Legacy stubs listed above (admin_geoip.tmpl, CheckSSLRenewal, backup version/password)
+- 11. Not yet re-audited against AI.md: PARTS 7, 9, 13, 16, 18, 20-23, 26-30, 32, 33
+- AI.md PART 29 line 48167 reads the PID file as `/var/run/${INTERNAL_ORG}/${INTERNAL_NAME}.pid`, which contradicts the per-service PID directory in PARTS 3, 4, 8 and 25; follow PART 8 and report it in the template inbox

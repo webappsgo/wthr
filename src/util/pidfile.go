@@ -16,23 +16,31 @@ type PIDFile struct {
 	Path string
 }
 
-// NewPIDFile creates a new PID file manager
-// Per TEMPLATE.md PART 6: PID file should be in /var/run/ (root) or user temp dir
+// pidFileOrg and pidFileName are the on-disk identity of this service (AI.md PART 4:
+// {internal_org} and {internal_name}); they never change when the project is renamed.
+const (
+	pidFileOrg  = "webappsgo"
+	pidFileName = "wthr"
+)
+
+// SystemPIDFilePath is the root-mode PID file: one directory per service so a service
+// account can remove only its own PID file (AI.md PART 8 "PID directory (root)").
+func SystemPIDFilePath() string {
+	return filepath.Join("/var/run", pidFileOrg, pidFileName, pidFileName+".pid")
+}
+
+// NewPIDFile creates a new PID file manager.
+// AI.md PART 8: root mode uses /var/run/{internal_org}/{internal_name}/{internal_name}.pid,
+// user mode uses {data_dir}/{internal_name}.pid.
 func NewPIDFile(dataDir string) *PIDFile {
 	var pidPath string
 
 	if custom := strings.TrimSpace(os.Getenv("PID_FILE")); custom != "" {
 		pidPath = custom
 	} else if os.Geteuid() == 0 {
-		// Running as root - use /var/run or /run
-		if _, err := os.Stat("/run"); err == nil {
-			pidPath = "/run/webappsgo/wthr.pid"
-		} else {
-			pidPath = "/var/run/webappsgo/wthr.pid"
-		}
+		pidPath = SystemPIDFilePath()
 	} else {
-		// Running as regular user - use data directory
-		pidPath = filepath.Join(dataDir, "wthr.pid")
+		pidPath = filepath.Join(dataDir, pidFileName+".pid")
 	}
 
 	return &PIDFile{Path: pidPath}

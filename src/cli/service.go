@@ -330,7 +330,7 @@ func installRCDService() error {
 name="wthr"
 rcvar=wthr_enable
 command="/usr/local/bin/wthr"
-pidfile="/var/run/wthr.pid"
+pidfile="/var/run/webappsgo/wthr/wthr.pid"
 
 load_rc_config $name
 run_rc_command "$1"

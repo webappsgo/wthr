@@ -32,20 +32,36 @@ func TestServiceTemplatesDoNotSwitchUser(t *testing.T) {
 		"sysv":    sysVScriptTemplate,
 		"runit":   runitRunTemplate,
 	} {
+		code := withoutCommentLines(text)
 		for _, forbidden := range []string{"command_user", "--chuid", "chpst -u", "\nUser=", "\nGroup="} {
-			if strings.Contains(text, forbidden) {
+			if strings.Contains(code, forbidden) {
 				t.Errorf("%s template contains %q", name, forbidden)
 			}
 		}
 	}
 }
 
+// withoutCommentLines drops shell and unit comment lines so a comment that explains
+// why an option is absent is not mistaken for the option itself.
+func withoutCommentLines(text string) string {
+	var kept []string
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
 func TestSystemdUnitHardening(t *testing.T) {
 	out := serviceTemplate(systemdUnitTemplate)
 	for _, want := range []string{
 		"ProtectSystem=strict", "ProtectHome=yes", "PrivateTmp=yes",
-		"ReadWritePaths=/etc/webappsgo/wthr", "ReadWritePaths=/var/lib/webappsgo/wthr",
-		"ReadWritePaths=/var/cache/webappsgo/wthr", "ReadWritePaths=/var/log/webappsgo/wthr",
+		"ReadWritePaths=-/etc/webappsgo/wthr", "ReadWritePaths=-/var/lib/webappsgo/wthr",
+		"ReadWritePaths=-/var/cache/webappsgo/wthr", "ReadWritePaths=-/var/log/webappsgo/wthr",
+		"ReadWritePaths=-/var/run/webappsgo/wthr", "ReadWritePaths=-/mnt/Backups/webappsgo/wthr",
+		"ExecStartPre=+/usr/bin/install -d -m 0755 /etc/webappsgo/wthr",
 		"WantedBy=multi-user.target",
 	} {
 		if !strings.Contains(out, want) {

@@ -11,11 +11,11 @@ const PRECACHE_ASSETS = [
   '/offline.html'
 ];
 
+// No skipWaiting() on install: an updated worker waits for the update prompt (SKIP_WAITING), a first install activates by itself
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -30,6 +30,18 @@ self.addEventListener('activate', event => {
       .then(() => self.clients.claim())
   );
 });
+
+// A navigation never waits on the network forever: it rejects after NAV_TIMEOUT_MS and the catch below serves the cached page or the offline page
+const NAV_TIMEOUT_MS = 8000;
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    promise.then(
+      value => { clearTimeout(timer); resolve(value); },
+      error => { clearTimeout(timer); reject(error); }
+    );
+  });
+}
 
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -46,10 +58,12 @@ self.addEventListener('fetch', event => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      withTimeout(fetch(request), NAV_TIMEOUT_MS)
         .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          if (response.ok && !response.redirected) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
           return response;
         })
         .catch(async () =>
@@ -65,8 +79,10 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       caches.match(request)
         .then(cached => cached || fetch(request).then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          if (response.ok && !response.redirected) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
           return response;
         }))
         .catch(() => new Response('', { status: 504, statusText: 'Gateway Timeout' }))
