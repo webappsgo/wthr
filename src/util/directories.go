@@ -182,9 +182,9 @@ func GetBackupPath(paths *DirectoryPaths) string {
 	return filepath.Join(paths.Data, "backups")
 }
 
-// GetCertsPath returns the full path to the SSL certificates directory
+// GetCertsPath returns the full path to the SSL directory, {config_dir}/ssl (AI.md PART 15)
 func GetCertsPath(paths *DirectoryPaths) string {
-	return filepath.Join(paths.Config, "certs")
+	return filepath.Join(paths.Config, "ssl")
 }
 
 // GetConfigDatabasesPath returns the full path to config databases (GeoIP, JSON, etc.)

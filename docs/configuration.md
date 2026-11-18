@@ -64,10 +64,9 @@ re-read on every start.
 | `DOMAIN` | FQDN used for displayed/embedded URLs |
 | `MODE` / `APP_MODE` / `ENVIRONMENT` | Application mode (`production` or `development`) |
 | `DEBUG` | Enable debug diagnostics (verbosity only, never bypasses auth). Every `/debug/*` endpoint, pprof and expvar included, also requires the operator token `server.token` as `Authorization: Bearer`; when unset a random token is printed once on the console at startup |
-| `PORT` | Listen port |
+| `PORT` | Listen port: `8080` (HTTP), `443` (HTTPS only) or `80,443` (HTTP then HTTPS) |
 | `LISTEN` / `SERVER_ADDRESS` | Listen address (legacy fallback for `PORT`) |
 | `REVERSE_PROXY` | Trust reverse-proxy forwarding headers |
-| `TLS_ENABLED` | Enable HTTPS/TLS on the listener |
 | `DAEMON` | Run in background/daemon mode |
 | `NO_COLOR` | Disable ANSI colors and emoji in output |
 | `TERM` | Terminal type (`dumb` forces plain CLI output) |
@@ -250,6 +249,38 @@ web:
 string (CORS off) or a comma-separated list of origins such as `https://app.example.com`. `csrf`
 applies to the frontend only; `secure` is `auto`, `true` or `false`, and `exempt_paths` lists
 frontend paths that skip the check. An invalid value is replaced by its default with a warning.
+
+## HTTPS and Certificates
+
+| Port setting | Result |
+|--------------|--------|
+| `8080` | HTTP only |
+| `443` | HTTPS only |
+| `80,443` / `8080,8443` | HTTP then HTTPS; the HTTP port redirects visitors to HTTPS |
+| `8080` with `ssl.enabled: true` | HTTPS on that port |
+
+The HTTP port in dual-port mode never redirects the Let's Encrypt HTTP-01 challenge, Tor and
+I2P requests (an onion address has no HTTPS endpoint) or requests addressed to `localhost`
+(the container health check). With HTTPS only, Tor and I2P reach the site through a
+loopback-only plain listener.
+
+On start the server looks for a certificate for its host name in this order and uses the first
+valid one (readable, not expired, naming the host):
+
+| Order | Location | Renewed by |
+|-------|----------|------------|
+| 1 | `/etc/letsencrypt/live/domain/` | certbot (the app never renews it) |
+| 2 | `/etc/letsencrypt/live/{fqdn}/` | certbot |
+| 3 | `{config_dir}/ssl/letsencrypt/{fqdn}/` (`fullchain.pem`, `privkey.pem`) | the app, 7 days before expiry |
+| 4 | `{config_dir}/ssl/local/{fqdn}/` (`cert.pem`, `key.pem`) | you (never renewed) |
+
+With none of them the server starts on a self-signed certificate in `ssl/local/{fqdn}/`, so a
+first run works with no configuration. `ssl.cert` and `ssl.key` (absolute paths) override the
+lookup. With `ssl.letsencrypt.enabled: true` and a public domain name, the server then requests
+a certificate with the configured `challenge` (`http-01`, `tls-alpn-01`; `dns-01` is requested
+from the admin SSL page) and serves it without a restart. The `ssl_renewal` task checks daily
+at 03:00 and renews an app-managed certificate 7 days before it expires. `ssl.min_version` is
+`TLS1.2` or `TLS1.3`.
 
 ## Paths
 

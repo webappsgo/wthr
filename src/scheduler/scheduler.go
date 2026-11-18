@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -25,7 +23,6 @@ import (
 
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/common/dbtime"
-	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
@@ -1422,92 +1419,6 @@ func CleanupExpiredTokens() error {
 
 	if rowsAffected > 0 {
 		log.Printf("INFO: Cleaned up %d expired API tokens", rowsAffected)
-	}
-
-	return nil
-}
-
-// CheckSSLRenewal checks if SSL certificates need renewal
-// AI.md PART 19: SSL renewal daily at 03:00, renew 7 days before expiry
-func CheckSSLRenewal() error {
-	// Check if SSL is enabled via Let's Encrypt
-	var sslEnabled string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'ssl.letsencrypt.enabled'").Scan(&sslEnabled)
-	if err != nil || sslEnabled != "true" {
-		// SSL not using Let's Encrypt, skip renewal
-		return nil
-	}
-
-	// Get the domain from settings
-	var domain string
-	domainErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'ssl.domain'").Scan(&domain)
-	if domainErr != nil || domain == "" {
-		// No domain configured, skip
-		return nil
-	}
-
-	log.Println("INFO: Checking SSL certificate renewal status...")
-
-	// Get paths
-	p := path.GetDefaultPaths("wthr")
-	if p == nil {
-		return fmt.Errorf("failed to get default paths")
-	}
-
-	// Check for certificate in common locations
-	certPaths := []string{
-		filepath.Join(p.DataDir, "certs", domain+".crt"),
-		filepath.Join(p.DataDir, "certs", "server.crt"),
-		filepath.Join("/etc/letsencrypt/live", domain, "fullchain.pem"),
-	}
-
-	var certPath, keyPath string
-	for _, cp := range certPaths {
-		kp := cp[:len(cp)-4] + ".key"
-		if cp == filepath.Join("/etc/letsencrypt/live", domain, "fullchain.pem") {
-			kp = filepath.Join("/etc/letsencrypt/live", domain, "privkey.pem")
-		}
-		if _, err := os.Stat(cp); err == nil {
-			if _, err := os.Stat(kp); err == nil {
-				certPath = cp
-				keyPath = kp
-				break
-			}
-		}
-	}
-
-	if certPath == "" {
-		log.Println("WARNING: SSL renewal check: No certificate found")
-		return nil
-	}
-
-	// Load and parse certificate
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		return fmt.Errorf("failed to load certificate: %w", err)
-	}
-
-	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
-	}
-
-	// Calculate days remaining
-	daysRemaining := int(time.Until(x509Cert.NotAfter).Hours() / 24)
-
-	// AI.md PART 19: renew 7 days before expiry
-	if daysRemaining <= 0 {
-		log.Printf("CRITICAL: SSL certificate EXPIRED on %s", x509Cert.NotAfter.Format("2006-01-02"))
-		return fmt.Errorf("SSL certificate expired")
-	} else if daysRemaining <= 7 {
-		log.Printf("WARNING: SSL certificate expires in %d days (renewing at 7 days)", daysRemaining)
-		// Note: Actual renewal is triggered by LetsEncryptService's auto-renewal
-		// This task just logs the status - renewal is handled by the service
-		return fmt.Errorf("SSL certificate needs renewal (%d days remaining)", daysRemaining)
-	} else if daysRemaining <= 30 {
-		log.Printf("%s SSL certificate expires in %d days", display.Emoji("ℹ️", "INFO:"), daysRemaining)
-	} else {
-		log.Printf("OK: SSL certificate valid for %d days", daysRemaining)
 	}
 
 	return nil

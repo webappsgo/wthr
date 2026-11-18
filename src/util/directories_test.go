@@ -105,7 +105,7 @@ func TestPathHelpers(t *testing.T) {
 		{"GetDatabasePath", GetDatabasePath(paths), filepath.Join("/data", "db", "server.db")},
 		{"GetDatabaseDir", GetDatabaseDir(paths), filepath.Join("/data", "db")},
 		{"GetBackupPath", GetBackupPath(paths), filepath.Join("/data", "backups")},
-		{"GetCertsPath", GetCertsPath(paths), filepath.Join("/config", "certs")},
+		{"GetCertsPath", GetCertsPath(paths), filepath.Join("/config", "ssl")},
 		{"GetConfigDatabasesPath", GetConfigDatabasesPath(paths), filepath.Join("/config", "databases")},
 		{"GetGeoIPPath", GetGeoIPPath(paths), filepath.Join("/config", "databases", "geoip.mmdb")},
 		{"GetAirportDataPath", GetAirportDataPath(paths), filepath.Join("/config", "databases", "airports.json")},

@@ -1148,37 +1148,6 @@ func TestCreateSystemBackup_DisabledSkipsSilently(t *testing.T) {
 	}
 }
 
-func TestCheckSSLRenewal_SkipPaths(t *testing.T) {
-	t.Run("letsencrypt not enabled", func(t *testing.T) {
-		newSchedulerTestDBs(t)
-		if err := CheckSSLRenewal(); err != nil {
-			t.Errorf("CheckSSLRenewal() = %v, want nil when disabled", err)
-		}
-	})
-
-	t.Run("enabled but no domain configured", func(t *testing.T) {
-		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('ssl.letsencrypt.enabled','true')"); err != nil {
-			t.Fatalf("seed config: %v", err)
-		}
-		if err := CheckSSLRenewal(); err != nil {
-			t.Errorf("CheckSSLRenewal() = %v, want nil when no domain is configured", err)
-		}
-	})
-
-	t.Run("enabled with domain but no certificate on disk", func(t *testing.T) {
-		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec(
-			"INSERT INTO server_config (key, value) VALUES ('ssl.letsencrypt.enabled','true'), ('ssl.domain','example.invalid')",
-		); err != nil {
-			t.Fatalf("seed config: %v", err)
-		}
-		if err := CheckSSLRenewal(); err != nil {
-			t.Errorf("CheckSSLRenewal() = %v, want nil when no certificate file is found", err)
-		}
-	})
-}
-
 func TestSelfHealthCheck(t *testing.T) {
 	newSchedulerTestDBs(t)
 	if err := SelfHealthCheck(); err != nil {

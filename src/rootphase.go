@@ -47,6 +47,12 @@ func startupListenHost() string {
 	return getDefaultListenAddress()
 }
 
+// needsPortBinding is false for --status: it only reads the database and must work while
+// the server it reports on holds the ports.
+func needsPortBinding() bool {
+	return os.Getenv("CLI_STATUS_FLAG") != "1"
+}
+
 // runRootPhase performs AI.md PART 8 steps 8a-8i when the server starts as root: it
 // creates the service account, makes the service directories and everything in them
 // owned by that account, binds every privileged port while still root and then drops
@@ -79,13 +85,19 @@ func runRootPhase(dirPaths *util.DirectoryPaths, ports util.StartupPorts) {
 		}
 	}
 
-	// Only the HTTP port is bound here: the server does not serve TLS yet, so a pre-bound
-	// HTTPS socket would accept connections that nothing answers
-	if err := privilege.BindPrivilegedPorts(startupListenHost(), []int{ports.HTTP}); err != nil {
-		// Listener bind failure (AI.md PART 8: exit code 3).
-		log.Printf("Failed to bind a privileged port: %v", err)
-		fmt.Fprintf(os.Stderr, "Failed to bind a privileged port: %v\n", err)
-		os.Exit(3)
+	// Every listen port is offered to the binder: it keeps only those below 1024, and the
+	// server wraps the socket in TLS later when that port serves HTTPS
+	listenPorts := []int{ports.HTTP}
+	if ports.HTTPS > 0 {
+		listenPorts = append(listenPorts, ports.HTTPS)
+	}
+	if needsPortBinding() {
+		if err := privilege.BindPrivilegedPorts(startupListenHost(), listenPorts); err != nil {
+			// Listener bind failure (AI.md PART 8: exit code 3).
+			log.Printf("Failed to bind a privileged port: %v", err)
+			fmt.Fprintf(os.Stderr, "Failed to bind a privileged port: %v\n", err)
+			os.Exit(3)
+		}
 	}
 
 	if err := privilege.DropPrivileges(account); err != nil {

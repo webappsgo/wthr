@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"database/sql"
 	"embed"
 	"encoding/hex"
@@ -320,9 +321,9 @@ func main() {
 		if port == "" {
 			port = "80"
 		}
-		// AI.md PART 13: /server/healthz is the canonical route (root /healthz is optional)
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/server/healthz", port))
-		if err != nil || resp.StatusCode != http.StatusOK {
+		// AI.md PART 13: /server/healthz is the canonical route (root /healthz is optional);
+		// the check tries HTTP and HTTPS on every configured port
+		if !runHealthCheck(port) {
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -1353,7 +1354,10 @@ func main() {
 
 	// AI.md PART 19: SSL renewal check daily at 03:00
 	addScheduledTask("ssl_renewal", func() error {
-		return scheduler.CheckSSLRenewal()
+		if runtimeTLS := activeTLSRuntime.Load(); runtimeTLS != nil {
+			return runtimeTLS.Renew()
+		}
+		return nil
 	})
 
 	// AI.md PART 19: self health check every 5 minutes
@@ -1646,6 +1650,13 @@ func main() {
 		}
 	}
 
+	// AI.md PART 5 port rules: which listen ports serve plain HTTP and which serve HTTPS
+	sslSettings := config.SSLConfig{}
+	if cfg != nil {
+		sslSettings = cfg.Server.SSL
+	}
+	plainPort, securePort := planListeners(httpPortInt, httpsPortInt, sslSettings.Enabled)
+
 	networkMode := ""
 	if listenAddress == "" {
 		// Check for reverse proxy indicator per AI.md PART 5: Boolean Handling
@@ -1680,10 +1691,10 @@ func main() {
 	// Initialize SSL manager
 	sslCertsDir := util.GetCertsPath(dirPaths)
 	sslManager := util.NewSSLManager(db.DB, sslCertsDir)
-	httpsPort := httpsPortInt
+	httpsPort := securePort
 
 	// Create SSL handler with runtime-detected HTTPS address
-	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPortInt)
+	httpsAddr := fmt.Sprintf("127.0.0.1:%d", securePort)
 	sslHandler := handler.NewSSLHandler(sslCertsDir, db.DB, httpsAddr)
 
 	// Create the admin metrics handler over the process registry
@@ -1697,30 +1708,27 @@ func main() {
 	operatorTokenHandler := handler.NewAdminOperatorTokenHandler()
 	encryptionKeyHandler := handler.NewAdminEncryptionKeyHandler()
 
-	// Check for SSL configuration
-	hostname, _ := os.Hostname()
-	if hostname == "" {
-		hostname = "localhost"
-	}
-
-	// Try to check for existing Let's Encrypt certs and enable HTTPS if configured
-	if httpsPort > 0 {
-		found, err := sslManager.CheckExistingCerts(hostname)
-		if err != nil {
-			appLogger.Error("SSL check failed: %v", err)
-			fmt.Printf("%s SSL check failed: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-		} else if found {
-			appLogger.Printf("Found Let's Encrypt certificate for %s", hostname)
-			appLogger.Printf("HTTPS enabled on port: %d", httpsPort)
-			fmt.Printf("%s Found Let's Encrypt certificate for %s\n", display.Emoji("🔒", "*"), hostname)
-			fmt.Printf("%s HTTPS enabled on port: %d\n", display.Emoji("🔌", "*"), httpsPort)
-		} else {
-			appLogger.Printf("HTTPS port configured (%d) but no certificates found", httpsPort)
-			fmt.Printf("%s HTTPS port configured (%d) but no certificates found\n", display.Emoji("ℹ️", "*"), httpsPort)
+	// AI.md PART 15: find a certificate in the lookup order; with none anywhere the server
+	// starts on a self-signed one so first run works with zero config, and Let's Encrypt
+	// (when enabled) replaces it once the listeners are up
+	var tlsConfig *tls.Config
+	tlsFQDN := util.GetFQDN()
+	if securePort > 0 {
+		var tlsErr error
+		tlsConfig, tlsErr = prepareTLS(sslManager, sslSettings, tlsFQDN)
+		if tlsErr != nil {
+			// Certificate failure at startup (AI.md PART 8: exit code 2 = config-directed path unusable).
+			log.Printf("Failed to prepare TLS: %v", tlsErr)
+			fmt.Fprintf(os.Stderr, "Failed to prepare TLS: %v\n", tlsErr)
+			os.Exit(2)
 		}
+		activeTLSRuntime.Store(newTLSRuntime(sslManager, sslSettings, tlsFQDN))
+		sslHandler.SetCertificateHooks(sslManager, func() {
+			if _, err := sslManager.CheckExistingCerts(tlsFQDN); err != nil {
+				log.Printf("WARNING: could not load the new certificate: %v", err)
+			}
+		})
 	}
-	// Note: Self-signed cert generation is optional and disabled by default
-	// Can be enabled via CLI flag or environment variable if needed
 
 	// Set directory paths for handlers
 	handler.SetDirectoryPaths(dirPaths.Data, dirPaths.Log)
@@ -4577,57 +4585,62 @@ func main() {
 		finalHostname = "localhost"
 	}
 
+	// The primary URL is the HTTPS port when the server has one, else the HTTP port
 	protocol := "http"
-	// AI.md PART 5: Boolean Handling
-	tlsEnabled := config.IsTruthy(os.Getenv("TLS_ENABLED"))
-	if tlsEnabled || httpsPortInt > 0 {
+	primaryPort := plainPort
+	if securePort > 0 {
 		protocol = "https"
+		primaryPort = securePort
 	}
 
 	finalURL := fmt.Sprintf("%s://%s", protocol, finalHostname)
-	if (protocol == "http" && port != "80") || (protocol == "https" && port != "443") {
-		finalURL += ":" + port
+	if (protocol == "http" && primaryPort != 80) || (protocol == "https" && primaryPort != 443) {
+		finalURL += ":" + strconv.Itoa(primaryPort)
 	}
 
 	// Print final startup messages
 	fmt.Printf("%s For documentation see: %s/docs\n", display.Emoji("📡", "*"), finalURL)
 	fmt.Printf("%s Ready: %s: %s\n", display.Emoji("🕐", "*"), time.Now().Format("2006-01-02 at 15:04:05"), finalURL)
 
-	// Create HTTP server with graceful shutdown
-	// Format address properly - check if port is already included
-	var serverAddr string
-	if listenAddress == "::" {
-		// IPv6 dual-stack: must be formatted as [::]:port
-		serverAddr = "[::]:" + port
-	} else if listenAddress == "0.0.0.0" || !strings.Contains(listenAddress, ":") {
-		// IPv4 or hostname without port: append port
-		serverAddr = listenAddress + ":" + port
-	} else if strings.Count(listenAddress, ":") > 1 && !strings.HasPrefix(listenAddress, "[") {
-		// IPv6 address without brackets (e.g., "::1")
-		host, portPart, err := net.SplitHostPort(listenAddress)
-		if err != nil || portPart == "" {
-			// No port in address, add brackets and port
-			serverAddr = "[" + listenAddress + "]:" + port
-		} else {
-			serverAddr = "[" + host + "]:" + portPart
+	// Create the HTTP and HTTPS servers with graceful shutdown. A listen address that
+	// is an IPv6 literal needs brackets around it.
+	addrFor := func(portText string) string {
+		if strings.Contains(listenAddress, ":") && !strings.HasPrefix(listenAddress, "[") {
+			return "[" + listenAddress + "]:" + portText
 		}
-	} else {
-		// Already has port (e.g., "127.0.0.1:8080" or "[::1]:8080")
-		serverAddr = listenAddress
+		return listenAddress + ":" + portText
 	}
 
 	// Server configuration per AI.md PART 18 lines 15697-15702
-	srv := &http.Server{
-		Addr:    serverAddr,
-		Handler: r,
-		// Per AI.md PART 18: read_timeout: 30s
-		ReadTimeout: 30 * time.Second,
-		// Per AI.md PART 18: write_timeout: 30s
-		WriteTimeout: 30 * time.Second,
-		// Per AI.md PART 18: idle_timeout: 120s
-		IdleTimeout: 120 * time.Second,
-		// Max header size (1MB is reasonable default)
-		MaxHeaderBytes: 1 << 20,
+	newServer := func(portText string, handler http.Handler) *http.Server {
+		return &http.Server{
+			Addr:    addrFor(portText),
+			Handler: handler,
+			// Per AI.md PART 18: read_timeout: 30s
+			ReadTimeout: 30 * time.Second,
+			// Per AI.md PART 18: write_timeout: 30s
+			WriteTimeout: 30 * time.Second,
+			// Per AI.md PART 18: idle_timeout: 120s
+			IdleTimeout: 120 * time.Second,
+			// Max header size (1MB is reasonable default)
+			MaxHeaderBytes: 1 << 20,
+		}
+	}
+
+	var servers []*http.Server
+	// Dual-port mode: the plain port sends clearnet visitors to HTTPS
+	var plainHandler http.Handler = r
+	if securePort > 0 {
+		plainHandler = redirectToHTTPS(r, securePort)
+	}
+	if plainPort > 0 {
+		servers = append(servers, newServer(strconv.Itoa(plainPort), plainHandler))
+	}
+	var secureServer *http.Server
+	if securePort > 0 {
+		secureServer = newServer(strconv.Itoa(securePort), r)
+		secureServer.TLSConfig = tlsConfig
+		servers = append(servers, secureServer)
 	}
 
 	// AI.md PART 8: PID file with stale-PID detection; containers and Windows
@@ -4644,28 +4657,75 @@ func main() {
 		}
 	}
 
-	// Start server in goroutine
-	go func() {
-		// AI.md PART 8 step 18: a port below 1024 was bound while the process was still root
-		listener := privilege.TakeListener(httpPortInt)
+	// bindListener returns the socket for a port: a port below 1024 was bound while the
+	// process was still root (AI.md PART 8 step 18), any other is bound now
+	bindListener := func(listenPort int) net.Listener {
+		listener := privilege.TakeListener(listenPort)
 		if listener == nil {
 			var listenErr error
-			listener, listenErr = net.Listen("tcp", serverAddr)
+			listener, listenErr = net.Listen("tcp", addrFor(strconv.Itoa(listenPort)))
 			if listenErr != nil {
 				// Listener bind/network failure (AI.md PART 8: exit code 3).
 				log.Printf("Failed to start server: %v", listenErr)
 				os.Exit(3)
 			}
 		}
-		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+		return listener
+	}
+
+	// Bind every socket before serving any of them so a failure exits before the server
+	// looks half-started
+	var plainListener, secureListener net.Listener
+	if plainPort > 0 {
+		plainListener = bindListener(plainPort)
+	}
+	if securePort > 0 {
+		secureListener = bindListener(securePort)
+	}
+
+	serveAndExit := func(serve func() error) {
+		if err := serve(); err != nil && err != http.ErrServerClosed {
 			// Listener bind/network failure (AI.md PART 8: exit code 3).
 			log.Printf("Failed to start server: %v", err)
 			os.Exit(3)
 		}
-	}()
+	}
+	if plainListener != nil {
+		go serveAndExit(func() error { return servers[0].Serve(plainListener) })
+	}
+	if secureListener != nil {
+		go serveAndExit(func() error { return secureServer.ServeTLS(secureListener, "", "") })
+	}
+
+	// Tor and I2P forward to a plain-HTTP backend. With HTTPS-only clearnet there is no
+	// plain port, and an overlay address never gets HTTPS, so a loopback-only plain
+	// listener on a free port serves the overlays (AI.md PART 12 and PART 32).
+	overlayPort := plainPort
+	if overlayPort == 0 {
+		overlayListener, overlayErr := net.Listen("tcp", "127.0.0.1:0")
+		if overlayErr != nil {
+			log.Printf("Failed to start the overlay backend: %v", overlayErr)
+			os.Exit(3)
+		}
+		overlayPort = overlayListener.Addr().(*net.TCPAddr).Port
+		overlayServer := newServer(strconv.Itoa(overlayPort), r)
+		servers = append(servers, overlayServer)
+		go serveAndExit(func() error { return overlayServer.Serve(overlayListener) })
+	}
+
+	// AI.md PART 15: with no certificate from certbot or the app, ask Let's Encrypt for one
+	// now that the listeners can answer the challenge
+	if runtimeTLS := activeTLSRuntime.Load(); runtimeTLS != nil {
+		go func() {
+			if err := runtimeTLS.Provision(); err != nil {
+				log.Printf("WARNING: %v", err)
+				fmt.Printf("%s %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
+		}()
+	}
 
 	// Start Tor hidden service after HTTP server starts
-	if err := torService.StartTorService(httpPortInt); errors.Is(err, service.ErrTorBinaryMissing) {
+	if err := torService.StartTorService(overlayPort); errors.Is(err, service.ErrTorBinaryMissing) {
 		log.Printf("INFO: tor binary not found, hidden service skipped")
 	} else if err != nil {
 		log.Printf("Failed to start Tor hidden service: %v", err)
@@ -4676,7 +4736,7 @@ func main() {
 	// HTTP listener is up so the tunnel forwards to the real backend port.
 	// A missing provider is a warning, never fatal.
 	if i2pManager != nil {
-		i2pManager.SetBackendPort(httpPortInt)
+		i2pManager.SetBackendPort(overlayPort)
 		if err := i2pManager.StartI2PManager(); err != nil {
 			log.Printf("Failed to start I2P eepsite: %v", err)
 			fmt.Printf("%s Failed to start I2P eepsite: %v\n", display.Emoji("⚠️", "WARNING:"), err)
@@ -4714,9 +4774,9 @@ func main() {
 	bannerUseTLS := protocol == "https"
 
 	if isFirstRun {
-		util.DisplayFirstRunBanner(httpPortInt, bannerUseTLS, setupToken, torOnionAddr, i2pEepsiteAddr, adminBasePath)
+		util.DisplayFirstRunBanner(primaryPort, bannerUseTLS, setupToken, torOnionAddr, i2pEepsiteAddr, adminBasePath)
 	} else {
-		util.DisplayNormalBanner(Version, BuildDate, httpPortInt, bannerUseTLS, torOnionAddr, i2pEepsiteAddr)
+		util.DisplayNormalBanner(Version, BuildDate, primaryPort, bannerUseTLS, torOnionAddr, i2pEepsiteAddr)
 	}
 
 	// Setup signal handling
@@ -4753,9 +4813,11 @@ func main() {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := srv.Shutdown(ctx); err != nil {
-			log.Printf("Server forced to shutdown: %v", err)
-			fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		for _, server := range servers {
+			if err := server.Shutdown(ctx); err != nil {
+				log.Printf("Server forced to shutdown: %v", err)
+				fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
 		}
 
 		taskScheduler.StopScheduler()

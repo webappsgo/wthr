@@ -17,6 +17,10 @@ type SSLHandler struct {
 	db        *sql.DB
 	// Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
 	httpsAddr string
+	// challengeSink answers TLS-ALPN-01 validation on the running HTTPS listener
+	challengeSink service.ChallengeCertSink
+	// onCertificateChange makes the listener serve a certificate that was just obtained or renewed
+	onCertificateChange func()
 }
 
 // NewSSLHandler creates a new SSL handler
@@ -32,11 +36,28 @@ func NewSSLHandler(certsDir string, db *sql.DB, httpsAddr string) *SSLHandler {
 	}
 }
 
+// SetCertificateHooks connects the handler to the HTTPS listener: the sink answers
+// TLS-ALPN-01 challenges and onChange runs after a certificate was obtained or renewed.
+func (h *SSLHandler) SetCertificateHooks(sink service.ChallengeCertSink, onChange func()) {
+	h.challengeSink = sink
+	h.onCertificateChange = onChange
+}
+
+// certificateChanged tells the listener to pick up the new certificate.
+func (h *SSLHandler) certificateChanged() {
+	if h.onCertificateChange != nil {
+		h.onCertificateChange()
+	}
+}
+
 // InitLetsEncrypt initializes the Let's Encrypt service
 func (h *SSLHandler) InitLetsEncrypt(email string, staging bool) error {
 	leService, err := service.NewLetsEncryptService(email, h.certsDir, staging)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Let's Encrypt: %w", err)
+	}
+	if h.challengeSink != nil {
+		leService.SetChallengeCertSink(h.challengeSink)
 	}
 	h.leService = leService
 	return nil
@@ -134,6 +155,7 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_obtain_certificate"))
 		return
 	}
+	h.certificateChanged()
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":                true,
@@ -192,6 +214,7 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_renew_certificate"))
 		return
 	}
+	h.certificateChanged()
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":          true,

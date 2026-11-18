@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -22,6 +23,35 @@ import (
 	"github.com/go-acme/lego/v4/registration"
 )
 
+// ChallengeCertSink receives the certificate a TLS-ALPN-01 validation handshake must be
+// answered with. The HTTPS listener implements it, so the challenge is answered on the
+// running server instead of a second socket on port 443.
+type ChallengeCertSink interface {
+	SetChallengeCertificate(domain string, cert *tls.Certificate)
+	ClearChallengeCertificate(domain string)
+}
+
+// TLSALPN01Provider is the in-process TLS-ALPN-01 challenge provider (RFC 8737).
+type TLSALPN01Provider struct {
+	sink ChallengeCertSink
+}
+
+// Present builds the challenge certificate for domain and hands it to the listener.
+func (p *TLSALPN01Provider) Present(domain, token, keyAuth string) error {
+	cert, err := tlsalpn01.ChallengeCert(domain, keyAuth)
+	if err != nil {
+		return fmt.Errorf("failed to build the TLS-ALPN-01 certificate: %w", err)
+	}
+	p.sink.SetChallengeCertificate(domain, cert)
+	return nil
+}
+
+// CleanUp removes the challenge certificate once validation is over.
+func (p *TLSALPN01Provider) CleanUp(domain, token, keyAuth string) error {
+	p.sink.ClearChallengeCertificate(domain)
+	return nil
+}
+
 // LetsEncryptService manages Let's Encrypt certificates
 // AI.md PART 15: built-in Let's Encrypt support with all 3 challenge types
 type LetsEncryptService struct {
@@ -33,9 +63,9 @@ type LetsEncryptService struct {
 	mu          sync.RWMutex
 
 	// Challenge providers
-	// TLS-ALPN-01 uses lego's own provider server, so no local type is needed.
-	http01Provider *HTTP01Provider
-	dns01Provider  *DNS01Provider
+	http01Provider    *HTTP01Provider
+	dns01Provider     *DNS01Provider
+	tlsALPN01Provider *TLSALPN01Provider
 }
 
 // LEUser represents a Let's Encrypt user account
@@ -222,6 +252,13 @@ func NewLetsEncryptService(email, certsDir string, staging bool) (*LetsEncryptSe
 	return service, nil
 }
 
+// SetChallengeCertSink connects the TLS-ALPN-01 challenge to the HTTPS listener.
+func (s *LetsEncryptService) SetChallengeCertSink(sink ChallengeCertSink) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tlsALPN01Provider = &TLSALPN01Provider{sink: sink}
+}
+
 // SetupChallenges configures the challenge providers
 func (s *LetsEncryptService) SetupChallenges(challengeType string) error {
 	switch challengeType {
@@ -235,9 +272,12 @@ func (s *LetsEncryptService) SetupChallenges(challengeType string) error {
 		}
 
 	case "tls-alpn-01":
-		// TLS-ALPN-01 challenge
-		provider := tlsalpn01.NewProviderServer("", "443")
-		if err := s.client.Challenge.SetTLSALPN01Provider(provider); err != nil {
+		// TLS-ALPN-01 is answered by the running HTTPS listener (lego's own provider server
+		// would bind a second socket on port 443)
+		if s.tlsALPN01Provider == nil {
+			return fmt.Errorf("TLS-ALPN-01 needs the HTTPS listener: serve HTTPS first")
+		}
+		if err := s.client.Challenge.SetTLSALPN01Provider(s.tlsALPN01Provider); err != nil {
 			return fmt.Errorf("failed to setup TLS-ALPN-01: %w", err)
 		}
 
