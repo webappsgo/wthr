@@ -116,6 +116,12 @@ func isTrustedPeer(remoteAddr string) bool {
 	return isTrustedAddr(addr)
 }
 
+// IsTrustedProxyPeer reports whether the immediate TCP peer of a request passes the
+// trusted_proxies gate, so a handler or middleware may read proxy-supplied headers.
+func IsTrustedProxyPeer(r *http.Request) bool {
+	return r != nil && isTrustedPeer(r.RemoteAddr)
+}
+
 // isTrustedAddr is the trusted_proxies gate for one already-normalized address,
 // used for the TCP peer and for every hop of a forwarded chain.
 func isTrustedAddr(addr netip.Addr) bool {

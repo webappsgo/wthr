@@ -123,10 +123,32 @@ All responses include the following security headers:
 
 ## CSRF Protection
 
-All state-changing HTML form submissions require a CSRF token (a 32-byte `crypto/rand` value,
-set as a cookie and verified server-side). API endpoints using `Content-Type: application/json`
-are not subject to CSRF checks (the content type itself is a CSRF mitigation for browser
-cross-origin requests).
+CSRF protects the browser pages and forms that authenticate with a session cookie. A state-changing
+request (`POST`, `PUT`, `PATCH`, `DELETE`) to a frontend page must carry the token (a `crypto/rand`
+value, set as a cookie and sent back in a hidden `csrf_token` field or the `X-CSRF-Token` header).
+
+CSRF never applies to the backend: no `/api/**` route issues, requires or checks a token, whatever
+the authentication method. It is also skipped for `Authorization: Bearer` requests, public
+endpoints, `GET`/`HEAD`/`OPTIONS`, WebSocket upgrades and paths listed in `web.csrf.exempt_paths`.
+A failed check returns `403` with the error code `CSRF_FAILED`. See [Configuration](configuration.md)
+for the `web.csrf` settings.
+
+---
+
+## CORS
+
+One policy covers every route, pages and API alike. The allow-list is built on each request, in
+this order:
+
+1. `web.cors`: the origins listed there. An empty value turns CORS off. The shipped default `*`
+   means "unset" and lets the next steps run.
+2. The `DOMAIN` environment variable: each hostname is added as an `https://` origin.
+3. Hostnames seen in `X-Forwarded-Host` from a trusted proxy.
+4. If none of those produced a list: `*`.
+
+Cookies and credentials (`Access-Control-Allow-Credentials: true`) are sent only to an origin that
+is on an explicit list, never with `*`. A preflight request gets the CORS headers and a `204`.
+Edit the setting under **Web** in the admin panel, where a preview shows the headers it produces.
 
 ---
 

@@ -228,6 +228,39 @@
                 </div>
             </section>
 
+            <section class="admin-card" aria-labelledby="cors-heading">
+                <div class="card-header">
+                    <h2 id="cors-heading">{{t $lang "admin.web.cors_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.cors_desc"}}</p>
+                </div>
+                <div class="card-body">
+                    <form id="cors-form" class="settings-form" method="post" action="{{if .admin_path}}{{.admin_path}}{{else}}/server/administration{{end}}/web/cors">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <div class="form-group">
+                            <label for="cors_allow_all">
+                                <input type="checkbox" id="cors_allow_all" name="allow_all" value="on"{{if .CORS.AllowAll}} checked{{end}} aria-describedby="cors_allow_all_help">
+                                {{t $lang "admin.web.cors_allow_all_label"}}
+                            </label>
+                            <small id="cors_allow_all_help" class="form-text">{{t $lang "admin.web.cors_allow_all_help"}}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="cors_origins">{{t $lang "admin.web.cors_origins_label"}}</label>
+                            <textarea id="cors_origins" name="origins" class="form-control" rows="3" aria-describedby="cors_origins_help">{{.CORS.Origins}}</textarea>
+                            <small id="cors_origins_help" class="form-text">{{t $lang "admin.web.cors_origins_help"}}</small>
+                        </div>
+                        <div class="form-group">
+                            <p id="cors_preview_label">{{t $lang "admin.web.cors_preview_label"}}</p>
+                            <pre class="code-preview" aria-labelledby="cors_preview_label">{{range $name, $value := .CORS.Preview}}{{$name}}: {{$value}}
+{{else}}{{t $lang "admin.web.cors_preview_empty"}}
+{{end}}</pre>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary">💾 {{t $lang "admin.web.cors_save_action"}}</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
             <!-- security.txt Section -->
             <section class="admin-card" aria-labelledby="security-txt-heading">
                 <div class="card-header">

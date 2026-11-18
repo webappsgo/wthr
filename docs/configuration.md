@@ -230,6 +230,27 @@ server:
         restart_on_fail: true
 ```
 
+### CORS and CSRF
+
+Both are editable on the **Web** admin page (CORS) and apply without a restart.
+
+```yaml
+web:
+  cors: "*"
+  csrf:
+    enabled: true
+    token_length: 32
+    cookie_name: csrf_token
+    header_name: X-CSRF-Token
+    secure: auto
+    exempt_paths: []
+```
+
+`cors` is `*` (unset: the `DOMAIN` hostnames and trusted-proxy hosts are used when present), an empty
+string (CORS off) or a comma-separated list of origins such as `https://app.example.com`. `csrf`
+applies to the frontend only; `secure` is `auto`, `true` or `false`, and `exempt_paths` lists
+frontend paths that skip the check. An invalid value is replaced by its default with a warning.
+
 ## Paths
 
 wthr separates configuration, data, and logs:

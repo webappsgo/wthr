@@ -415,8 +415,10 @@ type NotificationConfig struct {
 type WebConfig struct {
 	UI   UIConfig   `yaml:"ui"`
 	LLMS LLMSConfig `yaml:"llms"`
-	// CORS setting, e.g., "*"
+	// CORS setting: "*" (unset, resolution continues), "" (off), or comma-separated origins
 	CORS string `yaml:"cors"`
+	// CSRF protection for the frontend (AI.md PART 16)
+	CSRF CSRFConfig `yaml:"csrf"`
 	// robots.txt allow and deny paths per AI.md PART 16
 	Robots RobotsConfig `yaml:"robots"`
 	// Custom security.txt content
@@ -876,7 +878,8 @@ func loadConfig(strict bool) (*AppConfig, error) {
 			UI: UIConfig{
 				Theme: "dark",
 			},
-			CORS:   "*",
+			CORS:   DefaultCORSSetting,
+			CSRF:   DefaultCSRFConfig(),
 			Robots: DefaultRobotsConfig(),
 		},
 	}

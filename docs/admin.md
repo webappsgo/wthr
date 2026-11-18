@@ -173,7 +173,7 @@ Configure server-wide settings through the web UI.
 - **CSRF Protection** - Enable CSRF tokens
 - **Rate Limiting** - API rate limits
 - **IP Blocking** - Block specific IPs or countries
-- **CORS** - Cross-origin resource sharing settings
+- **CORS** - Cross-origin settings on the **Web** page: allow all origins or list origins, with a preview of the headers sent
 
 #### SSL/TLS Settings
 

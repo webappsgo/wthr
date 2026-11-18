@@ -33,7 +33,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/cors"
 
 	"github.com/webappsgo/wthr/src/cli"
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -770,18 +769,11 @@ func main() {
 	// CSRF protection middleware (AI.md PART 0 line 994, PART 22)
 	// Version-change purge for stale browser caches (AI.md PART 9), HTML navigations only
 	r.Use(middleware.VersionPurge())
-	r.Use(middleware.CSRFProtection(middleware.DefaultCSRFConfig()))
+	r.Use(middleware.CSRFProtectionLive())
 
-	// CORS middleware per AI.md PART 17 lines 14220-14222 and 15401-15405
-	r.Use(cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-API-Token"},
-		ExposedHeaders:   []string{"Content-Length"},
-		AllowCredentials: false,
-		// Per AI.md line 15405: Access-Control-Max-Age = 86400 (24 hours)
-		MaxAge: int((24 * time.Hour).Seconds()),
-	}).Handler)
+	// CORS middleware per AI.md PART 16 "CORS": one policy for every route, resolved from
+	// web.cors, DOMAIN and trusted-proxy hosts on each request so admin changes apply live
+	r.Use(middleware.CORS())
 
 	// Forward-declared so the middleware closures below (registered before any
 	// route, per chi's "all middlewares must be defined before routes on a
@@ -2307,6 +2299,7 @@ func main() {
 		adminRoutes.Get("/web", adminWebHandler.ShowWebSettings)
 		adminRoutes.Post("/web/robots", adminWebHandler.UpdateRobotsTxt)
 		adminRoutes.Post("/web/feeds", adminWebHandler.UpdateFeedSettings)
+		adminRoutes.Post("/web/cors", adminWebHandler.UpdateCORSSettings)
 
 		adminRoutes.Get("/users", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
@@ -4205,6 +4198,8 @@ func main() {
 			webAPI.Get("/robots", adminWebHandler.GetRobotsTxt)
 			webAPI.Patch("/robots", adminWebHandler.UpdateRobotsTxt)
 			webAPI.Patch("/feeds", adminWebHandler.UpdateFeedSettings)
+			webAPI.Get("/cors", adminWebHandler.GetCORSSettings)
+			webAPI.Patch("/cors", adminWebHandler.UpdateCORSSettings)
 			webAPI.Get("/robots/preview", adminWebHandler.GetRobotsTxt)
 			webAPI.Get("/security", adminWebHandler.GetSecurityTxt)
 			webAPI.Patch("/security", adminWebHandler.UpdateSecurityTxt)

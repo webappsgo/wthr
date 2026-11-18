@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -38,6 +39,34 @@ func DefaultCSRFConfig() CSRFConfig {
 		// AI.md PART 16: exempt_paths is for frontend paths only; the backend
 		// (/api/**, compatibility layers) is outside CSRF scope and needs no entry.
 		ExemptPaths: []string{},
+	}
+}
+
+// CurrentCSRFConfig returns the live web.csrf settings, falling back to the defaults
+// before any configuration is installed (tests, early startup).
+func CurrentCSRFConfig() CSRFConfig {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return DefaultCSRFConfig()
+	}
+	web := cfg.Web.CSRF
+	return CSRFConfig{
+		Enabled:     web.Enabled,
+		TokenLength: web.TokenLength,
+		CookieName:  web.CookieName,
+		HeaderName:  web.HeaderName,
+		Secure:      web.Secure,
+		ExemptPaths: web.ExemptPaths,
+	}
+}
+
+// CSRFProtectionLive applies CSRF protection with the live web.csrf settings, so an
+// admin change takes effect on the next request without a restart (AI.md PART 0 "Live Reload").
+func CSRFProtectionLive() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			CSRFProtection(CurrentCSRFConfig())(next).ServeHTTP(w, r)
+		})
 	}
 }
 

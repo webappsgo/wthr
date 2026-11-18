@@ -243,6 +243,11 @@ func buildCSP(cfg SecurityHeadersConfig, secure bool) string {
 		if len(img) > 0 {
 			c.ImgSrcExtra = strings.TrimSpace(c.ImgSrcExtra + " " + strings.Join(img, " "))
 		}
+		// connect-src shares the resolved CORS allow-list: web.cors entries, DOMAIN hostnames and
+		// trusted-proxy hosts (AI.md PART 11 "Content Security Policy", PART 16 "CORS")
+		if corsPolicy := ResolveCORSPolicy(gc.Web.CORS); len(corsPolicy.Origins) > 0 {
+			c.ConnectSrcExtra = strings.TrimSpace(c.ConnectSrcExtra + " " + strings.Join(corsPolicy.Origins, " "))
+		}
 	}
 	directives := []cspDirective{
 		{"default-src", "'self'"},

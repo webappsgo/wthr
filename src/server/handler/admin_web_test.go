@@ -277,3 +277,82 @@ func TestAdminWebHandler_ServeFavicon(t *testing.T) {
 		t.Errorf("expected non-empty favicon body")
 	}
 }
+
+func TestCORSSettingFromInput(t *testing.T) {
+	cases := []struct {
+		allowAll bool
+		origins  string
+		want     string
+	}{
+		{true, "https://ignored.example.com", "*"},
+		{false, "", ""},
+		{false, " https://a.example.com , https://b.example.com ", "https://a.example.com,https://b.example.com"},
+		{false, "https://a.example.com\r\nhttps://b.example.com\n", "https://a.example.com,https://b.example.com"},
+	}
+	for _, c := range cases {
+		if got := corsSettingFromInput(c.allowAll, c.origins); got != c.want {
+			t.Errorf("corsSettingFromInput(%v, %q) = %q, want %q", c.allowAll, c.origins, got, c.want)
+		}
+	}
+}
+
+func TestAdminWebHandler_CORSSettings(t *testing.T) {
+	h := &AdminWebHandler{}
+
+	t.Run("json update persists and previews", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/cors", map[string]interface{}{
+			"allow_all": false,
+			"origins":   "https://app.example.com",
+		})
+		h.UpdateCORSSettings(w, c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		if got := config.GetGlobalConfig().Web.CORS; got != "https://app.example.com" {
+			t.Errorf("web.cors = %q", got)
+		}
+
+		c2, w2 := newTestContextJSON(t, http.MethodGet, "/api/v1/server/administration/web/cors", nil)
+		h.GetCORSSettings(w2, c2)
+		if !strings.Contains(w2.Body.String(), "Access-Control-Allow-Credentials") {
+			t.Errorf("the preview of an explicit origin must show credentials, body=%s", w2.Body.String())
+		}
+	})
+
+	t.Run("an invalid origin is rejected and nothing changes", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		config.GetGlobalConfig().Web.CORS = "*"
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/cors", map[string]interface{}{
+			"origins": "https://app.example.com/path",
+		})
+		h.UpdateCORSSettings(w, c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+		if config.GetGlobalConfig().Web.CORS != "*" {
+			t.Error("an invalid update must not change web.cors")
+		}
+	})
+
+	t.Run("form post redirects back with a flash", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		form := url.Values{"allow_all": {"on"}}
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/web/cors", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.UpdateCORSSettings(w, req)
+		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/server/administration/web" {
+			t.Errorf("status = %d, location = %q", w.Code, w.Header().Get("Location"))
+		}
+	})
+
+	t.Run("an empty list turns CORS off", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/cors", map[string]interface{}{"origins": ""})
+		h.UpdateCORSSettings(w, c)
+		if w.Code != http.StatusOK || config.GetGlobalConfig().Web.CORS != "" {
+			t.Errorf("status = %d, web.cors = %q", w.Code, config.GetGlobalConfig().Web.CORS)
+		}
+	})
+}

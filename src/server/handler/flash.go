@@ -55,6 +55,7 @@ var flashKeys = map[string]bool{
 	"flash.scheduler_run_started":       true,
 	"flash.scheduler_unknown_task":      true,
 	"flash.scheduler_invalid":           true,
+	"flash.cors_invalid":                true,
 }
 
 // SetFlash stores a one-shot flash message for the next rendered page.

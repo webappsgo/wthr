@@ -79,6 +79,7 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		"FeedMaxItems":   feed.MaxItems,
 		"FeedTitle":      feed.Title,
 		"FeedMaxLimit":   config.MaxFeedMaxItems,
+		"CORS":           currentCORSView(),
 		"flash":          TakeFlash(w, r),
 		"SecurityTxt":    securityTxt,
 		"AppURL":         appURL,
@@ -179,6 +180,106 @@ func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request
 	RespondSuccess(w, r, Translate(r, "admin.web.robots_updated_message"), map[string]interface{}{
 		"robots": currentRobotsView(r),
 	})
+}
+
+// corsView is the web.cors setting as the admin API returns it, with the response
+// headers a browser from the first listed origin (or any origin for *) would receive.
+type corsView struct {
+	CORS     string            `json:"cors"`
+	AllowAll bool              `json:"allow_all"`
+	Origins  string            `json:"origins"`
+	Preview  map[string]string `json:"preview"`
+}
+
+// currentCORSView builds the CORS view of the live configuration.
+func currentCORSView() corsView {
+	setting := config.DefaultCORSSetting
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		setting = cfg.Web.CORS
+	}
+	trimmed := strings.TrimSpace(setting)
+	view := corsView{CORS: trimmed, AllowAll: trimmed == config.DefaultCORSSetting, Preview: map[string]string{}}
+	if !view.AllowAll {
+		view.Origins = trimmed
+	}
+
+	sampleOrigin := "https://example.com"
+	if first := strings.TrimSpace(strings.Split(trimmed, ",")[0]); first != "" && !view.AllowAll {
+		sampleOrigin = first
+	}
+	for name, values := range middleware.CORSHeaderPreview(trimmed, sampleOrigin) {
+		view.Preview[name] = strings.Join(values, ", ")
+	}
+	return view
+}
+
+// corsSettingFromInput turns the admin input into a web.cors value: allow all gives *,
+// otherwise the comma-separated origins, and an empty list turns CORS off.
+func corsSettingFromInput(allowAll bool, origins string) string {
+	if allowAll {
+		return config.DefaultCORSSetting
+	}
+	parts := strings.FieldsFunc(origins, func(c rune) bool { return c == ',' || c == '\n' || c == '\r' })
+	cleaned := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			cleaned = append(cleaned, part)
+		}
+	}
+	return strings.Join(cleaned, ",")
+}
+
+// GetCORSSettings returns web.cors with a preview of the headers it produces.
+// GET /api/{api_version}/server/{admin_path}/web/cors
+func (h *AdminWebHandler) GetCORSSettings(w http.ResponseWriter, r *http.Request) {
+	RespondData(w, r, currentCORSView())
+}
+
+// UpdateCORSSettings saves web.cors. A browser form post carries `allow_all` and
+// `origins` (comma or one per line) and redirects back with a flash; a JSON body
+// carries the same two fields. The change applies to the next request.
+// POST /server/{admin_path}/web/cors, PATCH /api/{api_version}/server/{admin_path}/web/cors
+func (h *AdminWebHandler) UpdateCORSSettings(w http.ResponseWriter, r *http.Request) {
+	var allowAll bool
+	var origins string
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			RespondError(w, r, http.StatusBadRequest, ErrBadRequest, Translate(r, "errors.invalid_request"))
+			return
+		}
+		allowAll = r.PostForm.Get("allow_all") != ""
+		origins = r.PostForm.Get("origins")
+	} else {
+		var req struct {
+			AllowAll bool   `json:"allow_all"`
+			Origins  string `json:"origins"`
+		}
+		if !DecodeAndValidate(w, r, &req) {
+			return
+		}
+		allowAll, origins = req.AllowAll, req.Origins
+	}
+
+	errs := config.UpdateWebCORS(corsSettingFromInput(allowAll, origins))
+	if wantsFormSubmission(r) {
+		if len(errs) > 0 {
+			SetFlash(w, r, "error", "flash.cors_invalid")
+			http.Redirect(w, r, adminPagePath(r, "/web"), http.StatusSeeOther)
+			return
+		}
+		SetFlash(w, r, "success", "flash.settings_saved")
+		http.Redirect(w, r, adminPagePath(r, "/web"), http.StatusSeeOther)
+		return
+	}
+	if len(errs) > 0 {
+		details := make(map[string]string, len(errs))
+		for _, e := range errs {
+			details[e.Field] = Translate(r, e.Message)
+		}
+		ValidationFailed(w, r, Translate(r, "errors.validation_failed"), map[string]interface{}{"fields": details})
+		return
+	}
+	RespondSuccess(w, r, Translate(r, "admin.web.cors_updated_message"), map[string]interface{}{"cors": currentCORSView()})
 }
 
 // UpdateFeedSettings saves the syndication feed limits (server.seo.feed.*).
