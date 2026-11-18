@@ -221,7 +221,7 @@ func SecurityKeypairAction(w http.ResponseWriter, r *http.Request) {
 	appName := cfg.Server.Branding.Title
 	email := cfg.Server.Contact.ResolveContactEmail("security")
 	action := r.PostFormValue("action")
-	sensitive := action == "delete" || action == "export_private" || action == "import_private"
+	sensitive := action == "delete" || action == "export_private" || action == "import_private" || action == "rotate_installation_secret"
 	if sensitive && !verifyAdminPassword(r, r.PostFormValue("password")) {
 		logSecurityAudit(r, "security.keypair_"+action+"_denied", "pgp", "password re-prompt failed")
 		redirectAdminForm(w, r, back, "flash.keypair_done", "flash.keypair_password_invalid", errors.New("password"))
@@ -246,6 +246,12 @@ func SecurityKeypairAction(w http.ResponseWriter, r *http.Request) {
 		var warning string
 		if warning, err = store.PGP.ImportPrivate(r.PostFormValue("private_key"), appName+" Security"); err == nil {
 			logSecurityAudit(r, "security.keypair_imported", "pgp", warning)
+		}
+	case "rotate_installation_secret":
+		// PART 11 "installation_secret": the PGP private key is re-encrypted under the new secret and
+		// the previous secret stays valid for 7 days so in-flight {security_id} URLs keep working
+		if err = service.RotateInstallationSecret(store.DB, store.PGP); err == nil {
+			logSecurityAudit(r, "security.installation_secret_rotated", "installation_secret", "")
 		}
 	case "export_private":
 		if exportPrivateKey(w, r, store) {

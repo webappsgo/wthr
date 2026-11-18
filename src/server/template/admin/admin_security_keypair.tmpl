@@ -68,4 +68,16 @@
       <button type="submit" name="action" value="import_private" class="btn btn-secondary">{{t $lang "admin.security_reports.import_private"}}</button>
     </form>
   </section>
+  <section class="admin-section" aria-labelledby="key-installation-heading">
+    <h2 id="key-installation-heading">{{t $lang "admin.security_reports.installation_secret_heading"}}</h2>
+    <p>{{t $lang "admin.security_reports.installation_secret_help"}}</p>
+    <form method="post" action="{{$ap}}/security/keypair">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="installation-password" class="form-label">{{t $lang "admin.security_reports.password"}}</label>
+        <input type="password" id="installation-password" name="password" class="form-input" autocomplete="current-password" required>
+      </div>
+      <button type="submit" name="action" value="rotate_installation_secret" class="btn btn-danger">{{t $lang "admin.security_reports.installation_secret_rotate"}}</button>
+    </form>
+  </section>
 {{template "admin_footer" .}}

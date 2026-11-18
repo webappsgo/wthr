@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
-	"gopkg.in/yaml.v3"
 	"github.com/webappsgo/wthr/src/privilege"
+	"gopkg.in/yaml.v3"
 )
 
 // FirstRunConfig represents first-run auto-detected configuration

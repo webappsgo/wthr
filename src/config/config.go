@@ -1121,9 +1121,15 @@ func SaveConfig(cfg *AppConfig) error {
 		return fmt.Errorf("failed to prepare config: %w", err)
 	}
 
-	// Write to file
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
+	// AI.md PART 11 "Rotation contract": the file is written to a temporary file and atomically
+	// renamed, so a crash never leaves a half written server.yml
+	temporaryPath := configPath + ".tmp"
+	if err := os.WriteFile(temporaryPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+	if err := os.Rename(temporaryPath, configPath); err != nil {
+		_ = os.Remove(temporaryPath)
+		return fmt.Errorf("failed to replace config file: %w", err)
 	}
 
 	return nil

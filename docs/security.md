@@ -150,8 +150,21 @@ any API:
 | `csrf_token_secret` | Signs the CSRF tokens | Every 180 days and on every admin password change |
 
 A rotation writes the previous value first, then the new one, then re-encrypts what depends on it,
-so a crash loses nothing. The daily upkeep deletes previous values once their grace period has
-passed. After an upgrade that first enables cookie signing, every existing session cookie is
+so a crash loses nothing. The upkeep task deletes previous values once their grace period has
+passed.
+
+**Rotating from the admin panel** always asks for your password and writes an audit event:
+
+- **Installation secret** (Security > Keypair > *Rotate installation secret*, event
+  `security.installation_secret_rotated`): the PGP private key is re-encrypted under the new secret
+  and security report links issued before the rotation keep working for 7 days.
+- **Encryption key** (Security > Encryption, event `security.encryption_key_rotated`): the key
+  `server.security.encryption_key` is replaced and its `encryption_key_version` incremented. Two-factor
+  secrets and security report bodies and contacts are re-encrypted immediately. The previous key is
+  stored wrapped under the new one and stays valid for 30 days. A second rotation is refused while any
+  row is still readable only with the previous key, and a re-encryption that a crash interrupted is
+  finished at the next start. The API is `GET` and `POST
+  /api/v1/server/{admin_path}/security/encryption` (the `POST` body is `{"current_password": "..."}`). After an upgrade that first enables cookie signing, every existing session cookie is
 unsigned and is treated as logged out, so users and admins sign in once more.
 
 ---

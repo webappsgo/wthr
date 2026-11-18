@@ -62,21 +62,54 @@ func CurrentSecurityID(db *sql.DB) (string, error) {
 	return securityIDFor(secret, time.Now()), nil
 }
 
-// ValidSecurityID reports whether id is the current or the previous window's id,
-// compared in constant time.
+// ValidSecurityID reports whether id is the current or the previous window's id, compared in
+// constant time. Each installation_secret still valid is tried, so a {security_id} issued before a
+// rotation keeps working for the 7 day grace period (PART 11 "installation_secret").
 func ValidSecurityID(db *sql.DB, id string) bool {
 	if len(id) != 16 {
 		return false
 	}
-	secret, err := InstallationSecret(db)
+	store := secret.Default()
+	if store == nil {
+		store = secret.NewStore(db)
+	}
+	secrets, err := store.Candidates(secret.InstallationSecret)
 	if err != nil {
 		return false
 	}
 	now := time.Now()
-	current := securityIDFor(secret, now)
-	previous := securityIDFor(secret, now.Add(-securityIDWindow*time.Second))
-	ok := subtle.ConstantTimeCompare([]byte(id), []byte(current)) | subtle.ConstantTimeCompare([]byte(id), []byte(previous))
-	return ok == 1
+	matched := 0
+	for _, candidate := range secrets {
+		current := securityIDFor(candidate, now)
+		previous := securityIDFor(candidate, now.Add(-securityIDWindow*time.Second))
+		matched |= subtle.ConstantTimeCompare([]byte(id), []byte(current)) | subtle.ConstantTimeCompare([]byte(id), []byte(previous))
+	}
+	return matched == 1
+}
+
+// RotateInstallationSecret replaces installation_secret and re-bases what depends on it: the PGP
+// private key is re-encrypted under the new secret, and live {security_id} values keep validating
+// against the previous secret for the grace period. The previous value is stored before the new
+// one is used, so a failure loses nothing.
+func RotateInstallationSecret(db *sql.DB, pgp *PGPKeyManager) error {
+	store := secret.Default()
+	if store == nil {
+		store = secret.NewStore(db)
+	}
+	return store.Rotate(secret.InstallationSecret, secret.RotateOptions{
+		Pending: func() (int, error) {
+			if pgp == nil {
+				return 0, nil
+			}
+			return pgp.pendingRebase()
+		},
+		Rebase: func(oldSecret, newSecret []byte) error {
+			if pgp == nil {
+				return nil
+			}
+			return pgp.Rebase(oldSecret, newSecret)
+		},
+	})
 }
 
 // SecurityIDFingerprint returns the first 8 hex characters of SHA-256(id), the only
@@ -150,7 +183,7 @@ func (s *SecurityReportStore) open(data []byte, alg string) ([]byte, error) {
 	if alg == "pgp" {
 		return s.PGP.Decrypt(data)
 	}
-	plain, err := util.DecryptAtRest(s.EncryptionKey, string(data))
+	plain, _, err := util.DecryptAtRestGrace(s.EncryptionKey, string(data))
 	return []byte(plain), err
 }
 

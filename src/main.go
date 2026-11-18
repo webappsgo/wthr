@@ -589,6 +589,14 @@ func main() {
 	// Set global config for handler access
 	config.SetGlobalConfig(cfg)
 
+	// AI.md PART 11 "Rotation contract": during the 30 day grace period at-rest reads fall back to the
+	// previous encryption key, and a re-encryption that a crash interrupted is finished at start
+	encryptionRotator := &service.EncryptionKeyRotator{ServerDB: dualDB.Server, UsersDB: dualDB.Users}
+	encryptionRotator.InstallGraceReads()
+	if err := encryptionRotator.FinishUnfinishedRebase(); err != nil {
+		appLogger.Error("Failed to finish the encryption key re-encryption: %v", err)
+	}
+
 	// AI.md PART 6: --mode flag > MODE env > server.mode in server.yml > production
 	mode.FromConfig(cfg.Server.Mode)
 
@@ -1271,7 +1279,14 @@ func main() {
 		for _, name := range rotated {
 			log.Printf("INFO: rotated %s after reaching its rotation interval", name)
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		retired, retireErr := encryptionRotator.RetireExpired()
+		if retired {
+			log.Printf("INFO: retired the previous encryption key after its grace period")
+		}
+		return retireErr
 	})
 
 	addScheduledTask("rate_limit_cleanup", func() error {
@@ -1680,6 +1695,7 @@ func main() {
 	// Create admin web handler (robots.txt, security.txt)
 	adminWebHandler := handler.NewAdminWebHandler(db)
 	operatorTokenHandler := handler.NewAdminOperatorTokenHandler()
+	encryptionKeyHandler := handler.NewAdminEncryptionKeyHandler()
 
 	// Check for SSL configuration
 	hostname, _ := os.Hostname()
@@ -2370,6 +2386,8 @@ func main() {
 
 		adminRoutes.Get("/security", operatorTokenHandler.ShowSecurityPage)
 		adminRoutes.Post("/security/operator-token", operatorTokenHandler.RegenerateOperatorToken)
+		adminRoutes.Get("/security/encryption", encryptionKeyHandler.ShowEncryptionPage)
+		adminRoutes.Post("/security/encryption", encryptionKeyHandler.RotateEncryptionKey)
 
 		// Coordinated-disclosure pipeline (AI.md PART 11): reports, policy, hall of fame, PGP keypair
 		adminRoutes.Get("/security/reports", handler.ShowSecurityReports)
@@ -3604,6 +3622,8 @@ func main() {
 		// AI.md PART 11 "Operator Token": masked view and regenerate (password re-prompt, audit event)
 		adminAPI.Get("/security/operator-token", operatorTokenHandler.GetOperatorToken)
 		adminAPI.Post("/security/operator-token", operatorTokenHandler.RegenerateOperatorToken)
+		adminAPI.Get("/security/encryption", encryptionKeyHandler.GetEncryptionKey)
+		adminAPI.Post("/security/encryption", encryptionKeyHandler.RotateEncryptionKey)
 
 		adminAPI.Get("/scheduler", schedulerHandler.GetAllTasks)
 		adminAPI.Get("/scheduler/{name}", schedulerHandler.GetTask)

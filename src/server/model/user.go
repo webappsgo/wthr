@@ -794,8 +794,9 @@ func DecryptTwoFactorSecret(stored string) (string, error) {
 	}
 
 	key := twoFactorEncryptionKey()
-	if key != "" && utils.IsEncryptedAtRest(key, stored) {
-		return utils.DecryptAtRest(key, stored)
+	if key != "" && utils.IsEncryptedAtRestGrace(key, stored) {
+		plain, _, err := utils.DecryptAtRestGrace(key, stored)
+		return plain, err
 	}
 
 	// Legacy plaintext secret from before at-rest encryption existed.

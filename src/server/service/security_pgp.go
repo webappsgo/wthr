@@ -25,6 +25,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 
+	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -64,14 +65,89 @@ func NewPGPKeyManager(db *sql.DB, dir string) *PGPKeyManager {
 func (m *PGPKeyManager) pubPath() string  { return filepath.Join(m.dir, "pgp.pub.asc") }
 func (m *PGPKeyManager) privPath() string { return filepath.Join(m.dir, "pgp.priv.asc.enc") }
 
-// privateKeyKey derives the base64 AES key that protects the private key at rest.
+// privateKeyKeyFor derives the base64 AES key that protects the private key at rest from
+// one installation_secret value.
+func privateKeyKeyFor(installationSecret []byte) string {
+	sum := sha256.Sum256(append([]byte("wthr-pgp-private-key\x00"), installationSecret...))
+	return base64.StdEncoding.EncodeToString(sum[:])
+}
+
+// privateKeyKey derives the key from the current installation_secret.
 func (m *PGPKeyManager) privateKeyKey() (string, error) {
-	secret, err := InstallationSecret(m.db)
+	installationSecret, err := InstallationSecret(m.db)
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(append([]byte("wthr-pgp-private-key\x00"), secret...))
-	return base64.StdEncoding.EncodeToString(sum[:]), nil
+	return privateKeyKeyFor(installationSecret), nil
+}
+
+// decryptUnder opens sealed data with the key derived from one installation_secret value.
+func decryptUnder(installationSecret []byte, sealed string) (string, error) {
+	return util.DecryptAtRest(privateKeyKeyFor(installationSecret), sealed)
+}
+
+// installationSecretCandidates returns the current installation_secret first, then the
+// previous one while its 7 day grace period lasts (PART 11 "Reads during grace").
+func (m *PGPKeyManager) installationSecretCandidates() ([][]byte, error) {
+	store := secret.Default()
+	if store == nil {
+		current, err := InstallationSecret(m.db)
+		if err != nil {
+			return nil, err
+		}
+		return [][]byte{current}, nil
+	}
+	return store.Candidates(secret.InstallationSecret)
+}
+
+// Rebase re-encrypts the private key file from the old installation_secret to the new one.
+// It is safe to run again: a file that already opens under the new secret is left alone. The
+// file is replaced atomically through a temporary file, so a crash never leaves a half
+// written key.
+func (m *PGPKeyManager) Rebase(oldSecret, newSecret []byte) error {
+	data, err := os.ReadFile(m.privPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := util.DecryptAtRest(privateKeyKeyFor(newSecret), string(data)); err == nil {
+		return nil
+	}
+	armored, err := util.DecryptAtRest(privateKeyKeyFor(oldSecret), string(data))
+	if err != nil {
+		return fmt.Errorf("private key opens under neither installation secret: %w", err)
+	}
+	sealed, err := util.EncryptAtRest(privateKeyKeyFor(newSecret), armored)
+	if err != nil {
+		return err
+	}
+	temp := m.privPath() + ".tmp"
+	if err := os.WriteFile(temp, []byte(sealed), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temp, m.privPath())
+}
+
+// pendingRebase reports 1 when the private key file opens only with the previous installation
+// secret, so a second rotation is refused until it has been re-encrypted.
+func (m *PGPKeyManager) pendingRebase() (int, error) {
+	data, err := os.ReadFile(m.privPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	current, err := InstallationSecret(m.db)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := util.DecryptAtRest(privateKeyKeyFor(current), string(data)); err != nil {
+		return 1, nil
+	}
+	return 0, nil
 }
 
 // Exists reports whether a usable (not revoked) keypair is present.
@@ -187,17 +263,31 @@ func (m *PGPKeyManager) PublicKey() (string, error) {
 	return string(data), nil
 }
 
-// PrivateKey returns the decrypted ASCII-armored private key (sensitive operation).
+// PrivateKey returns the decrypted ASCII-armored private key (sensitive operation). A file that
+// fails under the current installation_secret is tried with the previous one during the grace
+// period, and a success re-encrypts it under the current one.
 func (m *PGPKeyManager) PrivateKey() (string, error) {
 	data, err := os.ReadFile(m.privPath())
 	if err != nil {
 		return "", ErrNoKeypair
 	}
-	key, err := m.privateKeyKey()
+	candidates, err := m.installationSecretCandidates()
 	if err != nil {
 		return "", err
 	}
-	return util.DecryptAtRest(key, string(data))
+	var lastErr error
+	for index, candidate := range candidates {
+		armored, decryptErr := util.DecryptAtRest(privateKeyKeyFor(candidate), string(data))
+		if decryptErr != nil {
+			lastErr = decryptErr
+			continue
+		}
+		if index > 0 {
+			_ = m.Rebase(candidate, candidates[0])
+		}
+		return armored, nil
+	}
+	return "", lastErr
 }
 
 func (m *PGPKeyManager) entity() (*openpgp.Entity, error) {

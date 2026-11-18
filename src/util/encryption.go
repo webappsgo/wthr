@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"sync/atomic"
 )
 
 // ErrEncryptionKeyInvalid is returned when the configured
@@ -95,4 +96,48 @@ func newAESCipher(base64Key string) (cipher.Block, error) {
 		return nil, ErrEncryptionKeyInvalid
 	}
 	return aes.NewCipher(key)
+}
+
+// previousKeyProvider returns the previous server.security.encryption_key while its 30 day grace
+// period lasts, or "" when there is none (AI.md PART 11 "Rotation contract").
+var previousKeyProvider atomic.Pointer[func() string]
+
+// SetPreviousEncryptionKeyProvider installs the function that supplies the previous key.
+func SetPreviousEncryptionKeyProvider(provider func() string) {
+	if provider == nil {
+		previousKeyProvider.Store(nil)
+		return
+	}
+	previousKeyProvider.Store(&provider)
+}
+
+// DecryptAtRestGrace decrypts with the current key and, when that fails, with the previous key
+// during the grace period. usedPrevious is true when only the previous key worked, which tells
+// the caller the row still needs re-encrypting under the current key.
+func DecryptAtRestGrace(currentKey, encoded string) (plaintext string, usedPrevious bool, err error) {
+	plaintext, err = DecryptAtRest(currentKey, encoded)
+	if err == nil {
+		return plaintext, false, nil
+	}
+	provider := previousKeyProvider.Load()
+	if provider == nil {
+		return "", false, err
+	}
+	previous := (*provider)()
+	if previous == "" || previous == currentKey {
+		return "", false, err
+	}
+	if fallback, fallbackErr := DecryptAtRest(previous, encoded); fallbackErr == nil {
+		return fallback, true, nil
+	}
+	return "", false, err
+}
+
+// IsEncryptedAtRestGrace reports whether a value opens under the current key or the previous one.
+func IsEncryptedAtRestGrace(currentKey, value string) bool {
+	if value == "" {
+		return false
+	}
+	_, _, err := DecryptAtRestGrace(currentKey, value)
+	return err == nil
 }

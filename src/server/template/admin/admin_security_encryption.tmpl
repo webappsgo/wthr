@@ -1,0 +1,42 @@
+{{define "admin/admin_security_encryption.tmpl"}}
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+
+  <div class="content-header">
+    <h1>{{t $lang "admin.security_encryption.title"}}</h1>
+    <p class="subtitle">{{t $lang "admin.security_encryption.subtitle"}}</p>
+  </div>
+  {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
+  <section class="admin-section" aria-labelledby="encryption-status-heading">
+    <h2 id="encryption-status-heading">{{t $lang "admin.security_encryption.status"}}</h2>
+    <dl class="detail-list">
+      <dt>{{t $lang "admin.security_encryption.configured"}}</dt>
+      <dd>{{if .Key.Configured}}{{t $lang "admin.security_encryption.yes"}}{{else}}{{t $lang "admin.security_encryption.no"}}{{end}}</dd>
+      <dt>{{t $lang "admin.security_encryption.version"}}</dt>
+      <dd>{{.Key.Version}}</dd>
+      {{if .Key.GraceActive}}
+      <dt>{{t $lang "admin.security_encryption.grace_until"}}</dt>
+      <dd>{{.Key.GraceUntil}}</dd>
+      <dt>{{t $lang "admin.security_encryption.pending"}}</dt>
+      <dd>{{.Key.PendingRows}}</dd>
+      {{end}}
+    </dl>
+  </section>
+  <section class="admin-section" aria-labelledby="encryption-rotate-heading">
+    <h2 id="encryption-rotate-heading">{{t $lang "admin.security_encryption.rotate_heading"}}</h2>
+    <p>{{t $lang "admin.security_encryption.rotate_help"}}</p>
+    <form method="post" action="{{$ap}}/security/encryption">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="encryption-password" class="form-label">{{t $lang "admin.security_reports.password"}}</label>
+        <input type="password" id="encryption-password" name="password" class="form-input" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-danger">{{t $lang "admin.security_encryption.rotate_action"}}</button>
+    </form>
+  </section>
+{{template "admin_footer" .}}
+{{end}}

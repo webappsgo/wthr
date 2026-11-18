@@ -55,6 +55,10 @@ var flashKeys = map[string]bool{
 	"flash.scheduler_run_started":            true,
 	"flash.scheduler_unknown_task":           true,
 	"flash.scheduler_invalid":                true,
+	"flash.encryption_rotated":               true,
+	"flash.encryption_password_invalid":      true,
+	"flash.encryption_rotation_pending":      true,
+	"flash.encryption_rotation_failed":       true,
 	"flash.cors_invalid":                     true,
 	"flash.operator_token_password_required": true,
 }
