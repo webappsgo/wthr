@@ -45,6 +45,7 @@ import (
 	appgraphql "github.com/webappsgo/wthr/src/graphql"
 	"github.com/webappsgo/wthr/src/mcp"
 	"github.com/webappsgo/wthr/src/mode"
+	"github.com/webappsgo/wthr/src/privilege"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/buildstamp"
@@ -442,10 +443,31 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Generate server.yml if it doesn't exist (runtime generation per TEMPLATE.md)
-	if err := cli.GenerateServerYML(dirPaths.Config); err != nil {
+	// AI.md PART 8 step 8d: every private path is owner-only before server.yml is read
+	// and before any child process is spawned; a wrong mode is fixed, not reported
+	if err := util.EnforcePrivatePaths(dirPaths.Config, dirPaths.Data); err != nil {
+		// Config-directed path unusable (AI.md PART 8: exit code 2).
+		log.Printf("Failed to make the private paths private: %v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+
+	// AI.md PART 8 step 8e: PORT, then server.port from server.yml, then a random 64xxx port
+	startupPorts, err := util.ResolveStartupPorts(dirPaths.Config)
+	if err != nil {
+		// Config error: invalid port configuration (AI.md PART 8: exit code 2).
+		log.Printf("Failed to determine the server ports: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to determine the server ports: %v\n", err)
+		os.Exit(2)
+	}
+
+	// Generate server.yml if it doesn't exist, saving the determined port in it (AI.md PART 8 step 13)
+	if err := cli.GenerateServerYML(dirPaths.Config, startupPorts.Spec); err != nil {
 		log.Printf("Warning: Failed to generate server.yml: %v", err)
 	}
+
+	// AI.md PART 8 steps 8a-8i: service account, ownership, privileged ports, privilege drop
+	runRootPhase(dirPaths, startupPorts)
 
 	// Initialize logger
 	appLogger, err := util.NewLogger(dirPaths.Log)
@@ -1551,30 +1573,19 @@ func main() {
 	// Create user public handler (AI.md PART 34: Public profiles, avatars)
 	userPublicHandler := handler.NewUserPublicHandler(db.DB)
 
-	// Get port configuration using comprehensive port manager
-	// Priority: 1) Database saved ports, 2) Config file port, 3) PORT env variable, 4) Random port
-	portManager := util.NewPortManager(db.DB)
+	// AI.md PART 8 step 8e: the ports were decided before the privilege drop
+	httpPortInt, httpsPortInt := startupPorts.HTTP, startupPorts.HTTPS
 
-	// Extract port from config (can be int or string)
-	configPort := 0
-	if cfg != nil && cfg.Server.Port != nil {
-		switch p := cfg.Server.Port.(type) {
-		case int:
-			configPort = p
-		case float64:
-			configPort = int(p)
-		case string:
-			if parsed, err := strconv.Atoi(p); err == nil {
-				configPort = parsed
-			}
+	// AI.md PART 8 step 13: a server.yml that has no server.port gets the determined port saved in it
+	if cfg != nil && cfg.Server.Port == nil {
+		if httpsPortInt == 0 {
+			cfg.Server.Port = httpPortInt
+		} else {
+			cfg.Server.Port = startupPorts.Spec
 		}
-	}
-
-	httpPortInt, httpsPortInt, err := portManager.GetServerPortsWithConfig(configPort)
-	if err != nil {
-		// Config error — invalid/unavailable port configuration (AI.md PART 8: exit code 2).
-		log.Printf("Failed to configure server ports: %v", err)
-		os.Exit(2)
+		if err := config.SaveConfig(cfg); err != nil {
+			log.Printf("WARNING: could not save server.port to server.yml: %v", err)
+		}
 	}
 
 	port := fmt.Sprintf("%d", httpPortInt)
@@ -4586,7 +4597,18 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		// AI.md PART 8 step 18: a port below 1024 was bound while the process was still root
+		listener := privilege.TakeListener(httpPortInt)
+		if listener == nil {
+			var listenErr error
+			listener, listenErr = net.Listen("tcp", serverAddr)
+			if listenErr != nil {
+				// Listener bind/network failure (AI.md PART 8: exit code 3).
+				log.Printf("Failed to start server: %v", listenErr)
+				os.Exit(3)
+			}
+		}
+		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			// Listener bind/network failure (AI.md PART 8: exit code 3).
 			log.Printf("Failed to start server: %v", err)
 			os.Exit(3)

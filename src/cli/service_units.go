@@ -5,11 +5,13 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 const (
-	serviceName   = "wthr"
-	serviceOrg    = "webappsgo"
+	serviceName   = privilege.InternalName
+	serviceOrg    = privilege.InternalOrg
 	serviceBinary = "/usr/local/bin/wthr"
 	serviceApp    = "Wthr Weather"
 	serviceDocs   = "https://webappsgo.github.io/wthr"

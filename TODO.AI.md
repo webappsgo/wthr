@@ -21,7 +21,7 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - Pre-existing gofmt fixes applied to cli/maintenance.go, auth_check.go, setup_test.go
 - CI: `.github/workflows/ci.yml` has failed with "workflow file issue" (no jobs run) on every push since a66f937; the file parses as valid YAML, so find the GitHub-side rejection (check the Actions UI annotation) and fix it
 - ORDER (dependencies decide, number is only a tiebreaker): 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11. Item 1 blocks the PID directory ownership and Tor/I2P child credentials; item 2 blocks every setting that moves into server.yml (3, 4)
-- 1. PART 8 / 24 / 25 root phase: no in-process service user creation, chown, privilege drop after port binding or Windows Virtual Service Account (Windows uses NSSM today); the PID directory `/var/run/{org}/{name}/` must be created and owned in step 8b/8c
+- 1. PART 8 / 24 / 25 remaining after the root phase (service user, ownership, early ports, privileged pre-bind, drop are done): step 8g spawns Tor with service-user credentials before the drop (Tor is started after the drop today, still not as root); Windows uses NSSM instead of a Virtual Service Account service; the launchd plist and the rc.d script need the PART 25 form; the HTTPS port is not pre-bound because the server does not serve TLS yet (PART 15 item)
 - 2. PART 5 / 10 config storage (see the PART 5/10 item above): server.yml source of truth, `srv_config` only in cluster mode
 - 3. PART 12 CORS: hard-coded `*` with a short header list in main.go; needs `web.cors` resolution (explicit config, DOMAIN, learned proxy hosts, `*` fallback), the spec header list, credentials only for explicit origins, admin `/web` preview; CSRF must mount on frontend routes only, never `/api/**`
 - 4. PART 11 (see the PART 11 items above), including HMAC CSRF and the `web.csrf` config block
@@ -33,3 +33,6 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - 10. Legacy stubs listed above (admin_geoip.tmpl, CheckSSLRenewal, backup version/password)
 - 11. Not yet re-audited against AI.md: PARTS 7, 9, 13, 16, 18, 20-23, 26-30, 32, 33
 - AI.md PART 29 line 48167 reads the PID file as `/var/run/${INTERNAL_ORG}/${INTERNAL_NAME}.pid`, which contradicts the per-service PID directory in PARTS 3, 4, 8 and 25; follow PART 8 and report it in the template inbox
+- PART 15: the server never serves TLS (no ListenAndServeTLS, no certificate loading in main.go), so `--port 80,443` and `ssl.enabled` do nothing; the Let's Encrypt service exists but is not wired to a listener
+- PART 5: `cli.GenerateServerYML` writes a hand-written YAML with inline comments, `# Last updated: AUTO_GENERATED` and DB-era wording; generate server.yml from the config defaults with comments above each key
+- AI.md PART 26 `dev` target writes the binary to `$BUILD_DIR` inside the container, which is not mounted, so the file never reaches the host; follow the spec as written and report it in the template inbox (`make local` builds into the mounted `binaries/`)

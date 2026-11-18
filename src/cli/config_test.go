@@ -16,7 +16,7 @@ func TestGenerateServerYML(t *testing.T) {
 	t.Run("writes_default_config", func(t *testing.T) {
 		dir := t.TempDir()
 
-		if err := GenerateServerYML(dir); err != nil {
+		if err := GenerateServerYML(dir, "64123"); err != nil {
 			t.Fatalf("GenerateServerYML() error = %v", err)
 		}
 
@@ -31,11 +31,29 @@ func TestGenerateServerYML(t *testing.T) {
 			"log:", "backup:", "smtp:", "notifications:", "weather:",
 			"alerts:", "geoip:", "schedule:", "cors:", "security:",
 			"features:", "metrics:",
-			`driver: sqlite`, "port: 80", "mode: production",
+			`driver: sqlite`, "port: 64123", "mode: production",
 		} {
 			if !strings.Contains(content, want) {
 				t.Errorf("server.yml missing %q", want)
 			}
+		}
+	})
+
+	t.Run("is_private_and_saves_a_dual_port", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := GenerateServerYML(dir, "80,443"); err != nil {
+			t.Fatalf("GenerateServerYML() error = %v", err)
+		}
+		info, err := os.Stat(filepath.Join(dir, "server.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Errorf("server.yml mode = %o, want 600", info.Mode().Perm())
+		}
+		data, _ := os.ReadFile(filepath.Join(dir, "server.yml"))
+		if !strings.Contains(string(data), `port: "80,443"`) {
+			t.Errorf("a dual port must be saved as a quoted string")
 		}
 	})
 
@@ -46,7 +64,7 @@ func TestGenerateServerYML(t *testing.T) {
 			t.Fatalf("setup: %v", err)
 		}
 
-		if err := GenerateServerYML(dir); err != nil {
+		if err := GenerateServerYML(dir, "64123"); err != nil {
 			t.Fatalf("GenerateServerYML() error = %v", err)
 		}
 
@@ -61,7 +79,7 @@ func TestGenerateServerYML(t *testing.T) {
 
 	t.Run("missing_directory_errors", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "does", "not", "exist")
-		if err := GenerateServerYML(dir); err == nil {
+		if err := GenerateServerYML(dir, "64123"); err == nil {
 			t.Error("GenerateServerYML() with missing directory = nil, want error")
 		}
 	})

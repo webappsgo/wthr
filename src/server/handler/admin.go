@@ -693,8 +693,15 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	settings["server_address"] = settingsModel.GetString("server.address", "[::]")
 	settings["server_daemonize"] = settingsModel.GetBool("server.daemonize", false)
 	settings["server_pidfile"] = settingsModel.GetBool("server.pidfile", true)
-	settings["server_http_port"] = settingsModel.GetInt("server.http_port", 3000)
-	settings["server_https_port"] = settingsModel.GetInt("server.https_port", 0)
+	// AI.md PART 5: the listen ports live in server.yml, not in the settings table
+	listenHTTPPort, listenHTTPSPort := 0, 0
+	if liveConfig := config.GetGlobalConfig(); liveConfig != nil && liveConfig.Server.Port != nil {
+		if parsedHTTP, parsedHTTPS, parseErr := util.ParsePortSpec(fmt.Sprint(liveConfig.Server.Port)); parseErr == nil {
+			listenHTTPPort, listenHTTPSPort = parsedHTTP, parsedHTTPS
+		}
+	}
+	settings["server_http_port"] = listenHTTPPort
+	settings["server_https_port"] = listenHTTPSPort
 	settings["server_timezone"] = settingsModel.GetString("server.timezone", "America/New_York")
 	settings["server_date_format"] = settingsModel.GetString("server.date_format", "US")
 	settings["server_time_format"] = settingsModel.GetString("server.time_format", "12-hour")

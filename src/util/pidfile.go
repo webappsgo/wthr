@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // PIDFile represents a PID file for process management
@@ -19,8 +21,8 @@ type PIDFile struct {
 // pidFileOrg and pidFileName are the on-disk identity of this service (AI.md PART 4:
 // {internal_org} and {internal_name}); they never change when the project is renamed.
 const (
-	pidFileOrg  = "webappsgo"
-	pidFileName = "wthr"
+	pidFileOrg  = privilege.InternalOrg
+	pidFileName = privilege.InternalName
 )
 
 // SystemPIDFilePath is the root-mode PID file: one directory per service so a service

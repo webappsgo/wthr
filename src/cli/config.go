@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // GenerateServerYML writes a default server.yml to configDir if none exists.
 // Called at first-run to ensure the server starts with a valid configuration file.
-func GenerateServerYML(configDir string) error {
+// port is the port setting decided at startup ("64123" or "80,443"); AI.md PART 8
+// step 13 requires the determined port to be saved in the new file.
+func GenerateServerYML(configDir, port string) error {
 	configPath := filepath.Join(configDir, "server.yml")
 
 	// An existing server.yml is the operator's source of truth (Single Instance
@@ -207,7 +210,14 @@ metrics:
   endpoint: /metrics
 `
 
-	if err := os.WriteFile(configPath, []byte(serverYML), 0644); err != nil {
+	portValue := port
+	if strings.Contains(port, ",") {
+		portValue = `"` + port + `"`
+	}
+	serverYML = strings.Replace(serverYML, "  port: 80\n", "  port: "+portValue+"\n", 1)
+
+	// server.yml holds server.token and the encryption key, so it is private (AI.md PART 8)
+	if err := os.WriteFile(configPath, []byte(serverYML), 0600); err != nil {
 		return fmt.Errorf("failed to write server.yml: %w", err)
 	}
 

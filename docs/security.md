@@ -73,6 +73,27 @@ Exceeding the limit returns **HTTP 429 Too Many Requests** with a `Retry-After` 
 
 ---
 
+## Service Account and Privilege Drop
+
+When the server starts as root (a system service, or a container), it runs a root phase and then
+runs as a dedicated account:
+
+1. It creates the `wthr` system user and group when they do not exist. The UID and GID are the same
+   value, chosen from 899 downward in the range 200-899 and never one of the reserved
+   well-known IDs.
+2. It gives that account ownership of the config, data, cache, log, database and backup directories
+   and of the per-service PID directory `/var/run/webappsgo/wthr/`.
+3. It makes every private path owner-only on every start: `server.yml`, `yaml.d/`, `ssl/`, `tor/`
+   and `i2p/` below the config directory, and `security/` and `tor/` below the data directory,
+   with everything inside them (directories `0700`, files `0600`).
+4. It binds any port below 1024 while still root, so a service can listen on port 80 without
+   running as root.
+5. It drops to the service account and checks the drop: the process is no longer root and cannot
+   become root again. If the drop fails the server exits instead of continuing as root.
+
+A server started by a regular user skips this phase and keeps its own account. On Windows the
+service runs as a Virtual Service Account instead.
+
 ## Transport Security
 
 When a `server.domain` is configured (non-localhost), wthr automatically obtains and renews a
