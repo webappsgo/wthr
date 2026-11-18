@@ -13,3 +13,10 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - PART 14 the OpenAPI document is built at runtime from the live routes with thin schemas; build-time generation with response schemas is not wired
 - Template pages still concatenate some UI labels
 - AI.md was updated mid-session (pairing rule, MCP CRUD tools, no-JS captcha, Tor and data contracts, private paths and 0600 server.yml, health-check log suppression); those PARTs have not been re-audited against the code yet
+- IN PROGRESS (uncommitted, build not yet verified): PART 19 scheduler rework. Done in tree: `src/config/scheduler.go` (schema, defaults, Update* funcs), `Scheduler.Configure`, spec task names in `main.go`, `overlay_health.go`, server-rendered `admin_scheduler.tmpl` / `admin_scheduler_task.tmpl`, `admin_scheduler_page.go`, 76 i18n keys. Still to do: remove old JS (`AdminSchedulerPage`, `AdminTasksPage`, dashboard task list + dispatch cases in `app.js`), delete `admin_tasks_enhanced.tmpl` and the `tasks-list` tab in `admin.tmpl`, call `taskScheduler.Configure` from the config watcher, run `go build`, `make test`, add tests for `config/scheduler.go`, `overlay_health.go` and the page handlers, update stale scheduler tests and docs, then commit
+- PART 11: app_secrets rotation, HMAC CSRF (HttpOnly=false per spec line 29887, Origin/SameSite bypass), cookie_signing_key, operator token regenerate
+- PART 5/10: SettingsModel still backs ~100 legacy keys in `server_config`; move to server.yml (cluster-only `srv_config`)
+- PART 12: `server.session.*` max_age/idle_timeout are validated but never parsed or applied
+- Legacy stubs: `admin_geoip.tmpl` has hard-coded values and is not wired; `CheckSSLRenewal` only logs and does not renew; `CreateSystemBackup`/hourly use `AppVersion "1.0.0"` and an empty password
+- Admin UI uses JS-built lists and hard-coded English strings in `app.js` (PART 16/31)
+- Pre-existing gofmt fixes applied to cli/maintenance.go, auth_check.go, setup_test.go
