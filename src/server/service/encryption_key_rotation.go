@@ -221,6 +221,14 @@ func (r *EncryptionKeyRotator) PendingRows() (int, error) {
 			pending++
 		}
 	}
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		for _, stored := range cfg.Server.SSL.LetsEncrypt.DNSCredentials {
+			body, sealed := strings.CutPrefix(stored, util.DNSCredentialPrefix)
+			if sealed && !openUnder(current, body) && openUnder(previous, body) {
+				pending++
+			}
+		}
+	}
 	return pending, nil
 }
 
@@ -262,7 +270,24 @@ func (r *EncryptionKeyRotator) Rebase(oldKey, newKey string) error {
 			return err
 		}
 	}
-	return nil
+	return rebaseDNSCredentials(oldKey, newKey)
+}
+
+// rebaseDNSCredentials re-encrypts the dns-01 credentials of server.yml (AI.md PART 15 "Key
+// rotation") and rewrites the file atomically when any value changed.
+func rebaseDNSCredentials(oldKey, newKey string) error {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil || len(cfg.Server.SSL.LetsEncrypt.DNSCredentials) == 0 {
+		return nil
+	}
+	changed, err := util.RebaseDNSCredentials(oldKey, newKey, cfg.Server.SSL.LetsEncrypt.DNSCredentials)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	return config.SaveConfig(cfg)
 }
 
 // rebaseTwoFactorBatch re-encrypts one batch of two-factor secrets in one transaction.

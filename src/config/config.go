@@ -271,6 +271,11 @@ type LetsEncryptConfig struct {
 	Challenge string `yaml:"challenge"`
 	// Use staging server for testing
 	Staging bool `yaml:"staging"`
+	// DNSProvider is the lego provider name used for the dns-01 challenge, e.g. cloudflare
+	DNSProvider string `yaml:"dns_provider"`
+	// DNSCredentials is one flat map of the provider's lego environment variable names to values;
+	// values are stored as enc:v1: AES-256-GCM ciphertext (AI.md PART 15)
+	DNSCredentials map[string]string `yaml:"dns_credentials"`
 }
 
 // DatabaseConfig represents database configuration per AI.md PART 4

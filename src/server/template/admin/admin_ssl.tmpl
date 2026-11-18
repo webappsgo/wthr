@@ -8,11 +8,10 @@
     <p class="text-comment mb-4">{{t $lang "admin.ssl.subtitle"}}</p>
 
     <div class="grid-2 gap-lg">
-        <!-- Certificate Status Card -->
         <section class="card p-4">
             <h2 class="section-title">📜 {{t $lang "admin.ssl.cert_status_heading"}}</h2>
 
-            <div id="certStatus">
+            <div id="certStatus" role="status" aria-live="polite">
                 <div class="text-center p-4 text-comment">
                     <div class="loading"></div>
                     <p class="mt-3">{{t $lang "admin.ssl.loading_cert_info"}}</p>
@@ -20,16 +19,15 @@
             </div>
 
             <div class="flex gap-sm mt-3">
-                <button class="btn btn-primary" id="refreshBtn" aria-label="{{t $lang "admin.ssl.refresh_cert_aria"}}">
+                <button type="button" class="btn btn-primary" id="refreshBtn" aria-label="{{t $lang "admin.ssl.refresh_cert_aria"}}">
                     🔄 {{t $lang "action.refresh"}}
                 </button>
-                <button class="btn btn-success" id="verifyBtn" aria-label="{{t $lang "admin.ssl.verify_cert_aria"}}">
+                <button type="button" class="btn btn-success" id="verifyBtn" aria-label="{{t $lang "admin.ssl.verify_cert_aria"}}">
                     ✓ {{t $lang "admin.ssl.verify_cert_action"}}
                 </button>
             </div>
         </section>
 
-        <!-- Let's Encrypt Card -->
         <section class="card p-4">
             <h2 class="section-title">🌐 {{t $lang "admin.ssl.lets_encrypt_heading"}}</h2>
 
@@ -54,6 +52,22 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="challengeType" class="form-label">{{t $lang "admin.ssl.challenge_label"}}</label>
+                    <select id="challengeType" class="form-select">
+                        <option value="http-01">{{t $lang "admin.ssl.challenge_http01"}}</option>
+                        <option value="tls-alpn-01">{{t $lang "admin.ssl.challenge_tlsalpn01"}}</option>
+                        <option value="dns-01">{{t $lang "admin.ssl.challenge_dns01"}}</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="staging">
+                        <span>{{t $lang "admin.ssl.staging_label"}}</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
                     <label class="checkbox-row">
                         <input type="checkbox" id="agreeToS" required>
                         <span>{{t $lang "admin.ssl.agree_tos_label"}}</span>
@@ -69,112 +83,34 @@
                     </button>
                 </div>
             </form>
-
-            <div id="obtainProgress" class="d-none mt-3">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <p id="progressText" class="text-center text-comment mt-1"></p>
-            </div>
         </section>
     </div>
 
-    <!-- Renewal Settings Card -->
-    <section class="card p-4 mt-4">
-        <h2 class="section-title">⚙️ {{t $lang "admin.ssl.auto_renewal_heading"}}</h2>
+    <section class="card p-4 mt-4" id="dnsCard">
+        <h2 class="section-title">🧩 {{t $lang "admin.ssl.dns_heading"}}</h2>
+        <p class="text-comment mb-3">{{t $lang "admin.ssl.dns_intro"}}</p>
 
-        <div class="grid-2 gap-lg">
-            <div>
-                <div class="form-group">
-                    <label class="checkbox-row">
-                        <input type="checkbox" id="autoRenewal" checked>
-                        <span>{{t $lang "admin.ssl.enable_auto_renewal_label"}}</span>
-                    </label>
-                    <small class="form-help">{{t $lang "admin.ssl.enable_auto_renewal_hint"}}</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="renewalDays" class="form-label">{{t $lang "admin.ssl.renewal_threshold_label"}}</label>
-                    <input type="number" id="renewalDays" class="form-input" value="30" min="1" max="60">
-                    <small class="form-help">{{t $lang "admin.ssl.renewal_threshold_hint"}}</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="checkbox-row">
-                        <input type="checkbox" id="emailNotifications" checked>
-                        <span>{{t $lang "admin.ssl.email_notifications_label"}}</span>
-                    </label>
-                </div>
-
-                <button class="btn btn-primary" id="saveSettingsBtn">💾 {{t $lang "action.save"}}</button>
+        <form id="dnsForm">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <div class="form-group">
+                <label for="dnsProvider" class="form-label">{{t $lang "admin.ssl.dns_provider_label"}}</label>
+                <select id="dnsProvider" class="form-select">
+                    <option value="">{{t $lang "admin.ssl.dns_provider_manual"}}</option>
+                </select>
             </div>
 
-            <div class="renewal-schedule">
-                <h3 class="subsection-title">{{t $lang "admin.ssl.renewal_schedule_heading"}}</h3>
-                <div id="renewalSchedule">
-                    <div class="schedule-item">
-                        <span>{{t $lang "admin.ssl.next_check_label"}}</span>
-                        <span id="nextCheck">-</span>
-                    </div>
-                    <div class="schedule-item">
-                        <span>{{t $lang "admin.ssl.next_renewal_label"}}</span>
-                        <span id="nextRenewal">-</span>
-                    </div>
-                    <div class="schedule-item">
-                        <span>{{t $lang "admin.ssl.last_renewal_label"}}</span>
-                        <span id="lastRenewal">{{t $lang "admin.common.never"}}</span>
-                    </div>
-                </div>
+            <div id="dnsVariables"></div>
+
+            <div class="flex gap-sm mt-2">
+                <button type="button" class="btn btn-secondary" id="dnsVariableAdd" data-name-label="{{t $lang "admin.ssl.dns_variable_name"}}" data-value-label="{{t $lang "admin.ssl.dns_variable_value"}}">➕ {{t $lang "admin.ssl.dns_variable_add"}}</button>
+                <button type="button" class="btn btn-secondary" id="dnsCheckBtn">🧪 {{t $lang "admin.ssl.dns_check_action"}}</button>
+                <button type="submit" class="btn btn-primary" id="dnsSaveBtn">💾 {{t $lang "action.save"}}</button>
             </div>
-        </div>
+            <p class="text-comment mt-2" id="dnsValidated" data-label="{{t $lang "admin.ssl.dns_validated_label"}}" role="status" aria-live="polite"></p>
+        </form>
     </section>
 
-    <!-- Certificate History Card -->
-    <section class="card p-4 mt-4">
-        <h2 class="section-title">📋 {{t $lang "admin.ssl.cert_history_heading"}}</h2>
-
-        <div class="timeline" id="certHistory">
-            <div class="text-center text-comment">
-                {{t $lang "admin.ssl.no_history"}}
-            </div>
-        </div>
-    </section>
-
-    <!-- Advanced Options Card -->
-    <section class="card p-4 mt-4">
-        <h2 class="section-title">🔧 {{t $lang "admin.ssl.advanced_options_heading"}}</h2>
-
-        <div class="grid-2 gap-lg">
-            <div>
-                <h3 class="subsection-title">{{t $lang "admin.ssl.cert_actions_heading"}}</h3>
-                <div class="btn-group-vertical">
-                    <button class="btn btn-secondary" id="exportBtn">
-                        📥 {{t $lang "admin.ssl.export_cert_action"}}
-                    </button>
-                    <button class="btn btn-secondary" id="importBtn">
-                        📤 {{t $lang "admin.ssl.import_cert_action"}}
-                    </button>
-                    <button class="btn btn-danger" id="revokeBtn">
-                        ⚠️ {{t $lang "admin.ssl.revoke_cert_action"}}
-                    </button>
-                </div>
-            </div>
-
-            <div>
-                <h3 class="subsection-title">{{t $lang "admin.ssl.testing_heading"}}</h3>
-                <div class="btn-group-vertical">
-                    <button class="btn btn-secondary" id="testBtn">
-                        🧪 {{t $lang "admin.ssl.test_ssl_config_action"}}
-                    </button>
-                    <button class="btn btn-secondary" id="scanBtn">
-                        🔍 {{t $lang "admin.ssl.security_scan_action"}}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-<script type="application/json" id="admin-ssl-data">{"adminApiPath": {{.admin_api_path}}}</script>
+<script type="application/json" id="admin-ssl-data">{"adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "messages": {"load_failed": {{t $lang "admin.ssl.js.load_failed"}}, "obtained": {{t $lang "admin.ssl.js.obtained"}}, "renewed": {{t $lang "admin.ssl.js.renewed"}}, "valid": {{t $lang "admin.ssl.js.valid"}}, "request_failed": {{t $lang "admin.ssl.js.request_failed"}}, "check_variables": {{t $lang "admin.ssl.js.check_variables"}}, "confirm_renew": {{t $lang "admin.ssl.js.confirm_renew"}}, "no_certificate": {{t $lang "admin.ssl.js.no_certificate"}}, "subject": {{t $lang "admin.ssl.js.subject"}}, "issuer": {{t $lang "admin.ssl.js.issuer"}}, "valid_until": {{t $lang "admin.ssl.js.valid_until"}}, "days_remaining": {{t $lang "admin.ssl.js.days_remaining"}}}}</script>
 <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

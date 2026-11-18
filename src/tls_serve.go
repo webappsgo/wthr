@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -169,8 +170,59 @@ type tlsRuntime struct {
 	settings config.SSLConfig
 	fqdn     string
 
+	// serverDB holds the app_secrets row that records the last DNS-backed issuance
+	serverDB *sql.DB
+
 	mu sync.Mutex
 	le *service.LetsEncryptService
+}
+
+// SetServerDB lets the runtime record dns_validated_at after a DNS-backed issuance.
+func (t *tlsRuntime) SetServerDB(db *sql.DB) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.serverDB = db
+}
+
+// currentLetsEncryptSettings returns the live Let's Encrypt settings, so a credential the admin
+// saved after startup is used by the next request.
+func (t *tlsRuntime) currentLetsEncryptSettings() config.LetsEncryptConfig {
+	if live := config.GetGlobalConfig(); live != nil {
+		return live.Server.SSL.LetsEncrypt
+	}
+	return t.settings.LetsEncrypt
+}
+
+// prepareChallenge applies the dns-01 solver before a request. It fails the request, naming the
+// variable, when the provider cannot be built; no other challenge is tried in its place.
+func (t *tlsRuntime) prepareChallenge(client *service.LetsEncryptService) error {
+	if t.challenge() != "dns-01" {
+		return nil
+	}
+	key := ""
+	if live := config.GetGlobalConfig(); live != nil {
+		key = live.Server.Security.EncryptionKey
+	}
+	solver, err := service.ConfiguredDNSSolver(t.currentLetsEncryptSettings(), key)
+	if err != nil {
+		log.Printf("ERROR: dns-01 provider check failed: %v", err)
+		return err
+	}
+	client.SetDNSSolver(solver)
+	return nil
+}
+
+// recordDNSValidated stores when a DNS-backed issuance or renewal succeeded.
+func (t *tlsRuntime) recordDNSValidated() {
+	if t.challenge() != "dns-01" || strings.TrimSpace(t.currentLetsEncryptSettings().DNSProvider) == "" {
+		return
+	}
+	t.mu.Lock()
+	db := t.serverDB
+	t.mu.Unlock()
+	if err := service.MarkDNSValidated(db); err != nil {
+		log.Printf("WARNING: dns_validated_at was not recorded: %v", err)
+	}
 }
 
 // newTLSRuntime creates the runtime for the host the server answers to.
@@ -222,21 +274,25 @@ func (t *tlsRuntime) Provision() error {
 		log.Printf("INFO: Let's Encrypt skipped: %q is not a public domain name", t.fqdn)
 		return nil
 	}
-	if t.challenge() == "dns-01" {
-		log.Printf("INFO: Let's Encrypt dns-01 needs DNS provider credentials; the certificate is requested from the admin SSL page")
+	if t.challenge() == "dns-01" && strings.TrimSpace(t.currentLetsEncryptSettings().DNSProvider) == "" {
+		log.Printf("INFO: Let's Encrypt dns-01 needs a DNS provider; the certificate is requested from the admin SSL page")
 		return nil
 	}
 
 	client, err := t.letsEncrypt()
 	if err != nil {
-		return fmt.Errorf("Let's Encrypt setup failed: %w", err)
+		return fmt.Errorf("acme client setup failed: %w", err)
+	}
+	if err := t.prepareChallenge(client); err != nil {
+		return fmt.Errorf("certificate request for %s failed: %w", t.fqdn, err)
 	}
 	if _, err := client.ObtainCertificate(t.fqdn, nil, t.challenge()); err != nil {
-		return fmt.Errorf("Let's Encrypt request for %s failed: %w", t.fqdn, err)
+		return fmt.Errorf("certificate request for %s failed: %w", t.fqdn, err)
 	}
 	if found, err := t.manager.CheckExistingCerts(t.fqdn); err != nil || !found {
 		return fmt.Errorf("the new certificate for %s could not be loaded: %v", t.fqdn, err)
 	}
+	t.recordDNSValidated()
 	log.Printf("INFO: Let's Encrypt certificate for %s installed", t.fqdn)
 	return nil
 }
@@ -248,7 +304,10 @@ func (t *tlsRuntime) Renew() error {
 	if t.manager.CheckRenewal() {
 		client, err := t.letsEncrypt()
 		if err != nil {
-			return fmt.Errorf("Let's Encrypt setup failed: %w", err)
+			return fmt.Errorf("acme client setup failed: %w", err)
+		}
+		if err := t.prepareChallenge(client); err != nil {
+			return fmt.Errorf("renewal for %s failed: %w", t.fqdn, err)
 		}
 		if _, err := client.RenewCertificate(t.fqdn, t.challenge()); err != nil {
 			return fmt.Errorf("renewal for %s failed: %w", t.fqdn, err)
@@ -256,6 +315,7 @@ func (t *tlsRuntime) Renew() error {
 		if err := t.manager.Reload(); err != nil {
 			return fmt.Errorf("the renewed certificate for %s could not be loaded: %w", t.fqdn, err)
 		}
+		t.recordDNSValidated()
 		log.Printf("INFO: Let's Encrypt certificate for %s renewed", t.fqdn)
 		return nil
 	}

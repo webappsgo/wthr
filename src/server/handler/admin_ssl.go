@@ -148,6 +148,11 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err := h.applyDNSSolver(request.ChallengeType); err != nil {
+		failDNSCheck(w, r, err)
+		return
+	}
+
 	// Obtain certificate
 	cert, err := h.leService.ObtainCertificate(request.Domain, request.AltNames, request.ChallengeType)
 	if err != nil {
@@ -156,6 +161,7 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.certificateChanged()
+	h.recordDNSValidated(request.ChallengeType)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":                true,
@@ -207,6 +213,11 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err := h.applyDNSSolver(request.ChallengeType); err != nil {
+		failDNSCheck(w, r, err)
+		return
+	}
+
 	// Renew certificate
 	cert, err := h.leService.RenewCertificate(request.Domain, request.ChallengeType)
 	if err != nil {
@@ -215,6 +226,7 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.certificateChanged()
+	h.recordDNSValidated(request.ChallengeType)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":          true,
@@ -260,65 +272,6 @@ func (h *SSLHandler) VerifyCertificate(w http.ResponseWriter, r *http.Request) {
 		"issuer":        certInfo.Issuer,
 		"notAfter":      certInfo.NotAfter,
 		"daysRemaining": certInfo.DaysRemaining,
-	})
-}
-
-// UpdateSettings updates SSL/TLS settings
-func (h *SSLHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
-	var settings struct {
-		AutoRenewal        bool `json:"autoRenewal"`
-		RenewalDays        int  `json:"renewalDays"`
-		EmailNotifications bool `json:"emailNotifications"`
-	}
-
-	if !DecodeAndValidate(w, r, &settings) {
-		return
-	}
-
-	// Validate renewal days
-	if settings.RenewalDays < 1 || settings.RenewalDays > 60 {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.renewal_days_must_be_between_1_and_60"))
-		return
-	}
-
-	// In a real implementation, save these settings to database
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":  Translate(r, "success.admin.ssl.settings_saved_successfully"),
-		"settings": settings,
-	})
-}
-
-// ExportCertificate exports the current certificate
-func (h *SSLHandler) ExportCertificate(w http.ResponseWriter, r *http.Request) {
-	// In a real implementation, read certificate files
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": Translate(r, "success.admin.ssl.certificate_export"),
-		"note":    Translate(r, "admin.ssl.certificate_files_can_be_found_in_certs_directory"),
-	})
-}
-
-// ImportCertificate imports an external certificate
-func (h *SSLHandler) ImportCertificate(w http.ResponseWriter, r *http.Request) {
-	// Handle multipart file upload
-	certFile, certHeader, err := r.FormFile("certificate")
-	if err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.certificate_file_is_required"))
-		return
-	}
-	defer certFile.Close()
-
-	keyFile, keyHeader, err := r.FormFile("privateKey")
-	if err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.private_key_file_is_required"))
-		return
-	}
-	defer keyFile.Close()
-
-	// In a real implementation, validate and save certificate files
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":  Translate(r, "success.admin.ssl.certificate_imported_successfully"),
-		"certFile": certHeader.Filename,
-		"keyFile":  keyHeader.Filename,
 	})
 }
 
@@ -399,45 +352,6 @@ func (h *SSLHandler) GetDNSRecords(w http.ResponseWriter, r *http.Request) {
 		"message": Translate(r, "success.admin.ssl.dns_records_for_manual_configuration"),
 		"note":    Translate(r, "admin.ssl.add_these_txt_records_to_your_dns_before_requesting_certificate_with_dns_01_challenge"),
 		"records": records,
-	})
-}
-
-// TestSSL tests the SSL/TLS configuration
-func (h *SSLHandler) TestSSL(w http.ResponseWriter, r *http.Request) {
-	// Test SSL configuration
-	results := map[string]interface{}{
-		"tlsVersion":       "TLS 1.3",
-		"cipherSuites":     []string{"TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"},
-		"certificateValid": true,
-		"chainValid":       true,
-		"ocspStapling":     false,
-		"hsts":             true,
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"results": results,
-		"score":   "A+",
-		"message": Translate(r, "success.admin.ssl.ssl_configuration_test_completed"),
-	})
-}
-
-// SecurityScan performs a security scan of the SSL configuration
-func (h *SSLHandler) SecurityScan(w http.ResponseWriter, r *http.Request) {
-	scan := map[string]interface{}{
-		"vulnerabilities": []string{},
-		"warnings": []string{
-			Translate(r, "admin.ssl.consider_enabling_ocsp_stapling_for_better_performance"),
-		},
-		"recommendations": []string{
-			Translate(r, "admin.ssl.enable_http2_for_improved_performance"),
-			Translate(r, "admin.ssl.configure_caa_records_in_dns"),
-		},
-		"score": 95,
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"scan":    scan,
-		"message": Translate(r, "success.admin.ssl.security_scan_completed"),
 	})
 }
 

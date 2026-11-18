@@ -3475,106 +3475,98 @@
       return AdminSslPage.dataPayload;
     },
 
+    message: function(key) {
+      return AdminSslPage.getData().messages[key] || '';
+    },
+
+    api: function(path, options) {
+      const data = AdminSslPage.getData();
+      const settings = options || {};
+      const headers = Object.assign({ 'Accept': 'application/json', 'X-CSRF-Token': data.csrfToken }, settings.headers || {});
+      if (settings.body) headers['Content-Type'] = 'application/json';
+      return fetch(data.adminApiPath + '/ssl' + path, Object.assign({}, settings, { headers: headers, credentials: 'same-origin' }));
+    },
+
+    failureText: function(body) {
+      let text = (body && body.message) || AdminSslPage.message('request_failed');
+      const variables = body && body.details && body.details.variables;
+      if (variables && variables.length) {
+        text += ' ' + AdminSslPage.message('check_variables') + ' ' + variables.join(', ');
+      }
+      return text;
+    },
+
     loadCertStatus: function() {
-      const adminApiPath = AdminSslPage.getData().adminApiPath;
-      fetch(adminApiPath + '/server/ssl/status')
+      AdminSslPage.api('/')
         .then(function(response) { return response.json(); })
-        .then(function(data) {
-          AdminSslPage.renderCertStatus(data);
-          AdminSslPage.updateSchedule(data);
-        })
-        .catch(function(error) {
-          Toast.show('Failed to load certificate status: ' + error.message, 'error');
+        .then(AdminSslPage.renderCertStatus)
+        .catch(function() {
+          Toast.show(AdminSslPage.message('load_failed'), 'error');
         });
     },
 
     renderCertStatus: function(data) {
       const container = document.getElementById('certStatus');
+      container.textContent = '';
 
       if (!data.certificate) {
-        container.innerHTML =
-          '<div class="text-center p-4">' +
-          '<div class="status-badge status-none">No Certificate</div>' +
-          '<p class="mt-3 text-comment">No SSL certificate installed</p>' +
-          '</div>';
+        const empty = document.createElement('p');
+        empty.className = 'text-center p-4 text-comment';
+        empty.textContent = AdminSslPage.message('no_certificate');
+        container.appendChild(empty);
         return;
       }
 
       const cert = data.certificate;
-      const daysUntilExpiry = Math.floor((new Date(cert.notAfter) - new Date()) / (1000 * 60 * 60 * 24));
-
-      let statusClass = 'status-active';
-      let statusText = 'Active';
-
-      if (daysUntilExpiry < 0) {
-        statusClass = 'status-expired';
-        statusText = 'Expired';
-      } else if (daysUntilExpiry < 30) {
-        statusClass = 'status-expiring';
-        statusText = 'Expiring Soon';
-      }
-
-      container.innerHTML =
-        '<div class="text-center mb-3">' +
-        '<div class="status-badge ' + statusClass + '">' + statusText + '</div>' +
-        '</div>' +
-        '<div class="info-grid">' +
-        '<div class="info-row"><span class="info-label">Subject:</span><span class="info-value">' + Utils.escapeHtml(cert.subject || '-') + '</span></div>' +
-        '<div class="info-row"><span class="info-label">Issuer:</span><span class="info-value">' + Utils.escapeHtml(cert.issuer || '-') + '</span></div>' +
-        '<div class="info-row"><span class="info-label">Valid From:</span><span class="info-value">' + new Date(cert.notBefore).toLocaleDateString() + '</span></div>' +
-        '<div class="info-row"><span class="info-label">Valid Until:</span><span class="info-value">' + new Date(cert.notAfter).toLocaleDateString() + '</span></div>' +
-        '<div class="info-row"><span class="info-label">Days Remaining:</span><span class="info-value">' + daysUntilExpiry + ' days</span></div>' +
-        '</div>';
-    },
-
-    updateSchedule: function(data) {
-      document.getElementById('nextCheck').textContent = data.nextCheck || '-';
-      document.getElementById('nextRenewal').textContent = data.nextRenewal || '-';
-      document.getElementById('lastRenewal').textContent = data.lastRenewal || 'Never';
-    },
-
-    updateProgress: function(percent, text) {
-      document.getElementById('progressFill').style.width = percent + '%';
-      document.getElementById('progressText').textContent = text;
+      const rows = [
+        [AdminSslPage.message('subject'), cert.subject || '-'],
+        [AdminSslPage.message('issuer'), cert.issuer || '-'],
+        [AdminSslPage.message('valid_until'), new Date(cert.notAfter).toLocaleDateString()],
+        [AdminSslPage.message('days_remaining'), String(cert.daysRemaining)]
+      ];
+      const grid = document.createElement('div');
+      grid.className = 'info-grid';
+      rows.forEach(function(row) {
+        const line = document.createElement('div');
+        line.className = 'info-row';
+        const label = document.createElement('span');
+        label.className = 'info-label';
+        label.textContent = row[0];
+        const value = document.createElement('span');
+        value.className = 'info-value';
+        value.textContent = row[1];
+        line.appendChild(label);
+        line.appendChild(value);
+        grid.appendChild(line);
+      });
+      container.appendChild(grid);
     },
 
     submitLetsEncryptForm: function(e) {
       e.preventDefault();
-
-      const adminApiPath = AdminSslPage.getData().adminApiPath;
       const obtainBtn = document.getElementById('obtainBtn');
-      const progress = document.getElementById('obtainProgress');
-
       obtainBtn.disabled = true;
-      progress.classList.remove('d-none');
 
-      const domain = document.getElementById('domain').value;
-      const email = document.getElementById('email').value;
-      const altNames = document.getElementById('altNames').value.split('\n').filter(function(n) { return n.trim(); });
+      const body = {
+        domain: document.getElementById('domain').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        altNames: document.getElementById('altNames').value.split('\n').map(function(n) { return n.trim(); }).filter(Boolean),
+        challengeType: document.getElementById('challengeType').value,
+        staging: document.getElementById('staging').checked
+      };
 
-      AdminSslPage.updateProgress(10, 'Validating domain...');
-
-      let responseOk = false;
-      fetch(adminApiPath + '/server/ssl/obtain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: domain, email: email, altNames: altNames })
-      })
+      AdminSslPage.api('/obtain', { method: 'POST', body: JSON.stringify(body) })
         .then(function(response) {
-          responseOk = response.ok;
-          if (!responseOk) throw new Error('Failed to obtain certificate');
-
-          AdminSslPage.updateProgress(100, 'Certificate obtained successfully!');
-          Toast.show('SSL certificate obtained and installed successfully!', 'success');
-
-          setTimeout(function() {
-            progress.classList.add('d-none');
-            AdminSslPage.loadCertStatus();
-          }, 2000);
+          return response.json().then(function(json) { return { ok: response.ok, json: json }; });
+        })
+        .then(function(result) {
+          if (!result.ok) throw new Error(AdminSslPage.failureText(result.json));
+          Toast.show(AdminSslPage.message('obtained'), 'success');
+          AdminSslPage.loadCertStatus();
+          AdminSslPage.loadDNS();
         })
         .catch(function(error) {
-          Toast.show('Failed to obtain certificate: ' + error.message, 'error');
-          progress.classList.add('d-none');
+          Toast.show(error.message, 'error');
         })
         .finally(function() {
           obtainBtn.disabled = false;
@@ -3582,22 +3574,28 @@
     },
 
     renewCert: function() {
-      showConfirm('Renew the SSL certificate now?', 'Renew Certificate').then(function(confirmed) {
+      showConfirm(AdminSslPage.message('confirm_renew')).then(function(confirmed) {
         if (!confirmed) return;
-
-        const adminApiPath = AdminSslPage.getData().adminApiPath;
         const renewBtn = document.getElementById('renewBtn');
         renewBtn.disabled = true;
 
-        fetch(adminApiPath + '/server/ssl/renew', { method: 'POST' })
+        const body = {
+          domain: document.getElementById('domain').value.trim(),
+          challengeType: document.getElementById('challengeType').value,
+          force: true
+        };
+        AdminSslPage.api('/renew', { method: 'POST', body: JSON.stringify(body) })
           .then(function(response) {
-            if (!response.ok) throw new Error('Failed to renew certificate');
-
-            Toast.show('Certificate renewed successfully!', 'success');
+            return response.json().then(function(json) { return { ok: response.ok, json: json }; });
+          })
+          .then(function(result) {
+            if (!result.ok) throw new Error(AdminSslPage.failureText(result.json));
+            Toast.show(AdminSslPage.message('renewed'), 'success');
             AdminSslPage.loadCertStatus();
+            AdminSslPage.loadDNS();
           })
           .catch(function(error) {
-            Toast.show('Failed to renew certificate: ' + error.message, 'error');
+            Toast.show(error.message, 'error');
           })
           .finally(function() {
             renewBtn.disabled = false;
@@ -3606,55 +3604,126 @@
     },
 
     verifyCert: function() {
-      const adminApiPath = AdminSslPage.getData().adminApiPath;
-      fetch(adminApiPath + '/server/ssl/verify', { method: 'POST' })
+      AdminSslPage.api('/verify', { method: 'POST' })
         .then(function(response) { return response.json(); })
         .then(function(data) {
           if (data.valid) {
-            Toast.show('Certificate is valid and properly configured!', 'success');
+            Toast.show(AdminSslPage.message('valid'), 'success');
           } else {
-            Toast.show('Certificate validation failed: ' + data.error, 'error');
+            Toast.show(data.error || AdminSslPage.message('request_failed'), 'error');
           }
         })
-        .catch(function(error) {
-          Toast.show('Verification failed: ' + error.message, 'error');
+        .catch(function() {
+          Toast.show(AdminSslPage.message('request_failed'), 'error');
         });
     },
 
-    saveSettings: function() {
-      const adminApiPath = AdminSslPage.getData().adminApiPath;
-      const settings = {
-        autoRenewal: document.getElementById('autoRenewal').checked,
-        renewalDays: parseInt(document.getElementById('renewalDays').value, 10),
-        emailNotifications: document.getElementById('emailNotifications').checked
-      };
+    addDNSVariable: function(name, stored) {
+      const holder = document.getElementById('dnsVariables');
+      const row = document.createElement('div');
+      row.className = 'form-group dns-variable';
 
-      fetch(adminApiPath + '/server/ssl/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      })
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'form-input dns-variable-name';
+      nameInput.value = name || '';
+      nameInput.setAttribute('aria-label', AdminSslPage.dnsLabels.name);
+      nameInput.setAttribute('placeholder', AdminSslPage.dnsLabels.name);
+      nameInput.setAttribute('autocomplete', 'off');
+      nameInput.setAttribute('spellcheck', 'false');
+
+      const valueInput = document.createElement('input');
+      valueInput.type = 'password';
+      valueInput.className = 'form-input dns-variable-value';
+      valueInput.value = '';
+      valueInput.setAttribute('aria-label', AdminSslPage.dnsLabels.value);
+      valueInput.setAttribute('placeholder', stored ? '********' : AdminSslPage.dnsLabels.value);
+      valueInput.setAttribute('autocomplete', 'new-password');
+
+      row.appendChild(nameInput);
+      row.appendChild(valueInput);
+      holder.appendChild(row);
+    },
+
+    collectDNS: function() {
+      const credentials = {};
+      document.querySelectorAll('#dnsVariables .dns-variable').forEach(function(row) {
+        const name = row.querySelector('.dns-variable-name').value.trim();
+        const value = row.querySelector('.dns-variable-value').value;
+        if (name) credentials[name] = value === '' ? '********' : value;
+      });
+      return { provider: document.getElementById('dnsProvider').value, credentials: credentials };
+    },
+
+    loadDNS: function() {
+      AdminSslPage.api('/dns')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          const select = document.getElementById('dnsProvider');
+          if (select.options.length <= 1) {
+            (data.providers || []).forEach(function(name) {
+              const option = document.createElement('option');
+              option.value = name;
+              option.textContent = name;
+              select.appendChild(option);
+            });
+          }
+          select.value = data.provider || '';
+          document.getElementById('dnsVariables').textContent = '';
+          Object.keys(data.credentials || {}).sort().forEach(function(name) {
+            AdminSslPage.addDNSVariable(name, true);
+          });
+          document.getElementById('dnsValidated').textContent = data.validatedAt
+            ? AdminSslPage.dnsLabels.validated + ' ' + new Date(data.validatedAt).toLocaleString()
+            : '';
+        })
+        .catch(function() {
+          Toast.show(AdminSslPage.message('load_failed'), 'error');
+        });
+    },
+
+    sendDNS: function(path, method, successToast) {
+      const button = document.getElementById(path === '/dns/check' ? 'dnsCheckBtn' : 'dnsSaveBtn');
+      button.disabled = true;
+      AdminSslPage.api(path, { method: method, body: JSON.stringify(AdminSslPage.collectDNS()) })
         .then(function(response) {
-          if (!response.ok) throw new Error('Failed to save settings');
-
-          Toast.show('Settings saved successfully!', 'success');
+          return response.json().then(function(json) { return { ok: response.ok, json: json }; });
+        })
+        .then(function(result) {
+          if (!result.ok) throw new Error(AdminSslPage.failureText(result.json));
+          Toast.show(result.json.message || successToast, 'success');
+          if (path === '/dns') AdminSslPage.loadDNS();
         })
         .catch(function(error) {
-          Toast.show('Failed to save settings: ' + error.message, 'error');
+          Toast.show(error.message, 'error');
+        })
+        .finally(function() {
+          button.disabled = false;
         });
     },
 
     init: function() {
       if (!document.getElementById('admin-ssl-data')) return;
 
+      AdminSslPage.dnsLabels = {
+        name: document.getElementById('dnsVariableAdd').dataset.nameLabel || 'Variable',
+        value: document.getElementById('dnsVariableAdd').dataset.valueLabel || 'Value',
+        validated: document.getElementById('dnsValidated').dataset.label || ''
+      };
+
       document.getElementById('letsEncryptForm').addEventListener('submit', AdminSslPage.submitLetsEncryptForm);
       document.getElementById('renewBtn').addEventListener('click', AdminSslPage.renewCert);
       document.getElementById('refreshBtn').addEventListener('click', AdminSslPage.loadCertStatus);
       document.getElementById('verifyBtn').addEventListener('click', AdminSslPage.verifyCert);
-      document.getElementById('saveSettingsBtn').addEventListener('click', AdminSslPage.saveSettings);
+      document.getElementById('dnsVariableAdd').addEventListener('click', function() { AdminSslPage.addDNSVariable('', false); });
+      document.getElementById('dnsCheckBtn').addEventListener('click', function() { AdminSslPage.sendDNS('/dns/check', 'POST', ''); });
+      document.getElementById('dnsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        AdminSslPage.sendDNS('/dns', 'PUT', '');
+      });
 
       AdminSslPage.loadCertStatus();
-      setInterval(AdminSslPage.loadCertStatus, 30000);
+      AdminSslPage.loadDNS();
     }
   };
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/challenge/tlsalpn01"
 	"github.com/go-acme/lego/v4/lego"
@@ -65,6 +66,7 @@ type LetsEncryptService struct {
 	// Challenge providers
 	http01Provider    *HTTP01Provider
 	dns01Provider     *DNS01Provider
+	dnsSolver         challenge.Provider
 	tlsALPN01Provider *TLSALPN01Provider
 }
 
@@ -282,7 +284,11 @@ func (s *LetsEncryptService) SetupChallenges(challengeType string) error {
 		}
 
 	case "dns-01":
-		if err := s.client.Challenge.SetDNS01Provider(s.dns01Provider); err != nil {
+		var solver challenge.Provider = s.dns01Provider
+		if s.dnsSolver != nil {
+			solver = s.dnsSolver
+		}
+		if err := s.client.Challenge.SetDNS01Provider(solver); err != nil {
 			return fmt.Errorf("failed to setup DNS-01: %w", err)
 		}
 

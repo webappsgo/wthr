@@ -598,6 +598,17 @@ func main() {
 		appLogger.Error("Failed to finish the encryption key re-encryption: %v", err)
 	}
 
+	// AI.md PART 15: plaintext dns-01 credentials are sealed in server.yml, then the provider is
+	// built once so a missing or invalid variable is reported at start
+	if err := util.SealConfigDNSCredentials(cfg); err != nil {
+		appLogger.Error("Failed to encrypt the dns-01 credentials: %v", err)
+	}
+	if cfg.Server.SSL.LetsEncrypt.Enabled && cfg.Server.SSL.LetsEncrypt.Challenge == "dns-01" {
+		if _, err := service.ConfiguredDNSSolver(cfg.Server.SSL.LetsEncrypt, cfg.Server.Security.EncryptionKey); err != nil {
+			appLogger.Error("dns-01 provider check failed: %v", err)
+		}
+	}
+
 	// AI.md PART 6: --mode flag > MODE env > server.mode in server.yml > production
 	mode.FromConfig(cfg.Server.Mode)
 
@@ -1228,6 +1239,12 @@ func main() {
 			taskScheduler.Configure(cfg.Server.Scheduler)
 		}
 
+		// AI.md PART 15: apply the Let's Encrypt settings live and seal any plaintext dns-01 credential
+		cfg.Server.SSL.LetsEncrypt = newCfg.Server.SSL.LetsEncrypt
+		if err := util.SealConfigDNSCredentials(cfg); err != nil {
+			log.Printf("ERROR: could not encrypt the dns-01 credentials: %v", err)
+		}
+
 		// Update global config for handlers
 		config.SetGlobalConfig(cfg)
 
@@ -1722,7 +1739,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to prepare TLS: %v\n", tlsErr)
 			os.Exit(2)
 		}
-		activeTLSRuntime.Store(newTLSRuntime(sslManager, sslSettings, tlsFQDN))
+		runtime := newTLSRuntime(sslManager, sslSettings, tlsFQDN)
+		runtime.SetServerDB(dualDB.Server)
+		activeTLSRuntime.Store(runtime)
 		sslHandler.SetCertificateHooks(sslManager, func() {
 			if _, err := sslManager.CheckExistingCerts(tlsFQDN); err != nil {
 				log.Printf("WARNING: could not load the new certificate: %v", err)
@@ -4302,17 +4321,15 @@ func main() {
 		adminAPI.Mount("/ssl", sslAPI)
 		{
 			sslAPI.Get("/", sslHandler.GetStatus)
-			sslAPI.Patch("/", sslHandler.UpdateSettings)
 			sslAPI.Post("/renew", sslHandler.RenewCertificate)
 			sslAPI.Post("/obtain", sslHandler.ObtainCertificate)
 			sslAPI.Post("/auto-renew", sslHandler.StartAutoRenewal)
 			sslAPI.Get("/dns-records", sslHandler.GetDNSRecords)
+			sslAPI.Get("/dns", sslHandler.GetDNSSettings)
+			sslAPI.Put("/dns", sslHandler.SaveDNSSettings)
+			sslAPI.Post("/dns/check", sslHandler.CheckDNSSettings)
 			sslAPI.Post("/verify", sslHandler.VerifyCertificate)
-			sslAPI.Get("/export", sslHandler.ExportCertificate)
-			sslAPI.Post("/import", sslHandler.ImportCertificate)
 			sslAPI.Post("/revoke", sslHandler.RevokeCertificate)
-			sslAPI.Post("/test", sslHandler.TestSSL)
-			sslAPI.Post("/scan", sslHandler.SecurityScan)
 		}
 
 		// Metrics configuration under /server/

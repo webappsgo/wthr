@@ -277,10 +277,33 @@ valid one (readable, not expired, naming the host):
 With none of them the server starts on a self-signed certificate in `ssl/local/{fqdn}/`, so a
 first run works with no configuration. `ssl.cert` and `ssl.key` (absolute paths) override the
 lookup. With `ssl.letsencrypt.enabled: true` and a public domain name, the server then requests
-a certificate with the configured `challenge` (`http-01`, `tls-alpn-01`; `dns-01` is requested
-from the admin SSL page) and serves it without a restart. The `ssl_renewal` task checks daily
+a certificate with the configured `challenge` (`http-01`, `tls-alpn-01` or `dns-01`) and serves
+it without a restart. The `ssl_renewal` task checks daily
 at 03:00 and renews an app-managed certificate 7 days before it expires. `ssl.min_version` is
 `TLS1.2` or `TLS1.3`.
+
+### DNS-01 provider
+
+`ssl.letsencrypt.dns_provider` is a lego provider name (for example `cloudflare`) and
+`ssl.letsencrypt.dns_credentials` is one flat map of that provider's lego variable names to values:
+
+```yaml
+ssl:
+  letsencrypt:
+    challenge: dns-01
+    dns_provider: cloudflare
+    dns_credentials:
+      CF_DNS_API_TOKEN: "your-token"
+```
+
+A plaintext value is accepted at load and rewritten in `server.yml` as `enc:v1:...`
+(AES-256-GCM under `server.security.encryption_key`, file mode `0600`). Values are never logged,
+never returned by the API and shown as `********` in the admin SSL page. The provider is built
+at startup and before every certificate request without touching DNS; a missing or invalid
+variable fails the request and the error names the variable only. `dns_validated_at` is stored
+in `server.db` after a certificate is issued or renewed through the provider and is cleared when
+the provider or a credential changes. Rotating the encryption key re-encrypts the credentials.
+With no provider set, the TXT records are listed on the admin SSL page for you to publish.
 
 ## Paths
 

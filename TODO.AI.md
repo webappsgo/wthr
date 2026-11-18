@@ -23,12 +23,11 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - 2. PART 5 / 10 config storage (see the PART 5/10 item above): server.yml source of truth, `srv_config` only in cluster mode
 - 3. PART 12 CORS and CSRF are done (web.cors resolution, web.csrf config, admin preview, CSP connect-src shares the list); left: the legacy `cors.*` / `security.cors_origins` rows in `server_config` and the dashboard keys in admin.go are dead and go with item 2
 - 4. PART 11 (see the PART 11 items above), including HMAC CSRF and the `web.csrf` config block
-- 5. PART 15 DNS-01 credential contract: `dns_provider` plus a flat `dns_credentials` map of lego env names, `enc:v1:` AES-256-GCM at rest, constructor-only passing to lego, `app_secrets.dns_validated_at`; nothing is implemented yet
 - 6. PART 17 / 34 (see the admin TOTP item above)
 - 7. PART 14 (see the OpenAPI item above)
 - 8. PART 31 (see the plural/JS strings item above)
 - 9. PART 10 DDL alignment (see the PART 12 schema item above); `admins.api_token_hash` still exists in `legacy_tables.go` while AI.md removed it
-- 10. Legacy stubs listed above (admin_geoip.tmpl, backup version/password, the admin SSL page's fake export/import/test/settings handlers)
+- 10. Legacy stubs listed above (admin_geoip.tmpl, backup version/password)
 - 11. Not yet re-audited against AI.md: PARTS 7, 9, 13, 16, 18, 20-23, 26-30, 32, 33
 - AI.md PART 29 line 48167 reads the PID file as `/var/run/${INTERNAL_ORG}/${INTERNAL_NAME}.pid`, which contradicts the per-service PID directory in PARTS 3, 4, 8 and 25; follow PART 8 and report it in the template inbox
 - PART 5: `cli.GenerateServerYML` writes a hand-written YAML with inline comments, `# Last updated: AUTO_GENERATED` and DB-era wording; generate server.yml from the config defaults with comments above each key
@@ -37,3 +36,5 @@ Project work still needed to bring wthr into line with AI.md. AI.md errors and c
 - PART 12 session cookies are set with SameSite=Lax in handler/auth.go while AI.md defaults `same_site` to Strict (OAuth callback cookies are the only Lax ones); the CSRF same-origin bypass of PART 16 depends on Strict, and `server.session.*` max_age/idle_timeout are still not applied
 - tests/incus.sh: the script it sends into the container fails with `bash: line 185: syntax error: unexpected end of file`, so Phase 2 (`./tests/run_tests.sh`) never reaches the binary; fix the embedded script (likely an unterminated heredoc, quote or block) and rerun Phase 2
 - PART 31: the HTTP-to-HTTPS redirect's 400 body (`tls_serve.go`) uses `http.StatusText`, and the new TLS log/startup errors in `tls_serve.go`, `util/ssl.go` and `rootphase.go` are English-only; route the user-facing ones through `t()`
+- PART 15 admin SSL page: the old fake cards (renewal threshold, history, export/import, test/scan) and their `admin.ssl.*` keys are gone from the page and API; the unused locale keys (`admin.ssl.auto_renewal_heading`, `cert_history_heading`, `export_cert_action`, `import_cert_action`, `security_scan_action`, `test_ssl_config_action`, `renewal_*`, `next_*`, `last_renewal_label` and the matching `success.admin.ssl.*`/`errors.admin.ssl.*`) still sit in all 8 locales and need removing together, and the page has no revoke or auto-renew control although `/ssl/revoke` and `/ssl/auto-renew` routes exist
+- PART 15 DNS-01: lego names the Cloudflare variables `CLOUDFLARE_*` in its errors while AI.md lists `CF_DNS_API_TOKEN`; both are accepted by lego, the server reports lego's names. `service.DNSProviderError` text and the `ERROR: dns-01 provider check failed` log lines are English-only (PART 31)

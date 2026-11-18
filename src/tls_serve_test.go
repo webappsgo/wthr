@@ -213,3 +213,30 @@ func TestNeedsPortBindingIsOffForStatus(t *testing.T) {
 		t.Error("a normal start binds its ports")
 	}
 }
+
+func TestProvisionWaitsForADNSProviderOnDNS01(t *testing.T) {
+	manager := util.NewSSLManager(nil, t.TempDir())
+	if err := manager.GenerateSelfSignedCert("example.com"); err != nil {
+		t.Fatal(err)
+	}
+	settings := configSSL(true)
+	settings.LetsEncrypt.Challenge = "dns-01"
+	if err := newTLSRuntime(manager, settings, "example.com").Provision(); err != nil {
+		t.Errorf("dns-01 with no provider is skipped quietly, got %v", err)
+	}
+}
+
+func TestPrepareChallengeFailsOnBadDNSCredentials(t *testing.T) {
+	previous := config.GetGlobalConfig()
+	cfg := &config.AppConfig{}
+	cfg.Server.Security.EncryptionKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+	cfg.Server.SSL.LetsEncrypt = config.LetsEncryptConfig{Enabled: true, Challenge: "dns-01", DNSProvider: "cloudflare", DNSCredentials: map[string]string{}}
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+
+	runtime := newTLSRuntime(util.NewSSLManager(nil, t.TempDir()), cfg.Server.SSL, "example.com")
+	err := runtime.prepareChallenge(nil)
+	if err == nil || !strings.Contains(err.Error(), "CLOUDFLARE_DNS_API_TOKEN") {
+		t.Errorf("the request must fail naming the variable, got %v", err)
+	}
+}

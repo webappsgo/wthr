@@ -1,6 +1,9 @@
 package service
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/webappsgo/wthr/src/config"
@@ -153,5 +156,41 @@ func TestRotateEncryptionKeyNeedsAConfiguredKey(t *testing.T) {
 	config.GetGlobalConfig().Server.Security.EncryptionKey = ""
 	if err := rotator.Rotate(); err != ErrEncryptionKeyUnavailable {
 		t.Errorf("err = %v, want ErrEncryptionKeyUnavailable", err)
+	}
+}
+
+func TestRotateEncryptionKeyReencryptsDNSCredentials(t *testing.T) {
+	rotator, _, oldKey := encryptionRotationFixture(t)
+	if err := os.WriteFile(filepath.Join(os.Getenv("CONFIG_DIR"), "server.yml"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sealed, err := util.SealDNSCredential(oldKey, "dns-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.GetGlobalConfig()
+	cfg.Server.SSL.LetsEncrypt.DNSProvider = "cloudflare"
+	cfg.Server.SSL.LetsEncrypt.DNSCredentials = map[string]string{"CF_DNS_API_TOKEN": sealed}
+
+	if err := rotator.Rotate(); err != nil {
+		t.Fatalf("rotation failed: %v", err)
+	}
+
+	newKey := cfg.Server.Security.EncryptionKey
+	stored := cfg.Server.SSL.LetsEncrypt.DNSCredentials["CF_DNS_API_TOKEN"]
+	plain, _, err := util.OpenDNSCredential(newKey, stored)
+	if err != nil || plain != "dns-token" {
+		t.Errorf("the credential must open under the new key, got %q, %v", plain, err)
+	}
+	if _, _, err := util.OpenDNSCredential(oldKey, stored); err == nil {
+		t.Error("the credential must no longer open under the old key")
+	}
+	file, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "server.yml"))
+	if err != nil || !strings.Contains(string(file), stored) {
+		t.Errorf("server.yml must carry the re-encrypted value: %v", err)
+	}
+	if pending, err := rotator.PendingRows(); err != nil || pending != 0 {
+		t.Errorf("nothing may be left to re-encrypt, got %d, %v", pending, err)
 	}
 }
