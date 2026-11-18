@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // DirectoryPaths holds all application directory paths
@@ -162,7 +164,7 @@ func isRoot() bool {
 	}
 
 	// On Unix-like systems, check if UID is 0
-	return os.Geteuid() == 0
+	return privilege.StartedAsRoot()
 }
 
 // GetDatabasePath returns the full path to the SQLite database file

@@ -39,7 +39,7 @@ func NewPIDFile(dataDir string) *PIDFile {
 
 	if custom := strings.TrimSpace(os.Getenv("PID_FILE")); custom != "" {
 		pidPath = custom
-	} else if os.Geteuid() == 0 {
+	} else if privilege.StartedAsRoot() {
 		pidPath = SystemPIDFilePath()
 	} else {
 		pidPath = filepath.Join(dataDir, pidFileName+".pid")
@@ -114,7 +114,7 @@ func (p *PIDFile) CreatePIDFile() error {
 	// AI.md PART 7: Permissions - root: 0755/0644, user: 0700/0600
 	dirPerm := os.FileMode(0700)
 	filePerm := os.FileMode(0600)
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		dirPerm = 0755
 		filePerm = 0644
 	}

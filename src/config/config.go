@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // WeatherConfig represents weather-specific configuration per AI.md PART 37
@@ -989,7 +991,7 @@ func applyEnvOverrides(cfg *AppConfig) {
 // getConfigPath returns the config file path based on user privileges per AI.md PART 4
 func getConfigPath() string {
 	// Check if running as root
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		// Root user: /etc/webappsgo/wthr/server.yml
 
 		return "/etc/webappsgo/wthr/server.yml"

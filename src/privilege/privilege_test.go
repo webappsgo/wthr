@@ -195,3 +195,9 @@ func TestBindPrivilegedPortsFailureClosesEarlierSockets(t *testing.T) {
 		t.Error("sockets bound before the failure must be closed and forgotten")
 	}
 }
+
+func TestStartedAsRootIsDecidedAtStart(t *testing.T) {
+	if StartedAsRoot() != (os.Geteuid() == 0) {
+		t.Errorf("StartedAsRoot() = %v, but the test process euid is %d", StartedAsRoot(), os.Geteuid())
+	}
+}

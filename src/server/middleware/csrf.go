@@ -404,11 +404,11 @@ func setCSRFCookie(w http.ResponseWriter, r *http.Request, cfg CSRFConfig, token
 	// one-hour expiry silently invalidated tokens already rendered into open
 	// forms, which surfaced as spurious 403s on long-lived admin pages.
 	http.SetCookie(w, &http.Cookie{
-		Name:     cfg.CookieName,
-		Value:    token,
-		Path:     "/",
-		Domain:   "",
-		Secure:   secure,
+		Name:   cfg.CookieName,
+		Value:  token,
+		Path:   "/",
+		Domain: "",
+		Secure: secure,
 		// AI.md PART 16 "Implementation Rules": HttpOnly=false, because the page script reads
 		// the token to send it back in the X-CSRF-Token header
 		HttpOnly: false,

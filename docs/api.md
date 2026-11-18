@@ -544,6 +544,17 @@ The overall `status` is `healthy`, `degraded`, `restart_required`, `maintenance`
 
 A missing `tor` binary is `disabled`, never an error. An `unavailable` network makes the overall status `degraded` (HTTP 200), never `unhealthy`.
 
+### Operator Token
+
+Admin session or admin token required. The value is never returned by a read.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/server/{admin_path}/security/operator-token` | The masked operator token and whether one is configured |
+| `POST` | `/api/v1/server/{admin_path}/security/operator-token` | Regenerate it. Body `{"current_password": "..."}`; the new value is returned once in `data.token` and the previous value stops working at once |
+
+The operator token itself is presented as `Authorization: Bearer tok_...` on the `/debug/*` endpoints.
+
 ## Content Negotiation
 
 `/api/**` routes pick the response format in this order:

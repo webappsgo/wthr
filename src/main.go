@@ -1207,6 +1207,12 @@ func main() {
 			}
 		}
 
+		// AI.md PART 11: a server.token edited in server.yml (or synced in a cluster) takes effect at once
+		if newCfg.Server.Token != cfg.Server.Token {
+			cfg.Server.Token = newCfg.Server.Token
+			middleware.SetOperatorToken(cfg.Server.Token)
+		}
+
 		// AI.md PART 19: apply scheduler timezone, catch-up window and per-task schedules live
 		cfg.Server.Scheduler = newCfg.Server.Scheduler
 		if taskScheduler != nil {
@@ -1673,6 +1679,7 @@ func main() {
 
 	// Create admin web handler (robots.txt, security.txt)
 	adminWebHandler := handler.NewAdminWebHandler(db)
+	operatorTokenHandler := handler.NewAdminOperatorTokenHandler()
 
 	// Check for SSL configuration
 	hostname, _ := os.Hostname()
@@ -1782,21 +1789,28 @@ func main() {
 	// favicon.ico endpoint (AI.md PART 16: embedded default, customizable)
 	r.Get("/favicon.ico", adminWebHandler.ServeFavicon)
 
+	// AI.md PART 11 "Operator Token": generated on first start when server.token is absent or empty,
+	// written back to server.yml (0600) and printed once; only its SHA-256 is kept in memory
+	if cfg.Server.Token == "" {
+		generated, tokenErr := middleware.NewOperatorToken()
+		if tokenErr != nil {
+			// General startup failure (AI.md PART 8: exit code 1).
+			log.Printf("ERROR: cannot generate the operator token: %v", tokenErr)
+			os.Exit(1)
+		}
+		cfg.Server.Token = generated
+		if saveErr := config.SaveConfig(cfg); saveErr != nil {
+			log.Printf("WARNING: could not save server.token to server.yml: %v", saveErr)
+		}
+		fmt.Printf("%s Operator token (shown once, send as Authorization: Bearer): %s\n", display.Emoji("🔑", "*"), generated)
+	}
+	middleware.SetOperatorToken(cfg.Server.Token)
+
 	// Debug endpoints (only enabled when --debug flag or DEBUG=true)
 	// Per AI.md PART 6: Debug endpoints only available when debug mode enabled
 	if mode.IsDebugEnabled() {
-		// AI.md PART 6: every /debug endpoint requires the operator token as a
-		// Bearer credential; an unset server.token yields a per-run random one
-		operatorToken := cfg.Server.Token
-		if operatorToken == "" {
-			generated, tokenErr := middleware.NewOperatorToken()
-			if tokenErr != nil {
-				log.Fatalf("ERROR: cannot generate operator token: %v", tokenErr)
-			}
-			operatorToken = generated
-			fmt.Printf("Debug operator token (shown once, this run only, send as Bearer): %s\n", operatorToken)
-		}
-		requireOperator := middleware.RequireOperatorToken(operatorToken)
+		// AI.md PART 6: every /debug endpoint requires the operator token as a Bearer credential
+		requireOperator := middleware.RequireOperatorToken()
 
 		r.With(requireOperator).Route("/debug", func(debug chi.Router) {
 			debugHandlers := handler.NewDebugHandlers(db.DB, r)
@@ -2354,13 +2368,8 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/security", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_security.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Security Settings - Admin",
-				"page":       "security",
-				"breadcrumb": "Security",
-			}))
-		})
+		adminRoutes.Get("/security", operatorTokenHandler.ShowSecurityPage)
+		adminRoutes.Post("/security/operator-token", operatorTokenHandler.RegenerateOperatorToken)
 
 		// Coordinated-disclosure pipeline (AI.md PART 11): reports, policy, hall of fame, PGP keypair
 		adminRoutes.Get("/security/reports", handler.ShowSecurityReports)
@@ -3592,6 +3601,10 @@ func main() {
 		})
 
 		// Scheduler per spec: /api/{api_version}/{admin_path}/scheduler/
+		// AI.md PART 11 "Operator Token": masked view and regenerate (password re-prompt, audit event)
+		adminAPI.Get("/security/operator-token", operatorTokenHandler.GetOperatorToken)
+		adminAPI.Post("/security/operator-token", operatorTokenHandler.RegenerateOperatorToken)
+
 		adminAPI.Get("/scheduler", schedulerHandler.GetAllTasks)
 		adminAPI.Get("/scheduler/{name}", schedulerHandler.GetTask)
 		adminAPI.Get("/scheduler/{name}/history", schedulerHandler.GetTaskHistory)

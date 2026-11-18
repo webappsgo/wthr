@@ -156,6 +156,27 @@ unsigned and is treated as logged out, so users and admins sign in once more.
 
 ---
 
+## Operator Token
+
+The operator token is one global credential for the `/debug/*` endpoints and operator-only
+operations. It is a server setting, not a user account.
+
+- It is `server.token` in `server.yml`: `tok_` followed by 32 random base62 characters. It is
+  generated on first start when the key is absent or empty, saved back to `server.yml` (mode
+  `0600`) and printed once in the startup output.
+- Only `SHA-256(server.token)` is kept in memory. A presented token is hashed and compared in
+  constant time. The raw value is never logged after that first print, never returned by an API and
+  never included in a backup export.
+- Send it as `Authorization: Bearer tok_...`. `--debug` turns the debug endpoints on; it never
+  replaces the token.
+- The **Security** admin page shows it masked. **Regenerate operator token** asks for your password,
+  records `security.operator_token_regenerated` in the audit log, shows the new value once and stops
+  the previous value working at once. The same action is `POST
+  /api/v1/server/{admin_path}/security/operator-token` with `{"current_password": "..."}`.
+- You can also blank `server.token` and restart to get a new value.
+
+---
+
 ## CORS
 
 One policy covers every route, pages and API alike. The allow-list is built on each request, in

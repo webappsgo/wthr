@@ -9,6 +9,39 @@
                 <p class="subtitle">{{t $lang "admin.security.subtitle"}}</p>
             </div>
 
+            {{if .NewOperatorToken}}
+            <section class="admin-card" aria-labelledby="new-operator-token-heading" role="alert">
+                <div class="card-header">
+                    <h2 id="new-operator-token-heading">{{t $lang "admin.security.operator_token_new_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.operator_token_new_description"}}</p>
+                </div>
+                <div class="card-body">
+                    <p><code class="break-all" id="new-operator-token">{{.NewOperatorToken}}</code></p>
+                </div>
+            </section>
+            {{end}}
+
+            <section class="admin-card" aria-labelledby="operator-token-heading">
+                <div class="card-header">
+                    <h2 id="operator-token-heading">{{t $lang "admin.security.operator_token_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.operator_token_description"}}</p>
+                </div>
+                <div class="card-body">
+                    <p><code class="break-all">{{.OperatorTokenMasked}}</code></p>
+                    <form id="operator-token-form" class="settings-form" method="post" action="{{if .admin_path}}{{.admin_path}}{{else}}/server/administration{{end}}/security/operator-token">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <div class="form-group">
+                            <label for="operator_token_password">{{t $lang "admin.security.operator_token_password_label"}}</label>
+                            <input type="password" id="operator_token_password" name="current_password" class="form-control" autocomplete="current-password" required aria-describedby="operator_token_password_help">
+                            <small id="operator_token_password_help" class="form-text">{{t $lang "admin.security.operator_token_password_help"}}</small>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-danger">{{t $lang "admin.security.operator_token_regenerate_action"}}</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
             <!-- Security Headers Section -->
             <section class="admin-card" aria-labelledby="headers-heading">
                 <div class="card-header">

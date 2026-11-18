@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // Logger handles application logging to both stdout and files
@@ -28,7 +29,7 @@ func NewLogger(logDir string) (*Logger, error) {
 	// Ensure log directory exists
 	// AI.md PART 7: Permissions - root: 0755, user: 0700
 	dirPerm := os.FileMode(0700)
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		dirPerm = 0755
 	}
 	if err := os.MkdirAll(logDir, dirPerm); err != nil {

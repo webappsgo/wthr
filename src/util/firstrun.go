@@ -14,6 +14,7 @@ import (
 
 	"github.com/webappsgo/wthr/src/config"
 	"gopkg.in/yaml.v3"
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // FirstRunConfig represents first-run auto-detected configuration
@@ -59,7 +60,7 @@ func HashSetupToken(token string) string {
 func SaveSetupToken(configDir, token string) error {
 	// Ensure config directory exists
 	dirPerm := os.FileMode(0700)
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		dirPerm = 0755
 	}
 	if err := os.MkdirAll(configDir, dirPerm); err != nil {
@@ -221,7 +222,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 	// Ensure config directory exists
 	// AI.md PART 7: Permissions - root: 0755, user: 0700
 	dirPerm := os.FileMode(0700)
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		dirPerm = 0755
 	}
 	configDir := filepath.Dir(configPath)

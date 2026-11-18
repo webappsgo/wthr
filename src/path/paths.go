@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/webappsgo/wthr/src/privilege"
 )
 
 var (
@@ -66,7 +68,7 @@ func getLinuxPaths(appName string) *Paths {
 	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		return &Paths{
 			DataDir:      filepath.Join("/var/lib", orgNamespace),
 			ConfigDir:    filepath.Join("/etc", orgNamespace),
@@ -116,7 +118,7 @@ func getDarwinPaths(appName string) *Paths {
 	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root or system service
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		return &Paths{
 			DataDir:      filepath.Join("/Library", "Application Support", orgNamespace, "data"),
 			ConfigDir:    filepath.Join("/Library", "Application Support", orgNamespace),
@@ -200,7 +202,7 @@ func getBSDPaths(appName string) *Paths {
 	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root
-	if os.Geteuid() == 0 {
+	if privilege.StartedAsRoot() {
 		return &Paths{
 			DataDir:      filepath.Join("/var/db", orgNamespace),
 			ConfigDir:    filepath.Join("/usr/local/etc", orgNamespace),
@@ -370,7 +372,7 @@ func (p *Paths) initializeSubdirectories() {
 func isPrivileged() bool {
 	switch runtime.GOOS {
 	case "linux", "darwin", "freebsd", "openbsd", "netbsd":
-		return os.Geteuid() == 0
+		return privilege.StartedAsRoot()
 	case "windows":
 		// On Windows, check if running as SYSTEM or Administrator
 		// This is a simplified check; proper Windows privilege check would use syscall

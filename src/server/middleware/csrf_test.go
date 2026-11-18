@@ -346,7 +346,6 @@ func TestCSRFProtection_SessionAuthenticatedRegularUserIsProtected(t *testing.T)
 	}
 }
 
-
 // csrfStoreFixture installs a secret store backed by a scratch database for one test.
 func csrfStoreFixture(t *testing.T) *secret.Store {
 	t.Helper()
