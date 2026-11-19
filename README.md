@@ -84,8 +84,10 @@ The binary installs itself as a service for systemd, OpenRC, runit, SysVinit (Li
 ```bash
 sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 sudo wthr --service --install
-sudo wthr --service start
+wthr --service status
 ```
+
+`--service --install` enables and starts the service; it falls back to a user service when no administrator access is available.
 
 ## CLI Client
 

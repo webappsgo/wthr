@@ -48,30 +48,32 @@ On first run, wthr generates `server.yml` in `{config_dir}` and creates its data
 
 ## Service Installation
 
-### Linux
+### All platforms
 
-Let the binary install itself. It detects systemd, OpenRC, runit or SysVinit, writes the matching service file, creates the `wthr` service account and enables the service:
+Let the binary install itself. `--service --install` detects the service manager of the host (systemd, OpenRC, runit or SysVinit on Linux; rc.d on BSD; launchd on macOS; Windows Service), writes the service file, enables the service and starts it:
 
 ```bash
 sudo wthr --service --install
-sudo wthr --service start
 ```
 
-The service starts as root only to bind its ports, then the binary drops privileges to the `wthr` account (no `User=`, `command_user` or `--chuid` in any service file). Use `--service --disable` to stop and disable it, and `--service --uninstall` to remove the service, its data and the account.
+Without root or administrator access the command offers to escalate, and falls back to a user service (`systemd --user` on Linux, a LaunchAgent on macOS) when escalation is declined or impossible. On Windows run it from an elevated prompt; the service runs as the Virtual Service Account `NT SERVICE\wthr`.
+
+The service starts as root only to bind its ports, then the binary drops privileges to the `wthr` account (no `User=`, `command_user` or `--chuid` in any service file). Control and inspect it with:
+
+```bash
+sudo wthr --service restart
+wthr --service status
+sudo wthr --service --disable
+sudo wthr --service --uninstall
+```
+
+`--disable` stops the service and removes it from auto-start but keeps the service file, data and account, so `--install` enables it again. `--uninstall` asks for confirmation, then stops and removes the service, deletes the config, data, cache, log and backup directories and the service account, and leaves the binary for you to remove.
 
 Typical runtime locations follow AI.md PART 4:
 
 - Config: `{config_dir}`
 - Data: `{data_dir}`
 - Logs: `{log_dir}`
-
-### macOS / Windows / BSD
-
-Use the platform-specific service helpers or native service manager with the same foreground command:
-
-```bash
-wthr --mode production
-```
 
 ## Setup
 
