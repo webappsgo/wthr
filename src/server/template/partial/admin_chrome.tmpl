@@ -60,7 +60,7 @@
           </a>
         </li>
       </ul>
-      <details class="nav-section" data-nav-section="server"{{if index $.admin_nav_open "server"}} open{{end}}>
+      <details class="nav-section" data-nav-section="server"{{if or (not $.admin_nav_open) (index $.admin_nav_open "server")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128421;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.server"}}</span>
@@ -80,7 +80,7 @@
           <li><a class="nav-link{{if eq $page "info"}} is-active{{end}}" href="{{$ap}}/info"{{if eq $page "info"}} aria-current="page"{{end}}>{{t $lang "admin.nav.info"}}</a></li>
         </ul>
       </details>
-      <details class="nav-section" data-nav-section="security"{{if index $.admin_nav_open "security"}} open{{end}}>
+      <details class="nav-section" data-nav-section="security"{{if or (not $.admin_nav_open) (index $.admin_nav_open "security")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128274;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.security"}}</span>
@@ -96,7 +96,7 @@
           <li><a class="nav-link{{if eq $page "keypair"}} is-active{{end}}" href="{{$ap}}/security/keypair"{{if eq $page "keypair"}} aria-current="page"{{end}}>{{t $lang "admin.nav.security_keypair"}}</a></li>
         </ul>
       </details>
-      <details class="nav-section" data-nav-section="network"{{if index $.admin_nav_open "network"}} open{{end}}>
+      <details class="nav-section" data-nav-section="network"{{if or (not $.admin_nav_open) (index $.admin_nav_open "network")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#127760;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.network"}}</span>
@@ -109,7 +109,7 @@
         </ul>
       </details>
       {{- /* AI.md PART 34 is active for this project, so Users is always shown. */}}
-      <details class="nav-section" data-nav-section="users"{{if index $.admin_nav_open "users"}} open{{end}}>
+      <details class="nav-section" data-nav-section="users"{{if or (not $.admin_nav_open) (index $.admin_nav_open "users")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128101;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.users"}}</span>
@@ -122,7 +122,7 @@
       </details>
       {{- /* AI.md PART 10 cluster section: only rendered when cluster mode is on. */}}
       {{if .cluster_enabled}}
-      <details class="nav-section" data-nav-section="cluster"{{if index $.admin_nav_open "cluster"}} open{{end}}>
+      <details class="nav-section" data-nav-section="cluster"{{if or (not $.admin_nav_open) (index $.admin_nav_open "cluster")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128225;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.cluster"}}</span>
@@ -133,7 +133,7 @@
         </ul>
       </details>
       {{end}}
-      <details class="nav-section" data-nav-section="help"{{if index $.admin_nav_open "help"}} open{{end}}>
+      <details class="nav-section" data-nav-section="help"{{if or (not $.admin_nav_open) (index $.admin_nav_open "help")}} open{{end}}>
         <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#10067;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.help"}}</span>

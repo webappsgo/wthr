@@ -94,6 +94,7 @@ var mustResolveRenderNames = []string{
 	"admin/admin_search.tmpl",
 	"admin/admin_security.tmpl",
 	"admin/admin_settings.tmpl",
+	"admin/admin_settings_form.tmpl",
 	"admin/admin_ssl.tmpl",
 	"admin/admin_system.tmpl",
 	"admin/admin_tor.tmpl",

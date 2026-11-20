@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -1081,10 +1082,21 @@ func runServer() {
 	middleware.SetHTMLTemplates(tmpl)
 	middleware.RenderHTML = func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{}) {
 		var page bytes.Buffer
-		if err := tmpl.ExecuteTemplate(&page, name, data); err != nil && page.Len() == 0 {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.WriteHeader(status)
-			return
+		if err := tmpl.ExecuteTemplate(&page, name, data); err != nil {
+			// A template that fails part-way would otherwise reach the browser as a truncated
+			// page; the full error goes to the log, the visitor gets the styled error page
+			// (AI.md PART 9: no internals in responses, full detail in the log).
+			log.Printf("ERROR: template %s failed: %v (request_id=%s)", name, err, w.Header().Get("X-Request-ID"))
+			page.Reset()
+			status = http.StatusInternalServerError
+			errorData := util.TemplateData(r, map[string]interface{}{
+				"title": handler.Translate(r, "error.title"),
+				"error": handler.Translate(r, "errors.internal_error"),
+			})
+			if errPage := tmpl.ExecuteTemplate(&page, "page/error.tmpl", errorData); errPage != nil {
+				page.Reset()
+				page.WriteString("<!DOCTYPE html><title>" + html.EscapeString(handler.Translate(r, "error.title")) + "</title><p>" + html.EscapeString(handler.Translate(r, "errors.internal_error")) + "</p>")
+			}
 		}
 		// AI.md PART 14: curl/wget/httpie and Accept: text/plain get the page as
 		// formatted terminal text, everyone else gets the HTML as rendered; the
@@ -2372,7 +2384,8 @@ func runServer() {
 		// other data the admin panel manages
 		adminRoutes.Get("/settings/search", handler.AdminSearchPage)
 
-		adminRoutes.Get("/settings", adminHandler.ShowSettingsPage)
+		adminRoutes.Get("/settings", adminHandler.ShowSettingsForm)
+		adminRoutes.Post("/settings", adminHandler.SaveSettingsForm)
 		adminRoutes.Post("/settings/cache", handler.UpdateCacheConfig)
 		adminRoutes.Post("/settings/rate-limit", handler.UpdateRateLimitConfig)
 
