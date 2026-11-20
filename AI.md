@@ -7247,7 +7247,7 @@ Before proceeding, confirm you understand:
 | PID File | `/var/run/{internal_org}/{internal_name}/{internal_name}.pid` |
 | SSL | `/Library/Application Support/{internal_org}/{internal_name}/ssl/` (letsencrypt/, local/) |
 | Security | `/Library/Application Support/{internal_org}/{internal_name}/data/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `/Library/Application Support/{internal_org}/{internal_name}/db/` (server.db, users.db) |
+| SQLite DB | `/Library/Application Support/{internal_org}/{internal_name}/data/db/` (server.db, users.db) |
 | Service | `/Library/LaunchDaemons/{plist_name}.plist` |
 
 ### User (non-privileged)
@@ -7264,7 +7264,7 @@ Before proceeding, confirm you understand:
 | Backup | System backup dir when writable (PART 8 → `GetBackupDir`), else `~/Library/Backups/{internal_org}/{internal_name}/` |
 | PID File | `~/Library/Application Support/{internal_org}/{internal_name}/{internal_name}.pid` |
 | SSL | `~/Library/Application Support/{internal_org}/{internal_name}/ssl/` (letsencrypt/, local/) |
-| Security | `~/Library/Application Support/{internal_org}/{internal_name}/data/security/` (geoip/, blocklists/, cve/, trivy/) |
+| Security | `~/Library/Application Support/{internal_org}/{internal_name}/security/` (geoip/, blocklists/, cve/, trivy/) |
 | SQLite DB | `~/Library/Application Support/{internal_org}/{internal_name}/db/` (server.db, users.db) |
 | Service | `~/Library/LaunchAgents/{plist_name}.plist` |
 
@@ -7325,7 +7325,7 @@ Before proceeding, confirm you understand:
 | Backup | `%ProgramData%\Backups\{internal_org}\{internal_name}\` |
 | SSL | `%ProgramData%\{internal_org}\{internal_name}\ssl\` (letsencrypt\, local\) |
 | Security | `%ProgramData%\{internal_org}\{internal_name}\data\security\` (geoip\, blocklists\, cve\, trivy\) |
-| SQLite DB | `%ProgramData%\{internal_org}\{internal_name}\db\` (server.db, users.db) |
+| SQLite DB | `%ProgramData%\{internal_org}\{internal_name}\data\db\` (server.db, users.db) |
 | Service | Windows Service Manager |
 
 ### User (non-privileged)
@@ -8754,7 +8754,7 @@ ENTRYPOINT [ "tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh" ]
 |-------------|--------|
 | Ports >1024 only | OS requires root for ports <1024 |
 | User directories only | No write access to /etc, /var, etc. |
-| No service install | Requires escalation |
+| No system service install without escalation | A user service is installed instead ("Commands Requiring Escalation") |
 
 #### Binary Implementation
 
@@ -11760,8 +11760,8 @@ PHASE 5: Server startup (actual server start)
 | `--service start` (launchd) | Always foreground (ignores config) |
 | `--service start` (runit/s6) | Always foreground (ignores config) |
 | `--service start` (container) | Always foreground (ignores config) |
-| `--service start` (SysV init) | Always daemonize (ignores config) |
-| `--service start` (rc.d/BSD) | Always daemonize (ignores config) |
+| `--service start` (SysV init) | Always foreground (the init script backgrounds it with `start-stop-daemon --background`) |
+| `--service start` (rc.d/BSD) | Always foreground (the rc script backgrounds and supervises it with `daemon(8)`) |
 | Manual start (no --service) | Respects `--daemon` flag and config |
 
 **Container Detection (always foreground):**
@@ -11937,12 +11937,9 @@ func shouldDaemonize(isServiceStart bool, daemonFlag bool, configDaemonize bool)
     if isServiceStart {
         // Service start - detect manager and ignore config
         switch detectServiceManager() {
-        case "systemd", "openrc", "launchd", "runit", "s6", "docker", "container":
-            // Always foreground
+        case "systemd", "openrc", "sysv", "rcd", "launchd", "runit", "s6", "docker", "container":
+            // Always foreground: the init system, or its init script, does the backgrounding
             return false
-        case "sysv", "rcd":
-            // Always daemonize
-            return true
         default:
             // Unknown, default to foreground
             return false
@@ -12834,6 +12831,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_log(category);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_type, actor_id);
+
+-- ----------------------------------------------------------------------------
+-- Learned Origins (hosts seen in X-Forwarded-Host from trusted proxies only)
+-- Feeds the CORS allow-list and the CSP connect-src list (PART 11 and "CORS Allow-list Resolution Order")
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS learned_origins (
+    -- Lowercase hostname (RFC 1123), with ":port" only when the port is not the scheme default; the origin is https://{host}
+    host        TEXT PRIMARY KEY,
+    first_seen  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    -- Last time a trusted proxy presented this host; written at most once a minute per host; MAX(observed_at) is the cluster heartbeat version
+    observed_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    -- Always trusted_proxy: a host is never learned from a request that did not come from a trusted proxy
+    source      TEXT NOT NULL DEFAULT 'trusted_proxy'
+);
+
+CREATE INDEX IF NOT EXISTS idx_learned_origins_observed ON learned_origins(observed_at);
+
+-- The daily cleanup task prunes it: DELETE FROM learned_origins WHERE observed_at < strftime('%s', 'now') - 2592000;
+-- and keeps at most 1000 rows, the oldest observed_at first out. An invalid hostname (not RFC 1123, an IP literal, longer than 253 characters) is never stored.
 
 -- ----------------------------------------------------------------------------
 -- Scheduler (background task tracking)
@@ -13831,7 +13847,7 @@ export CONFIG_DIR="/config/${APP_NAME}"
 export DATA_DIR="/data/${APP_NAME}"
 export CACHE_DIR="/data/${APP_NAME}/cache"
 export LOG_DIR="/data/log/${APP_NAME}"
-export DATABASE_DIR="/data/db"
+export DATABASE_DIR="/data/db/sqlite"
 export BACKUP_DIR="/data/backups/${APP_NAME}"
 
 # Tor directories under binary's dirs (binary owns Tor)
@@ -13849,23 +13865,22 @@ services:
     image: {PLATFORM_CONTAINER_REGISTRY}/{project_org}/{internal_name}:latest
     container_name: {project_name}-app
     command:
-      - --config=/config
-      - --data=/data
-      - --log=/logs
-      - --pid=/run/{internal_name}.pid
+      - --config=/config/{project_name}
+      - --data=/data/{project_name}
+      - --log=/data/log/{project_name}
       - --port=80
     volumes:
-      # Config (read-only)
-      - config:/config:ro
-      # Data (read-write)
+      # Config (read-write: the server writes server.yml, secrets.yml and yaml.d/)
+      - config:/config
+      # Data, logs, databases and backups (read-write); no PID file inside a container
       - data:/data
-      # Logs (read-write)
-      - logs:/logs
-      # PID file
-      - /var/run:/run:z
     ports:
       # Random 64xxx host port → container port 80 (prod pattern)
       - "172.17.0.1:64580:80"
+
+volumes:
+  config:
+  data:
 ```
 
 **Minimal compose (uses container defaults):**
@@ -39413,18 +39428,19 @@ ON --service --install:
 
 2. Check if can install system service
    ├─ YES (root/admin): Install system service
+   │   ├─ Create the service user/group and directories (the startup routine, idempotent)
    │   ├─ Write service file (systemd unit, launchd plist, etc.)
    │   ├─ Enable service (auto-start on boot)
-   │   └─ Start service (server handles user creation on startup)
+   │   └─ Start service
    │
    └─ NO (user): Fall back to user service
        ├─ Install user service (systemd --user, launchctl user agent)
        ├─ Enable service
        └─ Start service
 
-**Note:** Server binary handles user/group creation, privilege escalation,
+**Note:** The server binary handles user/group creation, privilege escalation,
 directory setup, and permissions during NORMAL STARTUP (see Server Startup
-Sequence). The --service --install flag ONLY installs and starts the service.
+Sequence). `--service --install` runs the same user/group and directory routine first (idempotent: an existing account or directory is left alone), because init systems that sandbox the service (systemd `ProtectSystem=strict` makes `/etc` read-only, so `groupadd` and `useradd` cannot run inside it) or that create directories for the service user (OpenRC `checkpath -o`, SysV `chown`) need the account to exist before the first start. The startup routine then finds nothing left to do. A user service (non-root install) creates no account.
 ```
 
 **Init system detection (install time).** `--service --install` and the other `--service` commands look at the HOST, not at how this process was started, and pick the FIRST match:
@@ -40023,7 +40039,7 @@ useradd --system --uid {id} --gid {id} \
 | Drop | root→`{internal_name}` | Binary drops privileges |
 | Run | `{internal_name}` | Serve requests as unprivileged user |
 
-**The `{internal_name}` user is created automatically by the binary on first startup.**
+**The `{internal_name}` user is created automatically by the binary: by its startup routine, which `--service --install` also runs before the first start.**
 
 macOS uses `dscl` (Directory Service Command Line) to create system users. The user is hidden from login screen and has no shell access.
 
@@ -40194,8 +40210,9 @@ New-Service -Name "{internal_name}" `
   -Description "{project_name} service" `
   -StartupType Automatic
 
-# Service automatically runs as NT SERVICE\{internal_name}
-# No user creation needed - Windows manages it
+# New-Service alone runs the service as LocalSystem, so set the Virtual Service Account explicitly (no password needed)
+sc.exe config "{internal_name}" obj= "NT SERVICE\{internal_name}"
+# No user creation needed - Windows manages the account
 ```
 
 **Directory Permissions:**
@@ -40228,8 +40245,8 @@ func installWindowsService() error {
 
     exePath, _ := os.Executable()
 
-    // Create service - runs as Virtual Service Account by default
-    // when ServiceStartName is empty or "NT SERVICE\{name}"
+    // Create service as the Virtual Service Account NT SERVICE\{name};
+    // an empty ServiceStartName would mean LocalSystem, which this spec forbids
     s, err := m.CreateService(
         "{internal_name}",
         exePath,
@@ -40237,8 +40254,8 @@ func installWindowsService() error {
             DisplayName:     "{project_name}",
             Description:     "{project_name} service",
             StartType:       mgr.StartAutomatic,
-            // Empty = Virtual Service Account
-            ServiceStartName: "",
+            // The Virtual Service Account: Windows creates it with the service and needs no password
+            ServiceStartName: "NT SERVICE\\{internal_name}",
         },
     )
     if err != nil {
@@ -40368,6 +40385,9 @@ depend() {
 }
 
 start_pre() {
+    # /var/run is cleared at boot and checkpath -d creates only the last path component, so create the org parents first
+    checkpath -d -m 0755 /var/run/{internal_org}
+    checkpath -d -m 0755 /var/log/{internal_org}
     checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/run/{internal_org}/{internal_name}
     checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/log/{internal_org}/{internal_name}
 }
@@ -40508,7 +40528,17 @@ exec svlogd -tt /var/log/{internal_org}/{internal_name}
 
 name="{internal_name}"
 rcvar="{internal_name}_enable"
-command="/usr/local/bin/{project_name}"
+pidfile="/var/run/{internal_org}/{internal_name}/{internal_name}.pid"
+# daemon(8) backgrounds and supervises the foreground server and writes the supervisor pid to ${pidfile}
+command="/usr/sbin/daemon"
+command_args="-P ${pidfile} -r -f /usr/local/bin/{project_name}"
+start_precmd="{internal_name}_prestart"
+
+# /var/run is cleared at boot, so create the per-service directories before every start
+{internal_name}_prestart()
+{
+    install -d -m 0755 /var/run/{internal_org}/{internal_name} /var/log/{internal_org}/{internal_name}
+}
 
 load_rc_config $name
 run_rc_command "$1"
@@ -40833,7 +40863,8 @@ DOCKER_CPUS ?= 2
 
 # Docker - Set REGISTRY based on your platform (ghcr.io, registry.gitlab.com, git.example.com)
 REGISTRY ?= ghcr.io/$(PROJECT_ORG)/$(PROJECT_NAME)
-GO_DOCKER := docker run --rm \
+# GO_DOCKER_RUN: shared docker run prefix (no image) so targets can add mounts before the image
+GO_DOCKER_RUN := docker run --rm \
 	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
@@ -40841,8 +40872,8 @@ GO_DOCKER := docker run --rm \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
 	-e CGO_ENABLED=0 \
-	-e GOFLAGS=-buildvcs=false \
-	casjaysdev/go:latest
+	-e GOFLAGS=-buildvcs=false
+GO_DOCKER := $(GO_DOCKER_RUN) casjaysdev/go:latest
 # CGO_ENABLED=0 and GOFLAGS=-buildvcs=false are casjaysdev/go:latest defaults; set explicitly for clarity
 
 .PHONY: build local release docker test dev clean
@@ -41028,18 +41059,22 @@ test:
 # Fast: local platform only, no ldflags, random temp dir for isolation
 # Builds server + CLI + agent (if they exist)
 dev:
+	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@$(GO_DOCKER) go mod tidy
 	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(INTERNAL_NAME)-XXXXXX") && \
 		echo "Quick dev build to $$BUILD_DIR..." && \
-		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME) ./src && \
+		$(GO_DOCKER_RUN) -v $$BUILD_DIR:/build casjaysdev/go:latest \
+			go build -buildvcs=false -o /build/$(PROJECT_NAME) ./src && \
 		echo "Built: $$BUILD_DIR/$(PROJECT_NAME)" && \
 		if [ -d "src/client" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-cli ./src/client && \
+			$(GO_DOCKER_RUN) -v $$BUILD_DIR:/build casjaysdev/go:latest \
+				go build -buildvcs=false -o /build/$(PROJECT_NAME)-cli ./src/client && \
 			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-cli"; \
 		fi && \
 		if [ -d "src/agent" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-agent ./src/agent && \
+			$(GO_DOCKER_RUN) -v $$BUILD_DIR:/build casjaysdev/go:latest \
+				go build -buildvcs=false -o /build/$(PROJECT_NAME)-agent ./src/agent && \
 			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-agent"; \
 		fi && \
 		echo "Test:  docker run --rm --name $(PROJECT_NAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECT_NAME) --help"
@@ -48469,8 +48504,11 @@ check() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$d"; else fai
 check_not() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$d"; else pass "$d"; fi; }
 wait_for() { local n="$1" i; shift; for i in $(seq 1 "$n"); do "$@" >/dev/null 2>&1 && return 0; sleep 1; done; return 1; }
 
-API="http://localhost:80/api/{api_version}/server/healthz"
-healthz() { curl -q -LSsf --max-time 10 "$API"; }
+# A native service listens on the port the server saved in server.yml (a random 64xxx port; 80 is only the container default), so read it there
+CONFIG_FILE="/etc/${INTERNAL_ORG}/${INTERNAL_NAME}/server.yml"
+port() { sed -n 's/^  port: *"\{0,1\}\([0-9]\{1,5\}\).*/\1/p' "$CONFIG_FILE" 2>/dev/null | head -1; }
+api() { echo "http://localhost:$(port)/api/{api_version}/server/healthz"; }
+healthz() { curl -q -LSsf --max-time 10 "$(api)"; }
 healthz_up() { healthz | jq -e '.status' >/dev/null; }
 overlay() { healthz | jq -r ".features.$1.$2"; }
 
@@ -48531,47 +48569,47 @@ check "restart replaced the process" test "$(svc_pid)" != "$OLD_PID"
 echo "=== [$INIT_MODE] Service stop and start ==="
 ${PROJECT_NAME} --service stop
 check "service stopped" wait_for 30 svc_stopped
-check_not "health endpoint is down while stopped" curl -q -LSsf --max-time 3 "$API"
+check_not "health endpoint is down while stopped" curl -q -LSsf --max-time 3 "$(api)"
 ${PROJECT_NAME} --service start
 check "service active after start" wait_for 30 svc_active
 check "health endpoint answers after start" wait_for 60 healthz_up
 
 echo "=== API Endpoint Tests ==="
 # JSON response (default)
-curl -q -LSsf http://localhost:80/api/{api_version}/server/healthz || fail "/api/{api_version}/server/healthz"
+curl -q -LSsf http://localhost:$(port)/api/{api_version}/server/healthz || fail "/api/{api_version}/server/healthz"
 # .txt extension (plain text)
-curl -q -LSsf http://localhost:80/api/{api_version}/server/healthz.txt || fail "/api/{api_version}/server/healthz.txt"
+curl -q -LSsf http://localhost:$(port)/api/{api_version}/server/healthz.txt || fail "/api/{api_version}/server/healthz.txt"
 # Accept: application/json
-curl -q -LSsf -H 'Accept: application/json' http://localhost:80/server/healthz || fail "Accept JSON"
+curl -q -LSsf -H 'Accept: application/json' http://localhost:$(port)/server/healthz || fail "Accept JSON"
 # Accept: text/plain
-curl -q -LSsf -H 'Accept: text/plain' http://localhost:80/server/healthz || fail "Accept text/plain"
+curl -q -LSsf -H 'Accept: text/plain' http://localhost:$(port)/server/healthz || fail "Accept text/plain"
 
 echo "=== Project-Specific Endpoint Tests ==="
 # MUST test ALL endpoints from IDEA.md - both API and frontend
 # Test FULL CRUD if project has CRUD operations
 #
 # Example for jokes API (API routes with .txt extension):
-#   curl -q -LSsf http://localhost:80/api/{api_version}/jokes/random || fail "API JSON"
-#   curl -q -LSsf http://localhost:80/api/{api_version}/jokes/random.txt || fail "API .txt"
-#   curl -q -LSsf -H 'Accept: text/plain' http://localhost:80/api/{api_version}/jokes/random || fail "API Accept text"
+#   curl -q -LSsf http://localhost:$(port)/api/{api_version}/jokes/random || fail "API JSON"
+#   curl -q -LSsf http://localhost:$(port)/api/{api_version}/jokes/random.txt || fail "API .txt"
+#   curl -q -LSsf -H 'Accept: text/plain' http://localhost:$(port)/api/{api_version}/jokes/random || fail "API Accept text"
 #
 # Example for jokes frontend (smart detection, no .txt - test with text for simplicity):
-#   JOKE=$(curl -q -LSsf http://localhost:80/jokes/random)
+#   JOKE=$(curl -q -LSsf http://localhost:$(port)/jokes/random)
 #   if echo "$JOKE" | grep -q "Why"; then pass "Frontend text works"; else fail "Frontend text"; fi
-#   curl -q -LSsfI -H 'Accept: text/html' http://localhost:80/jokes/random | grep -q 'text/html' || fail "Frontend HTML"
+#   curl -q -LSsfI -H 'Accept: text/html' http://localhost:$(port)/jokes/random | grep -q 'text/html' || fail "Frontend HTML"
 #
 # Example for open data CRUD (full test suite):
-#   curl -q -LSsf http://localhost:80/api/{api_version}/items || fail "LIST items API"
-#   curl -q -LSsf http://localhost:80/api/{api_version}/items/1 || fail "GET item API JSON"
-#   curl -q -LSsf http://localhost:80/api/{api_version}/items/1.txt || fail "GET item API .txt"
-#   curl -q -LSsf -X POST -H 'Content-Type: application/json' -d '{"name":"test"}' http://localhost:80/api/{api_version}/items || fail "CREATE item API"
-#   ITEMS=$(curl -q -LSsf http://localhost:80/items)
+#   curl -q -LSsf http://localhost:$(port)/api/{api_version}/items || fail "LIST items API"
+#   curl -q -LSsf http://localhost:$(port)/api/{api_version}/items/1 || fail "GET item API JSON"
+#   curl -q -LSsf http://localhost:$(port)/api/{api_version}/items/1.txt || fail "GET item API .txt"
+#   curl -q -LSsf -X POST -H 'Content-Type: application/json' -d '{"name":"test"}' http://localhost:$(port)/api/{api_version}/items || fail "CREATE item API"
+#   ITEMS=$(curl -q -LSsf http://localhost:$(port)/items)
 #
 # Test ALL project-specific endpoints defined in IDEA.md
 
 echo "=== Open API Smoke Test ==="
 # No auth required: all endpoints are publicly accessible
-if curl -q -LSsf http://localhost:80/server/healthz | grep -q '"status"'; then pass "Health endpoint works"; else fail "Health endpoint"; fi
+if curl -q -LSsf http://localhost:$(port)/server/healthz | grep -q '"status"'; then pass "Health endpoint works"; else fail "Health endpoint"; fi
 
 echo "=== Binary Rename Tests ==="
 # Binaries show the ACTUAL name in --help/--version (not hardcoded)
@@ -48590,10 +48628,10 @@ if [ -f /usr/local/bin/${PROJECT_NAME}-cli ]; then
 
     echo '--- CLI Full Functionality Tests ---'
     if [ -n "${API_TOKEN:-}" ]; then
-        ${PROJECT_NAME}-cli --server http://localhost:80 --token "$API_TOKEN" status || fail "CLI status"
+        ${PROJECT_NAME}-cli --server http://localhost:$(port) --token "$API_TOKEN" status || fail "CLI status"
         # Project-specific CLI commands go here (IDEA.md)
     else
-        ${PROJECT_NAME}-cli --server http://localhost:80 status || echo 'CLI status (no token) failed or not applicable'
+        ${PROJECT_NAME}-cli --server http://localhost:$(port) status || echo 'CLI status (no token) failed or not applicable'
     fi
 else
     echo 'client not installed - skipping'
