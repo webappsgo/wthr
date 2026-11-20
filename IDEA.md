@@ -298,7 +298,7 @@ All external API responses are validated before use. Network calls have 30-secon
 | Earthquakes | USGS Earthquake API | 1 minute |
 | Hurricanes | NOAA National Hurricane Center | 15 minutes |
 | Moon Phases | Calculated (no external API) | N/A |
-| IP Geolocation | sapics/ip-location-db | Monthly |
+| IP Geolocation | sapics/ip-location-db | Weekly |
 
 ### Interfaces & compatibility
 
