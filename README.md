@@ -33,7 +33,7 @@ https://wthr.top
 - Guest and per-user theme/language preferences (`/server/preferences`)
 - Eight languages: English, Spanish, French, German, Italian, Arabic (right-to-left), Chinese, Japanese; see [Translating](docs/translating.md)
 - MCP server (Streamable HTTP) so AI assistants can use the weather API; help at `/server/help/mcp`
-- Passkey-only authentication for Server Admins (no admin passwords)
+- Server Admin sign-in with passwords and optional passkey verification
 - TOTP and WebAuthn/passkey two-factor enrollment for regular users
 - One-time recovery keys for account recovery (shown once, hashed at rest)
 - Public user profiles with visibility controls and avatars (gravatar/upload/external)

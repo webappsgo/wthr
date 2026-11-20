@@ -15,9 +15,9 @@ On first run, Weather Service launches the setup wizard:
 3. Create the primary admin account:
    - Username (email address)
    - Strong password (min 12 characters)
-   - Enable 2FA (recommended, optional)
 4. Configure basic server settings
 5. Complete setup
+6. Register a passkey from the admin profile to require a second authentication factor at sign-in
 
 The setup wizard is a one-time process. After completion, access the admin panel at `/server/administration`.
 
@@ -27,18 +27,18 @@ The setup wizard is a one-time process. After completion, access the admin panel
 
 1. Go to `https://wthr.top/server/administration`
 2. Enter admin username and password
-3. If 2FA is enabled, enter the TOTP code
+3. If the account has a passkey registered, complete the passkey prompt
 4. Click **Login**
 
-### Two-Factor Authentication (2FA)
+### Passkeys
 
-Enable 2FA for enhanced security:
+Register a passkey to add a second factor to password sign-in:
 
-1. Go to **Admin Panel** → **Security**
-2. Click **Enable Two-Factor Authentication**
-3. Scan QR code with authenticator app (Google Authenticator, Authy, etc.)
-4. Enter verification code
-5. Save recovery codes in a safe place
+1. Go to your admin profile's **Security** section
+2. Enter your current password and register a passkey using the browser prompt
+3. Remove a passkey from the same page when it is no longer trusted
+
+Admin TOTP enrollment and recovery codes are not available in this build.
 
 ### Password Requirements
 
@@ -138,10 +138,24 @@ Configure server-wide settings through the web UI.
 
 #### GeoIP Settings
 
-- **Enable GeoIP** - Auto-location via IP address
-- **Auto-Update** - Automatically update GeoIP databases
-- **Update Interval** - How often to update (default: 7 days)
-- **Database Sources** - GitHub Release asset URLs for GeoIP data
+- **Enable GeoIP** - Enable lookups; the built-in scheduler updates databases weekly
+- **Deny Countries** - Block selected ISO 3166-1 alpha-2 country codes
+- **Allow Countries** - Allow only selected codes; this takes precedence over the deny list
+- **Saved Country Lists** - Save operator-defined lists as named presets and load them into either list
+
+The controls are available at `/server/{admin_path}/network/geoip`. Database paths and update
+schedules are built in and are not configurable there. Missing databases and lookup failures fail
+open for GeoIP while the remaining security checks still run. IPs in `server.security.allowlist`
+bypass country blocking.
+
+#### Firewall and Trusted IPs
+
+Use `/server/{admin_path}/security/firewall` for trusted entries, or
+`/server/{admin_path}/security/blocked-ips` for the same page focused on IP blocks. Trusted entries
+need a description and are stored in `{config_dir}/yaml.d/security.yml`;
+they bypass IP blocks, rate limits, and country blocking while still requiring admin
+authentication. Manual blocks require a reason and can be temporary (one hour), extended (24
+hours), or permanent. Changes apply immediately.
 
 #### Authentication Settings
 
@@ -289,6 +303,7 @@ Create and restore backups.
 **Backup Features:**
 - Manual backup creation
 - Automated scheduled backups
+- Optional backup encryption; set or change the password during setup or from the Backup page
 - Backup to local filesystem
 - Download backups
 - View backup history
@@ -300,6 +315,15 @@ Create and restore backups.
 2. Click **Create Backup**
 3. Wait for backup to complete
 4. Download backup file or leave on server
+
+The backup password is encrypted at rest in `{config_dir}/secrets.yml` using the server encryption
+key. It is not returned by an API or displayed again. Scheduled backups use the saved password;
+restoring an encrypted archive still requires the password to be supplied for that restore.
+
+Backups include databases and configuration, including account credential hashes and application
+secrets. Without a backup password, the archive is unencrypted and its contents are readable by
+anyone who obtains the file. Store backups with access controls appropriate for credentials, or
+set a backup encryption password before creating one.
 
 **Restoring a Backup:**
 
@@ -410,7 +434,7 @@ The admin panel is fully responsive and works on:
 ### Admin Account Security
 
 - **Use strong passwords** - At least 12 characters with complexity
-- **Enable 2FA** - Protect admin access with TOTP
+- **Passkeys** - Add a WebAuthn passkey as a second factor for admin sign-in
 - **Regular password rotation** - Change passwords every 90 days
 - **Unique passwords** - Don't reuse passwords from other services
 - **Secure password storage** - Use a password manager

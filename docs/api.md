@@ -555,6 +555,28 @@ Admin session or admin token required. The value is never returned by a read.
 
 The operator token itself is presented as `Authorization: Bearer tok_...` on the `/debug/*` endpoints.
 
+### Firewall and IP blocks
+
+These routes are under `/api/v1/server/{admin_path}/security/` and require an authenticated server
+admin session or an authorized server admin API token. Manual IP/CIDR blocks support `temporary` (one hour by default), `extended` (24
+hours), and `permanent` durations. A future RFC 3339 `expires_at` may replace a temporary or
+extended default.
+
+| Method and route | Description |
+|------------------|-------------|
+| `GET /blocked-ips` | List IP and CIDR blocks, including expired records |
+| `POST /blocked-ips` | Add a block with `ip` or `cidr`, `type`, and `reason` |
+| `GET /blocked-ips/{ip}` | Get one block record |
+| `DELETE /blocked-ips/{ip}` | Remove one block |
+| `DELETE /blocked-ips/expired` | Purge expired block records |
+| `GET /allowlist` | List trusted IP/CIDR entries |
+| `POST /allowlist` | Add `{ "cidr": "203.0.113.0/24", "description": "office" }` |
+| `DELETE /allowlist/{id}` | Remove an entry by its stable identifier |
+| `GET /allowlist/check/{ip}` | Check whether an IP matches a trusted entry |
+
+Trusted entries bypass IP blocks, rate limits, and GeoIP country blocking. They do not bypass
+authentication, API token validation, or CSRF protection.
+
 ## Content Negotiation
 
 `/api/**` routes pick the response format in this order:

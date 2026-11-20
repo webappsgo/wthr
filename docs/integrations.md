@@ -35,8 +35,12 @@ Databases used:
 
 Files are fetched from the sapics/ip-location-db GitHub Release assets.
 
-GeoIP is used only for automatic location detection on the weather page. It is not used as an access
-control mechanism. Users may specify a location explicitly at any time, overriding the GeoIP result.
+GeoIP supports automatic location detection on the weather page and an optional deny-only country
+policy. Country policy is only one risk signal: it never grants access or replaces authentication or
+authorization. Missing databases and lookup failures fail open for GeoIP, while the rest of the
+security pipeline continues. Private and internal addresses are not looked up, and configured
+`server.security.allowlist` addresses bypass country blocking. Operators configure country lists and
+their saved presets in `/server/{admin_path}/network/geoip`.
 
 ---
 
@@ -126,7 +130,7 @@ Access is gated by a **per-service bearer token**, sent in the `Authorization` h
 with an empty body. Tokens are compared in constant time, never logged, and always displayed
 masked as `xxxxx` in the admin panel and API responses.
 
-Configure the tokens under `server.metrics.auth.tokens` in `server.yml`, or in the admin panel at
+Configure the tokens under `server.metrics.auth.tokens` in `{config_dir}/yaml.d/metrics.yml`, or in the admin panel at
 `/server/{admin_path}/metrics`:
 
 ```yaml

@@ -29,7 +29,7 @@ A unified weather information platform that aggregates global meteorological dat
 | API Documentation | Interactive REST and GraphQL documentation |
 | i18n | English, Spanish, French, German, Arabic, Japanese, Chinese |
 
-All weather data sources are free/public APIs — no API keys required. GeoIP databases are downloaded on first run and updated weekly by the scheduler (never embedded in the binary). Self-hosted with no external services required.
+All weather data sources are free/public APIs and require no operator API keys or provider accounts. Live forecasts, alerts, and related lookups require outbound network access to those providers. GeoIP databases are downloaded on first run and updated weekly by the scheduler (never embedded in the binary). The service can be self-hosted, with cached-data fallback behavior described below when providers are unavailable.
 
 ## Project variables
 
@@ -191,7 +191,7 @@ type MoonPhase struct {
 | USGS Earthquake API | Untrusted (external) | Return cached; if no cache, empty list |
 | NOAA NHC (Hurricanes) | Untrusted (external) | Return cached; if no cache, empty list |
 | sapics/ip-location-db | Trusted (downloaded on first run, updated weekly by the scheduler, never embedded) | Fall back to default location on lookup failure |
-| Client IP address | Untrusted | Used only for GeoIP lookup; no other trust |
+| Client IP address | Untrusted | Used for GeoIP lookup, security logs, rate limiting, and IP blocklist checks; never trusted as identity |
 | User-supplied location | Untrusted | Validate and sanitize before use |
 | Admin input (config) | Trusted (authenticated admin) | Validate schema; reject invalid values |
 
@@ -240,7 +240,7 @@ All external API responses are validated before use. Network calls have 30-secon
 | Alert spam | Subscription requires verified user account |
 
 **Explicit non-goals (acceptable risk):**
-- GeoIP is a convenience feature, not a security gate; VPN bypass is acceptable
+- GeoIP can apply a configured deny-only country rule, but it is never the sole access-control gate or a substitute for authentication; VPN and proxy bypass are expected
 - Regular users are not required to enable two-factor authentication
 
 ### Security decisions & exceptions

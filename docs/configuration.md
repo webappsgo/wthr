@@ -8,6 +8,7 @@ wthr generates its configuration at runtime with sane defaults and keeps the liv
 |------|----------|---------|
 | `server.yml` | `{config_dir}/server.yml` | Server configuration |
 | `yaml.d/*.yml`, `yaml.d/*.yaml` | `{config_dir}/yaml.d/` | Optional drop-in files that override `server.yml` |
+| `secrets.yml` | `{config_dir}/secrets.yml` | Owner-only secret values, including the encrypted scheduled-backup password |
 | `cli.yml` | `~/.config/webappsgo/wthr/cli.yml` | CLI client configuration |
 
 Use the admin panel for routine changes:
@@ -21,7 +22,7 @@ Configuration is applied in this order:
 
 1. Command-line flags
 2. Environment variables
-3. Config files: `yaml.d/*` drop-ins override `server.yml`
+3. Config files: `yaml.d/*` drop-ins override `server.yml`; `secrets.yml` supplies secret keys last
 4. Embedded defaults
 
 ## Important Rules
@@ -39,7 +40,7 @@ A large configuration may be split into files in `{config_dir}/yaml.d/`, next to
 | Rule | Behavior |
 |------|----------|
 | Files | `*.yml` and `*.yaml`, regular files only. Hidden files, backups (`*.bak`, `*~`, `*.orig`), other extensions and subdirectories are ignored. A symlink is followed only when its target stays inside `yaml.d/` |
-| Order | Built-in defaults, then `server.yml`, then every drop-in in byte-wise filename order (`10-tls.yml`, then `20-mail.yml`); a later file overrides an earlier one |
+| Order | Built-in defaults, then `server.yml`, then every drop-in in byte-wise filename order (`10-tls.yml`, then `20-mail.yml`), then `secrets.yml` for secret keys |
 | Merge | Maps merge key by key and recursively. A scalar or a list in a later file replaces the earlier value whole; lists are never appended. An explicit `null` is an error, not a reset |
 | Keys | The same dotted paths as `server.yml`; any section may live in any file |
 | Validation | The merged result is validated like any config. An error names the file, line and key; a duplicate key inside one file is an error |
@@ -48,7 +49,7 @@ A large configuration may be split into files in `{config_dir}/yaml.d/`, next to
 | Permissions | A drop-in that is group or world writable is refused. Use `0600` for files that hold secrets |
 | Backup | `{config_dir}/yaml.d/` is included in backups whenever it exists |
 
-The admin panel writes only `server.yml`. A setting that a drop-in file sets is owned by that file (`set by yaml.d/20-mail.yml`); edit the drop-in instead. The startup log lists each loaded drop-in in order at info level and, with debug enabled, names the file that won for every overridden key. Secret values are never logged.
+The admin panel writes core server settings to `server.yml` and stores the scheduled-backup password encrypted in `secrets.yml`. A setting that a drop-in file sets is owned by that file (`set by yaml.d/20-mail.yml`); edit the drop-in instead. The startup log lists each loaded drop-in in order at info level and, with debug enabled, names the file that won for every overridden key. Secret values are never logged.
 
 ## Environment Variables
 
@@ -134,10 +135,17 @@ hurricanes:
 ### GeoIP
 
 ```yaml
-geoip:
-  enabled: true
-  update_interval: 168h
+server:
+  geoip:
+    enabled: true
+    deny_countries: []
+    allow_countries: []
+    presets: {}
 ```
+
+These controls belong in `{config_dir}/yaml.d/security.yml` and are also available at
+`/server/{admin_path}/network/geoip`. GeoIP database paths and weekly updates are managed by the
+built-in scheduler; they are not configuration keys.
 
 ### Trusted Proxies
 

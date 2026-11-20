@@ -57,7 +57,7 @@ user-facing flows.
 All endpoints are rate-limited with a sliding window: per IP for anonymous requests, and per token
 for requests carrying a valid Bearer token, so clients behind a shared IP never throttle one another.
 Failed authentication is always counted per IP. The defaults below live under
-`server.rate_limit` in `server.yml` and are editable from the admin panel.
+`server.rate_limit` in `{config_dir}/yaml.d/security.yml` and are editable from the admin panel.
 
 | Bucket | Default limit |
 |--------|---------------|
@@ -70,6 +70,17 @@ Failed authentication is always counted per IP. The defaults below live under
 | Registration | 5 requests / hour |
 
 Exceeding the limit returns **HTTP 429 Too Many Requests** with a `Retry-After` header.
+
+### Trusted IP allowlist
+
+Administrators manage trusted IP addresses and CIDRs at `/server/{admin_path}/security/firewall`.
+Entries are stored in `server.security.allowlist` in `{config_dir}/yaml.d/security.yml`. They bypass
+IP blocklists, rate limits, and GeoIP country blocking. They never bypass admin authentication, API
+token validation, CSRF protection, path security, or TLS requirements.
+
+Administrators can add manual IP/CIDR blocks from the same page. Temporary blocks expire after one
+hour, extended blocks after 24 hours, and permanent blocks have no expiry. Expired records remain
+visible for review until purged.
 
 ---
 
@@ -153,6 +164,11 @@ A rotation writes the previous value first, then the new one, then re-encrypts w
 so a crash loses nothing. The upkeep task deletes previous values once their grace period has
 passed.
 
+The optional scheduled-backup password is separate from these three application secrets. It is
+AES-256-GCM encrypted with `server.security.encryption_key` and stored in `{config_dir}/secrets.yml`.
+It is included in backups, never returned by an API, and re-encrypted when the server encryption key
+rotates.
+
 **Rotating from the admin panel** always asks for your password and writes an audit event:
 
 - **Installation secret** (Security > Keypair > *Rotate installation secret*, event
@@ -160,7 +176,7 @@ passed.
   and security report links issued before the rotation keep working for 7 days.
 - **Encryption key** (Security > Encryption, event `security.encryption_key_rotated`): the key
   `server.security.encryption_key` is replaced and its `encryption_key_version` incremented. Two-factor
-  secrets and security report bodies and contacts are re-encrypted immediately. The previous key is
+  secrets, security report bodies and contacts, and the scheduled-backup password are re-encrypted immediately. The previous key is
   stored wrapped under the new one and stays valid for 30 days. A second rotation is refused while any
   row is still readable only with the previous key, and a re-encryption that a crash interrupted is
   finished at the next start. The API is `GET` and `POST
