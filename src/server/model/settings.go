@@ -9,6 +9,7 @@ import (
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
 )
 
 // Setting represents a configuration setting
@@ -206,9 +207,9 @@ func (m *SettingsModel) ListByPrefix(prefix string) ([]*Setting, error) {
 }
 
 // InitializeDefaults sets default values for all settings
-// backupPath is optional - if empty, uses "/data/backups" as default
+// backupPath is optional - if empty, the resolved backup directory (AI.md PART 8) is the default
 func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
-	defaultBackupPath := "/data/backups"
+	defaultBackupPath := path.GetBackupDir()
 	if len(backupPath) > 0 && backupPath[0] != "" {
 		defaultBackupPath = backupPath[0]
 	}

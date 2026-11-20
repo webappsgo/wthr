@@ -125,11 +125,11 @@ func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
 		return buildGraphQLTokenContext(ctx, authHeader)
 	}
 
-	if adminSessionCookie, err := r.Cookie("admin_session"); err == nil && strings.TrimSpace(adminSessionCookie.Value) != "" {
+	if adminSessionCookie, err := r.Cookie(middleware.AdminSessionCookieName()); err == nil && strings.TrimSpace(adminSessionCookie.Value) != "" {
 		return buildGraphQLAdminSessionContext(ctx, adminSessionCookie.Value)
 	}
 
-	if userSessionCookie, err := r.Cookie(middleware.SessionCookieName); err == nil && strings.TrimSpace(userSessionCookie.Value) != "" {
+	if userSessionCookie, err := r.Cookie(middleware.UserSessionCookieName()); err == nil && strings.TrimSpace(userSessionCookie.Value) != "" {
 		return buildGraphQLUserSessionContext(ctx, userSessionCookie.Value)
 	}
 

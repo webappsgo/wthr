@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"io"
 	"log"
 	"net/http"
@@ -56,12 +57,6 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 		log.Printf("audit log write failed: action=%s admin_id=%d passkey_id=%d error=%v", action, adminID, passkeyID, err)
 	}
 }
-
-// adminSessionCookieName is the canonical cookie name for full admin sessions.
-// Mirrors the literal already in use in HandleLogin (auth.go) and
-// RequireAdminAuth (middleware/admin_auth.go) — kept here as a constant so
-// the passkey-login finalize path issues the same cookie shape.
-const adminSessionCookieName = "admin_session"
 
 // AdminPasskeyHandler hosts the chi REST routes for admin-side WebAuthn
 // passkey management (registration, listing, and deletion).
@@ -304,19 +299,11 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	isHTTPS := requestUsesHTTPS(r)
 	maxAge := int(time.Until(result.ExpiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     adminSessionCookieName,
-		Value:    result.SessionID,
-		Path:     "/",
-		MaxAge:   maxAge,
-		Secure:   isHTTPS,
-		HttpOnly: true,
-	})
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountAdmin, result.SessionID, time.Duration(maxAge)*time.Second))
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,

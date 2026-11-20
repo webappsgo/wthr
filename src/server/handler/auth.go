@@ -61,7 +61,7 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 	// Check if already authenticated as admin (admin_session cookie)
 	cfg := config.GetGlobalConfig()
 	adminPath := "/server/" + cfg.GetAdminPath()
-	adminSessionCookie, err := r.Cookie("admin_session")
+	adminSessionCookie, err := r.Cookie(middleware.AdminSessionCookieName())
 	if err == nil && adminSessionCookie.Value != "" {
 		adminSessionID := adminSessionCookie.Value
 		// Validate admin session exists in database.
@@ -79,7 +79,7 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if already authenticated as user (weather_session cookie)
+	// Check if already authenticated as user (user session cookie)
 	if middleware.IsAuthenticated(r) {
 		http.Redirect(w, r, "/users/dashboard", http.StatusFound)
 		return
@@ -212,7 +212,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		adminPath := "/server/" + cfg.GetAdminPath()
 
 		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
-		duration := 30 * 24 * time.Hour
+		duration := middleware.SessionSettingsFor(middleware.SessionAccountAdmin).MaxAge
 		adminSession, err := adminSessionModel.CreateSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
 		if err != nil {
 			respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
@@ -221,17 +221,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 		adminModel.UpdateLastLogin(admin.ID)
 
-		isHTTPS := util.TrustedIsHTTPS(r)
-
-		http.SetCookie(w, &http.Cookie{
-			Name:     "admin_session",
-			Value:    adminSession.SessionID,
-			Path:     "/",
-			MaxAge:   int(duration.Seconds()),
-			HttpOnly: true,
-			Secure:   isHTTPS,
-			SameSite: http.SameSiteLaxMode,
-		})
+		http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountAdmin, adminSession.SessionID, time.Duration(int(duration.Seconds()))*time.Second))
 
 		if strings.Contains(contentType, "application/json") {
 			writeAuthJSON(w, http.StatusOK, map[string]interface{}{
@@ -335,16 +325,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set weather_session cookie (user sessions only)
-	http.SetCookie(w, &http.Cookie{
-		Name:     middleware.SessionCookieName,
-		Value:    session.ID,
-		Path:     "/",
-		MaxAge:   sessionTimeout,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	// Set the user session cookie (user sessions only)
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, session.ID, time.Duration(sessionTimeout)*time.Second))
 
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
@@ -479,17 +461,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Set session cookie with proper security settings per AI.md PART 11
 	// Secure: auto (based on TLS), HttpOnly: true, SameSite: Lax
-	http.SetCookie(w, &http.Cookie{
-		Name:     middleware.SessionCookieName,
-		Value:    session.ID,
-		Path:     "/",
-		MaxAge:   sessionTimeout,
-		HttpOnly: true,
-		// Secure: auto-detect based on TLS (AI.md: secure: auto)
-		Secure: r.TLS != nil,
-		// SameSite: Lax per AI.md session configuration
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, session.ID, time.Duration(sessionTimeout)*time.Second))
 
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
@@ -524,33 +496,17 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// AI.md PART 17: one logout endpoint ends a Server Admin session as well
 	adminSessionEnded := false
-	if cookie, err := r.Cookie("admin_session"); err == nil && cookie.Value != "" {
+	if cookie, err := r.Cookie(middleware.AdminSessionCookieName()); err == nil && cookie.Value != "" {
 		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 		if err := adminSessionModel.DeleteSession(cookie.Value); err != nil {
 			log.Printf("WARNING: logout: failed to delete admin session: %v", err)
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     "admin_session",
-			Value:    "",
-			MaxAge:   -1,
-			Path:     "/",
-			Secure:   util.TrustedIsHTTPS(r),
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
+		http.SetCookie(w, middleware.ClearSessionCookie(r, middleware.SessionAccountAdmin))
 		adminSessionEnded = true
 	}
 
 	// Clear session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     middleware.SessionCookieName,
-		Value:    "",
-		MaxAge:   -1,
-		Path:     "/",
-		Domain:   "",
-		Secure:   false,
-		HttpOnly: true,
-	})
+	http.SetCookie(w, middleware.ClearSessionCookie(r, middleware.SessionAccountUser))
 
 	// Respond based on request type
 	acceptHeader := r.Header.Get("Accept")

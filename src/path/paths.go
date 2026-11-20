@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/webappsgo/wthr/src/privilege"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 var (
@@ -42,187 +43,21 @@ type Paths struct {
 	AppName      string
 }
 
-// GetDefaultPaths returns default directory paths for the current OS
+// GetDefaultPaths returns the AI.md PART 4 directories for this OS and the mode decided at
+// process start. The per-OS tables live in util.DefaultDirectories, the one place they are
+// defined.
 func GetDefaultPaths(appName string) *Paths {
-	switch runtime.GOOS {
-	case "linux":
-		return getLinuxPaths(appName)
-	case "darwin":
-		return getDarwinPaths(appName)
-	case "windows":
-		return getWindowsPaths(appName)
-	case "freebsd", "openbsd", "netbsd":
-		return getBSDPaths(appName)
-	default:
-		// Fallback to Linux paths
-		return getLinuxPaths(appName)
-	}
-}
-
-// getLinuxPaths returns Linux-specific paths (XDG Base Directory spec)
-// Per AI.md PART 4: Paths must include organization namespace (webappsgo/wthr)
-func getLinuxPaths(appName string) *Paths {
-	homeDir, _ := os.UserHomeDir()
-
-	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("webappsgo", appName)
-
-	// Check if running as root
-	if privilege.StartedAsRoot() {
-		return &Paths{
-			DataDir:      filepath.Join("/var/lib", orgNamespace),
-			ConfigDir:    filepath.Join("/etc", orgNamespace),
-			LogDir:       filepath.Join("/var/log", orgNamespace),
-			CacheDir:     filepath.Join("/var/cache", orgNamespace),
-			TempDir:      filepath.Join("/tmp", "webappsgo", appName),
-			IsPrivileged: true,
-			GOOS:         "linux",
-			AppName:      appName,
-		}
-	}
-
-	// User-level paths (XDG Base Directory)
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		dataHome = filepath.Join(homeDir, ".local", "share")
-	}
-
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		configHome = filepath.Join(homeDir, ".config")
-	}
-
-	cacheHome := os.Getenv("XDG_CACHE_HOME")
-	if cacheHome == "" {
-		cacheHome = filepath.Join(homeDir, ".cache")
-	}
+	home, _ := os.UserHomeDir()
+	systemMode := util.IsSystemMode()
+	dirs := util.DefaultDirectories(runtime.GOOS, systemMode, home, os.Getenv, privilege.InternalOrg, appName)
 
 	return &Paths{
-		DataDir:      filepath.Join(dataHome, orgNamespace),
-		ConfigDir:    filepath.Join(configHome, orgNamespace),
-		LogDir:       filepath.Join(dataHome, orgNamespace, "logs"),
-		CacheDir:     filepath.Join(cacheHome, orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-		IsPrivileged: false,
-		GOOS:         "linux",
-		AppName:      appName,
-	}
-}
-
-// getDarwinPaths returns macOS-specific paths
-// Per AI.md PART 4: macOS paths must include organization namespace
-func getDarwinPaths(appName string) *Paths {
-	homeDir, _ := os.UserHomeDir()
-
-	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("webappsgo", appName)
-
-	// Check if running as root or system service
-	if privilege.StartedAsRoot() {
-		return &Paths{
-			DataDir:      filepath.Join("/Library", "Application Support", orgNamespace, "data"),
-			ConfigDir:    filepath.Join("/Library", "Application Support", orgNamespace),
-			LogDir:       filepath.Join("/Library", "Logs", orgNamespace),
-			CacheDir:     filepath.Join("/Library", "Caches", orgNamespace),
-			TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-			IsPrivileged: true,
-			GOOS:         "darwin",
-			AppName:      appName,
-		}
-	}
-
-	// User-level paths
-	return &Paths{
-		DataDir:      filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
-		ConfigDir:    filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
-		LogDir:       filepath.Join(homeDir, "Library", "Logs", orgNamespace),
-		CacheDir:     filepath.Join(homeDir, "Library", "Caches", orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-		IsPrivileged: false,
-		GOOS:         "darwin",
-		AppName:      appName,
-	}
-}
-
-// getWindowsPaths returns Windows-specific paths
-// Per AI.md PART 4: Windows paths must include organization namespace
-func getWindowsPaths(appName string) *Paths {
-	programData := os.Getenv("PROGRAMDATA")
-	if programData == "" {
-		programData = "C:\\ProgramData"
-	}
-
-	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("webappsgo", appName)
-
-	// Check if running as SYSTEM or Administrator (service mode)
-	// In service mode, use ProgramData for all paths
-	if os.Getenv("USERDOMAIN") == "NT AUTHORITY" || os.Getenv("USERNAME") == "SYSTEM" {
-		return &Paths{
-			DataDir:      filepath.Join(programData, orgNamespace, "data"),
-			ConfigDir:    filepath.Join(programData, orgNamespace),
-			LogDir:       filepath.Join(programData, orgNamespace, "logs"),
-			CacheDir:     filepath.Join(programData, orgNamespace, "cache"),
-			TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-			IsPrivileged: true,
-			GOOS:         "windows",
-			AppName:      appName,
-		}
-	}
-
-	// User-level paths
-	appData := os.Getenv("APPDATA")
-	if appData == "" {
-		appData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Roaming")
-	}
-
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData == "" {
-		localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-	}
-
-	return &Paths{
-		DataDir:      filepath.Join(localAppData, orgNamespace),
-		ConfigDir:    filepath.Join(appData, orgNamespace),
-		LogDir:       filepath.Join(localAppData, orgNamespace, "logs"),
-		CacheDir:     filepath.Join(localAppData, orgNamespace, "cache"),
-		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-		IsPrivileged: false,
-		GOOS:         "windows",
-		AppName:      appName,
-	}
-}
-
-// getBSDPaths returns BSD-specific paths (similar to Linux)
-// Per AI.md PART 4: BSD paths must include organization namespace
-func getBSDPaths(appName string) *Paths {
-	homeDir, _ := os.UserHomeDir()
-
-	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("webappsgo", appName)
-
-	// Check if running as root
-	if privilege.StartedAsRoot() {
-		return &Paths{
-			DataDir:      filepath.Join("/var/db", orgNamespace),
-			ConfigDir:    filepath.Join("/usr/local/etc", orgNamespace),
-			LogDir:       filepath.Join("/var/log", orgNamespace),
-			CacheDir:     filepath.Join("/var/cache", orgNamespace),
-			TempDir:      filepath.Join("/tmp", "webappsgo", appName),
-			IsPrivileged: true,
-			GOOS:         runtime.GOOS,
-			AppName:      appName,
-		}
-	}
-
-	// User-level paths
-	return &Paths{
-		DataDir:      filepath.Join(homeDir, ".local", "share", orgNamespace),
-		ConfigDir:    filepath.Join(homeDir, ".config", orgNamespace),
-		LogDir:       filepath.Join(homeDir, ".local", "share", orgNamespace, "logs"),
-		CacheDir:     filepath.Join(homeDir, ".cache", orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
-		IsPrivileged: false,
+		DataDir:      dirs.Data,
+		ConfigDir:    dirs.Config,
+		LogDir:       dirs.Log,
+		CacheDir:     dirs.Cache,
+		TempDir:      filepath.Join(os.TempDir(), privilege.InternalOrg, appName),
+		IsPrivileged: systemMode,
 		GOOS:         runtime.GOOS,
 		AppName:      appName,
 	}
@@ -360,26 +195,14 @@ func (p *Paths) initializeSubdirectories() {
 	// ConfigDir: User-editable configuration and security data
 	p.SSLDir = filepath.Join(p.ConfigDir, "ssl")
 	p.GeoIPDir = filepath.Join(p.DataDir, "security", "geoip")
-	p.BlocklistDir = filepath.Join(p.ConfigDir, "security", "blocklists")
+	p.BlocklistDir = filepath.Join(p.DataDir, "security", "blocklists")
 
 	// DataDir: Application-managed runtime data
 	p.TorDir = filepath.Join(p.DataDir, "tor")
-	p.BackupDir = filepath.Join(p.DataDir, "backups")
+	home, _ := os.UserHomeDir()
+	p.BackupDir = util.ResolveBackupDir(runtime.GOOS, util.IsSystemMode(), home, os.Getenv, util.IsDirWritable,
+		privilege.InternalOrg, p.AppName, p.DataDir)
 	p.GOOS = runtime.GOOS
-}
-
-// isPrivileged checks if running with elevated privileges
-func isPrivileged() bool {
-	switch runtime.GOOS {
-	case "linux", "darwin", "freebsd", "openbsd", "netbsd":
-		return privilege.StartedAsRoot()
-	case "windows":
-		// On Windows, check if running as SYSTEM or Administrator
-		// This is a simplified check; proper Windows privilege check would use syscall
-		return os.Getenv("USERDOMAIN") == "NT AUTHORITY" || os.Getenv("USERNAME") == "SYSTEM"
-	default:
-		return false
-	}
 }
 
 // Initialize sets up the global paths instance
@@ -388,7 +211,7 @@ func Initialize(appName string) error {
 	initOnce.Do(func() {
 		defaultPaths = GetDefaultPaths(appName)
 		defaultPaths.AppName = appName
-		defaultPaths.IsPrivileged = isPrivileged()
+		defaultPaths.IsPrivileged = util.IsSystemMode()
 		defaultPaths.initializeSubdirectories()
 		defaultPaths.Override()
 

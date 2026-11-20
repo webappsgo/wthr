@@ -46,7 +46,7 @@ func seenToken(name string, cookie *http.Cookie) (string, bool) {
 
 func TestSessionCookieIsSignedOutAndVerifiedIn(t *testing.T) {
 	csrfStoreFixture(t)
-	issued := issueSession(t, SessionCookieName, "tok_abc123")
+	issued := issueSession(t, UserSessionCookieName(), "tok_abc123")
 
 	if issued.Value == "tok_abc123" || !strings.HasPrefix(issued.Value, "tok_abc123.") {
 		t.Fatalf("the browser must receive a signed value, got %q", issued.Value)
@@ -55,7 +55,7 @@ func TestSessionCookieIsSignedOutAndVerifiedIn(t *testing.T) {
 		t.Errorf("the other cookie attributes must survive signing, got %+v", issued)
 	}
 
-	token, found := seenToken(SessionCookieName, &http.Cookie{Name: issued.Name, Value: issued.Value})
+	token, found := seenToken(UserSessionCookieName(), &http.Cookie{Name: issued.Name, Value: issued.Value})
 	if !found || token != "tok_abc123" {
 		t.Errorf("handlers must see the bare token, got %q, %v", token, found)
 	}
@@ -63,7 +63,7 @@ func TestSessionCookieIsSignedOutAndVerifiedIn(t *testing.T) {
 
 func TestSessionCookieRejectsForgeries(t *testing.T) {
 	csrfStoreFixture(t)
-	issued := issueSession(t, SessionCookieName, "tok_abc123")
+	issued := issueSession(t, UserSessionCookieName(), "tok_abc123")
 
 	forgeries := map[string]string{
 		"unsigned":         "tok_abc123",
@@ -73,7 +73,7 @@ func TestSessionCookieRejectsForgeries(t *testing.T) {
 		"only a signature": "." + issued.Value[strings.Index(issued.Value, ".")+1:],
 	}
 	for label, value := range forgeries {
-		if _, found := seenToken(SessionCookieName, &http.Cookie{Name: SessionCookieName, Value: value}); found {
+		if _, found := seenToken(UserSessionCookieName(), &http.Cookie{Name: UserSessionCookieName(), Value: value}); found {
 			t.Errorf("%s: a forged session cookie must be dropped", label)
 		}
 	}
@@ -81,7 +81,7 @@ func TestSessionCookieRejectsForgeries(t *testing.T) {
 
 func TestSessionCookieIsBoundToItsName(t *testing.T) {
 	csrfStoreFixture(t)
-	user := issueSession(t, SessionCookieName, "tok_abc123")
+	user := issueSession(t, UserSessionCookieName(), "tok_abc123")
 	if _, found := seenToken("admin_session", &http.Cookie{Name: "admin_session", Value: user.Value}); found {
 		t.Error("a user session value replayed as the admin session cookie must be dropped")
 	}
@@ -89,12 +89,12 @@ func TestSessionCookieIsBoundToItsName(t *testing.T) {
 
 func TestSessionCookieSurvivesAKeyRotationDuringGrace(t *testing.T) {
 	store := csrfStoreFixture(t)
-	issued := issueSession(t, SessionCookieName, "tok_abc123")
+	issued := issueSession(t, UserSessionCookieName(), "tok_abc123")
 
 	if err := store.Rotate(secret.CookieSigningKey, secret.RotateOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if token, found := seenToken(SessionCookieName, &http.Cookie{Name: SessionCookieName, Value: issued.Value}); !found || token != "tok_abc123" {
+	if token, found := seenToken(UserSessionCookieName(), &http.Cookie{Name: UserSessionCookieName(), Value: issued.Value}); !found || token != "tok_abc123" {
 		t.Errorf("a cookie signed before the rotation must verify with the previous key, got %q, %v", token, found)
 	}
 }
@@ -102,7 +102,7 @@ func TestSessionCookieSurvivesAKeyRotationDuringGrace(t *testing.T) {
 func TestSessionCookieClearingAndOtherCookiesAreUntouched(t *testing.T) {
 	csrfStoreFixture(t)
 	handler := SessionCookieSigning()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: SessionCookieName, Value: "", MaxAge: -1, Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: UserSessionCookieName(), Value: "", MaxAge: -1, Path: "/"})
 		http.SetCookie(w, &http.Cookie{Name: "theme", Value: "dark", Path: "/"})
 	}))
 	w := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestSessionCookieClearingAndOtherCookiesAreUntouched(t *testing.T) {
 
 	for _, cookie := range w.Result().Cookies() {
 		switch cookie.Name {
-		case SessionCookieName:
+		case UserSessionCookieName():
 			if cookie.Value != "" || cookie.MaxAge >= 0 {
 				t.Errorf("a clearing cookie must stay a clearing cookie, got %+v", cookie)
 			}
@@ -136,7 +136,7 @@ func TestSessionCookieClearingAndOtherCookiesAreUntouched(t *testing.T) {
 
 func TestSessionCookieSigningIsOffWithoutAStore(t *testing.T) {
 	secret.SetDefault(nil)
-	issued := issueSession(t, SessionCookieName, "plain")
+	issued := issueSession(t, UserSessionCookieName(), "plain")
 	if issued.Value != "plain" {
 		t.Errorf("without a store the value must pass through, got %q", issued.Value)
 	}

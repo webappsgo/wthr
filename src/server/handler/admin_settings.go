@@ -12,6 +12,7 @@ import (
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -189,7 +190,7 @@ func (h *AdminSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Req
 // ResetSettings resets all settings to defaults
 func (h *AdminSettingsHandler) ResetSettings(w http.ResponseWriter, r *http.Request) {
 	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
-	backupPath := settingsModel.GetString("backup.location", "/data/backups")
+	backupPath := settingsModel.GetString("backup.location", path.GetBackupDir())
 
 	tx, err := database.GetServerDB().Begin()
 	if err != nil {

@@ -101,14 +101,14 @@ func TestInitializeSubdirectories(t *testing.T) {
 	if want := filepath.Join(p.DataDir, "security", "geoip"); p.GeoIPDir != want {
 		t.Errorf("GeoIPDir = %q, want %q", p.GeoIPDir, want)
 	}
-	if want := filepath.Join(p.ConfigDir, "security", "blocklists"); p.BlocklistDir != want {
+	if want := filepath.Join(p.DataDir, "security", "blocklists"); p.BlocklistDir != want {
 		t.Errorf("BlocklistDir = %q, want %q", p.BlocklistDir, want)
 	}
 	if want := filepath.Join(p.DataDir, "tor"); p.TorDir != want {
 		t.Errorf("TorDir = %q, want %q", p.TorDir, want)
 	}
-	if want := filepath.Join(p.DataDir, "backups"); p.BackupDir != want {
-		t.Errorf("BackupDir = %q, want %q", p.BackupDir, want)
+	if p.BackupDir == "" {
+		t.Error("BackupDir must be resolved by initializeSubdirectories")
 	}
 	if p.GOOS == "" {
 		t.Error("expected GOOS to be populated by initializeSubdirectories")

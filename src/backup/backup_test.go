@@ -637,7 +637,7 @@ func TestCreateIncrementalReplacesInPlace(t *testing.T) {
 		t.Fatalf("incremental path changed between runs: %q != %q", firstPath, secondPath)
 	}
 
-	matches, err := filepath.Glob(filepath.Join(dataDir, "backups", "wthr-daily.tar.gz*"))
+	matches, err := filepath.Glob(filepath.Join(ResolveDir(dataDir), "wthr-daily.tar.gz*"))
 	if err != nil {
 		t.Fatalf("glob error: %v", err)
 	}

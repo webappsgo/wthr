@@ -110,11 +110,37 @@ func (s *I2PService) Close() error {
 		s.samConn = nil
 	}
 	if s.i2pd != nil && s.i2pd.Process != nil {
-		err := s.i2pd.Process.Signal(os.Interrupt)
+		err := terminateI2PD(s.i2pd, &s.i2pdExited)
 		s.i2pd = nil
 		return err
 	}
 	return nil
+}
+
+// i2pdStopGrace is how long the managed i2pd gets to stop after the interrupt before it is killed.
+const i2pdStopGrace = 10 * time.Second
+
+// terminateI2PD stops the dedicated i2pd child: an interrupt first so it shuts down cleanly,
+// then a kill when it is still alive after the grace period, so no orphan keeps its ports
+// (the SAM bridge among them) after the server stops.
+func terminateI2PD(cmd *exec.Cmd, exited *atomic.Bool) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		return cmd.Process.Kill()
+	}
+
+	deadline := time.Now().Add(i2pdStopGrace)
+	for time.Now().Before(deadline) {
+		if exited.Load() {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return cmd.Process.Kill()
 }
 
 // providerName maps a provider to its display name.
@@ -284,9 +310,7 @@ func startI2PD(ctx context.Context, cfg *config.I2PConfig, binary, keysPath stri
 	deadline := time.Duration(cfg.BootstrapTimeout) * time.Second
 	addr, err := waitForI2PDAddress(ctx, keysPath, deadline)
 	if err != nil {
-		if cmd.Process != nil {
-			cmd.Process.Signal(os.Interrupt)
-		}
+		_ = terminateI2PD(cmd, &svc.i2pdExited)
 		return "", err
 	}
 	return addr, nil
@@ -656,13 +680,20 @@ func i2pProviderHealthy(service *I2PService) bool {
 // the dedicated port is allocated inside startDedicatedI2P, only when I2P is
 // enabled AND a provider is available.
 type I2PManager struct {
-	mu          sync.Mutex
-	service     *I2PService
-	config      *config.I2PConfig
-	dataDir     string
-	ctx         context.Context
-	lastErr     error
-	backendPort int
+	// opMu serializes start, restart and stop. mu only guards the fields and is never held while
+	// a provider bootstraps, so the health endpoint can always read the state (AI.md PART 13).
+	opMu sync.Mutex
+	mu   sync.Mutex
+	// starting is true while a provider bootstraps; startingProvider is the provider it uses
+	starting         bool
+	startingProvider I2PProvider
+	service          *I2PService
+	config           *config.I2PConfig
+	dataDir          string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	lastErr          error
+	backendPort      int
 }
 
 // NewI2PManager creates a new I2P manager with the given configuration and
@@ -671,10 +702,13 @@ type I2PManager struct {
 // opt-in, but once enabled it must never treat a provider crash as fatal to
 // the server (AI.md PART 32).
 func NewI2PManager(ctx context.Context, cfg *config.I2PConfig) *I2PManager {
+	// Close cancels this context, which also stops a provider that is still bootstrapping
+	ctx, cancel := context.WithCancel(ctx)
 	im := &I2PManager{
 		config:  cfg,
 		dataDir: filepath.Join(paths.GetDataDir(), "i2p"),
 		ctx:     ctx,
+		cancel:  cancel,
 	}
 	go im.monitorLoop(ctx)
 	return im
@@ -692,6 +726,7 @@ func (im *I2PManager) monitorLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			im.opMu.Lock()
 			im.mu.Lock()
 			needsRestart := im.config != nil && im.config.Enabled &&
 				im.service != nil && !i2pProviderHealthy(im.service)
@@ -704,12 +739,15 @@ func (im *I2PManager) monitorLoop(ctx context.Context) {
 				}
 			}
 			im.mu.Unlock()
+			im.opMu.Unlock()
 		}
 	}
 }
 
 // Restart closes the running provider and starts it again with the current config.
 func (im *I2PManager) Restart() error {
+	im.opMu.Lock()
+	defer im.opMu.Unlock()
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	if im.service != nil {
@@ -732,20 +770,50 @@ func (im *I2PManager) SetBackendPort(port int) {
 
 // StartI2PManager initializes the eepsite if I2P is enabled and a provider is available.
 func (im *I2PManager) StartI2PManager() error {
+	im.opMu.Lock()
+	defer im.opMu.Unlock()
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	return im.startLocked()
 }
 
-// startLocked starts the provider; callers must already hold im.mu.
+// resolveI2PProvider names the provider a start would use, without starting anything.
+func resolveI2PProvider(cfg *config.I2PConfig) I2PProvider {
+	if cfg == nil {
+		return I2PProviderNone
+	}
+	if _, err := resolveI2PDBinary(cfg); err == nil {
+		return I2PProviderI2PD
+	}
+	if samReachable(cfg.SAMAddress) {
+		return I2PProviderSAM
+	}
+
+	return I2PProviderNone
+}
+
+// startLocked starts the provider. Callers hold opMu and mu; mu is released while the provider
+// bootstraps (which can take minutes) and held again on return, so status readers never block
+// behind a bootstrap.
 func (im *I2PManager) startLocked() error {
-	service, err := startDedicatedI2P(im.ctx, im.config, im.backendPort)
+	cfg, backendPort, ctx := im.config, im.backendPort, im.ctx
+
+	im.starting = true
+	im.startingProvider = resolveI2PProvider(cfg)
+	im.lastErr = nil
+	im.mu.Unlock()
+
+	service, err := startDedicatedI2P(ctx, cfg, backendPort)
+
+	im.mu.Lock()
+	im.starting = false
 	if err != nil {
 		im.lastErr = err
 		return err
 	}
 	im.service = service
 	im.lastErr = nil
+
 	return nil
 }
 
@@ -753,6 +821,8 @@ func (im *I2PManager) startLocked() error {
 // regenerates tunnels.conf with a freshly allocated backend port from the new
 // config, so no separate tunnels.conf write is needed here.
 func (im *I2PManager) UpdateConfig(cfg *config.I2PConfig) error {
+	im.opMu.Lock()
+	defer im.opMu.Unlock()
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	im.config = cfg
@@ -770,6 +840,8 @@ func (im *I2PManager) UpdateConfig(cfg *config.I2PConfig) error {
 
 // RegenerateAddress creates a new random .b32.i2p destination.
 func (im *I2PManager) RegenerateAddress() (string, error) {
+	im.opMu.Lock()
+	defer im.opMu.Unlock()
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	if im.service != nil {
@@ -842,7 +914,15 @@ func (im *I2PManager) enabledLocked() bool {
 	if im.config == nil || !im.config.Enabled {
 		return false
 	}
-	return !errors.Is(im.lastErr, errI2PNoProvider)
+	if errors.Is(im.lastErr, errI2PNoProvider) {
+		return false
+	}
+	// Not started yet: with no provider a start would fail, so the network is not enabled
+	if im.service == nil && !im.starting && im.lastErr == nil && resolveI2PProvider(im.config) == I2PProviderNone {
+		return false
+	}
+
+	return true
 }
 
 // Status returns one of the four health-contract words: disabled, starting,
@@ -856,6 +936,9 @@ func (im *I2PManager) Status() string {
 	if im.service != nil && i2pProviderHealthy(im.service) {
 		return "healthy"
 	}
+	if im.starting {
+		return "starting"
+	}
 	if im.lastErr != nil || im.service != nil {
 		return "unavailable"
 	}
@@ -868,6 +951,13 @@ func (im *I2PManager) Provider() string {
 	defer im.mu.Unlock()
 	if im.service != nil {
 		return providerName(im.service.provider)
+	}
+	if im.starting {
+		return providerName(im.startingProvider)
+	}
+	// Opted in but not started yet (or the start failed): name the provider a start would use
+	if im.enabledLocked() {
+		return providerName(resolveI2PProvider(im.config))
 	}
 	return providerName(I2PProviderNone)
 }
@@ -914,6 +1004,9 @@ func (im *I2PManager) UptimeSeconds() int64 {
 
 // Close shuts down the provider.
 func (im *I2PManager) Close() error {
+	if im.cancel != nil {
+		im.cancel()
+	}
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	if im.service != nil {

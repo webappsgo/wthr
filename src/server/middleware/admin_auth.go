@@ -40,7 +40,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			version := GetVersion()
 
 			// Check for admin session
-			sessionCookie, err := r.Cookie("admin_session")
+			sessionCookie, err := r.Cookie(AdminSessionCookieName())
 			if err != nil || sessionCookie.Value == "" {
 				redirectAdminUnauthenticated(w, r)
 				return
@@ -221,9 +221,6 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		sessionToken := adminSession.SessionID
 		now := time.Now()
 
-		// Detect if HTTPS is being used
-		isHTTPS := util.TrustedIsHTTPS(r)
-
 		// Get admin path from config (AI.md: use configurable admin_path)
 		adminPath := "/server/administration"
 		if cfg != nil {
@@ -231,17 +228,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		// Set admin_session cookie with proper security (AI.md PART 18)
-		http.SetCookie(w, &http.Cookie{
-			Name:   "admin_session",
-			Value:  sessionToken,
-			MaxAge: maxAge,
-			Path:   adminPath,
-			Domain: "",
-			// Secure flag - true if HTTPS
-			Secure: isHTTPS,
-			// HttpOnly - prevent JavaScript access
-			HttpOnly: true,
-		})
+		http.SetCookie(w, NewSessionCookie(r, SessionAccountAdmin, sessionToken, time.Duration(maxAge)*time.Second))
 
 		// Update last_login timestamp, bound as canonical UTC text so the value
 		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
@@ -262,7 +249,7 @@ func AdminLogoutHandler() http.HandlerFunc {
 		if cfg != nil {
 			adminPath = "/server/" + cfg.GetAdminPath()
 		}
-		if cookie, err := r.Cookie("admin_session"); err == nil && cookie.Value != "" {
+		if cookie, err := r.Cookie(AdminSessionCookieName()); err == nil && cookie.Value != "" {
 			sessionModel := &model.AdminSessionModel{DB: GetDB(r)}
 			if err := sessionModel.DeleteSession(cookie.Value); err != nil {
 				log.Printf("WARNING: admin-logout: failed to delete admin session: %v", err)
@@ -270,15 +257,7 @@ func AdminLogoutHandler() http.HandlerFunc {
 		}
 
 		// Clear admin session cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     "admin_session",
-			Value:    "",
-			MaxAge:   -1,
-			Path:     adminPath,
-			Domain:   "",
-			Secure:   false,
-			HttpOnly: true,
-		})
+		http.SetCookie(w, ClearSessionCookie(r, SessionAccountAdmin))
 
 		// Redirect to admin login
 		http.Redirect(w, r, adminPath, http.StatusFound)

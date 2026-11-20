@@ -435,7 +435,7 @@ func TestCSRFProtection_AcceptsASignedToken(t *testing.T) {
 func TestCSRFProtection_NewTokenWhenTheSessionCookieChanges(t *testing.T) {
 	cfg := DefaultCSRFConfig()
 	login := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: SessionCookieName, Value: "new-session", Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: UserSessionCookieName(), Value: "new-session", Path: "/"})
 		_, _ = w.Write([]byte("ok"))
 	})
 	handler := CSRFProtection(cfg)(login)

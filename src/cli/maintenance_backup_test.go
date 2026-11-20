@@ -173,9 +173,9 @@ func TestMaintenanceBackupCommand(t *testing.T) {
 			t.Errorf("output = %q, want it to mention encryption", out)
 		}
 
-		// "backups" plural is the directory path.Paths.BackupDir resolves to
+		// "backup" is the directory the AI.md PART 8 resolver picks in system mode
 		// and the one the admin API, the CLI list and the retention sweep read.
-		entries, err := os.ReadDir(filepath.Join(dataDir, "backups"))
+		entries, err := os.ReadDir(filepath.Join(dataDir, "backup"))
 		if err != nil {
 			t.Fatalf("backup directory not created: %v", err)
 		}
@@ -210,7 +210,7 @@ func TestMaintenanceBackupCommand(t *testing.T) {
 			t.Errorf("output = %q, want an unencrypted backup", out)
 		}
 
-		entries, err := os.ReadDir(filepath.Join(dir, "data", "backups"))
+		entries, err := os.ReadDir(filepath.Join(dir, "data", "backup"))
 		if err != nil {
 			t.Fatalf("backup directory not created: %v", err)
 		}

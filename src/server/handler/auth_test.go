@@ -154,12 +154,12 @@ func TestHandleLogin_User(t *testing.T) {
 		}
 		found := false
 		for _, ck := range w.Result().Cookies() {
-			if ck.Name == middleware.SessionCookieName && ck.Value != "" {
+			if ck.Name == middleware.UserSessionCookieName() && ck.Value != "" {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf("expected %s cookie to be set; got cookies=%v", middleware.SessionCookieName, w.Result().Cookies())
+			t.Errorf("expected %s cookie to be set; got cookies=%v", middleware.UserSessionCookieName(), w.Result().Cookies())
 		}
 	})
 
@@ -236,7 +236,7 @@ func TestHandleLogin_User(t *testing.T) {
 			t.Errorf("require_2fa = %v, want true; body=%s", body["require_2fa"], w.Body.String())
 		}
 		for _, ck := range w.Result().Cookies() {
-			if ck.Name == middleware.SessionCookieName {
+			if ck.Name == middleware.UserSessionCookieName() {
 				t.Errorf("session cookie must not be issued before 2FA is verified")
 			}
 		}
@@ -367,12 +367,12 @@ func TestHandleLogout(t *testing.T) {
 		}
 		cleared := false
 		for _, ck := range w.Result().Cookies() {
-			if ck.Name == middleware.SessionCookieName && ck.MaxAge < 0 {
+			if ck.Name == middleware.UserSessionCookieName() && ck.MaxAge < 0 {
 				cleared = true
 			}
 		}
 		if !cleared {
-			t.Errorf("expected %s cookie to be cleared (MaxAge<0); got %v", middleware.SessionCookieName, w.Result().Cookies())
+			t.Errorf("expected %s cookie to be cleared (MaxAge<0); got %v", middleware.UserSessionCookieName(), w.Result().Cookies())
 		}
 	})
 

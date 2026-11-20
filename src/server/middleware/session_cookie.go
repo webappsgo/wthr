@@ -46,7 +46,7 @@ func verifySessionCookieValue(store *secret.Store, name, signed string) (string,
 
 // isSessionCookieName reports whether a cookie is a browser session cookie.
 func isSessionCookieName(name string) bool {
-	for _, candidate := range sessionCookieNames {
+	for _, candidate := range sessionCookieNames() {
 		if candidate == name {
 			return true
 		}

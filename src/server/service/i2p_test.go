@@ -690,7 +690,8 @@ func TestI2P_ManagerStatusContract(t *testing.T) {
 		{"not opted in", &I2PManager{config: &config.I2PConfig{}, ctx: context.Background()}, "disabled", false},
 		{"nil config", &I2PManager{ctx: context.Background()}, "disabled", false},
 		{"no provider found", &I2PManager{config: testI2PConfig(), ctx: context.Background(), lastErr: fmt.Errorf("%w (no i2pd binary)", errI2PNoProvider)}, "disabled", false},
-		{"enabled but not started yet", &I2PManager{config: testI2PConfig(), ctx: context.Background()}, "starting", true},
+		{"enabled, not started and no provider to start", &I2PManager{config: testI2PConfig(), ctx: context.Background()}, "disabled", false},
+		{"enabled and bootstrapping", &I2PManager{config: testI2PConfig(), ctx: context.Background(), starting: true, startingProvider: I2PProviderI2PD}, "starting", true},
 		{"provider failed to start", &I2PManager{config: testI2PConfig(), ctx: context.Background(), lastErr: secret}, "unavailable", true},
 		{"provider exited", &I2PManager{config: testI2PConfig(), ctx: context.Background(), service: &I2PService{provider: I2PProviderSAM}}, "unavailable", true},
 	}

@@ -201,3 +201,31 @@ func TestStartedAsRootIsDecidedAtStart(t *testing.T) {
 		t.Errorf("StartedAsRoot() = %v, but the test process euid is %d", StartedAsRoot(), os.Geteuid())
 	}
 }
+
+func TestAccountRemoveCommands(t *testing.T) {
+	shadow := accountRemoveCommands("linux", "wthr", func(name string) bool { return name == "userdel" || name == "groupdel" })
+	if shadow[0][0] != "userdel" || shadow[1][0] != "groupdel" {
+		t.Errorf("shadow tools must remove the user before the group, got %v", shadow)
+	}
+
+	busybox := accountRemoveCommands("linux", "wthr", func(string) bool { return false })
+	if busybox[0][0] != "deluser" || busybox[1][0] != "delgroup" {
+		t.Errorf("BusyBox hosts must use deluser and delgroup, got %v", busybox)
+	}
+
+	bsd := accountRemoveCommands("freebsd", "wthr", func(name string) bool { return name == "pw" })
+	if bsd[0][1] != "userdel" || bsd[1][1] != "groupdel" {
+		t.Errorf("FreeBSD must use pw userdel and groupdel, got %v", bsd)
+	}
+
+	mac := accountRemoveCommands("darwin", "wthr", func(string) bool { return true })
+	if mac[0][3] != "/Users/wthr" || mac[1][3] != "/Groups/wthr" {
+		t.Errorf("macOS must delete the dscl user and group records, got %v", mac)
+	}
+}
+
+func TestRemoveAccountMissingIsNoError(t *testing.T) {
+	if err := RemoveAccount("wthr-no-such-account-xyz"); err != nil {
+		t.Errorf("removing an account that does not exist must succeed, got %v", err)
+	}
+}

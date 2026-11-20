@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	SessionCookieName = "weather_session"
-	UserContextKey    = "user"
+	UserContextKey = "user"
 	// UserIDContextKey carries the authenticated user's numeric id; handlers, CSRF and rate limiting all read this key
 	UserIDContextKey  = "user_id"
 	SessionContextKey = "session"
@@ -56,7 +55,7 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 			}
 
 			// Check for session cookie
-			sessionCookie, err := r.Cookie(SessionCookieName)
+			sessionCookie, err := r.Cookie(UserSessionCookieName())
 			if err == nil && sessionCookie.Value != "" {
 				sessionID := sessionCookie.Value
 				session, err = sessionModel.GetByID(sessionID)

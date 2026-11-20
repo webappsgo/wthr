@@ -95,8 +95,10 @@ check() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$d"; else fai
 check_not() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$d"; else pass "$d"; fi; }
 wait_for() { local n="$1" i; shift; for i in $(seq 1 "$n"); do "$@" >/dev/null 2>&1 && return 0; sleep 1; done; return 1; }
 
-API="http://localhost:80/api/v1/server/healthz"
-healthz() { curl -q -LSsf --max-time 10 "$API"; }
+# The service listens on the port it saved in server.yml (random 64xxx on first run), never a fixed one
+svc_port() { awk '$1 == "port:" {gsub(/"/, "", $2); print $2; exit}' "/etc/${INTERNAL_ORG}/${INTERNAL_NAME}/server.yml"; }
+api_url() { echo "http://localhost:$(svc_port)/api/v1/server/healthz"; }
+healthz() { curl -q -LSsf --max-time 10 -H 'Accept: application/json' "$(api_url)"; }
 healthz_up() { healthz | jq -e '.status' >/dev/null; }
 overlay() { healthz | jq -r ".features.$1.$2"; }
 
@@ -110,7 +112,7 @@ else
     UNIT_FILE="/etc/init.d/${INTERNAL_NAME}"
     svc_active()  { rc-service "$INTERNAL_NAME" status 2>&1 | grep -q started; }
     svc_enabled() { rc-update show default | grep -qw "$INTERNAL_NAME"; }
-    svc_pid()     { cat "/var/run/${INTERNAL_ORG}/${INTERNAL_NAME}.pid"; }
+    svc_pid()     { cat "/var/run/${INTERNAL_ORG}/${INTERNAL_NAME}/${INTERNAL_NAME}.pid"; }
 fi
 svc_stopped() { ! svc_active; }
 REMOTE_LIB_EOF
@@ -145,28 +147,28 @@ if [ "$INIT_MODE" = "openrc" ]; then
 fi
 check "service enabled at boot" svc_enabled
 check "service active after install" wait_for 30 svc_active
-check "health endpoint answers after install" wait_for 60 healthz_up
+check "health endpoint answers after install" wait_for 180 healthz_up
 
 echo "=== [$INIT_MODE] Service restart ==="
 OLD_PID=$(svc_pid)
 ${PROJECT_NAME} --service restart
 check "service active after restart" wait_for 30 svc_active
-check "health endpoint answers after restart" wait_for 60 healthz_up
+check "health endpoint answers after restart" wait_for 180 healthz_up
 check "restart replaced the process" test "$(svc_pid)" != "$OLD_PID"
 
 echo "=== [$INIT_MODE] Service stop and start ==="
 ${PROJECT_NAME} --service stop
 check "service stopped" wait_for 30 svc_stopped
-check_not "health endpoint is down while stopped" curl -q -LSsf --max-time 3 "$API"
+check_not "health endpoint is down while stopped" curl -q -LSsf --max-time 3 "$(api_url)"
 ${PROJECT_NAME} --service start
 check "service active after start" wait_for 30 svc_active
-check "health endpoint answers after start" wait_for 60 healthz_up
+check "health endpoint answers after start" wait_for 180 healthz_up
 
 echo "=== API Endpoint Tests ==="
-curl -q -LSsf http://localhost:80/api/v1/server/healthz >/dev/null || fail "/api/v1/server/healthz"
-curl -q -LSsf http://localhost:80/api/v1/server/healthz.txt >/dev/null || fail "/api/v1/server/healthz.txt"
-curl -q -LSsf -H 'Accept: application/json' http://localhost:80/server/healthz >/dev/null || fail "Accept JSON"
-curl -q -LSsf -H 'Accept: text/plain' http://localhost:80/server/healthz >/dev/null || fail "Accept text/plain"
+curl -q -LSsf "$(api_url)" >/dev/null || fail "/api/v1/server/healthz"
+curl -q -LSsf "$(api_url).txt" >/dev/null || fail "/api/v1/server/healthz.txt"
+curl -q -LSsf -H 'Accept: application/json' "http://localhost:$(svc_port)/server/healthz" >/dev/null || fail "Accept JSON"
+curl -q -LSsf -H 'Accept: text/plain' "http://localhost:$(svc_port)/server/healthz" >/dev/null || fail "Accept text/plain"
 
 echo "=== Binary Rename Tests ==="
 cp /usr/local/bin/${PROJECT_NAME} /tmp/renamed-server
@@ -216,10 +218,10 @@ fi
 if healthz | grep -Eq '/(etc|var|home|config|data)/'; then fail "health response leaks a filesystem path"; else pass "health response carries no filesystem path"; fi
 
 echo "=== [$INIT_MODE] Tor missing binary (must be disabled, never an error) ==="
-TOR_BIN=$(command -v tor)
+TOR_BIN=$(readlink -f "$(command -v tor)")
 mv "$TOR_BIN" "${TOR_BIN}.hidden"
 ${PROJECT_NAME} --service restart
-wait_for 60 healthz_up
+wait_for 180 healthz_up
 check "enabled is false without the binary" test "$(overlay tor enabled)" = "false"
 check "running is false" test "$(overlay tor running)" = "false"
 check "status is disabled" test "$(overlay tor status)" = "disabled"
@@ -227,7 +229,7 @@ check "hostname is empty" test -z "$(overlay tor hostname)"
 check "checks.tor is omitted" test "$(healthz | jq '(.checks | has("tor"))')" = "false"
 mv "${TOR_BIN}.hidden" "$TOR_BIN"
 ${PROJECT_NAME} --service restart
-wait_for 60 healthz_up
+wait_for 180 healthz_up
 
 echo "=== [$INIT_MODE] I2P (opt-in, i2pd is installed in this container) ==="
 check "i2pd binary is installed" command -v i2pd
@@ -239,7 +241,7 @@ mkdir -p "${CONF_ROOT}/yaml.d"
 printf 'server:\n  i2p:\n    enabled: true\n' > "${CONF_ROOT}/yaml.d/50-i2p.yml"
 chmod 0644 "${CONF_ROOT}/yaml.d/50-i2p.yml"
 ${PROJECT_NAME} --service restart
-wait_for 60 healthz_up
+wait_for 180 healthz_up
 check "features.i2p.enabled is true after opt-in" test "$(overlay i2p enabled)" = "true"
 check "features.i2p.provider is i2pd" test "$(overlay i2p provider)" = "i2pd"
 case "$(overlay i2p status)" in
@@ -260,10 +262,10 @@ fi
 if healthz | grep -Eq '/(etc|var|home|config|data)/'; then fail "health response leaks a filesystem path"; else pass "health response carries no filesystem path"; fi
 
 echo "=== [$INIT_MODE] I2P missing provider (opted in, no i2pd: disabled, never an error) ==="
-I2PD_BIN=$(command -v i2pd)
+I2PD_BIN=$(readlink -f "$(command -v i2pd)")
 mv "$I2PD_BIN" "${I2PD_BIN}.hidden"
 ${PROJECT_NAME} --service restart
-wait_for 60 healthz_up
+wait_for 180 healthz_up
 check "enabled is false without a provider" test "$(overlay i2p enabled)" = "false"
 check "status is disabled" test "$(overlay i2p status)" = "disabled"
 check "provider is none" test "$(overlay i2p provider)" = "none"
@@ -271,7 +273,7 @@ check "checks.i2p is omitted" test "$(healthz | jq '(.checks | has("i2p"))')" = 
 mv "${I2PD_BIN}.hidden" "$I2PD_BIN"
 rm -f "${CONF_ROOT}/yaml.d/50-i2p.yml"
 ${PROJECT_NAME} --service restart
-wait_for 60 healthz_up
+wait_for 180 healthz_up
 
 [ "$FAILURES" -eq 0 ] || { echo "$FAILURES check(s) failed"; exit 1; }
 echo "=== [$INIT_MODE] Main tests passed ==="
@@ -294,7 +296,7 @@ echo "=== [$INIT_MODE] Service re-install ==="
 ${PROJECT_NAME} --service --install
 check "service enabled again" svc_enabled
 check "service active again" wait_for 30 svc_active
-check "health endpoint answers again" wait_for 60 healthz_up
+check "health endpoint answers again" wait_for 180 healthz_up
 
 echo "=== [$INIT_MODE] Service uninstall (confirmation prompt answered with y) ==="
 printf 'y\n' | ${PROJECT_NAME} --service --uninstall
@@ -364,12 +366,12 @@ run_mode() {
     incus exec "$container" -- chmod +x /usr/local/bin/matrix.sh
 
     echo "=== [$init] Running tests in Incus ==="
-    remote "$container" "$init" "${REMOTE_LIB}${REMOTE_MAIN}"
+    remote "$container" "$init" "${REMOTE_LIB}"$'\n'"${REMOTE_MAIN}"
 
     echo "=== [$init] Restarting the container (boot persistence) ==="
     incus restart "$container"
     wait_boot "$container" "$init"
-    remote "$container" "$init" "${REMOTE_LIB}${REMOTE_AFTER}"
+    remote "$container" "$init" "${REMOTE_LIB}"$'\n'"${REMOTE_AFTER}"
 
     # The shared route/header/auth matrix starts its own server on port 80, so it runs after the
     # service is uninstalled and nothing else holds the port

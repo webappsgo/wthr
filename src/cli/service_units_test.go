@@ -69,3 +69,14 @@ func TestSystemdUnitHardening(t *testing.T) {
 		}
 	}
 }
+
+// /var/run is cleared at boot and checkpath creates only the last path component, so the
+// organization directory is created before the per-service one.
+func TestOpenRCScriptCreatesRunParentFirst(t *testing.T) {
+	out := serviceTemplate(openRCScriptTemplate)
+	parent := strings.Index(out, "checkpath -d -m 0755 /var/run/webappsgo\n")
+	child := strings.Index(out, "-o wthr:wthr /var/run/webappsgo/wthr")
+	if parent < 0 || child < 0 || parent > child {
+		t.Errorf("start_pre must create /var/run/webappsgo before /var/run/webappsgo/wthr:\n%s", out)
+	}
+}

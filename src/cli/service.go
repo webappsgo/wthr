@@ -1,694 +1,258 @@
 package cli
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
+	"strings"
 
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/util"
 )
 
-// ServiceCommand handles service management operations
+// plistName is the launchd label and file stem, {plist_name} in AI.md PART 3.
+const plistName = "io.github." + serviceOrg + "." + serviceName
+
+// ServiceCommand handles the --service operations of AI.md PART 24 and PART 25.
 func ServiceCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("no service command specified. Use: start, stop, restart, reload, --install, --uninstall, --disable, or --help")
+		return errors.New(T("cli.service.no_command"))
 	}
 
-	cmd := args[0]
-
-	switch cmd {
+	switch args[0] {
 	case "--help", "help":
 		showServiceHelp()
 		return nil
-
 	case "--install", "install":
 		return installService()
-
 	case "--uninstall", "uninstall":
 		return uninstallService()
-
 	case "--disable", "disable":
 		return disableService()
-
-	case "start":
-		return startService()
-
-	case "stop":
-		return stopService()
-
-	case "restart":
-		return restartService()
-
-	case "reload":
-		return reloadService()
-
+	case "start", "stop", "restart", "reload":
+		return controlService(args[0])
+	case "status", "--status":
+		showServiceStatus()
+		return nil
 	default:
-		return fmt.Errorf("unknown service command: %s", cmd)
+		return fmt.Errorf(T("cli.service.unknown_command"), args[0])
 	}
 }
 
+// showServiceHelp prints the service help output defined in AI.md PART 24 "Service Help Output".
 func showServiceHelp() {
 	fmt.Println(T("cli.service.help_title"))
 	fmt.Println()
-	fmt.Println(T("cli.service.help_installation_heading"))
-	fmt.Println(T("cli.service.help_install"))
-	fmt.Println(T("cli.service.help_uninstall"))
-	fmt.Println(T("cli.service.help_disable"))
-	fmt.Println()
-	fmt.Println(T("cli.service.help_control_heading"))
 	fmt.Println(T("cli.service.help_start"))
 	fmt.Println(T("cli.service.help_stop"))
 	fmt.Println(T("cli.service.help_restart"))
 	fmt.Println(T("cli.service.help_reload"))
+	fmt.Println(T("cli.service.help_install"))
+	fmt.Println(T("cli.service.help_disable"))
+	fmt.Println(T("cli.service.help_uninstall"))
 	fmt.Println()
-	fmt.Println(T("cli.service.help_managers_heading"))
-	fmt.Println(T("cli.service.help_managers_linux"))
-	fmt.Println(T("cli.service.help_managers_macos"))
-	fmt.Println(T("cli.service.help_managers_bsd"))
-	fmt.Println(T("cli.service.help_managers_windows"))
-	fmt.Println()
+	printServiceStatus(currentServiceStatus())
 }
 
+// showServiceStatus prints the current service status; it is read-only and needs no privileges.
+func showServiceStatus() {
+	printServiceStatus(currentServiceStatus())
+}
+
+// currentServiceStatus reads the status of the installed service, or an empty status when
+// no service is installed or no service manager is available.
+func currentServiceStatus() serviceStatus {
+	manager, err := findInstalledManager()
+	if err != nil || manager == nil {
+		return serviceStatus{}
+	}
+
+	return manager.Status()
+}
+
+// printServiceStatus prints the "Current status" block of the service help output.
+func printServiceStatus(status serviceStatus) {
+	fmt.Println(T("cli.service.status_heading"))
+
+	if !status.Installed {
+		fmt.Printf(T("cli.service.status_service")+"\n", T("cli.service.value_not_installed"))
+		return
+	}
+
+	autoStart := T("cli.service.value_disabled")
+	if status.Enabled {
+		autoStart = T("cli.service.value_enabled")
+	}
+
+	fmt.Printf(T("cli.service.status_service")+"\n", T("cli.service.value_installed"))
+	fmt.Printf(T("cli.service.status_state")+"\n", stateLabel(status))
+	fmt.Printf(T("cli.service.status_autostart")+"\n", autoStart)
+	if status.Running && status.PID > 0 {
+		fmt.Printf(T("cli.service.status_pid")+"\n", status.PID)
+	}
+}
+
+// stateLabel names the run state: running, disabled (not enabled and not running) or stopped.
+func stateLabel(status serviceStatus) string {
+	switch {
+	case status.Running:
+		return T("cli.service.value_running")
+	case !status.Enabled:
+		return T("cli.service.value_disabled")
+	default:
+		return T("cli.service.value_stopped")
+	}
+}
+
+// promptYesNo asks a yes/no question on the terminal. An empty answer, or no input at all,
+// selects the default.
+func promptYesNo(prompt string, defaultYes bool) bool {
+	fmt.Print(prompt)
+
+	answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && answer == "" {
+		return defaultYes
+	}
+
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "":
+		return defaultYes
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+// escalateServiceCommand re-runs the current command line with elevated privileges. A user
+// who cannot escalate gets the informative error and nothing is prompted (AI.md PART 5).
+func escalateServiceCommand() error {
+	attempted, err := util.EscalatePrivileges(os.Args[1:])
+	if errors.Is(err, util.ErrCannotEscalate) {
+		return errors.New(T("cli.service.cannot_escalate"))
+	}
+	if !attempted && err == nil {
+		return errors.New(T("cli.service.cannot_escalate"))
+	}
+
+	return err
+}
+
+// installService installs, enables and starts the service. It installs the system service
+// when privileged (or after the user agrees to escalate) and falls back to a user service
+// otherwise (AI.md PART 24 "Service Installation Logic").
 func installService() error {
-	// Check if running as root/admin, attempt escalation if not
-	// TEMPLATE.md PART 8: Attempt privilege escalation before failing
-	if !util.IsPrivileged() {
-		// Attempt privilege escalation
-		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--install"}, os.Args[1:]...))
-		if attempted {
-			// Escalation was attempted, command was re-run with privileges
-			// Return the error (if any) from the elevated process
-			return err
+	if util.IsPrivileged() {
+		return installServiceWith(systemServiceManager, false)
+	}
+
+	if util.CanEscalate() {
+		if promptYesNo(T("cli.service.escalate_prompt"), true) {
+			return escalateServiceCommand()
 		}
-		// Escalation not possible
-		return fmt.Errorf("service installation requires root/administrator privileges (and escalation failed)")
-	}
-
-	switch runtime.GOOS {
-	case "linux":
-		return installLinuxService()
-	case "darwin":
-		return installLaunchdService()
-	case "freebsd", "openbsd", "netbsd":
-		return installRCDService()
-	case "windows":
-		return installWindowsService()
-	default:
-		return fmt.Errorf("service installation not supported on %s", runtime.GOOS)
-	}
-}
-
-func uninstallService() error {
-	// Check if running as root/admin, attempt escalation if not
-	if !util.IsPrivileged() {
-		// Attempt privilege escalation
-		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--uninstall"}, os.Args[1:]...))
-		if attempted {
-			return err
-		}
-		return fmt.Errorf("service uninstallation requires root/administrator privileges (and escalation failed)")
-	}
-
-	switch runtime.GOOS {
-	case "linux":
-		return uninstallLinuxService()
-	case "darwin":
-		return uninstallLaunchdService()
-	case "freebsd", "openbsd", "netbsd":
-		return uninstallRCDService()
-	case "windows":
-		return uninstallWindowsService()
-	default:
-		return fmt.Errorf("service uninstallation not supported on %s", runtime.GOOS)
-	}
-}
-
-func disableService() error {
-	if !util.IsPrivileged() {
-		// Attempt privilege escalation
-		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--disable"}, os.Args[1:]...))
-		if attempted {
-			return err
-		}
-		return fmt.Errorf("disabling service requires root/administrator privileges (and escalation failed)")
-	}
-
-	switch runtime.GOOS {
-	case "linux":
-		return linuxServiceControl("disable")
-	case "darwin":
-		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist")
-	case "freebsd", "openbsd", "netbsd":
-		fmt.Println(T("cli.service.disabled_bsd_hint"))
-		return nil
-	case "windows":
-		return runCommand("sc", "config", "wthr", "start=", "disabled")
-	default:
-		return fmt.Errorf("service disable not supported on %s", runtime.GOOS)
-	}
-}
-
-func startService() error {
-	switch runtime.GOOS {
-	case "linux":
-		return linuxServiceControl("start")
-	case "darwin":
-		return runCommand("launchctl", "start", "io.github.webappsgo.wthr")
-	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "wthr", "start")
-	case "windows":
-		return runCommand("sc", "start", "wthr")
-	default:
-		return fmt.Errorf("service start not supported on %s", runtime.GOOS)
-	}
-}
-
-func stopService() error {
-	switch runtime.GOOS {
-	case "linux":
-		return linuxServiceControl("stop")
-	case "darwin":
-		return runCommand("launchctl", "stop", "io.github.webappsgo.wthr")
-	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "wthr", "stop")
-	case "windows":
-		return runCommand("sc", "stop", "wthr")
-	default:
-		return fmt.Errorf("service stop not supported on %s", runtime.GOOS)
-	}
-}
-
-func restartService() error {
-	switch runtime.GOOS {
-	case "linux":
-		return linuxServiceControl("restart")
-	case "darwin":
-		if err := stopService(); err != nil {
-			return err
-		}
-		return startService()
-	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "wthr", "restart")
-	case "windows":
-		if err := stopService(); err != nil {
-			return err
-		}
-		return startService()
-	default:
-		return fmt.Errorf("service restart not supported on %s", runtime.GOOS)
-	}
-}
-
-func reloadService() error {
-	switch runtime.GOOS {
-	case "linux":
-		return linuxServiceControl("reload")
-	case "darwin":
-		return runCommand("launchctl", "kickstart", "-k", "system/io.github.webappsgo.wthr")
-	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "wthr", "reload")
-	case "windows":
-		fmt.Println(T("cli.service.reload_windows_unsupported"))
-		return restartService()
-	default:
-		return fmt.Errorf("service reload not supported on %s", runtime.GOOS)
-	}
-}
-
-// Platform-specific installation functions
-func installSystemdService() error {
-	// Create system user if it doesn't exist
-	if err := createSystemUser(); err != nil {
-		return fmt.Errorf("failed to create system user: %w", err)
-	}
-
-	// Create required directories
-	if err := createServiceDirectories(); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
-	}
-
-	serviceContent := serviceTemplate(systemdUnitTemplate)
-
-	// Write service file
-	servicePath := "/etc/systemd/system/wthr.service"
-	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
-		return fmt.Errorf("failed to write service file: %w", err)
-	}
-
-	// Reload systemd
-	if err := runCommand("systemctl", "daemon-reload"); err != nil {
-		return fmt.Errorf("failed to reload systemd: %w", err)
-	}
-
-	// Enable service
-	if err := runCommand("systemctl", "enable", "wthr"); err != nil {
-		return fmt.Errorf("failed to enable service: %w", err)
-	}
-
-	fmt.Printf(T("cli.service.systemd_install_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.systemd_use_start"))
-	return nil
-}
-
-func uninstallSystemdService() error {
-	// Stop service
-	runCommand("systemctl", "stop", "wthr")
-
-	// Disable service
-	runCommand("systemctl", "disable", "wthr")
-
-	// Remove service file
-	os.Remove("/etc/systemd/system/wthr.service")
-
-	// Reload systemd
-	runCommand("systemctl", "daemon-reload")
-
-	fmt.Printf(T("cli.service.systemd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-func installLaunchdService() error {
-	plistContent := `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>Label</key>
-	<string>io.github.webappsgo.wthr</string>
-	<key>Program</key>
-	<string>/usr/local/bin/wthr</string>
-	<key>RunAtLoad</key>
-	<true/>
-	<key>KeepAlive</key>
-	<true/>
-	<key>StandardOutPath</key>
-	<string>/Library/Logs/webappsgo/wthr/wthr.log</string>
-	<key>StandardErrorPath</key>
-	<string>/Library/Logs/webappsgo/wthr/error.log</string>
-</dict>
-</plist>
-`
-
-	plistPath := "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist"
-	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
-		return fmt.Errorf("failed to write plist: %w", err)
-	}
-
-	// Load service
-	if err := runCommand("launchctl", "load", plistPath); err != nil {
-		return fmt.Errorf("failed to load service: %w", err)
-	}
-
-	fmt.Printf(T("cli.service.launchd_install_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.launchd_use_start"))
-	return nil
-}
-
-func uninstallLaunchdService() error {
-	plistPath := "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist"
-
-	// Unload service
-	runCommand("launchctl", "unload", plistPath)
-
-	// Remove plist
-	os.Remove(plistPath)
-
-	fmt.Printf(T("cli.service.launchd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-func installRCDService() error {
-	rcScript := `#!/bin/sh
-#
-# PROVIDE: wthr
-# REQUIRE: networking
-# KEYWORD: shutdown
-
-. /etc/rc.subr
-
-name="wthr"
-rcvar=wthr_enable
-command="/usr/local/bin/wthr"
-pidfile="/var/run/webappsgo/wthr/wthr.pid"
-
-load_rc_config $name
-run_rc_command "$1"
-`
-
-	rcPath := "/usr/local/etc/rc.d/wthr"
-	if err := os.WriteFile(rcPath, []byte(rcScript), 0755); err != nil {
-		return fmt.Errorf("failed to write rc.d script: %w", err)
-	}
-
-	fmt.Printf(T("cli.service.rcd_install_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.rcd_add_rcconf"))
-	fmt.Println(T("cli.service.rcd_use_start"))
-	return nil
-}
-
-func uninstallRCDService() error {
-	os.Remove("/usr/local/etc/rc.d/wthr")
-	fmt.Printf(T("cli.service.rcd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.rcd_remove_rcconf"))
-	return nil
-}
-
-func installWindowsService() error {
-	// Check for NSSM
-	if _, err := exec.LookPath("nssm"); err != nil {
-		return fmt.Errorf("NSSM not found. Install from https://nssm.cc/download")
-	}
-
-	binPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
-	}
-
-	// Install service with NSSM
-	if err := runCommand("nssm", "install", "wthr", binPath); err != nil {
-		return fmt.Errorf("failed to install service: %w", err)
-	}
-
-	// Set service description
-	runCommand("nssm", "set", "wthr", "Description", "Wthr Weather")
-
-	// Set startup type to automatic
-	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
-
-	fmt.Printf(T("cli.service.windows_install_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.windows_use_start"))
-	return nil
-}
-
-func uninstallWindowsService() error {
-	if _, err := exec.LookPath("nssm"); err == nil {
-		// Uninstall with NSSM
-		runCommand("nssm", "stop", "wthr")
-		runCommand("nssm", "remove", "wthr", "confirm")
+		fmt.Println(T("cli.service.user_fallback"))
 	} else {
-		// Fallback to sc
-		runCommand("sc", "stop", "wthr")
-		runCommand("sc", "delete", "wthr")
+		fmt.Println(T("cli.service.no_admin_user_service"))
 	}
 
-	fmt.Printf(T("cli.service.windows_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
+	return installServiceWith(userServiceManager, true)
 }
 
-// Runit service manager support
-func isRunitAvailable() bool {
-	// Check if runit is available by looking for /etc/runit or /var/service
-	if _, err := os.Stat("/etc/runit"); err == nil {
-		return true
-	}
-	if _, err := os.Stat("/var/service"); err == nil {
-		return true
-	}
-	// Check if sv command exists
-	return commandExists("sv")
-}
-
-func installRunitService() error {
-	// Create system user if it doesn't exist
-	if err := createSystemUser(); err != nil {
-		return fmt.Errorf("failed to create system user: %w", err)
+// installServiceWith runs the manager's install and reports the outcome.
+func installServiceWith(newManager func() (serviceManager, error), userMode bool) error {
+	manager, err := newManager()
+	if err != nil {
+		return err
 	}
 
-	// Create required directories
-	if err := createServiceDirectories(); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
+	if err := manager.Install(); err != nil {
+		return fmt.Errorf(T("cli.service.install_failed"), err)
 	}
 
-	serviceDir := "/etc/sv/wthr"
-
-	// Create service directory
-	if err := os.MkdirAll(serviceDir, 0755); err != nil {
-		return fmt.Errorf("failed to create service directory: %w", err)
+	key := "cli.service.installed_started"
+	if userMode {
+		key = "cli.service.user_installed_started"
 	}
-
-	// Create run script
-	runScript := serviceTemplate(runitRunTemplate)
-
-	runPath := serviceDir + "/run"
-	if err := os.WriteFile(runPath, []byte(runScript), 0755); err != nil {
-		return fmt.Errorf("failed to create run script: %w", err)
-	}
-
-	// Create log directory
-	logDir := serviceDir + "/log"
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
-
-	// Create log run script
-	logRunScript := serviceTemplate(runitLogRunTemplate)
-
-	logRunPath := logDir + "/run"
-	if err := os.WriteFile(logRunPath, []byte(logRunScript), 0755); err != nil {
-		return fmt.Errorf("failed to create log run script: %w", err)
-	}
-
-	// Create log directory
-	if err := os.MkdirAll("/var/log/webappsgo/wthr", 0755); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
-
-	// Enable service by symlinking to /var/service
-	linkPath := "/var/service/wthr"
-	// Remove if exists
-	os.Remove(linkPath)
-	if err := os.Symlink(serviceDir, linkPath); err != nil {
-		return fmt.Errorf("failed to enable service: %w", err)
-	}
-
-	fmt.Printf(T("cli.service.runit_install_success")+"\n", display.Emoji("✓", "[OK]"))
-	fmt.Println(T("cli.service.runit_service_dir"))
-	fmt.Println(T("cli.service.runit_service_link"))
+	fmt.Printf(T(key)+"\n", display.Emoji("✓", "[OK]"), manager.Name())
 
 	return nil
 }
 
-func uninstallRunitService() error {
-	// Remove service link
-	if err := os.Remove("/var/service/wthr"); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove service link: %w", err)
+// uninstallService stops and removes the service, then deletes all data and the service
+// account after the user confirms. The binary stays (AI.md PART 24 "Service Uninstall Logic").
+func uninstallService() error {
+	manager, err := findInstalledManager()
+	if err != nil {
+		return err
+	}
+	if manager == nil {
+		return fmt.Errorf(T("cli.service.not_installed"), os.Args[0])
 	}
 
-	// Stop the service first if sv command exists
-	if commandExists("sv") {
-		runCommand("sv", "stop", "wthr")
+	system := manager.IsSystem()
+	if system && !util.IsPrivileged() {
+		return escalateServiceCommand()
 	}
 
-	// Remove service directory
-	if err := os.RemoveAll("/etc/sv/wthr"); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove service directory: %w", err)
-	}
-
-	fmt.Printf(T("cli.service.runit_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-// Helper functions
-func runCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func commandExists(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
-}
-
-// createSystemUser creates a system user and group for the service
-func createSystemUser() error {
-	// Check if user already exists
-	if userExists("wthr") {
-		fmt.Printf(T("cli.service.user_already_exists")+"\n", display.Emoji("✓", "[OK]"))
+	if !promptYesNo(T("cli.service.uninstall_confirm"), false) {
+		fmt.Println(T("cli.service.uninstall_cancelled"))
 		return nil
 	}
 
-	switch runtime.GOOS {
-	case "linux":
-		return createLinuxUser()
-	case "darwin":
-		return createMacOSUser()
-	case "freebsd", "openbsd", "netbsd":
-		return createBSDUser()
-	default:
-		return fmt.Errorf("service install is not supported on %s", runtime.GOOS)
+	if err := manager.Uninstall(); err != nil {
+		return fmt.Errorf(T("cli.service.uninstall_failed"), err)
 	}
+
+	if err := removeServiceData(system); err != nil {
+		return err
+	}
+
+	fmt.Printf(T("cli.service.uninstalled")+"\n", display.Emoji("✓", "[OK]"))
+	if executable, err := os.Executable(); err == nil {
+		fmt.Printf(T("cli.service.uninstall_binary_hint")+"\n", executable)
+	}
+
+	return nil
 }
 
-// createLinuxUser creates a system user on Linux
-func createLinuxUser() error {
-	// Create group first
-	if err := runCommand("groupadd", "--system", "wthr"); err != nil {
-		// Group might already exist, check if that's the error
-		if !groupExists("wthr") {
-			return fmt.Errorf("failed to create group: %w", err)
-		}
-	}
-
-	// Create user with system flag, no login shell, no home directory
-	err := runCommand("useradd",
-		"--system",
-		"--gid", "wthr",
-		"--no-create-home",
-		"--shell", "/sbin/nologin",
-		"--comment", "Wthr service account",
-		"wthr")
-
+// disableService stops the service and removes it from auto-start; the service file, data
+// and the service account stay so --install can enable it again.
+func disableService() error {
+	manager, err := findInstalledManager()
 	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return err
+	}
+	if manager == nil {
+		return fmt.Errorf(T("cli.service.not_installed"), os.Args[0])
 	}
 
-	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
+	if manager.IsSystem() && !util.IsPrivileged() {
+		return escalateServiceCommand()
+	}
+
+	if err := manager.Disable(); err != nil {
+		return fmt.Errorf(T("cli.service.disable_failed"), err)
+	}
+
+	fmt.Printf(T("cli.service.disabled")+"\n", display.Emoji("✓", "[OK]"))
+
 	return nil
 }
 
-// createMacOSUser creates a system user on macOS
-func createMacOSUser() error {
-	// Find next available UID in system range (100-499)
-	uid := findAvailableUID(100, 499)
-	if uid == 0 {
-		return fmt.Errorf("no available UID in system range")
-	}
-
-	// Create group
-	if err := runCommand("dscl", ".", "-create", "/Groups/wthr"); err != nil {
-		if !groupExists("wthr") {
-			return fmt.Errorf("failed to create group: %w", err)
-		}
-	}
-	runCommand("dscl", ".", "-create", "/Groups/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Groups/wthr", "RealName", "Weather")
-
-	// Create user
-	if err := runCommand("dscl", ".", "-create", "/Users/wthr"); err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
-	}
-	runCommand("dscl", ".", "-create", "/Users/wthr", "UniqueID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Users/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Users/wthr", "UserShell", "/usr/bin/false")
-	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather")
-	runCommand("dscl", ".", "-create", "/Users/wthr", "NFSHomeDirectory", "/var/empty")
-
-	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-// createBSDUser creates a system user on BSD
-func createBSDUser() error {
-	// Create group
-	if err := runCommand("pw", "groupadd", "wthr", "-g", "800"); err != nil {
-		if !groupExists("wthr") {
-			return fmt.Errorf("failed to create group: %w", err)
-		}
-	}
-
-	// Create user
-	err := runCommand("pw", "useradd", "wthr",
-		"-u", "800",
-		"-g", "wthr",
-		"-s", "/usr/sbin/nologin",
-		"-d", "/nonexistent",
-		"-c", "Wthr service account")
-
+// controlService runs start, stop, restart or reload against the installed service.
+func controlService(action string) error {
+	manager, err := findInstalledManager()
 	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return err
+	}
+	if manager == nil {
+		return fmt.Errorf(T("cli.service.not_installed"), os.Args[0])
 	}
 
-	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-// createServiceDirectories creates required directories with correct ownership
-func createServiceDirectories() error {
-	dirs := []string{
-		"/var/lib/webappsgo/wthr",
-		"/var/lib/webappsgo/wthr/db",
-		"/var/log/webappsgo/wthr",
-		"/var/cache/webappsgo/wthr",
-		"/etc/webappsgo/wthr",
+	if manager.IsSystem() && !util.IsPrivileged() {
+		return escalateServiceCommand()
 	}
 
-	for _, dir := range dirs {
-		// Create directory
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-
-		// Set ownership to wthr:wthr (skip if user doesn't exist)
-		if userExists("wthr") {
-			if runtime.GOOS != "windows" {
-				runCommand("chown", "-R", "wthr:wthr", dir)
-			}
-		}
-	}
-
-	fmt.Printf(T("cli.service.directories_created")+"\n", display.Emoji("✓", "[OK]"))
-	return nil
-}
-
-// userExists checks if a user exists on the system
-func userExists(username string) bool {
-	switch runtime.GOOS {
-	case "linux", "freebsd", "openbsd", "netbsd":
-		// Check /etc/passwd
-		cmd := exec.Command("id", "-u", username)
-		return cmd.Run() == nil
-	case "darwin":
-		// Use dscl on macOS
-		cmd := exec.Command("dscl", ".", "-read", "/Users/"+username)
-		return cmd.Run() == nil
-	default:
-		return false
-	}
-}
-
-// groupExists checks if a group exists on the system
-func groupExists(groupname string) bool {
-	switch runtime.GOOS {
-	case "linux", "freebsd", "openbsd", "netbsd":
-		cmd := exec.Command("getent", "group", groupname)
-		return cmd.Run() == nil
-	case "darwin":
-		cmd := exec.Command("dscl", ".", "-read", "/Groups/"+groupname)
-		return cmd.Run() == nil
-	default:
-		return false
-	}
-}
-
-// findAvailableUID finds an available UID in the given range
-func findAvailableUID(min, max int) int {
-	for uid := min; uid <= max; uid++ {
-		cmd := exec.Command("dscl", ".", "-list", "/Users", "UniqueID")
-		output, err := cmd.Output()
-		if err != nil {
-			continue
-		}
-		// Simple check - in production you'd want more robust checking
-		if !contains(string(output), fmt.Sprintf("%d", uid)) {
-			return uid
-		}
-	}
-	return 0
-}
-
-// contains checks if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
-}
-
-func containsMiddle(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return manager.Control(action)
 }

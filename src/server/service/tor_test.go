@@ -1,11 +1,13 @@
 package service
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/cretz/bine/control"
 	"github.com/cretz/bine/tor"
 )
 
@@ -173,7 +175,7 @@ func TestTor_GetHealthStatus(t *testing.T) {
 
 // TestTor_Stop_NilTor covers the early-return path of Stop() when the
 // service was never started, so it must not touch the monitor channel or
-// panic on a nil onionService/tor.
+// panic on a empty onion service ID/tor.
 func TestTor_Stop_NilTor(t *testing.T) {
 	ts := &TorService{
 		monitorEnabled: true,
@@ -203,7 +205,7 @@ func TestTor_PerformHealthCheck(t *testing.T) {
 	tests := []struct {
 		name             string
 		isRunning        bool
-		onionService     *tor.OnionService
+		onionServiceID   string
 		torInstance      *tor.Tor
 		initialStatus    string
 		wantStatus       string
@@ -216,17 +218,17 @@ func TestTor_PerformHealthCheck(t *testing.T) {
 			wantStatus:    "healthy",
 		},
 		{
-			name:          "running with nil deps is unhealthy",
-			isRunning:     true,
-			onionService:  nil,
-			torInstance:   nil,
-			initialStatus: "healthy",
-			wantStatus:    "unhealthy",
+			name:           "running with nil deps is unhealthy",
+			isRunning:      true,
+			onionServiceID: "",
+			torInstance:    nil,
+			initialStatus:  "healthy",
+			wantStatus:     "unhealthy",
 		},
 		{
 			name:             "running with live deps is healthy",
 			isRunning:        true,
-			onionService:     &tor.OnionService{},
+			onionServiceID:   "abcdefghijklmnop",
 			torInstance:      &tor.Tor{},
 			initialStatus:    "unhealthy",
 			wantStatus:       "healthy",
@@ -236,10 +238,10 @@ func TestTor_PerformHealthCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := &TorService{
-				isRunning:    tt.isRunning,
-				onionService: tt.onionService,
-				tor:          tt.torInstance,
-				healthStatus: tt.initialStatus,
+				isRunning:      tt.isRunning,
+				onionServiceID: tt.onionServiceID,
+				tor:            tt.torInstance,
+				healthStatus:   tt.initialStatus,
 			}
 			before := ts.lastHealthCheck
 			ts.performHealthCheck()
@@ -309,5 +311,52 @@ func TestTor_MonitorHealth_StopsOnSignal(t *testing.T) {
 		// success
 	case <-time.After(2 * time.Second):
 		t.Fatal("monitorHealth did not return after monitorStop was closed")
+	}
+}
+
+// TestOnionKeyPersistence verifies a missing key asks Tor to generate one, a saved key is
+// reloaded, and the key file and directory are private.
+func TestOnionKeyPersistence(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "site", "private_key")
+
+	generated, err := loadOrCreateOnionKey(keyPath)
+	if err != nil {
+		t.Fatalf("loadOrCreateOnionKey(missing) error = %v", err)
+	}
+	if generated.Type() != control.KeyTypeNew {
+		t.Errorf("a missing key must request a new one, got type %q", generated.Type())
+	}
+
+	if err := os.WriteFile(keyPath, []byte("not base64!"), 0o600); err == nil {
+		t.Fatal("the key directory must not exist before saveOnionKey creates it")
+	}
+
+	blob := base64.StdEncoding.EncodeToString(make([]byte, 64))
+	if err := saveOnionKey(keyPath, blob); err != nil {
+		t.Fatalf("saveOnionKey() error = %v", err)
+	}
+
+	info, err := os.Stat(keyPath)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("key file mode = %v, %v; want 0600", info.Mode().Perm(), err)
+	}
+	dirInfo, err := os.Stat(filepath.Dir(keyPath))
+	if err != nil || dirInfo.Mode().Perm() != 0o700 {
+		t.Errorf("key directory mode = %v, %v; want 0700", dirInfo.Mode().Perm(), err)
+	}
+
+	loaded, err := loadOrCreateOnionKey(keyPath)
+	if err != nil {
+		t.Fatalf("loadOrCreateOnionKey(saved) error = %v", err)
+	}
+	if loaded.Type() != control.KeyTypeED25519V3 {
+		t.Errorf("a saved key must load as ED25519-V3, got %q", loaded.Type())
+	}
+
+	if err := os.WriteFile(keyPath, []byte("not base64!"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadOrCreateOnionKey(keyPath); err == nil {
+		t.Error("an unreadable saved key must return an error, not silently become a new address")
 	}
 }

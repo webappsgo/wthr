@@ -4811,8 +4811,9 @@ Content-Type: application/json
 | **Private functions/types** | `camelCase` | `validateInput()`, `dbConnection` |
 | **Constants** | `PascalCase` or `SCREAMING_SNAKE` | `MaxRetries`, `DEFAULT_TIMEOUT` |
 | **Variables** | `camelCase` | `userEmail`, `isValid`, `retryCount` |
-| **Rendering** | One helper returns the final, sanitized, language-resolved HTML for a request: `operatorHTML(r *http.Request, name string) template.HTML`, where `name` is `header`, `about`, `privacy`, `terms` or `footer`. It returns an empty string when there is no usable file, and then the built-in content applies. Every template calls it; no handler reads these files itself |
 | **Interfaces** | `PascalCase` + `-er` suffix | `Reader`, `UserStore`, `Authenticator` |
+
+**Operator page content** is rendered only through the one helper defined in "Page Content" (`server.branding.content`); no handler reads that configuration itself.
 
 ### Naming Rules
 
@@ -8524,7 +8525,7 @@ func (req *CreateResourceRequest) Parse() (*Resource, error) {
 
 | File | Holds |
 |------|-------|
-| `server.yml` | This node only: `server.port`, `server.address`, `server.fqdn`, `server.mode`, `server.api_version`, `server.baseurl`, `server.user`, `server.group`, `server.pidfile`, `server.daemonize`, `server.debug`, `server.database` and the top-level `database`, `server.cache`, `server.ssl`, `server.trusted_proxies`, `server.cluster` |
+| `server.yml` | This node only: `server.port`, `server.address`, `server.fqdn`, `server.mode`, `server.api_version`, `server.baseurl`, `server.user`, `server.group`, `server.pidfile`, `server.daemonize`, `server.debug`, `server.database`, `server.cache`, `server.ssl`, `server.trusted_proxies`, `server.cluster` |
 | `yaml.d/branding.yml` | `server.branding`, `server.seo`, `web.ui` ("Branding File") |
 | `yaml.d/web.yml` | `web.*` except `web.ui`; `server.cors`, `server.csrf`, `server.url_detection`, `server.compression`, `server.healthz`, `server.i18n` |
 | `yaml.d/pages.yml` | `server.pages` (the report form and its antispam, the help pages) |
@@ -8575,6 +8576,7 @@ Wherever this specification says a setting is set "in `server.yml`", it means th
 | `server.security.nel.*` | `web.headers.nel.*` |
 | `server.security.headers.clear_site_data.*` | `web.headers.clear_site_data.*` (the other `server.security.headers.*` keys are removed) |
 | `server.security.csrf.*`, `web.csrf.*` | `server.csrf.*` |
+| top-level `database.*` | `server.database.*` (`type` becomes `driver`; the keys under `primary` move up one level) |
 | `server.title`, `server.description` | `server.branding.title`, `server.branding.description` |
 | `server.seo.default_title`, `.default_description` | `server.branding.title`, `server.branding.description` (only when that key is unset or empty) |
 | `server.seo.opengraph.image`, `.opengraph.description` | `server.seo.og_image` (when unset), the description is removed |
@@ -8607,8 +8609,8 @@ Wherever this specification says a setting is set "in `server.yml`", it means th
 | **Generated** | When one of these keys is empty or missing at start, the server generates it BEFORE it serves anything, writes it to `secrets.yml` (atomic, `0600`) and records `config.secret_generated` (the key name only) in `audit.log`: `server.token`; `server.security.encryption_key` (with `encryption_key_version: 1`); `server.metrics.auth.tokens.prometheus`, `.grafana` and `.loki`; and a `webhooks.<name>_secret` whenever its webhook URL is set. Bearer tokens use the spec's token format (`tok_` plus 32 random base62 characters) and the encryption key is 32 random bytes. Only `server.token` is printed, once, at first creation; every other value is read from `secrets.yml` |
 | **Never generated** | Credentials that someone else issues stay empty until the operator sets them: `server.notifications.email.smtp.password`, `server.cache.password`, `server.database.password` and `server.database.token`, `server.pages.contact.captcha_secret_key`, `server.ssl.letsencrypt.dns_credentials`, `data.cve.api_key`, `server.backup.encryption_password`, the LDAP bind password, the OIDC client secret and the webhook URLs |
 | **Rotation** | Blank a generated key in `secrets.yml` and restart: a new value is generated. `--maintenance secret rotate {name}` rotates the encryption key and the HMAC secrets with their grace periods (PART 11) |
-| **Written by** | The server writes generated, rotated and moved secrets to `secrets.yml` and ONLY there, never to `server.yml` and never to a drop-in: the first-run `server.token`, `server.security.encryption_key` with its version, and every rotation (`--maintenance secret rotate encryption_key`) |
-| **Operator-set values** | An operator MAY write a secret key in `server.yml` or a drop-in (for example from configuration management). The automatic migration moves it to `secrets.yml` at the next start ("Area Files and Automatic Migration"), where it wins over any other file. A value may also be an environment reference such as `${DB_PASSWORD}`, which is moved like any other value. A plaintext DNS credential is rewritten as `enc:v1:` in the file that holds it |
+| **Written by** | The server writes generated, rotated and moved secrets to `secrets.yml` and ONLY there, never to `server.yml` and never to a drop-in (this limits what the server writes; an operator may still hand-write a value elsewhere, see "Operator-set values"): the first-run `server.token`, `server.security.encryption_key` with its version, and every rotation (`--maintenance secret rotate encryption_key`) |
+| **Operator-set values** | An operator MAY write a secret key in `server.yml` or a drop-in (for example from configuration management). The automatic migration moves it to `secrets.yml` at the next start ("Area Files and Automatic Migration"), where it wins over any other file. A value may also be an environment reference such as `${DB_PASSWORD}`, which is moved like any other value. A plaintext DNS credential is rewritten as `enc:v1:` in the file that holds it. So `secrets.yml` is where a secret lives at rest, and a secret in `server.yml` or a drop-in is a hand-off that ends at the next start |
 | **Migration** | At start, if `server.token` or `server.security.encryption_key` is found in `server.yml` and `secrets.yml` does not hold it, the server writes `secrets.yml` first (atomic, `0600`, fsynced) and only then rewrites `server.yml` without those keys, so a secret is never in both files and never lost |
 | **Early read** | The early config read (PART 8 startup, step 8e) never opens `secrets.yml`: it needs only `server.port` and `server.address` |
 | **Permissions** | Always `0600` (PART 8 → "Directory Validation Rules": private paths); a wrong mode is fixed at start |
@@ -11231,7 +11233,7 @@ Run '{project_name} <flag> --help' (for example `--service --help`) for detailed
 | **Create if missing** | All directories are created with proper permissions if they don't exist |
 | **Permissions (root)** | Directories: `0755`, Files: `0644`, PID: `0644`, except the private paths below |
 | **Permissions (user)** | Directories: `0700`, Files: `0600`, PID: `0600` |
-| **Private paths (root AND user mode)** | Directories `0700` and files `0600`, whoever runs the server, on: `{config_dir}/server.yml`, `{config_dir}/secrets.yml`, `{config_dir}/yaml.d/` and its drop-ins, `{config_dir}/assets/`, `{config_dir}/ssl/`, `{config_dir}/tor/`, `{config_dir}/i2p/`, `{data_dir}/security/` and `{data_dir}/tor/` INCLUDING `tor/site/`, each with EVERYTHING below it. `server.yml` holds `server.token` and the encryption key, so it is private even when it contains no other secret. Files and directories are CREATED with these modes (never created `0644`/`0755` and fixed later) |
+| **Private paths (root AND user mode)** | Directories `0700` and files `0600`, whoever runs the server, on: `{config_dir}/server.yml`, `{config_dir}/secrets.yml`, `{config_dir}/yaml.d/` and its drop-ins, `{config_dir}/assets/`, `{config_dir}/ssl/`, `{config_dir}/tor/`, `{config_dir}/i2p/`, `{data_dir}/security/` and `{data_dir}/tor/` INCLUDING `tor/site/`, each with EVERYTHING below it. `secrets.yml` holds `server.token`, the encryption key and every other credential, and an operator may hand-write a secret into `server.yml` or a drop-in until the next start moves it, so those files are private too. Files and directories are CREATED with these modes (never created `0644`/`0755` and fixed later) |
 | **Private path enforcement** | `enforcePrivate` runs on every private path at every start, BEFORE the first read of `server.yml` and BEFORE any child process (tor, i2pd) is spawned. A wrong mode is FIXED, never reported as a config load failure; only a path that is neither private nor fixable stops the start, with an error naming the path and its mode (never any content). The unit test builds the tree at `0755`/`0644` and asserts every private path ends `0700`/`0600`, `tor/site` and `server.yml` included |
 | **PID directory (root)** | `/var/run/{internal_org}/{internal_name}/`, one directory per service, `0755`, owned by `{internal_name}:{internal_name}`, created in the root phase (PART 8 startup step 8b) or by the init script before the start. Never a directory shared between services of one org: a service account can then remove only its own PID file on shutdown and can never touch another service's |
 | **Parent dirs** | Create parent directories as needed (`mkdir -p` equivalent) |
@@ -12628,22 +12630,22 @@ mongodb:
 **SQLite as Local Cache (with remote DB):**
 
 ```yaml
-database:
-  # Primary: remote database
-  primary:
+server:
+  database:
+    # Primary: remote database
     driver: postgres
     url: ${DATABASE_URL}
 
-  # Local SQLite cache for fast reads and offline resilience
-  cache:
-    enabled: true
-    path: ${DATA_DIR}/db/cache.db
-    # Sync from remote
-    sync_interval: 30s
-    # Continue working if remote unavailable
-    offline_mode: true
-    # Max cache age before forcing remote
-    max_age: 1h
+    # Local SQLite cache for fast reads and offline resilience
+    cache:
+      enabled: true
+      path: ${DATA_DIR}/db/cache.db
+      # Sync from remote
+      sync_interval: 30s
+      # Continue working if remote unavailable
+      offline_mode: true
+      # Max cache age before forcing remote
+      max_age: 1h
 ```
 
 When enabled:
@@ -12657,56 +12659,56 @@ When enabled:
 Supports multiple database connections of different types with automatic sync:
 
 ```yaml
-database:
-  # Primary database (required)
-  primary:
+server:
+  database:
+    # Primary database (required)
     driver: postgres
     url: ${DATABASE_URL}
 
-  # Additional databases (optional, for redundancy/failover)
-  replicas:
-    - name: mariadb-1
-      driver: mysql
-      url: mysql://user:pass@mariadb1.example.com:3306/myapp
-      # Failover priority (lower = higher priority)
-      priority: 1
-      # Read replica
-      read_only: true
+    # Additional databases (optional, for redundancy/failover)
+    replicas:
+      - name: mariadb-1
+        driver: mysql
+        url: mysql://user:pass@mariadb1.example.com:3306/myapp
+        # Failover priority (lower = higher priority)
+        priority: 1
+        # Read replica
+        read_only: true
 
-    - name: mariadb-2
-      driver: mysql
-      url: mysql://user:pass@mariadb2.example.com:3306/myapp
-      priority: 2
-      read_only: true
+      - name: mariadb-2
+        driver: mysql
+        url: mysql://user:pass@mariadb2.example.com:3306/myapp
+        priority: 2
+        read_only: true
 
-    - name: postgres-backup
-      driver: postgres
-      url: postgres://user:pass@pg-backup.example.com:5432/myapp
-      priority: 3
-      # Can be promoted to primary
-      read_only: false
+      - name: postgres-backup
+        driver: postgres
+        url: postgres://user:pass@pg-backup.example.com:5432/myapp
+        priority: 3
+        # Can be promoted to primary
+        read_only: false
 
-    - name: mssql-legacy
-      driver: mssql
-      url: sqlserver://user:pass@mssql.example.com:1433?database=myapp
-      priority: 10
-      # Sync data to this DB
-      sync: true
+      - name: mssql-legacy
+        driver: mssql
+        url: sqlserver://user:pass@mssql.example.com:1433?database=myapp
+        priority: 10
+        # Sync data to this DB
+        sync: true
 
-  # Sync settings
-  sync:
-    # Auto-sync between all databases
-    enabled: true
-    # Sync check interval
-    interval: 5s
+    # Sync settings
+    sync:
+      # Auto-sync between all databases
+      enabled: true
+      # Sync check interval
+      interval: 5s
 
-  # Failover settings
-  failover:
-    enabled: true
-    # Health check interval
-    health_check: 10s
-    # Failed checks before failover
-    threshold: 3
+    # Failover settings
+    failover:
+      enabled: true
+      # Health check interval
+      health_check: 10s
+      # Failed checks before failover
+      threshold: 3
 ```
 
 **Failover Priority:**
@@ -17115,7 +17117,7 @@ The steps below run on the `confirm` call; the first call only returns the revie
 3. **Encryption at rest:** the report body is encrypted with the project's PGP key if one exists; otherwise AES-256-GCM with `server.security.encryption_key` (the spec's canonical at-rest AES key — see PART 11 → "Cryptographic Keys"). Plaintext is NEVER persisted to disk.
 4. **Maintainer notification:** PGP-encrypted email to every Server Admin who has registered a personal pubkey (admin profile setting); falls back to AES-encrypted attachment + warning if no admin has a pubkey.
 5. **Researcher acknowledgment:** email to the researcher's submitted address, containing only the `tracking_id` and the URL `/server/security/report/{tracking_id}` (with a one-shot token only the researcher can use) — never any report content. If the researcher submitted a pubkey, the email is PGP-encrypted to it. If not, it is sent unencrypted: it carries no vulnerability details, and the status page it links to shows only the triage state. A pubkey is never required, and the project key is never used for this email (the researcher cannot decrypt it). Without working SMTP the acknowledgment is skipped and the `tracking_id` appears only in the form response.
-6. **Response to the form POST:** canonical success body — `{"ok": true, "data": {"tracking_id": "sec_..."}}` — with a clear "we received your report; check your email for confirmation" message rendered server-side.
+6. **Response to the form POST:** canonical success body — `{"ok": true, "data": {"tracking_id": "sec_..."}}` — with a clear message rendered server-side: "We received your report. Your tracking ID is {tracking_id}." The sentence "A confirmation email is on its way" is added only when step 5 handed the acknowledgment to the mail transport; when step 5 was skipped or failed the message says nothing about email, so the response never promises a message that was not sent. The `tracking_id` in the response is the submitter's one guaranteed record.
 7. **Logging:** one entry to `security.log` as `security.report_received` — `tracking_id`, severity, sanitized affected-component, NO researcher PII, NO vulnerability content. Maintainers see full content only via the encrypted email or the admin tracker (after auth).
 
 ### Security Report Storage & Operator Workflow
@@ -29316,7 +29318,7 @@ the hex values from `ThemePaletteDark`/`ThemePaletteLight`.
 
 ### Branding File (`yaml.d/branding.yml`)
 
-**All branding, white-labeling and theming live in ONE file: `{config_dir}/yaml.d/branding.yml`.** It holds `server.branding.*`, `server.seo.*` (including `seo.verification`) and `web.ui.theme`, with the dotted paths below, and nothing else.
+**All branding, white-labeling and theming live in ONE file: `{config_dir}/yaml.d/branding.yml`.** It holds exactly these sections, with the dotted paths below: `server.branding.*` (including `server.branding.content`, "Page Content"), `server.seo.*` (the SEO tags, `verification`, `sitemap` and `feed`), `web.ui.theme` and `web.ui.accent`. Every other `web.*` key, and every other endpoint setting, lives in its own area file ("Area Files and Automatic Migration").
 
 ```yaml
 server:
@@ -29380,7 +29382,7 @@ web:
 | **Writes** | The admin panel, the setup flow and `--admin config set branding.*` write `branding.yml` (atomic, `0600`); the whole file is rewritten and comments are not kept. They never write these keys to `server.yml`. An operator may also edit it by hand; the file watcher applies the change |
 | **Images** | `logo`, `favicon` and `seo.og_image` take an `https://` URL, a `data:` URI or a file name in `{config_dir}/assets/` ("Image Files"); empty means the embedded default |
 | **SEO tags** | `{canonical_url}` is `seo.canonical` (when set) plus the request path, otherwise the request origin plus the path; sitemap, feeds and `robots.txt` always use `BuildURL(r, path)`. `seo.noindex: true` forces `{robots}` to `noindex,nofollow` on every route and adds `X-Robots-Tag: noindex, nofollow`. `opengraph.enabled: false` or `twitter.enabled: false` omits that whole tag group. `meta_tags` names are limited to `[a-z0-9:_.-]`, contents are HTML-escaped, and a name this specification already generates (`description`, `keywords`, `author`, `robots`, `viewport`) is ignored. `title_separator` is at most 8 characters. An invalid value is replaced by its default (PART 5 → "Invalid → default") |
-| **Accent** | `web.ui.accent` is a 6-digit hex color (`#RRGGBB`) that sets `--color-primary` (links, buttons, focus ring) and its `--color-primary-bg` tint in both themes. It must reach a 4.5:1 contrast ratio against the background of BOTH themes; a value that is not valid hex or fails the ratio is ignored, the built-in color is used, and one warning names the key. The server emits it in `/static/css/accent.css`, linked after the app stylesheet (never an inline style, CSP); no valid key, no file |
+| **Accent** | `web.ui.accent` is a 6-digit hex color (`#RRGGBB`), the base of `--color-primary` (links, buttons, focus ring) and of its `--color-primary-bg` tint. No single color reaches 4.5:1 against both a dark and a light background, so the server derives one color per theme: the base itself when it already reaches 4.5:1 against that theme's `--color-bg` (`#282a36` dark, `#ffffff` light), otherwise the same hue and saturation with the lightness moved (up on dark, down on light) in 1% steps until it does. `--color-primary-bg` is that color at 15% alpha (dark) or 12% (light). A value that is not valid hex is ignored, the built-in color is used, and one warning names the key. The server emits the result in `/static/css/accent.css`, linked after the app stylesheet (never an inline style, CSP), setting the variables for the dark default (`:root`), for `html.theme-light` and, inside `@media (prefers-color-scheme: light)`, for `html.theme-auto`; no valid key, no file |
 | **Sync** | In Cluster Mode, SERVER and HYBRID sync `branding.yml` like every other area file ("Config Sync"), so all nodes show the same branding, theme, page content and images (`assets/` is mirrored too, "Image Files"). A branding key found in `server.yml` is still honored (it merges below `branding.yml`) and is moved by the automatic migration |
 
 ### Page Content (`server.branding.content`)
@@ -31310,7 +31312,7 @@ func trackingScript(r *http.Request) template.HTML {
 | Request kind | Dropdown | No, but required when Type is `privacy` | `access`, `export`, `deletion`, `correction`, `opt_out`, `other` | null |
 | Captcha | Captcha | Yes | Spam prevention - rendered on the initial form and required on EVERY submission (anonymous form: no failed-attempt state exists). Single-use; a new challenge is issued after each submit, failed or not | null |
 | Website (honeypot) | Text, hidden | No, must stay EMPTY | Antispam trap, see "Contact antispam" below. Never shown to a person; a filled value is dropped silently | 200 |
-| Form token | Hidden | Yes | Signed, single-use token (render time plus nonce), see "Contact antispam" below; the API `GET` returns it and the `POST` echoes it | 100 |
+| Form token | Hidden | Yes | Signed, single-use token (render time plus nonce), see "Contact antispam" below; the API `GET` returns it and the `POST` echoes it | 128 |
 | Step | Hidden | No (default `submit`) | `submit`, `confirm` or `edit`: the review flow in "Contact antispam" | 10 |
 | Review token | Hidden | Only on `confirm` | Signed token issued by the review step | 300 |
 | Confirmed | Checkbox | Only on `confirm`, and it must be true | "This email address is correct, and this is a genuine report, not an advertisement, a solicitation or spam" | null |
@@ -31340,12 +31342,12 @@ func trackingScript(r *http.Request) template.HTML {
 | **Switch** | `server.pages.contact.enabled: false` turns the form off: `GET` and `POST` return `404`, and the form `Contact:` line leaves `security.txt` (the GitHub and `mailto:` lines stay) |
 | **Link rule** | In `abuse`, `dmca` and `privacy` submissions a link is accepted ONLY when its host is `{fqdn}` (the request's resolved fqdn, PART 8 → "Resolution Order"), a host in the `DOMAIN` list, or the Tor or I2P host that served the request. Any other host rejects the submission as `content`. A link in Name or Subject is always rejected. `security` submissions are not restricted, because a vulnerability report cites CVEs, proofs of concept and third-party pages |
 
-#### Captcha providers (`pages.contact.captcha`)
+#### Captcha providers (`server.pages.contact.captcha`)
 
 | Value | Behavior |
 |-------|----------|
 | `simple` (default) | Built-in, self-hosted challenge: no third party, no keys, works over Tor and with JavaScript disabled. The server generates a question and stores only the hashed answer; each challenge is single-use, expires after 10 minutes and is rate-limited |
-| `recaptcha` | Google reCAPTCHA v2 checkbox. Needs `pages.contact.captcha_site_key` (public, rendered in the page) and `pages.contact.captcha_secret_key` (server-side only, kept in `secrets.yml` like every secret, never returned in a response or written to a log). The server verifies by POSTing `secret`, `response` and `remoteip` to `https://www.google.com/recaptcha/api/siteverify` and accepts only `"success": true`; the widget needs JavaScript, so the no-JavaScript fallback below applies |
+| `recaptcha` | Google reCAPTCHA v2 checkbox. Needs `server.pages.contact.captcha_site_key` (public, rendered in the page) and `server.pages.contact.captcha_secret_key` (server-side only, kept in `secrets.yml` like every secret, never returned in a response or written to a log). The server verifies by POSTing `secret`, `response` and `remoteip` to `https://www.google.com/recaptcha/api/siteverify` and accepts only `"success": true`; the widget needs JavaScript, so the no-JavaScript fallback below applies |
 | `hcaptcha` | hCaptcha. Same two keys; verified by POSTing `secret` and `response` to `https://api.hcaptcha.com/siteverify` and accepting only `"success": true`; the widget needs JavaScript, so the no-JavaScript fallback below applies |
 
 - **Validation:** `recaptcha` or `hcaptcha` with an empty site key or secret key fails config validation with a clear error; the keys are ignored for `simple`
@@ -31388,11 +31390,11 @@ CREATE INDEX IF NOT EXISTS idx_captcha_challenges_expires ON captcha_challenges(
 
 | # | Layer | Rule | On failure |
 |---|-------|------|------------|
-| 1 | Shape | Body at most 256 KiB (security mode alone allows about 40,000 characters, and the confirm step repeats every field), every field present, no unknown fields, valid UTF-8, no control characters (CR, LF, NUL included) in `name`, `email` and `subject`, no bidirectional-override or zero-width characters in any field, and `email` is ONE address (no comma, semicolon or angle-bracket list). **Origin check** (HTML form posts only, not the JSON API): a present `Origin` (or, when it is absent, `Referer`) must be this site's own origin, a present `Sec-Fetch-Site` must be `same-origin`, and a post that carries none of the three is rejected, because a script that posts without a browser sends none of them | `VALIDATION_FAILED` (`400`) on the field; an origin failure returns the generic message "Please submit the form from this site" |
+| 1 | Shape | Body at most 256 KiB (security mode alone allows about 40,000 characters, and the confirm step repeats every field), every required field present (an optional field, an unchecked checkbox or `step` may be absent: absent text counts as empty, an absent checkbox as false, an absent `step` as `submit`), no unknown fields, valid UTF-8, no control characters (CR, LF, NUL included) in `name`, `email` and `subject`, no bidirectional-override or zero-width characters in any field, and `email` is ONE address (no comma, semicolon or angle-bracket list). **Origin check** (HTML form posts only, not the JSON API): a present `Origin` (or, when it is absent, `Referer`) must be this site's own origin, a present `Sec-Fetch-Site` must be `same-origin`, and a post that carries none of the three is rejected, because a script that posts without a browser sends none of them | `VALIDATION_FAILED` (`400`) on the field; an origin failure returns the generic message "Please submit the form from this site" |
 | 2 | Honeypot | The hidden field `website` is rendered off-screen (absolute position far outside the viewport, not `display:none`), with `tabindex="-1"`, `autocomplete="off"`, `aria-hidden="true"` and a label "Leave this field empty". A person never fills it; many bots fill every field | SILENT DROP: the response is byte-for-byte the normal success response (same status, same page or JSON), nothing is delivered, the block is logged |
 | 3 | Fill time | `form_token` is `{issued_at}.{nonce}.{hex HMAC-SHA256}` over `contact-form\|{issued_at}\|{nonce}` (a random 128-bit nonce) keyed with `installation_secret`: issuing it writes nothing to the database, and it is issued on every render and every `GET`. A submission is accepted only when the token verifies, its age is between `min_fill_seconds` and `max_age_seconds`, and its nonce is unused. The first submission that presents a valid token records the nonce in a bounded in-memory set (50,000 entries, each dropped when its token expires), and every response to that submission carries a fresh token; a reused token is a replay. The set is per node and a restart clears it, so a replay can succeed at most once per node, which the rate limits bound. The token is not bound to an IP address (Tor and mobile clients change it) | Too fast, missing, invalid, expired or already used: `VALIDATION_FAILED` (`400`) on `form_token` with the message "Please wait a moment and submit again", and a fresh token in the response |
 | 4 | Captcha | The existing proof ("No-JavaScript fallback and the simple challenge") | `VALIDATION_FAILED` on `captcha` |
-| 5 | Rate limits | Accepted submissions are counted per client IP (`per_ip`), per sender email, lowercased (`per_email`) and in total (`global`) inside `window`. The counters live in memory and are not written to the database per request. These limits come in ADDITION to the general limits of PART 12. **Strikes:** a rejection by layer 2, 4, 6 or 7, an origin failure or a replayed token is a strike against the client IP; `strikes` strikes inside `window` ban that IP from the form for `ban_hours` (kept in memory, so a bot that keeps probing stops costing work, and a restart clears it) | `429` with `Retry-After`; nothing is delivered |
+| 5 | Rate limits | Accepted submissions are counted per client IP (`per_ip`), per sender email, lowercased (`per_email`) and in total (`global`) inside `window`. The counters live in memory and are not written to the database per request. These limits come in ADDITION to the general limits of PART 12. **Strikes:** a rejection by layer 2, 4, 6 or 7, an origin failure or a replayed token is a strike against the client IP; `strikes` strikes inside `window` ban that IP from the form for `ban_hours` (kept in memory, so a bot that keeps probing stops costing work, and a restart clears it) | `429` with `Retry-After` when a limit is exceeded or the IP is banned; nothing is delivered. A strike changes no response: the layer that rejected the request answers as its own row says |
 | 6 | Content rules | Applies to `abuse`, `dmca` and `privacy`, not to `security`. The form is plain text, so with `reject_markup` (default on) ANY markup in a field is rejected: an HTML tag (`<x`, `</x`, `<!`), an HTML entity that decodes to `<` or `>`, or BBCode (`[url`, `[img`, `[b]`, `[/`). Links: none in `name` or `subject`; elsewhere a link (a `scheme://` URL, a `www.` host, or a bare `domain.tld` token; the domain part of an email address is not a link) is accepted only when its host passes the link rule in "Who can reach the form", and at most `max_links` of them. No `blocked_words` match; the email domain is not in `blocked_email_domains`. For `abuse` and `dmca` the Reported URL must name a real location: its path is matched against this app's own router (nothing is fetched) and is rejected when it is `/` or the bare host, the report form itself, an `/api/*` or `/server/{admin_path}` route, or matches no route; when the matched route serves a project resource, the project's own existence check must pass as well | `VALIDATION_FAILED` with the generic message "Your message could not be sent": the response NEVER says which rule matched |
 | 7 | Duplicate | SHA-256 of the normalized `email`, `subject` and `message` (trimmed, lowercased, whitespace collapsed) seen inside `duplicate_window_hours` (an in-memory bounded LRU of 10,000 entries) | SILENT DROP, as in layer 2 |
 
@@ -31422,7 +31424,7 @@ CREATE INDEX IF NOT EXISTS idx_captcha_challenges_expires ON captcha_challenges(
 
 **Security mode** (`/server/contact?security_id=...`) uses layers 1 to 5 and the Delivery-safety rules. Layers 6 and 7 do NOT apply to it, because a vulnerability report legitimately holds links and may be sent twice. **Email count for the report form:** exactly ONE maintainer notification plus at most ONE researcher acknowledgment per accepted report; PART 11 → "Submission Flow" steps 4 and 5 take precedence over the contact form's one-email rule. The acknowledgment is the only automatic reply the server ever sends. It goes out only after layers 1 to 5 passed (so the captcha and the per-IP, per-email and global limits already applied), carries only the `tracking_id` and the status URL and never any submitted text, uses the server's sender in `From`, and is never retried or repeated; a skipped or failed acknowledgment is not an error for the submitter.
 
-**Tests:** one unit test per layer (a filled honeypot returns the success response and sends nothing; a token younger than `min_fill_seconds`, a forged token and an expired token are rejected; the fourth submission from one IP inside the window gets `429`; a CR/LF in the subject is rejected; a duplicate sends one email), an `abuse` message holding `<a href=...>` or `[url=...]` is rejected as `markup`, a link to another host is rejected and a link to `{fqdn}` is accepted for `abuse`, `dmca` and `privacy`, a `security` message with an external link is accepted, `abuse` and `dmca` without a Reported URL are rejected, a `dmca` without the good-faith, accuracy or signature field is rejected, a missing or unknown Type (`general`, `support`, `bug`) is rejected, the third strike bans the IP for `ban_hours` (`429`), a post with no `Origin`, `Referer` and `Sec-Fetch-Site` is rejected as `origin`, and so is a mismatched `Origin`, a reused `form_token` is rejected as `replay`, step 1 never delivers, `confirm` without the checkbox, with a token younger than `review_min_seconds`, or after any field changed since the review is rejected, an `abuse` URL that matches no route is rejected, a honeypot hit at step 1 renders the same review as a normal submission, and one test that an accepted submission sends exactly one email whose `From` is the configured sender.
+**Tests:** one unit test per layer (a filled honeypot returns the success response and sends nothing; a token younger than `min_fill_seconds`, a forged token and an expired token are rejected; the sixth submission from one IP inside the window (default `per_ip: 5`) gets `429`; a CR/LF in the subject is rejected; a duplicate sends one email), an `abuse` message holding `<a href=...>` or `[url=...]` is rejected as `markup`, a link to another host is rejected and a link to `{fqdn}` is accepted for `abuse`, `dmca` and `privacy`, a `security` message with an external link is accepted, `abuse` and `dmca` without a Reported URL are rejected, a `dmca` without the good-faith, accuracy or signature field is rejected, a missing or unknown Type (`general`, `support`, `bug`) is rejected, the third strike bans the IP for `ban_hours` (`429`), a post with no `Origin`, `Referer` and `Sec-Fetch-Site` is rejected as `origin`, and so is a mismatched `Origin`, a reused `form_token` is rejected as `replay`, step 1 never delivers, `confirm` without the checkbox, with a token younger than `review_min_seconds`, or after any field changed since the review is rejected, an `abuse` URL that matches no route is rejected, a honeypot hit at step 1 renders the same review as a normal submission, and one test that an accepted submission sends exactly one email whose `From` is the configured sender.
 
 ### /server/help
 
@@ -31610,7 +31612,7 @@ curl -H "Accept: application/xml" https://jokes.example.com/api/v1/joke</code></
 | `#limits` | Behavior and limits | `POST` only; no sessions; the same rate limits and audit as the API; `Origin` validated; the supported MCP protocol versions |
 | `#troubleshooting` | Troubleshooting | A table of `400` (protocol-version or header mismatch), `401` (missing, invalid or expired token — `WWW-Authenticate: Bearer`), `403` (bad `Origin` or insufficient scope), `405` (GET or DELETE; the endpoint is POST-only) with the fix for each |
 
-**Project expansion (required content):** the project appends its own section, `#project`, after the base sections. The text comes from IDEA.md `## Business logic` and is stored as Markdown in `pages.help.mcp` (canonical storage is `server.yml` `pages.help.mcp`, edited there by the operator and applied on config reload; a project that has an admin panel also exposes it in Pages → Help. API projects have no admin panel or web editor, so `server.yml` is the only editing path). It MUST use the project's real tool names and real data — example prompts a user can paste into an assistant, per-tool tips and limits, and documentation of any MCP resources or prompts the project exposes. It never repeats or contradicts the base sections, and generic placeholder text is forbidden (same rule as `/server/help`).
+**Project expansion (required content):** the project appends its own section, `#project`, after the base sections. The text comes from IDEA.md `## Business logic` and is stored as Markdown in `server.pages.help.mcp` (canonical storage is `server.yml` `server.pages.help.mcp`, edited there by the operator and applied on config reload; a project that has an admin panel also exposes it in Pages → Help. API projects have no admin panel or web editor, so `server.yml` is the only editing path). It MUST use the project's real tool names and real data — example prompts a user can paste into an assistant, per-tool tips and limits, and documentation of any MCP resources or prompts the project exposes. It never repeats or contradicts the base sections, and generic placeholder text is forbidden (same rule as `/server/help`).
 
 **JSON body (`GET /api/{api_version}/server/help/mcp`, envelope `{ "ok": true, "data": ... }`; field names are fixed):**
 ```json
@@ -31620,7 +31622,7 @@ curl -H "Accept: application/xml" https://jokes.example.com/api/v1/joke</code></
   "aliases": ["https://host/api/mcp", "https://host/mcp"],
   "auth": { "scheme": "Bearer" },
   "tools": [ { "name": "operationId", "description": "..." } ],
-  "project": "Markdown from pages.help.mcp, or an empty string"
+  "project": "Markdown from server.pages.help.mcp, or an empty string"
 }
 ```
 
@@ -31730,10 +31732,10 @@ server:
 |-------|--------|-------------|
 | `/api/{api_version}/server/about` | GET | About page (JSON, no auth): `title`, `content` (the source of `server.branding.content.about` for the request's language after placeholder substitution, never rendered HTML; an empty string when there is no entry) and `format` (`markdown`, `html` or `text`, from its `format`; `markdown` when there is no entry) |
 | `/api/{api_version}/server/privacy` | GET | Privacy policy (JSON) |
-| `/api/{api_version}/server/contact` | GET | Contact form description (JSON, no auth): `fields` (list of `{name, type, required, max_length, required_when, max_length_when}`, see "Length limits"), `captcha` (`{provider: "simple", challenge_id, question}` for `simple`; `{provider, site_key, fallback}` for `recaptcha` and `hcaptcha`, where `fallback` is the same `{provider: "simple", challenge_id, question}` object; a new challenge on every call), `security_url`, `abuse_email`. Nothing else about recipients |
+| `/api/{api_version}/server/contact` | GET | Contact form description (JSON, no auth): `fields` (list of `{name, type, required, max_length, required_when, max_length_when}`, see "Length limits"), `captcha` (`{provider: "simple", captcha_id, question}` for `simple`; `{provider, site_key, fallback}` for `recaptcha` and `hcaptcha`, where `fallback` is the same `{provider: "simple", captcha_id, question}` object; a new challenge on every call), `security_url`, `abuse_email`. Nothing else about recipients |
 | `/api/{api_version}/server/contact` | POST | Submit the report form in two calls (the first returns the `review` and a `review_token` and delivers nothing; the second repeats every field with `review_token` and `confirmed: true` and delivers): the fields above (including `type` and the fields that type requires), the `form_token` from the `GET`, no `website`, plus ONE captcha proof (`captcha_response`, or `captcha_id` + `captcha_answer`; see "No-JavaScript fallback and the simple challenge") |
 | `/api/{api_version}/server/auth/check` | GET | Token check (machine-only, no page; `Authorization: Bearer` required): `200` with `{kind}` when the token is valid (`kind` is `operator`, `owner` or, where the project has accounts, `user`), `401` otherwise. Side-effect free, rate-limited like other auth endpoints, never echoes the token |
-| `/api/{api_version}/server/help` | GET | Help page (JSON, no auth): `title`, `content` (Markdown source of `pages.help.content`) and `format` (always `markdown`) |
+| `/api/{api_version}/server/help` | GET | Help page (JSON, no auth): `title`, `content` (Markdown source of `server.pages.help.content`) and `format` (always `markdown`) |
 | `/api/{api_version}/server/help/mcp` | GET | MCP help (JSON, no auth): `title`, `endpoint` (the resolved MCP URL) and `sections` (the `/server/help/mcp` sections in page order, each `{id, title, content}` with Markdown `content`) |
 | `/api/{api_version}/server/terms` | GET | Terms of service (JSON, no auth): `title`, `content` (the source of `server.branding.content.terms` for the request's language, or the built-in terms in Markdown when there is no entry) and `format` (`markdown`, `html` or `text`) |
 | `/api/{api_version}/server/dpo` | GET | DPO contact (JSON): `name`, `email`, `privacy_url` |
@@ -50071,12 +50073,11 @@ Default location: `{config_dir}/server.yml` (see PART 4 for platform-specific pa
 server:
   address: "[::]"
   port: 80
-
-database:
-  type: sqlite
-  # Path auto-detected based on platform (see PART 4)
-  # Docker: /data/db/sqlite/server.db
-  # Native: {db_dir}/server.db
+  database:
+    driver: sqlite
+    # Path auto-detected based on platform (see PART 4)
+    # Docker: /data/db/sqlite/server.db
+    # Native: {db_dir}/server.db
 
 # ... (all configuration options)
 ```
@@ -50087,7 +50088,7 @@ All settings can be overridden via environment:
 
 ```bash
 {PROJECT_NAME}_SERVER_PORT=8080
-{PROJECT_NAME}_DATABASE_TYPE=postgres
+DATABASE_DRIVER=postgres
 ```
 
 ## Admin Panel
@@ -62915,7 +62916,7 @@ Organizations - only for projects with multi-user collaboration.
 |----------|--------|-------------|
 | `/api/{api_version}/server/about` | GET | About information |
 | `/api/{api_version}/server/privacy` | GET | Privacy policy |
-| `/api/{api_version}/server/contact` | GET | Contact form description (JSON, no auth): `fields` (list of `{name, type, required, max_length, required_when, max_length_when}`, see "Length limits"), `captcha` (`{provider: "simple", challenge_id, question}` for `simple`; `{provider, site_key, fallback}` for `recaptcha` and `hcaptcha`, where `fallback` is the same `{provider: "simple", challenge_id, question}` object; a new challenge on every call), `security_url`, `abuse_email`. Nothing else about recipients |
+| `/api/{api_version}/server/contact` | GET | Contact form description (JSON, no auth): `fields` (list of `{name, type, required, max_length, required_when, max_length_when}`, see "Length limits"), `captcha` (`{provider: "simple", captcha_id, question}` for `simple`; `{provider, site_key, fallback}` for `recaptcha` and `hcaptcha`, where `fallback` is the same `{provider: "simple", captcha_id, question}` object; a new challenge on every call), `security_url`, `abuse_email`. Nothing else about recipients |
 | `/api/{api_version}/server/contact` | POST | Submit the report form in two calls (the first returns the `review` and a `review_token` and delivers nothing; the second repeats every field with `review_token` and `confirmed: true` and delivers): the fields above (including `type` and the fields that type requires), the `form_token` from the `GET`, no `website`, plus ONE captcha proof (`captcha_response`, or `captcha_id` + `captcha_answer`; see "No-JavaScript fallback and the simple challenge") |
 | `/api/{api_version}/server/auth/check` | GET | Token check (machine-only, no page; `Authorization: Bearer` required): `200` with `{kind}` when the token is valid (`kind` is `operator`, `owner` or, where the project has accounts, `user`), `401` otherwise. Side-effect free, rate-limited like other auth endpoints, never echoes the token |
 | `/api/{api_version}/server/help` | GET | Help content |

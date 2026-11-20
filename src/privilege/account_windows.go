@@ -12,3 +12,8 @@ func LookupAccount(name string) (*Account, error) {
 func EnsureAccount(name, home string) (*Account, error) {
 	return nil, errUnsupportedPlatform
 }
+
+// RemoveAccount is never used on Windows: the Virtual Service Account disappears with the service.
+func RemoveAccount(name string) error {
+	return errUnsupportedPlatform
+}

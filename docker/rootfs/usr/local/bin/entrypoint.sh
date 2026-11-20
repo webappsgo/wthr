@@ -35,6 +35,10 @@ APP_BIN="/usr/local/bin/${APP_NAME}"
 export TZ="${TZ:-America/New_York}"
 export CONFIG_DIR="${CONFIG_DIR:-/config/${APP_NAME}}"
 export DATA_DIR="${DATA_DIR:-/data/${APP_NAME}}"
+export CACHE_DIR="${CACHE_DIR:-/data/${APP_NAME}/cache}"
+export LOG_DIR="${LOG_DIR:-/data/log/${APP_NAME}}"
+export DATABASE_DIR="${DATABASE_DIR:-/data/db/sqlite}"
+export BACKUP_DIR="${BACKUP_DIR:-/data/backups/${APP_NAME}}"
 
 # Track background PIDs for cleanup
 declare -a PIDS=()

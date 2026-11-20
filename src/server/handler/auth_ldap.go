@@ -105,19 +105,12 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionModel := &models.UserSessionModel{DB: usersDB}
-	session, sessionErr := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), 24*time.Hour)
+	session, sessionErr := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge)
 	if sessionErr != nil {
 		InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_session"))
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     middleware.SessionCookieName,
-		Value:    session.SessionID,
-		MaxAge:   86400,
-		Path:     "/",
-		Secure:   r.TLS != nil,
-		HttpOnly: true,
-	})
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, session.SessionID, middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge))
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

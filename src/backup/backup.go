@@ -19,32 +19,30 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
+
+	"github.com/webappsgo/wthr/src/privilege"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // manifestEntryName is the archive member holding the backup manifest
 const manifestEntryName = "manifest.json"
 
-// ResolveDir returns the directory that holds backup archives for a given data
-// dir. BACKUP_DIR wins when set, matching path.Paths.BackupDir and the
-// --backup CLI flag, which set the same variable; otherwise it falls back to
-// {data_dir}/backups. Every reader and writer (admin API, scheduler retention
-// sweep, CLI) resolves the directory through this one function, so a backup
-// written under BACKUP_DIR stays visible to all of them.
+// ResolveDir returns the directory that holds backup archives for a given data dir
+// (AI.md PART 8 GetBackupDir): BACKUP_DIR, then the system backup directory when writable,
+// then {data_dir}/backup in system mode or the user backup directory in user mode. Every
+// reader and writer (admin API, scheduler retention sweep, CLI) resolves the directory
+// through this one function, so a backup stays visible to all of them.
 func ResolveDir(dataDir string) string {
-	if envDir := os.Getenv("BACKUP_DIR"); envDir != "" {
-		// /data/backups is the container's default and must not redirect
-		// explicitly supplied data directories (notably isolated tests).
-		// A non-default BACKUP_DIR remains an explicit CLI/runtime override.
-		if dataDir == "" || envDir != "/data/backups" {
-			return envDir
-		}
-	}
-	return filepath.Join(dataDir, "backups")
+	home, _ := os.UserHomeDir()
+
+	return util.ResolveBackupDir(runtime.GOOS, util.IsSystemMode(), home, os.Getenv, util.IsDirWritable,
+		privilege.InternalOrg, privilege.InternalName, dataDir)
 }
 
 // Manifest represents backup metadata per AI.md PART 22 (Backup Format)

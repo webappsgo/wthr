@@ -253,7 +253,17 @@ const exitRestart = 75
 // restartPending records that the shutdown in progress is a restart.
 var restartPending atomic.Bool
 
+// main starts the server directly, or under the Windows Service Control Manager when the
+// process was started as a Windows service.
 func main() {
+	if runAsWindowsService(runServer) {
+		return
+	}
+	runServer()
+}
+
+// runServer runs the server from startup to graceful shutdown.
+func runServer() {
 	// Registered first so it runs last, after every other deferred cleanup
 	defer func() {
 		if restartPending.Load() {
@@ -1797,7 +1807,7 @@ func main() {
 	r.Get("/.well-known/change-password", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		target := "/server/auth/password/forgot"
-		if c, err := r.Cookie(middleware.SessionCookieName); err == nil && c.Value != "" {
+		if c, err := r.Cookie(middleware.UserSessionCookieName()); err == nil && c.Value != "" {
 			target = "/users/security/password"
 		}
 		http.Redirect(w, r, target, http.StatusFound)
@@ -2274,15 +2284,7 @@ func main() {
 			return
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     middleware.SessionCookieName,
-			Value:    session.ID,
-			Path:     "/",
-			MaxAge:   2592000,
-			HttpOnly: true,
-			Secure:   r.TLS != nil,
-			SameSite: http.SameSiteLaxMode,
-		})
+		http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, session.ID, time.Duration(2592000)*time.Second))
 
 		http.Redirect(w, r, "/users/dashboard", http.StatusSeeOther)
 	})
@@ -3851,14 +3853,7 @@ func main() {
 				return
 			}
 
-			http.SetCookie(w, &http.Cookie{
-				Name:     "admin_session",
-				Value:    "",
-				MaxAge:   -1,
-				Path:     "/",
-				Secure:   r.TLS != nil,
-				HttpOnly: true,
-			})
+			http.SetCookie(w, middleware.ClearSessionCookie(r, middleware.SessionAccountAdmin))
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.auth.logout_all_sessions")})
 		})
@@ -4741,23 +4736,29 @@ func main() {
 		}()
 	}
 
-	// Start Tor hidden service after HTTP server starts
-	if err := torService.StartTorService(overlayPort); errors.Is(err, service.ErrTorBinaryMissing) {
-		log.Printf("INFO: tor binary not found, hidden service skipped")
-	} else if err != nil {
-		log.Printf("Failed to start Tor hidden service: %v", err)
-		fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-	}
+	// Start the Tor hidden service after the HTTP server starts. Bootstrap takes minutes, so it
+	// runs in the background: the overlay networks are best-effort and never hold up startup,
+	// signal handling or the health endpoint (AI.md PART 32).
+	go func() {
+		if err := torService.StartTorService(overlayPort); errors.Is(err, service.ErrTorBinaryMissing) {
+			log.Printf("INFO: tor binary not found, hidden service skipped")
+		} else if err != nil {
+			log.Printf("Failed to start Tor hidden service: %v", err)
+			fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+	}()
 
-	// AI.md PART 32.2 startup step 17b: start the opt-in I2P eepsite after the
-	// HTTP listener is up so the tunnel forwards to the real backend port.
-	// A missing provider is a warning, never fatal.
+	// AI.md PART 32.2 startup step 17b: start the opt-in I2P eepsite after the HTTP listener is
+	// up so the tunnel forwards to the real backend port. A missing provider is a warning, never
+	// fatal, and the bootstrap runs in the background like Tor's.
 	if i2pManager != nil {
 		i2pManager.SetBackendPort(overlayPort)
-		if err := i2pManager.StartI2PManager(); err != nil {
-			log.Printf("Failed to start I2P eepsite: %v", err)
-			fmt.Printf("%s Failed to start I2P eepsite: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-		}
+		go func() {
+			if err := i2pManager.StartI2PManager(); err != nil {
+				log.Printf("Failed to start I2P eepsite: %v", err)
+				fmt.Printf("%s Failed to start I2P eepsite: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
+		}()
 	}
 
 	// Start config file watcher for live reload
@@ -4874,6 +4875,10 @@ func main() {
 	// Handle signals
 	for {
 		select {
+		case <-serviceStopRequested:
+			log.Println("INFO: Windows service stop requested, shutting down gracefully...")
+			shutdownGracefully()
+			return
 		case <-restartRequested:
 			log.Println("INFO: Restart requested by an admin, shutting down gracefully...")
 			restartPending.Store(true)

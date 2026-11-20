@@ -281,7 +281,9 @@ func generateCSRFToken(length int) (string, error) {
 }
 
 // sessionCookieNames are the browser session cookies whose change means a login or a logout.
-var sessionCookieNames = []string{SessionCookieName, "admin_session"}
+func sessionCookieNames() []string {
+	return []string{UserSessionCookieName(), AdminSessionCookieName()}
+}
 
 // csrfSessionWriter issues a new CSRF token on a response that sets or clears a session cookie.
 type csrfSessionWriter struct {
@@ -321,7 +323,7 @@ func (c *csrfSessionWriter) rotateOnSessionChange() {
 		if name == c.config.CookieName {
 			return
 		}
-		for _, session := range sessionCookieNames {
+		for _, session := range sessionCookieNames() {
 			if name == session {
 				changed = true
 			}

@@ -16,6 +16,7 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
@@ -721,7 +722,7 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	settings["backup_enabled"] = settingsModel.GetBool("backup.enabled", true)
 	settings["backup_interval"] = settingsModel.GetInt("backup.interval", 6)
 	settings["backup_retention"] = settingsModel.GetInt("backup.retention", 30)
-	settings["backup_location"] = settingsModel.GetString("backup.location", "/data/backups")
+	settings["backup_location"] = settingsModel.GetString("backup.location", path.GetBackupDir())
 
 	// Logging settings
 	settings["logging_level"] = settingsModel.GetString("logging.level", "info")

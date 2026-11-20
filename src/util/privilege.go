@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,174 +11,101 @@ import (
 	"github.com/webappsgo/wthr/src/common/display"
 )
 
-// IsPrivileged checks if the current process has administrator/root privileges
+// ErrCannotEscalate is returned by EscalatePrivileges when the current user has no way
+// to gain root/administrator access. Callers inform the user or fall back to a user-level
+// alternative; they never prompt for a password that cannot work (AI.md PART 5).
+var ErrCannotEscalate = errors.New("the current user cannot escalate privileges")
+
+// IsPrivileged reports whether the current process runs as root (Unix) or with an
+// elevated Administrator token (Windows).
 func IsPrivileged() bool {
-	if runtime.GOOS == "windows" {
-		// On Windows, try to create a file in system directory
-		testPath := os.Getenv("SystemRoot") + "\\test_admin.tmp"
-		file, err := os.Create(testPath)
-		if err != nil {
-			return false
-		}
-		file.Close()
-		os.Remove(testPath)
+	return isElevatedProcess()
+}
+
+// CanEscalate reports whether the current user is able to gain root/administrator access.
+// An already privileged process can always "escalate". The `su` method is not probed: it
+// needs the root password, which cannot be known without prompting.
+func CanEscalate() bool {
+	if IsPrivileged() {
 		return true
 	}
 
-	// On Unix-like systems, check if UID is 0
-	return os.Geteuid() == 0
+	return canEscalateUser()
 }
 
-// EscalatePrivileges attempts to re-run the current command with elevated privileges
-// Per TEMPLATE.md PART 8: Try sudo, su, pkexec, doas on Linux; osascript on macOS
-// Returns true if escalation was attempted (caller should exit), false if no escalation possible
+// escalationMethods lists the escalation commands to try on this OS, in the order AI.md
+// PART 24 defines: Linux sudo, pkexec, doas; BSD doas, sudo; macOS sudo, osascript.
+func escalationMethods(goos string) []string {
+	switch goos {
+	case "darwin":
+		return []string{"sudo", "osascript"}
+	case "freebsd", "openbsd", "netbsd":
+		return []string{"doas", "sudo"}
+	case "windows":
+		return []string{"runas"}
+	default:
+		return []string{"sudo", "pkexec", "doas"}
+	}
+}
+
+// EscalatePrivileges re-runs the current executable with the given arguments and elevated
+// privileges. It returns attempted=true once an elevated child ran (the caller then returns
+// the child's error). It returns ErrCannotEscalate, without prompting, when the user has no
+// way to escalate.
 func EscalatePrivileges(args []string) (bool, error) {
 	if IsPrivileged() {
-		// Already privileged
 		return false, nil
 	}
 
-	// Get the path to the current executable
+	if !CanEscalate() {
+		return false, ErrCannotEscalate
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return false, fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	switch runtime.GOOS {
-	case "linux", "freebsd", "openbsd", "netbsd":
-		return escalateUnix(exePath, args)
-	case "darwin":
-		return escalateMacOS(exePath, args)
-	case "windows":
+	if runtime.GOOS == "windows" {
 		return escalateWindows(exePath, args)
+	}
+
+	for _, method := range escalationMethods(runtime.GOOS) {
+		if _, err := exec.LookPath(method); err != nil {
+			continue
+		}
+
+		return runEscalated(method, exePath, args)
+	}
+
+	return false, ErrCannotEscalate
+}
+
+// runEscalated runs the executable through one escalation command with the terminal attached.
+func runEscalated(method, exePath string, args []string) (bool, error) {
+	var cmd *exec.Cmd
+
+	switch method {
+	case "osascript":
+		quoted := make([]string, 0, len(args)+1)
+		for _, part := range append([]string{exePath}, args...) {
+			quoted = append(quoted, shellQuote(part))
+		}
+		script := fmt.Sprintf(`do shell script %q with administrator privileges`, strings.Join(quoted, " "))
+		cmd = exec.Command("osascript", "-e", script)
 	default:
-		return false, fmt.Errorf("privilege escalation not supported on %s", runtime.GOOS)
-	}
-}
-
-// escalateUnix tries privilege escalation methods in order: sudo, pkexec, doas, su
-func escalateUnix(exePath string, args []string) (bool, error) {
-	// Try sudo first (most common)
-	if _, err := exec.LookPath("sudo"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (sudo)...\n", display.Emoji("🔒", "*"))
-		cmd := exec.Command("sudo", append([]string{exePath}, args...)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
+		cmd = exec.Command(method, append([]string{exePath}, args...)...)
 	}
 
-	// Try pkexec (PolicyKit)
-	if _, err := exec.LookPath("pkexec"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (pkexec)...\n", display.Emoji("🔒", "*"))
-		cmd := exec.Command("pkexec", append([]string{exePath}, args...)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
-	}
-
-	// Try doas (OpenBSD/some Linux)
-	if _, err := exec.LookPath("doas"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (doas)...\n", display.Emoji("🔒", "*"))
-		cmd := exec.Command("doas", append([]string{exePath}, args...)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
-	}
-
-	// Try su (fallback, requires root password)
-	if _, err := exec.LookPath("su"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (su)...\n", display.Emoji("🔒", "*"))
-		// su requires "-c" to run a command
-		cmdStr := exePath + " " + strings.Join(args, " ")
-		cmd := exec.Command("su", "-c", cmdStr)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
-	}
-
-	// No privilege escalation method available
-	return false, fmt.Errorf("no privilege escalation method available (sudo, pkexec, doas, su not found)")
-}
-
-// escalateMacOS tries macOS-specific privilege escalation
-func escalateMacOS(exePath string, args []string) (bool, error) {
-	// Try sudo first
-	if _, err := exec.LookPath("sudo"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (sudo)...\n", display.Emoji("🔒", "*"))
-		cmd := exec.Command("sudo", append([]string{exePath}, args...)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
-	}
-
-	// Try osascript for graphical prompt
-	if _, err := exec.LookPath("osascript"); err == nil {
-		fmt.Printf("%s Requesting administrator privileges (GUI)...\n", display.Emoji("🔒", "*"))
-		cmdStr := exePath + " " + strings.Join(args, " ")
-		script := fmt.Sprintf(`do shell script "%s" with administrator privileges`, cmdStr)
-		cmd := exec.Command("osascript", "-e", script)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return true, err
-	}
-
-	return false, fmt.Errorf("no privilege escalation method available on macOS")
-}
-
-// escalateWindows attempts UAC elevation on Windows
-func escalateWindows(exePath string, args []string) (bool, error) {
-	// On Windows, we need to use ShellExecute with "runas" verb
-	// This requires using PowerShell or a platform-specific approach
-
-	// Check if already running as admin
-	if IsPrivileged() {
-		return false, nil
-	}
-
-	fmt.Printf("%s Requesting administrator privileges (UAC)...\n", display.Emoji("🔒", "*"))
-
-	// Use PowerShell to trigger UAC
-	psCmd := fmt.Sprintf(`Start-Process -FilePath "%s" -ArgumentList "%s" -Verb RunAs -Wait`,
-		exePath, strings.Join(args, `","`))
-
-	cmd := exec.Command("powershell.exe", "-Command", psCmd)
+	fmt.Printf("%s Requesting administrator privileges (%s)...\n", display.Emoji("🔒", "*"), method)
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return true, err
+
+	return true, cmd.Run()
 }
 
-// RequirePrivileges checks if running with privileges, and if not, attempts escalation
-// Returns true if escalation was attempted (caller should exit)
-func RequirePrivileges(args []string) bool {
-	if IsPrivileged() {
-		return false
-	}
-
-	attempted, err := EscalatePrivileges(args)
-	if attempted {
-		// Escalation was attempted, exit with appropriate code
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
-	// Escalation not possible
-	fmt.Fprintln(os.Stderr, "Error: This operation requires administrator/root privileges")
-	fmt.Fprintln(os.Stderr, "Please run with sudo or as administrator")
-	os.Exit(1)
-	return true
+// shellQuote wraps a value in single quotes for a POSIX shell command line.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }

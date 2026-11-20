@@ -343,7 +343,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Create session
 	sessionModel := &models.UserSessionModel{DB: usersDB}
-	session, err := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), 24*time.Hour)
+	session, err := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":    "OIDC Callback",
@@ -353,7 +353,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{Name: middleware.SessionCookieName, Value: session.SessionID, MaxAge: 86400, Path: "/", Secure: secure, HttpOnly: true})
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, session.SessionID, middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge))
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

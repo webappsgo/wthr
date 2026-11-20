@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/webappsgo/wthr/src/privilege"
@@ -53,20 +52,28 @@ func detectLinuxInit() (linuxInit, error) {
 	return "", fmt.Errorf("no supported service manager found (systemd, OpenRC, runit or SysVinit)")
 }
 
-// serviceTemplate fills the {placeholders} of a service file template.
+// serviceTemplate fills the {placeholders} of a service file template with the system
+// binary path of AI.md PART 25.
 func serviceTemplate(text string) string {
+	return serviceTemplateFor(text, serviceBinary)
+}
+
+// serviceTemplateFor fills the {placeholders} of a service file template for a binary at
+// the given path, which a user-level service takes from the running executable.
+func serviceTemplateFor(text, binary string) string {
 	return strings.NewReplacer(
 		"{internal_name}", serviceName,
 		"{internal_org}", serviceOrg,
 		"{project_name}", serviceName,
 		"{app_name}", serviceApp,
 		"{docs}", serviceDocs,
-		"{binary}", serviceBinary,
+		"{plist_name}", plistName,
+		"{binary}", binary,
 	).Replace(text)
 }
 
 const systemdUnitTemplate = `[Unit]
-Description={app_name} service
+Description={project_name} service
 Documentation={docs}
 After=network-online.target
 Wants=network-online.target
@@ -113,6 +120,7 @@ depend() {
 }
 
 start_pre() {
+    checkpath -d -m 0755 /var/run/{internal_org}
     checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/run/{internal_org}/{internal_name}
     checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/log/{internal_org}/{internal_name}
 }
@@ -180,146 +188,55 @@ const runitLogRunTemplate = `#!/bin/sh
 exec svlogd -tt /var/log/{internal_org}/{internal_name}
 `
 
-// installLinuxService installs the unit of the detected Linux service manager.
-func installLinuxService() error {
-	manager, err := detectLinuxInit()
-	if err != nil {
-		return err
-	}
+const systemdUserUnitTemplate = `[Unit]
+Description={project_name} service
+Documentation={docs}
+After=network-online.target
 
-	switch manager {
-	case initSystemd:
-		return installSystemdService()
-	case initOpenRC:
-		if err := prepareServiceHost(); err != nil {
-			return err
-		}
-		return installInitScript("openrc", openRCScriptTemplate, func() error {
-			return runCommand("rc-update", "add", serviceName, "default")
-		})
-	case initSysV:
-		if err := prepareServiceHost(); err != nil {
-			return err
-		}
-		return installInitScript("sysv", sysVScriptTemplate, enableSysV)
-	default:
-		return installRunitService()
-	}
-}
+[Service]
+Type=simple
+ExecStart={binary}
+Restart=on-failure
+RestartSec=5
 
-// uninstallLinuxService removes the unit of the detected Linux service manager.
-func uninstallLinuxService() error {
-	manager, err := detectLinuxInit()
-	if err != nil {
-		return err
-	}
+[Install]
+WantedBy=default.target
+`
 
-	switch manager {
-	case initSystemd:
-		return uninstallSystemdService()
-	case initOpenRC:
-		_ = runCommand("rc-service", serviceName, "stop")
-		_ = runCommand("rc-update", "del", serviceName, "default")
-		return removeInitScript()
-	case initSysV:
-		_ = runCommand("/etc/init.d/"+serviceName, "stop")
-		disableSysV()
-		return removeInitScript()
-	default:
-		return uninstallRunitService()
-	}
-}
+const rcdScriptTemplate = `#!/bin/sh
 
-// linuxServiceControl runs start, stop, restart, reload or disable against the
-// detected Linux service manager.
-func linuxServiceControl(action string) error {
-	manager, err := detectLinuxInit()
-	if err != nil {
-		return err
-	}
+# PROVIDE: {internal_name}
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
 
-	switch manager {
-	case initSystemd:
-		return runCommand("systemctl", action, serviceName)
-	case initOpenRC:
-		if action == "disable" {
-			return runCommand("rc-update", "del", serviceName, "default")
-		}
-		return runCommand("rc-service", serviceName, action)
-	case initSysV:
-		if action == "disable" {
-			disableSysV()
-			return nil
-		}
-		if action == "reload" {
-			action = "restart"
-		}
-		return runCommand("/etc/init.d/"+serviceName, action)
-	default:
-		switch action {
-		case "reload":
-			return runCommand("sv", "hup", serviceName)
-		case "disable":
-			if err := os.Remove("/var/service/" + serviceName); err != nil && !os.IsNotExist(err) {
-				return err
-			}
-			return nil
-		}
-		return runCommand("sv", action, serviceName)
-	}
-}
+. /etc/rc.subr
 
-// prepareServiceHost creates the service account and its directories.
-func prepareServiceHost() error {
-	if err := createSystemUser(); err != nil {
-		return fmt.Errorf("failed to create system user: %w", err)
-	}
-	if err := createServiceDirectories(); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
-	}
+name="{internal_name}"
+rcvar="{internal_name}_enable"
+command="{binary}"
 
-	return nil
-}
+load_rc_config $name
+run_rc_command "$1"
+`
 
-func installInitScript(kind, template string, enable func() error) error {
-	path := "/etc/init.d/" + serviceName
-	if err := os.WriteFile(path, []byte(serviceTemplate(template)), 0755); err != nil {
-		return fmt.Errorf("failed to write %s init script: %w", kind, err)
-	}
-	if err := enable(); err != nil {
-		return fmt.Errorf("failed to enable service: %w", err)
-	}
-	fmt.Printf("Installed %s service: %s\n", kind, path)
-
-	return nil
-}
-
-func removeInitScript() error {
-	if err := os.Remove("/etc/init.d/" + serviceName); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove init script: %w", err)
-	}
-
-	return nil
-}
-
-func enableSysV() error {
-	if commandExists("update-rc.d") {
-		return runCommand("update-rc.d", serviceName, "defaults")
-	}
-	if err := runCommand("chkconfig", "--add", serviceName); err != nil {
-		return err
-	}
-
-	return runCommand("chkconfig", serviceName, "on")
-}
-
-func disableSysV() {
-	if commandExists("update-rc.d") {
-		_ = exec.Command("update-rc.d", "-f", serviceName, "remove").Run()
-		return
-	}
-	if commandExists("chkconfig") {
-		_ = exec.Command("chkconfig", serviceName, "off").Run()
-		_ = exec.Command("chkconfig", "--del", serviceName).Run()
-	}
-}
+const launchdPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{plist_name}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{binary}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{log_dir}/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>{log_dir}/stderr.log</string>
+</dict>
+</plist>
+`

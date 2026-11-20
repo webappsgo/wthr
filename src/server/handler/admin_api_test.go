@@ -256,7 +256,7 @@ func newBackupFormContext(method, target string, fields url.Values) (*http.Reque
 // returns its absolute path.
 func writeTestBackup(t *testing.T, dataDir, name string) string {
 	t.Helper()
-	backupDir := filepath.Join(dataDir, "backups")
+	backupDir := filepath.Join(dataDir, "backup")
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -387,7 +387,7 @@ func TestBackupStats(t *testing.T) {
 		if stats.Count != 2 || stats.TotalSize != 2 {
 			t.Fatalf("unexpected stats: %+v", stats)
 		}
-		if stats.Directory != filepath.Join(dataDir, "backups") {
+		if stats.Directory != filepath.Join(dataDir, "backup") {
 			t.Fatalf("directory = %q, want the data-dir backups path", stats.Directory)
 		}
 	})

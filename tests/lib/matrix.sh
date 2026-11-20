@@ -172,6 +172,10 @@ __bootstrap_server() {
         "$TEST_DIR/volumes/cache" \
         "$TEST_DIR/volumes/backup"
 
+    # mktemp creates the directory 0700 for root; the server drops to its service account after
+    # startup and that account must be able to reach the directories it was given
+    chmod 0755 "$TEST_DIR" "$(dirname "$TEST_DIR")"
+
     # AI.md PART 12 keeps the production rate limits (read 120/min, write
     # 10/min, global burst 240/min), but the route/header matrix deliberately
     # drives hundreds of requests through a single loopback IP, so the sliding
@@ -286,8 +290,8 @@ __create_user() {
         --data-urlencode "confirm_password=MatrixPassword123!" \
         "$BASE_URL/server/auth/register" >/dev/null
 
-    if [ -z "$(__cookie_value "$USER_COOKIE" "weather_session")" ]; then
-        __fail "user bootstrap :: weather_session cookie missing"
+    if [ -z "$(__cookie_value "$USER_COOKIE" "user_session")" ]; then
+        __fail "user bootstrap :: user_session cookie missing"
     fi
 }
 

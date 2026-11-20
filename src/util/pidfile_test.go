@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -54,6 +55,11 @@ func TestPIDFile_CreateAndCheck(t *testing.T) {
 		t.Errorf("PID file contains %d, want %d", gotPID, os.Getpid())
 	}
 
+	// another process, as far as the check knows: the file holds the test process's ID
+	original := ownProcessID
+	ownProcessID = func() int { return -1 }
+	defer func() { ownProcessID = original }()
+
 	running, pid, err := pf.CheckStalePID()
 	if err != nil {
 		t.Fatalf("Check: %v", err)
@@ -73,6 +79,11 @@ func TestPIDFile_CreateWhenAlreadyRunning(t *testing.T) {
 	if err := pf.CreatePIDFile(); err != nil {
 		t.Fatalf("first Create: %v", err)
 	}
+
+	original := ownProcessID
+	ownProcessID = func() int { return -1 }
+	defer func() { ownProcessID = original }()
+
 	if err := pf.CreatePIDFile(); err == nil {
 		t.Error("second Create() while already running: err = nil, want error")
 	}
@@ -306,5 +317,27 @@ func TestShouldDaemonize(t *testing.T) {
 	}
 	if ShouldDaemonize(false, false, false) {
 		t.Error("default is foreground")
+	}
+}
+
+// TestCheckStalePID_OwnPIDWrittenBySupervisor verifies a PID file that holds this process's
+// own ID (written by an init script's --make-pidfile) is not reported as another instance and
+// is left in place.
+func TestCheckStalePID_OwnPIDWrittenBySupervisor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "own.pid")
+	if err := os.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pidFile := &PIDFile{Path: path}
+	running, _, err := pidFile.CheckStalePID()
+	if err != nil || running {
+		t.Fatalf("CheckStalePID() = (%v, %v), want (false, nil)", running, err)
+	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		t.Errorf("the supervisor's PID file must be kept: %v", statErr)
+	}
+	if err := pidFile.CreatePIDFile(); err != nil {
+		t.Errorf("CreatePIDFile() must accept its own PID in the file, got %v", err)
 	}
 }

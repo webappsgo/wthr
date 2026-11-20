@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"runtime"
 	"strconv"
+	"strings"
 )
 
 // accountComment is the gecos field of the service account (AI.md PART 24).
@@ -128,4 +129,66 @@ func EnsureAccount(name, home string) (*Account, error) {
 	}
 
 	return LookupAccount(name)
+}
+
+// accountRemoveCommands lists the commands that delete the service user and group on the
+// given OS, user first so the group is empty when it is removed. hasCommand reports whether
+// an executable is on PATH.
+func accountRemoveCommands(goos, name string, hasCommand func(string) bool) [][]string {
+	switch {
+	case goos == "darwin":
+		return [][]string{
+			{"dscl", ".", "-delete", "/Users/" + name},
+			{"dscl", ".", "-delete", "/Groups/" + name},
+		}
+	case hasCommand("pw"):
+		return [][]string{
+			{"pw", "userdel", "-n", name},
+			{"pw", "groupdel", "-n", name},
+		}
+	case hasCommand("userdel") && hasCommand("groupdel"):
+		return [][]string{
+			{"userdel", name},
+			{"groupdel", name},
+		}
+	default:
+		// BusyBox (Alpine) deluser removes the user; delgroup removes the now-empty group
+		return [][]string{
+			{"deluser", name},
+			{"delgroup", name},
+		}
+	}
+}
+
+// RemoveAccount deletes the service user and group when they exist. A missing account is
+// not an error, so an uninstall can be repeated; a command that fails only matters when the
+// user or group still exists afterwards (BusyBox deluser can remove the group on its own).
+// Only root can remove an account.
+func RemoveAccount(name string) error {
+	if !accountExists(name) {
+		return nil
+	}
+
+	var failures []string
+	for _, command := range accountRemoveCommands(runtime.GOOS, name, hasCommandOnPath) {
+		if output, err := exec.Command(command[0], command[1:]...).CombinedOutput(); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v: %s", command[0], err, strings.TrimSpace(string(output))))
+		}
+	}
+
+	if accountExists(name) {
+		return fmt.Errorf("removing service account %s: %s", name, strings.Join(failures, "; "))
+	}
+
+	return nil
+}
+
+// accountExists reports whether the user or the group of this name exists.
+func accountExists(name string) bool {
+	if _, err := user.Lookup(name); err == nil {
+		return true
+	}
+	_, err := user.LookupGroup(name)
+
+	return err == nil
 }

@@ -9,7 +9,12 @@
 package cli
 
 import (
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -21,8 +26,8 @@ func TestServiceCommand_Dispatch(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"no_args", []string{}, "no service command specified"},
-		{"unknown_command", []string{"bogus"}, "unknown service command: bogus"},
+		{"no_args", []string{}, "No service command specified"},
+		{"unknown_command", []string{"bogus"}, "Unknown service command: bogus"},
 	}
 
 	for _, tt := range tests {
@@ -44,21 +49,21 @@ func TestServiceCommand_Dispatch(t *testing.T) {
 					t.Errorf("ServiceCommand(%v) error = %v, want nil", args, err)
 				}
 			})
-			if !strings.Contains(out, "Service Management Help") {
+			if !strings.Contains(out, "Service management commands:") {
 				t.Errorf("ServiceCommand(%v) output = %q, want it to contain help banner", args, out)
 			}
 		}
 	})
 }
 
-// TestShowServiceHelp verifies the help text documents installation,
-// control, and every supported service manager per PART 24.
+// TestShowServiceHelp verifies the help text matches the PART 24 service help output:
+// every command and the current status block.
 func TestShowServiceHelp(t *testing.T) {
 	out := captureStdout(t, showServiceHelp)
 
 	for _, want := range []string{
-		"INSTALLATION:", "CONTROL:", "SUPPORTED SERVICE MANAGERS:",
-		"systemd", "launchd", "rc.d", "Windows Service Manager",
+		"Service management commands:", "start  ", "stop  ", "restart  ", "reload  ",
+		"--install  ", "--disable  ", "--uninstall  ", "Current status:", "Service:",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("showServiceHelp() output missing %q; got %q", want, out)
@@ -122,83 +127,226 @@ func TestRunCommand(t *testing.T) {
 	}
 }
 
-// TestUserExists and TestGroupExists are read-only lookups (id -u / getent
-// group on Linux); no user or group is created or removed. A user this
-// unlikely to exist is used to assert the negative case deterministically.
-func TestUserExists(t *testing.T) {
-	if userExists("wthr-definitely-not-a-real-user-xyz") {
-		t.Error("userExists() = true for a fabricated username, want false")
-	}
-	if !userExists("root") {
-		t.Error("userExists(\"root\") = false, want true (root always exists on POSIX systems)")
-	}
-}
-
-func TestGroupExists(t *testing.T) {
-	if groupExists("wthr-definitely-not-a-real-group-xyz") {
-		t.Error("groupExists() = true for a fabricated group name, want false")
-	}
-}
-
-// TestFindAvailableUID uses a tiny range to keep the (non-existent-on-Linux)
-// dscl lookups fast; on Linux dscl is absent so every iteration fails and
-// the function must return 0 rather than hang or panic.
-func TestFindAvailableUID(t *testing.T) {
-	got := findAvailableUID(100, 101)
-	if got < 0 {
-		t.Errorf("findAvailableUID(100, 101) = %d, want >= 0", got)
-	}
-}
-
-// TestContains and TestContainsMiddle document the actual (hand-rolled)
-// substring-matching behavior of contains()/containsMiddle(), including the
-// edge cases where it diverges from strings.Contains: an empty needle
-// currently returns false rather than true, matching Go's convention that
-// every string contains "".
-func TestContains(t *testing.T) {
+// TestIsServiceOwnedDir verifies the delete guard accepts only absolute paths under
+// {internal_org}/{internal_name}.
+func TestIsServiceOwnedDir(t *testing.T) {
 	tests := []struct {
-		name   string
-		s      string
-		substr string
-		want   bool
+		dir  string
+		want bool
 	}{
-		{"exact_match", "abc", "abc", true},
-		{"prefix_match", "abcdef", "abc", true},
-		{"suffix_match", "abcdef", "def", true},
-		{"middle_match", "abcdef", "cd", true},
-		{"no_match", "abcdef", "xyz", false},
-		{"empty_haystack", "", "abc", false},
-		{"empty_needle_returns_false", "abc", "", false},
-		{"needle_longer_than_haystack", "ab", "abc", false},
+		{"/etc/webappsgo/wthr", true},
+		{"/var/lib/webappsgo/wthr/db", true},
+		{"/etc/webappsgo", false},
+		{"/etc/webappsgo/other", false},
+		{"/etc", false},
+		{"/", false},
+		{"webappsgo/wthr", false},
+		{"/etc/webappsgo/wthr-extra", false},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := contains(tt.s, tt.substr); got != tt.want {
-				t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-			}
-		})
+		if got := isServiceOwnedDir(tt.dir); got != tt.want {
+			t.Errorf("isServiceOwnedDir(%q) = %v, want %v", tt.dir, got, tt.want)
+		}
 	}
 }
 
-func TestContainsMiddle(t *testing.T) {
+// TestRemoveServiceDirs verifies owned directories are deleted, the empty organization
+// directory goes with them and a directory outside {internal_org}/{internal_name} is kept.
+func TestRemoveServiceDirs(t *testing.T) {
+	root := t.TempDir()
+	owned := filepath.Join(root, serviceOrg, serviceName, "data")
+	foreign := filepath.Join(root, "foreign")
+	for _, dir := range []string{owned, foreign} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := removeServiceDirs([]string{filepath.Join(root, serviceOrg, serviceName), foreign}); err != nil {
+		t.Fatalf("removeServiceDirs() error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, serviceOrg)); !os.IsNotExist(err) {
+		t.Errorf("organization directory still exists, stat error = %v", err)
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Errorf("a directory outside the service identity was deleted: %v", err)
+	}
+}
+
+// TestStateLabel verifies the run state names.
+func TestStateLabel(t *testing.T) {
 	tests := []struct {
-		name   string
-		s      string
-		substr string
-		want   bool
+		status serviceStatus
+		want   string
 	}{
-		{"found_in_middle", "abcdef", "cd", true},
-		{"not_found", "abcdef", "xyz", false},
-		{"equal_length_match", "abc", "abc", true},
-		{"substr_longer_than_s", "ab", "abc", false},
+		{serviceStatus{Installed: true, Running: true, Enabled: true}, "running"},
+		{serviceStatus{Installed: true, Enabled: true}, "stopped"},
+		{serviceStatus{Installed: true}, "disabled"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := containsMiddle(tt.s, tt.substr); got != tt.want {
-				t.Errorf("containsMiddle(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-			}
-		})
+		if got := stateLabel(tt.status); got != tt.want {
+			t.Errorf("stateLabel(%+v) = %q, want %q", tt.status, got, tt.want)
+		}
 	}
 }
+
+// TestPrintServiceStatus verifies the status block for installed and missing services.
+func TestPrintServiceStatus(t *testing.T) {
+	missing := captureStdout(t, func() { printServiceStatus(serviceStatus{}) })
+	if !strings.Contains(missing, "not installed") || strings.Contains(missing, "State:") {
+		t.Errorf("not installed status = %q", missing)
+	}
+
+	running := captureStdout(t, func() {
+		printServiceStatus(serviceStatus{Installed: true, Running: true, Enabled: true, PID: 4242})
+	})
+	for _, want := range []string{"installed", "running", "enabled", "4242"} {
+		if !strings.Contains(running, want) {
+			t.Errorf("running status missing %q: %q", want, running)
+		}
+	}
+}
+
+// TestPromptYesNo verifies answers, the default for an empty answer and for no input.
+func TestPromptYesNo(t *testing.T) {
+	tests := []struct {
+		input      string
+		defaultYes bool
+		want       bool
+	}{
+		{"y\n", false, true},
+		{"YES\n", false, true},
+		{"n\n", true, false},
+		{"\n", true, true},
+		{"\n", false, false},
+		{"", true, true},
+		{"", false, false},
+		{"maybe\n", true, false},
+	}
+
+	for _, tt := range tests {
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = writer.WriteString(tt.input)
+		writer.Close()
+
+		original := os.Stdin
+		os.Stdin = reader
+		var got bool
+		captureStdout(t, func() { got = promptYesNo("? ", tt.defaultYes) })
+		os.Stdin = original
+		reader.Close()
+
+		if got != tt.want {
+			t.Errorf("promptYesNo(input %q, default %v) = %v, want %v", tt.input, tt.defaultYes, got, tt.want)
+		}
+	}
+}
+
+// TestReadPIDFile verifies a valid, a missing and a malformed PID file.
+func TestReadPIDFile(t *testing.T) {
+	dir := t.TempDir()
+	valid := filepath.Join(dir, "valid.pid")
+	malformed := filepath.Join(dir, "bad.pid")
+	_ = os.WriteFile(valid, []byte("1234\n"), 0o644)
+	_ = os.WriteFile(malformed, []byte("not a number"), 0o644)
+
+	if got := readPIDFile(valid); got != 1234 {
+		t.Errorf("readPIDFile(valid) = %d, want 1234", got)
+	}
+	if got := readPIDFile(malformed); got != 0 {
+		t.Errorf("readPIDFile(malformed) = %d, want 0", got)
+	}
+	if got := readPIDFile(filepath.Join(dir, "missing.pid")); got != 0 {
+		t.Errorf("readPIDFile(missing) = %d, want 0", got)
+	}
+}
+
+// TestUserUnitPaths verifies the user-level unit and agent files live in the user's home.
+func TestUserUnitPaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	unit, err := (&systemdManager{user: true}).unitPath()
+	if err != nil || unit != filepath.Join(home, ".config", "systemd", "user", serviceName+".service") {
+		t.Errorf("user unit path = %q, %v", unit, err)
+	}
+
+	system, _ := (&systemdManager{}).unitPath()
+	if system != "/etc/systemd/system/"+serviceName+".service" {
+		t.Errorf("system unit path = %q", system)
+	}
+
+	agent, err := (&launchdManager{user: true}).plistPath()
+	if err != nil || agent != filepath.Join(home, "Library", "LaunchAgents", plistName+".plist") {
+		t.Errorf("user agent path = %q, %v", agent, err)
+	}
+
+	daemon, _ := (&launchdManager{}).plistPath()
+	if daemon != "/Library/LaunchDaemons/"+plistName+".plist" {
+		t.Errorf("system daemon path = %q", daemon)
+	}
+}
+
+// TestManagerIdentity verifies which managers are system services.
+func TestManagerIdentity(t *testing.T) {
+	system := []serviceManager{&systemdManager{}, &openRCManager{}, &sysVManager{}, &runitManager{}, &launchdManager{}, &rcdManager{}, newWindowsManager()}
+	for _, manager := range system {
+		if !manager.IsSystem() || manager.Name() == "" {
+			t.Errorf("%T must be a named system manager", manager)
+		}
+	}
+
+	for _, manager := range []serviceManager{&systemdManager{user: true}, &launchdManager{user: true}} {
+		if manager.IsSystem() {
+			t.Errorf("%T with user=true must not be a system manager", manager)
+		}
+	}
+}
+
+// TestWindowsManagerOffWindows verifies the non-Windows stub reports an error and no status.
+func TestWindowsManagerOffWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("exercises the non-Windows stub")
+	}
+
+	manager := newWindowsManager()
+	if manager.Install() == nil || manager.Uninstall() == nil || manager.Disable() == nil || manager.Control("start") == nil {
+		t.Error("the non-Windows stub must return an error from every operation")
+	}
+	if manager.Status().Installed {
+		t.Error("the non-Windows stub must never report an installed service")
+	}
+}
+
+// TestReloadByPIDWithoutProcess verifies reload fails when the service is not running.
+func TestReloadByPIDWithoutProcess(t *testing.T) {
+	if err := reloadByPID(&stubManager{}); err == nil {
+		t.Error("reloadByPID() = nil for a stopped service, want an error")
+	}
+
+	signal.Ignore(syscall.SIGHUP)
+	defer signal.Reset(syscall.SIGHUP)
+
+	if err := reloadByPID(&stubManager{status: serviceStatus{Installed: true, Running: true, PID: os.Getpid()}}); err != nil {
+		t.Errorf("reloadByPID() = %v for a running process, want nil (SIGHUP is ignored by the server, but this test process must survive the signal)", err)
+	}
+}
+
+// stubManager is a serviceManager whose status the test controls.
+type stubManager struct {
+	status serviceStatus
+}
+
+func (s *stubManager) Name() string          { return "stub" }
+func (s *stubManager) IsSystem() bool        { return false }
+func (s *stubManager) Install() error        { return nil }
+func (s *stubManager) Uninstall() error      { return nil }
+func (s *stubManager) Disable() error        { return nil }
+func (s *stubManager) Control(string) error  { return nil }
+func (s *stubManager) Status() serviceStatus { return s.status }

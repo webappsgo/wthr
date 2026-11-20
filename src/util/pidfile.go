@@ -13,6 +13,9 @@ import (
 	"github.com/webappsgo/wthr/src/privilege"
 )
 
+// ownProcessID returns this process's ID; it is a variable so tests can stand in another process.
+var ownProcessID = os.Getpid
+
 // PIDFile represents a PID file for process management
 type PIDFile struct {
 	Path string
@@ -69,6 +72,12 @@ func (p *PIDFile) CheckStalePID() (bool, int, error) {
 		// Invalid PID file - remove it
 		os.Remove(p.Path)
 		return false, 0, fmt.Errorf("invalid PID in file %s: %s (removed stale file)", p.Path, pidStr)
+	}
+
+	// A supervisor that writes the PID file for the process it starts (OpenRC and SysVinit with
+	// --make-pidfile) leaves this very process's ID in the file: that is not another instance
+	if pid == ownProcessID() {
+		return false, pid, nil
 	}
 
 	// Check if process is still running

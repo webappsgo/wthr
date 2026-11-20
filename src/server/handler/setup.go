@@ -363,7 +363,8 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Create the initial administrator's session through the shared model so
 	// the cookie token is hashed and the database row receives a UUID.
 	sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
-	adminSession, err := sessionModel.CreateSession(adminID, util.TrustedGetClientIP(r), r.UserAgent(), 7*24*time.Hour)
+	adminSessionLifetime := middleware.SessionSettingsFor(middleware.SessionAccountAdmin).MaxAge
+	adminSession, err := sessionModel.CreateSession(adminID, util.TrustedGetClientIP(r), r.UserAgent(), adminSessionLifetime)
 	if err != nil {
 		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_create_session"))
 		return
@@ -371,15 +372,8 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	isHTTPS := util.TrustedIsHTTPS(r)
 
-	// Set admin_session cookie (separate from weather_session)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "admin_session",
-		Value:    adminSession.SessionID,
-		MaxAge:   int(7 * 24 * time.Hour.Seconds()),
-		Path:     "/",
-		Secure:   isHTTPS,
-		HttpOnly: true,
-	})
+	// Set the admin session cookie (separate from the user session cookie)
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountAdmin, adminSession.SessionID, adminSessionLifetime))
 
 	// Delete setup token file after successful admin creation
 	// AI.md: File deleted after successful setup completion

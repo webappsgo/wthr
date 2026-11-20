@@ -181,15 +181,7 @@ func setUserSessionCookie(w http.ResponseWriter, r *http.Request, token string, 
 		maxAge = 0
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     middleware.SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		Secure:   requestUsesHTTPS(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, token, time.Duration(maxAge)*time.Second))
 }
 
 func userHasPasskeys(db *sql.DB, userID int64) (bool, error) {

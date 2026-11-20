@@ -19,94 +19,199 @@ type DirectoryPaths struct {
 	Log string
 	// Cache directory
 	Cache string
+	// Backup directory (AI.md PART 8 GetBackupDir); {data_dir}/backup when empty
+	Backup string
+	// SQLite database directory; {data_dir}/db when empty
+	Database string
 }
 
-// GetDirectoryPaths returns the appropriate directory paths based on privileges and OS
-func GetDirectoryPaths() (*DirectoryPaths, error) {
-	// TEMPLATE.md PART 3: Use {projectorg}/{projectname} pattern
-	// This creates paths like /etc/webappsgo/wthr/ instead of /etc/weather/
-	projectOrg := "webappsgo"
-	projectName := "wthr"
-	projectPath := filepath.Join(projectOrg, projectName)
+// DefaultDirectories returns the platform directories of AI.md PART 4 for one organization
+// and project name. systemMode selects the privileged table (root, Administrator or a
+// service) over the user table; home and env are the user's home directory and an
+// environment lookup. Backup and Database are left empty: they depend on the host.
+func DefaultDirectories(goos string, systemMode bool, home string, env func(string) string, org, name string) DirectoryPaths {
+	project := filepath.Join(org, name)
 
-	// Check if running as root/administrator
-	hasRoot := isRoot()
-
-	var paths DirectoryPaths
-
-	switch runtime.GOOS {
-	case "linux", "freebsd", "openbsd", "netbsd":
-		if hasRoot {
-			paths = DirectoryPaths{
-				Config: filepath.Join("/etc", projectPath),
-				Data:   filepath.Join("/var/lib", projectPath),
-				Log:    filepath.Join("/var/log", projectPath),
-				Cache:  filepath.Join("/var/cache", projectPath),
-			}
-		} else {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
-			}
-			paths = DirectoryPaths{
-				Config: filepath.Join(homeDir, ".config", projectPath),
-				Data:   filepath.Join(homeDir, ".local", "share", projectPath),
-				Log:    filepath.Join(homeDir, ".local", "share", projectPath, "logs"),
-				Cache:  filepath.Join(homeDir, ".cache", projectPath),
-			}
-		}
-
-	// macOS
+	switch goos {
 	case "darwin":
-		if hasRoot {
-			paths = DirectoryPaths{
-				Config: filepath.Join("/Library/Application Support", projectPath),
-				Data:   filepath.Join("/Library/Application Support", projectPath, "data"),
-				Log:    filepath.Join("/Library/Logs", projectPath),
-				Cache:  filepath.Join("/Library/Caches", projectPath),
-			}
-		} else {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
-			}
-			paths = DirectoryPaths{
-				Config: filepath.Join(homeDir, "Library", "Application Support", projectPath),
-				Data:   filepath.Join(homeDir, "Library", "Application Support", projectPath, "data"),
-				Log:    filepath.Join(homeDir, "Library", "Logs", projectPath),
-				Cache:  filepath.Join(homeDir, "Library", "Caches", projectPath),
+		if systemMode {
+			support := filepath.Join("/Library/Application Support", project)
+			return DirectoryPaths{
+				Config: support,
+				Data:   filepath.Join(support, "data"),
+				Cache:  filepath.Join("/Library/Caches", project),
+				Log:    filepath.Join("/Library/Logs", project),
 			}
 		}
-
+		support := filepath.Join(home, "Library", "Application Support", project)
+		return DirectoryPaths{
+			Config: support,
+			Data:   support,
+			Cache:  filepath.Join(home, "Library", "Caches", project),
+			Log:    filepath.Join(home, "Library", "Logs", project),
+		}
 	case "windows":
-		appData := os.Getenv("APPDATA")
-		if appData == "" {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
+		if systemMode {
+			base := filepath.Join(windowsEnvDir(env, "ProgramData", `C:\ProgramData`), project)
+			return DirectoryPaths{
+				Config: base,
+				Data:   filepath.Join(base, "data"),
+				Cache:  filepath.Join(base, "cache"),
+				Log:    filepath.Join(base, "logs"),
 			}
-			appData = filepath.Join(homeDir, "AppData", "Roaming")
 		}
-
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
+		roaming := windowsEnvDir(env, "AppData", filepath.Join(home, "AppData", "Roaming"))
+		local := filepath.Join(windowsEnvDir(env, "LocalAppData", filepath.Join(home, "AppData", "Local")), project)
+		return DirectoryPaths{
+			Config: filepath.Join(roaming, project),
+			Data:   local,
+			Cache:  filepath.Join(local, "cache"),
+			Log:    filepath.Join(local, "logs"),
+		}
+	case "freebsd", "openbsd", "netbsd":
+		if systemMode {
+			return DirectoryPaths{
+				Config: filepath.Join("/usr/local/etc", project),
+				Data:   filepath.Join("/var/db", project),
+				Cache:  filepath.Join("/var/cache", project),
+				Log:    filepath.Join("/var/log", project),
 			}
-			localAppData = filepath.Join(homeDir, "AppData", "Local")
 		}
-
-		paths = DirectoryPaths{
-			Config: filepath.Join(appData, projectPath),
-			Data:   filepath.Join(localAppData, projectPath, "data"),
-			Log:    filepath.Join(localAppData, projectPath, "logs"),
-			Cache:  filepath.Join(localAppData, projectPath, "cache"),
-		}
-
 	default:
-		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		if systemMode {
+			return DirectoryPaths{
+				Config: filepath.Join("/etc", project),
+				Data:   filepath.Join("/var/lib", project),
+				Cache:  filepath.Join("/var/cache", project),
+				Log:    filepath.Join("/var/log", project),
+			}
+		}
 	}
+
+	// Linux and BSD user mode
+	return DirectoryPaths{
+		Config: filepath.Join(home, ".config", project),
+		Data:   filepath.Join(home, ".local", "share", project),
+		Cache:  filepath.Join(home, ".cache", project),
+		Log:    filepath.Join(home, ".local", "log", project),
+	}
+}
+
+// windowsEnvDir returns a Windows directory environment variable, or the fallback when unset.
+func windowsEnvDir(env func(string) string, key, fallback string) string {
+	if value := env(key); value != "" {
+		return value
+	}
+
+	return fallback
+}
+
+// SystemBackupDir is the system-level backup directory of this platform (AI.md PART 8).
+func SystemBackupDir(goos string, env func(string) string, org, name string) string {
+	switch goos {
+	case "darwin":
+		return filepath.Join("/Library/Backups", org, name)
+	case "windows":
+		return filepath.Join(windowsEnvDir(env, "ProgramData", `C:\ProgramData`), "Backups", org, name)
+	case "freebsd", "openbsd", "netbsd":
+		return filepath.Join("/var/backups", org, name)
+	default:
+		return filepath.Join("/mnt/Backups", org, name)
+	}
+}
+
+// userBackupDir is the user-level backup directory. It is for user mode only: after a
+// privilege drop $HOME belongs to the service account (AI.md PART 8 GetBackupDir).
+func userBackupDir(goos, home string, env func(string) string, org, name string) string {
+	switch goos {
+	case "darwin":
+		return filepath.Join(home, "Library", "Backups", org, name)
+	case "windows":
+		return filepath.Join(windowsEnvDir(env, "LocalAppData", filepath.Join(home, "AppData", "Local")), "Backups", org, name)
+	default:
+		return filepath.Join(home, ".local", "share", "Backups", org, name)
+	}
+}
+
+// IsDirWritable reports whether a directory can be written or created: its parent must
+// exist and accept a new file.
+func IsDirWritable(dir string) bool {
+	parent := filepath.Dir(dir)
+	info, err := os.Stat(parent)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+
+	probe, err := os.CreateTemp(parent, ".write_test_")
+	if err != nil {
+		return false
+	}
+	name := probe.Name()
+	probe.Close()
+	_ = os.Remove(name)
+
+	return true
+}
+
+// ResolveBackupDir picks the backup directory (AI.md PART 8 GetBackupDir): BACKUP_DIR, then
+// the system backup directory when writable, then {data_dir}/backup in system mode (never a
+// $HOME path) or the user backup directory in user mode.
+func ResolveBackupDir(goos string, systemMode bool, home string, env func(string) string, writable func(string) bool, org, name, dataDir string) string {
+	if value := env("BACKUP_DIR"); value != "" {
+		return value
+	}
+
+	system := SystemBackupDir(goos, env, org, name)
+	if writable(system) {
+		return system
+	}
+
+	if systemMode {
+		return filepath.Join(dataDir, "backup")
+	}
+
+	return userBackupDir(goos, home, env, org, name)
+}
+
+// ResolveDatabaseDir picks the SQLite directory: DATABASE_DIR, then /data/db/sqlite in a
+// container, then {data_dir}/db.
+func ResolveDatabaseDir(env func(string) string, inContainer bool, dataDir string) string {
+	if value := env("DATABASE_DIR"); value != "" {
+		return value
+	}
+	if inContainer {
+		return "/data/db/sqlite"
+	}
+
+	return filepath.Join(dataDir, "db")
+}
+
+// GetDirectoryPaths returns the application directories for this host: the platform table
+// of AI.md PART 4 for the mode decided at process start, then the CONFIG_DIR, DATA_DIR,
+// CACHE_DIR, LOG_DIR, DATABASE_DIR and BACKUP_DIR overrides (the --config, --data, --cache,
+// --log and --backup flags set the same variables).
+func GetDirectoryPaths() (*DirectoryPaths, error) {
+	home, err := os.UserHomeDir()
+	if err != nil && !IsSystemMode() {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	paths := DefaultDirectories(runtime.GOOS, IsSystemMode(), home, os.Getenv, privilege.InternalOrg, privilege.InternalName)
+
+	for target, key := range map[*string]string{
+		&paths.Config: "CONFIG_DIR",
+		&paths.Data:   "DATA_DIR",
+		&paths.Cache:  "CACHE_DIR",
+		&paths.Log:    "LOG_DIR",
+	} {
+		if value := os.Getenv(key); value != "" {
+			*target = value
+		}
+	}
+
+	paths.Database = ResolveDatabaseDir(os.Getenv, IsContainer(), paths.Data)
+	paths.Backup = ResolveBackupDir(runtime.GOOS, IsSystemMode(), home, os.Getenv, IsDirWritable,
+		privilege.InternalOrg, privilege.InternalName, paths.Data)
 
 	return &paths, nil
 }
@@ -149,37 +254,32 @@ func CreateDirectories(paths *DirectoryPaths) error {
 	return nil
 }
 
-// isRoot checks if the current process is running with root/administrator privileges
+// isRoot reports whether the directory mode decided at process start is the system mode.
 func isRoot() bool {
-	if runtime.GOOS == "windows" {
-		// On Windows, check if we can write to system directories
-		testPath := filepath.Join(os.Getenv("SystemRoot"), "test_admin_access.tmp")
-		file, err := os.Create(testPath)
-		if err != nil {
-			return false
-		}
-		file.Close()
-		os.Remove(testPath)
-		return true
-	}
-
-	// On Unix-like systems, check if UID is 0
-	return privilege.StartedAsRoot()
+	return IsSystemMode()
 }
 
 // GetDatabasePath returns the full path to the SQLite database file
 func GetDatabasePath(paths *DirectoryPaths) string {
-	return filepath.Join(paths.Data, "db", "server.db")
+	return filepath.Join(GetDatabaseDir(paths), "server.db")
 }
 
 // GetDatabaseDir returns the directory containing database files
 func GetDatabaseDir(paths *DirectoryPaths) string {
+	if paths.Database != "" {
+		return paths.Database
+	}
+
 	return filepath.Join(paths.Data, "db")
 }
 
 // GetBackupPath returns the full path to the backup directory
 func GetBackupPath(paths *DirectoryPaths) string {
-	return filepath.Join(paths.Data, "backups")
+	if paths.Backup != "" {
+		return paths.Backup
+	}
+
+	return filepath.Join(paths.Data, "backup")
 }
 
 // GetCertsPath returns the full path to the SSL directory, {config_dir}/ssl (AI.md PART 15)

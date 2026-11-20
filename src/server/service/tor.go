@@ -8,12 +8,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/cretz/bine/control"
 	"github.com/cretz/bine/tor"
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
+	paths "github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -38,7 +41,7 @@ func torBinaryFound() bool {
 // TorService manages the Tor hidden service
 type TorService struct {
 	tor             *tor.Tor
-	onionService    *tor.OnionService
+	onionServiceID  string
 	dataDir         string
 	db              *database.DB
 	ctx             context.Context
@@ -170,24 +173,44 @@ func (ts *TorService) startTorService(httpPort int) error {
 
 	log.Println("OK: Tor is ready, creating hidden service...")
 
-	// Create or load hidden service
-	onionKey := filepath.Join(ts.dataDir, "site", "private_key")
+	// Create or load the v3 hidden service: ADD_ONION forwards .onion:80 to the server's own
+	// port, so Tor never binds a second listener on that port (AI.md PART 32.1)
+	keyPath := filepath.Join(ts.dataDir, "site", "private_key")
+	onionKey, err := loadOrCreateOnionKey(keyPath)
+	if err != nil {
+		ts.StopTorService()
+		return fmt.Errorf("failed to prepare the hidden service key: %w", err)
+	}
 
-	// Configure hidden service to forward to our HTTP server
-	onionService, err := t.Listen(ts.ctx, &tor.ListenConf{
-		RemotePorts: []int{80},
-		LocalPort:   httpPort,
-		Key:         onionKey,
-		Version3:    true,
+	onionResponse, err := t.Control.AddOnion(&control.AddOnionRequest{
+		Key:   onionKey,
+		Ports: []*control.KeyVal{control.NewKeyVal("80", fmt.Sprintf("127.0.0.1:%d", httpPort))},
 	})
 	if err != nil {
 		ts.StopTorService()
 		return fmt.Errorf("failed to create hidden service: %w", err)
 	}
-	ts.onionService = onionService
+	ts.onionServiceID = onionResponse.ServiceID
+
+	// The config-side Tor directory is private like every private path (AI.md PART 32.1)
+	if err := os.MkdirAll(filepath.Join(paths.GetConfigDir(), "tor"), 0o700); err != nil {
+		log.Printf("WARNING: Failed to create the Tor config directory: %v", err)
+	}
+
+	// A generated key is saved so the .onion address survives restarts
+	if onionResponse.Key != nil {
+		if err := saveOnionKey(keyPath, onionResponse.Key.Blob()); err != nil {
+			log.Printf("WARNING: Failed to save the hidden service key: %v", err)
+		}
+	}
 
 	// Get the .onion address
-	onionAddr := onionService.ID + ".onion"
+	onionAddr := onionResponse.ServiceID + ".onion"
+
+	// The hostname file next to the key records the address for the operator
+	if err := os.WriteFile(filepath.Join(ts.dataDir, "site", "hostname"), []byte(onionAddr+"\n"), 0o600); err != nil {
+		log.Printf("WARNING: Failed to write the onion hostname file: %v", err)
+	}
 
 	ts.mu.Lock()
 	ts.onionAddress = onionAddr
@@ -221,6 +244,10 @@ func (ts *TorService) startTorService(httpPort int) error {
 // StopTorService shuts down the Tor service gracefully
 func (ts *TorService) StopTorService() error {
 	if ts.tor == nil {
+		// Nothing runs yet; cancelling also stops a start that is still launching the process
+		if ts.cancel != nil {
+			ts.cancel()
+		}
 		return nil
 	}
 
@@ -231,8 +258,9 @@ func (ts *TorService) StopTorService() error {
 		close(ts.monitorStop)
 	}
 
-	if ts.onionService != nil {
-		ts.onionService.Close()
+	if ts.onionServiceID != "" && ts.tor != nil {
+		_ = ts.tor.Control.DelOnion(ts.onionServiceID)
+		ts.onionServiceID = ""
 	}
 
 	if err := ts.tor.Close(); err != nil {
@@ -363,7 +391,7 @@ func (ts *TorService) performHealthCheck() {
 
 	// Check if the Tor instance is still alive
 	// bine doesn't expose a direct health check, but we can verify the onion service
-	if ts.onionService == nil || ts.tor == nil {
+	if ts.onionServiceID == "" || ts.tor == nil {
 		ts.healthStatus = "unhealthy"
 		log.Printf("WARNING: Tor health check failed: service or instance is nil")
 		return
@@ -412,4 +440,32 @@ func (ts *TorService) DisableMonitoring() {
 		ts.monitorEnabled = false
 		close(ts.monitorStop)
 	}
+}
+
+// loadOrCreateOnionKey returns the saved v3 key, or a request for Tor to generate a new one.
+func loadOrCreateOnionKey(keyPath string) (control.Key, error) {
+	blob, err := os.ReadFile(keyPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return control.GenKey(control.KeyAlgoED25519V3), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := control.ED25519KeyFromBlob(strings.TrimSpace(string(blob)))
+	if err != nil {
+		return nil, fmt.Errorf("the saved hidden service key is unreadable: %w", err)
+	}
+
+	return key, nil
+}
+
+// saveOnionKey writes the hidden service key into its private directory (0700 directory,
+// 0600 file) so the address is stable across restarts.
+func saveOnionKey(keyPath, blob string) error {
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+		return err
+	}
+
+	return os.WriteFile(keyPath, []byte(blob), 0o600)
 }

@@ -147,7 +147,7 @@ func TestAuthMiddleware_ValidSessionCookieAuthenticates(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: session.ID})
+	req.AddCookie(&http.Cookie{Name: UserSessionCookieName(), Value: session.ID})
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -166,7 +166,7 @@ func TestAuthMiddleware_InvalidSessionCookieRejected(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
 	req.Header.Set("Accept", "application/json")
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "totally-bogus-session-token"})
+	req.AddCookie(&http.Cookie{Name: UserSessionCookieName(), Value: "totally-bogus-session-token"})
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
