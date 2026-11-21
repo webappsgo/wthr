@@ -19,6 +19,17 @@ All weather data sources used by wthr are free and public — no API keys are re
 Data is fetched on a configurable schedule (default: weather alerts every 15 minutes, earthquake
 data every 1 minute). No API keys, accounts, or registration are required for any of these sources.
 
+## Location Reference Data
+
+Location lookup uses maintained public reference datasets:
+
+| Dataset | Source | Refresh and use |
+|---------|--------|-----------------|
+| US ZIP codes | [GeoNames postal-code data](https://download.geonames.org/export/zip/US.zip) ([license and format](https://download.geonames.org/export/zip/readme.txt)) | The server downloads the US archive at startup and during its scheduled data refresh. Postal-code coordinates are representative locations, not official USPS delivery boundaries. GeoNames requires attribution under CC BY 4.0 and provides the data without accuracy, timeliness, or completeness guarantees. |
+| Airports | [OurAirports airport data](https://ourairports.com/data/airports.csv) ([data terms](https://ourairports.com/data/)) | The server downloads the CSV at startup and during its scheduled data refresh. The dataset is public domain and community maintained, with no accuracy or fitness guarantee; use it for location lookup, not flight operations or navigation. |
+
+Both loaders validate the downloaded schema, record counts, codes, and coordinate bounds before replacing the in-memory snapshot. If a refresh fails, the last validated airport cache remains available; ZIP lookup retains its previous in-memory snapshot. These directories are reference data and can lag authoritative postal or aviation records.
+
 ---
 
 ## GeoIP
