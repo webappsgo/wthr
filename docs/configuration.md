@@ -51,6 +51,20 @@ A large configuration may be split into files in `{config_dir}/yaml.d/`, next to
 
 The admin panel writes core server settings to `server.yml` and stores the scheduled-backup password encrypted in `secrets.yml`. A setting that a drop-in file sets is owned by that file (`set by yaml.d/20-mail.yml`); edit the drop-in instead. The startup log lists each loaded drop-in in order at info level and, with debug enabled, names the file that won for every overridden key. Secret values are never logged.
 
+## Branding and SEO
+
+Branding, SEO, accent color, and operator-authored page content are stored in
+`{config_dir}/yaml.d/branding.yml`. The admin UI writes this area file atomically. Existing
+branding values found in older `server.yml` files are migrated into the area file. Uploaded images
+are stored in the private `{config_dir}/assets/` directory; remote image URLs are fetched through
+the same size, type, and image validation pipeline.
+
+Raster uploads and remote images produce responsive logo variants (200px and 50px wide), favicon
+variants (16, 32, 48, 180, 192, and 512px, including the Apple touch icon), and a 1200×630 Open
+Graph image variant. The header advertises the responsive logo sizes; the page head uses the
+generated favicon and social preview images. The accent stylesheet is served at
+`/static/css/accent.css`.
+
 ## Environment Variables
 
 Environment variables override the generated config file (see Precedence

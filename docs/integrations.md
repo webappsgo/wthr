@@ -55,6 +55,30 @@ their saved presets in `/server/{admin_path}/network/geoip`.
 
 ---
 
+## External Authentication
+
+### OIDC regular-user accounts
+
+OIDC login matches returning users by the provider name and stable `sub` claim. When an
+authenticated identity has no local mapping and that provider has `auto_register: true`, the user
+is sent to `/server/auth/external/username` before an account is created. The server keeps the
+verified identity in a short-lived, HttpOnly pre-auth cookie and in-memory record (10-minute
+expiry). The page displays an editable candidate derived from the mapped preferred-username claim,
+email local part, display name, or provider name, in that order. The server normalizes the candidate
+and suggests a numeric suffix when it is unavailable; the user confirms the final username in a
+plain POST form. The selected name is stored once, and later OIDC logins use the provider plus `sub`
+mapping.
+
+With `auto_register: false`, an unmatched OIDC identity is denied and no local account is created;
+the user must contact the operator. Existing mapped OIDC accounts can still sign in.
+
+The username confirmation flow currently covers new **regular-user OIDC** accounts only. LDAP
+login is a separate username/password endpoint and does not use this confirmation page; its current
+handler can create a regular-user account directly from the submitted username. OIDC-backed admin
+accounts and SAML authentication are not implemented, so neither uses the confirmation flow.
+
+---
+
 ## API Access
 
 ### REST API

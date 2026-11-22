@@ -38,6 +38,9 @@ Browser sessions use a cookie; the API never needs or checks a CSRF token.
 | `GET /api/v1/server/security/thanks` | Acknowledgments (`entries`) |
 | `GET /api/v1/server/contact` | Contact form description: `fields` (`name`, `type`, `required`, `max_length`, `required_when`, `max_length_when`; with a valid `?security_id=` the security-report fields), `captcha` (`{provider, site_key}` or, for the built-in challenge, `{provider, challenge_id, question}`), `security_url`, `abuse_email` |
 | `POST /api/v1/server/contact` | Contact form; needs a solved captcha (see below). With a valid `security_id` in the body it submits a security report and answers `{"ok": true, "data": {"tracking_id": "sec_..."}}` |
+| `GET /api/v1/server/preferences/sync` | Portable guest-preference export as JSON, text, or an HTML sync page, depending on `Accept` |
+| `GET /api/v1/server/preferences/sync/import` | Import preferences from URL query parameters or a `code` |
+| `POST /api/v1/server/preferences/sync` | Import preferences from submitted form/query values or a `code` |
 | `GET /api/v1/server/auth/check` | Token check: `200` with `{"kind": "operator" \| "owner" \| "user"}` for a valid `Authorization: Bearer` token, `401` otherwise; no side effects, the token is never echoed |
 | `POST /api/v1/server/mcp` | MCP endpoint (Streamable HTTP); aliases `/api/mcp` and `/mcp` |
 
@@ -66,6 +69,18 @@ Both feeds carry `ETag` and `Last-Modified`, answer `304` to a matching conditio
 default 50) and the feed title (`server.seo.feed.title`) are set in the admin panel under Web.
 
 ## API Endpoints
+
+### Admin profile report key
+
+These authenticated self-service routes use the admin username in the path:
+
+| Method and route | Description |
+|------------------|-------------|
+| `PUT /api/v1/server/{admin_path}/{admin_username}/profile/security/pgp` | Register an armored OpenPGP public key as `{ "public_key": "..." }`; the key is validated before storage |
+| `DELETE /api/v1/server/{admin_path}/{admin_username}/profile/security/pgp` | Remove the current admin's registered report key |
+
+The key is public material and is used to encrypt maintainer security-report notifications sent to
+the registering admin.
 
 ### Weather Endpoints
 

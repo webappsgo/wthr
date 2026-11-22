@@ -49,6 +49,10 @@ authenticator code. Disabling TOTP requires an authenticator code or an unused r
 The profile API exposes the same controls under
 `/api/v1/server/{admin_path}/{admin_username}/profile/security/totp`.
 
+Admins may also register or remove an armored OpenPGP public key from the profile Security page.
+This personal key receives encrypted security-report maintainer notifications; it is not the
+project key shown on the public security page.
+
 ### Password Requirements
 
 Admin passwords must meet these criteria:
@@ -200,13 +204,19 @@ hours), or permanent. Changes apply immediately.
 
 #### SSL/TLS Settings
 
-- **Enable HTTPS** - Use SSL/TLS
-- **Certificate Path** - SSL certificate file
-- **Key Path** - SSL private key file
-- **Let's Encrypt** - Automatic SSL via Let's Encrypt
-  - Email address
-  - Domain names
-  - Auto-renewal
+- View certificate status, validity dates, domains, and renewal information.
+- Obtain or renew certificates through HTTP-01, TLS-ALPN-01, or a supported DNS-01 provider.
+- Start auto-renewal for a domain list and challenge type, or revoke a certificate.
+- The revoke and auto-renew actions are ordinary CSRF-protected POST forms and work without JavaScript.
+
+### Branding and SEO
+
+The `/server/{admin_path}/branding` page manages site identity, SEO metadata, accent color,
+and operator-authored page content. Changes are stored in `yaml.d/branding.yml`. Logo and favicon
+uploads are validated and saved under the private config `assets/` directory; the server generates
+responsive logo sizes, favicon sizes, an Apple touch icon, and an Open Graph image variant. Remote
+image URLs are also supported and are fetched through the validated image pipeline. See
+[Configuration](configuration.md#branding-and-seo) for the supported settings and generated sizes.
 
 ### Web (robots.txt, security.txt, feeds)
 

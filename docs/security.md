@@ -18,7 +18,12 @@ leaves the device. An unauthenticated request to `/server/administration` redire
 | **Register a passkey** | Admin panel → your profile → Security → add a passkey (the password is asked again) |
 | **Enable TOTP** | Admin profile → Security → confirm password → scan QR/manual key → verify code and save ten one-time recovery codes |
 | **Recovery codes** | Admin profile → Security; regenerate with a current TOTP code. Each code is stored hashed and consumed once |
+| **Register report key** | Admin profile → Security → register or remove an armored OpenPGP public key for encrypted maintainer notifications |
 | **Revoke** | Admin panel → your profile → Security → remove a passkey |
+
+Admin TOTP secrets are encrypted at rest with `server.security.encryption_key`; recovery codes are
+stored only as hashes. Enabling, disabling, or regenerating recovery codes requires a fresh
+authenticator or recovery code where applicable.
 
 ### User Authentication
 
@@ -292,8 +297,12 @@ with the same `security_id` submits a report.
 the project PGP key when one exists, otherwise AES-256-GCM with `server.security.encryption_key`.
 Plaintext is never written to disk or to a log. The status link works once per day and stops working
 30 days after the report is closed; closed reports are deleted `server.security.reports.retention_days`
-(default 365) after closing. The maintainer email never carries report content; the researcher email
-carries only the tracking id and the status link, encrypted to the researcher's key when one was given.
+(default 365) after closing. Maintainer notifications contain the report only when PGP-encrypted to
+each active admin who registered a personal public key in their profile. If no active admin has
+registered a key, each active admin with an email address receives an AES-256-GCM-encrypted
+attachment and a warning that it must be decrypted with the configured server encryption key. The
+researcher email carries only the tracking id and status link, encrypted to the researcher's key
+when one was given.
 
 **Admin panel.** `/server/administration/security/reports` lists and updates reports (status moves
 forward only), `/security/policy` edits the policy, `/security/thanks` manages the hall of fame and
