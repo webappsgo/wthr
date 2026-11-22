@@ -75,7 +75,7 @@ the user must contact the operator. Existing mapped OIDC accounts can still sign
 LDAP login is a separate username/password endpoint and does not use this confirmation page; its
 current handler can create a regular-user account directly from the submitted username.
 
-### SAML regular-user accounts
+### SAML authentication
 
 SAML providers are configured in the server authentication settings. Browser-initiated login uses
 `/server/auth/saml/{provider}`, publishes SP metadata at
@@ -90,11 +90,30 @@ New users with `auto_register: true` complete the shared plain POST username con
 For transient NameID, configure a stable external ID attribute or login is rejected. With
 `auto_register: false`, unmatched identities are denied.
 
-SAML currently covers regular-user SP-initiated browser login. SAML Server Admin authentication,
-role/admin group application, IdP-initiated login, SLO, API polling, provider test actions, and
-certificate upload/rotation are not implemented yet. Pending browser request and first-login state
-is held in process memory, so this flow is not suitable for multi-node deployments without shared
-state.
+SAML browser login also supports Server Admin provisioning when an assertion's mapped groups match
+the provider's `admin_groups`. New Server Admins choose a username before provisioning, and later
+logins use the stored provider/external identity mapping. During first login, the admin also sets a
+local fallback password, which allows password login if the identity provider becomes unavailable;
+the mapping uses provider name plus stable external ID and never links by email alone.
+`role_mapping` assigns regular-user roles.
+IdP-initiated login is accepted only when enabled for that provider. The admin page supports provider
+testing, metadata download, key regeneration, and provider removal; generated SP certificates rotate
+automatically before expiry. Provider removal revokes sessions associated with that provider and
+deletes its stored signing key and certificate.
+
+SP-initiated and IdP-initiated SLO validate signed messages and terminate mapped sessions using
+Redirect or POST bindings. Native API-mode login provides a browser redirect followed by one-time
+request exchange. Its exchange request is bound to the originating IP address and user-agent; API
+clients can exchange the request ID alone or provide the one-time code shown on the browser completion
+page. No application URI scheme is configured, so the code is presented for manual return rather than
+in a custom app deep link. API SLO accepts authenticated regular-user/admin sessions and API tokens.
+Browser-initiated requests and first-login confirmation remain process-local, so a load-balanced
+deployment requires sticky routing through completion. Existing administrators with TOTP must verify
+it after SAML; passkey-only administrators are directed to the local login flow. Operators may use
+external SP certificate/key paths; private key files must be regular files with mode 0400 or 0600, and
+certificate/key match and validity are checked. Generated SP certificates rotate automatically before
+expiry. File upload is not implemented. MFA remains optional for newly provisioned administrators,
+matching the admin policy in AI.md.
 
 ---
 

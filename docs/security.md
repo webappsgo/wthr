@@ -55,8 +55,10 @@ sessions are prefixed `adm:` to distinguish them from user sessions.
 | Regular User | ✗ | Saved locations, subscriptions | — |
 | Server Admin | ✓ full access | All endpoints + admin API | — |
 
-Server Admins and Regular Users are stored in **separate tables** (`admins` and `users`) of
-`users.db`, with admin login sessions in `server.db`. A Regular User account can never be elevated to Server Admin status through the normal
+In a single-instance installation, Server Admins and Regular Users are stored in separate
+`admins` and `users` tables in `users.db`, with admin login sessions in `server.db`. Cluster Mode
+stores shared server and user tables in the configured remote database using `srv_` and `usr_`
+prefixes. A Regular User account can never be elevated to Server Admin status through normal
 user-facing flows.
 
 ---
@@ -159,7 +161,8 @@ for the `web.csrf` settings.
 
 ## Project Secrets
 
-The server keeps three secrets in the `app_secrets` table of `server.db`. Each is 32 bytes from
+The server keeps three shared secrets in the `app_secrets` table (`server.db` in single-instance
+mode and `srv_app_secrets` in Cluster Mode). Each is 32 bytes from
 `crypto/rand`, generated on first start, included in every backup and never logged or returned by
 any API:
 

@@ -76,18 +76,30 @@ admin's own area (`/server/{admin_path}/{admin_username}/profile`, `/preferences
 
 Logging out uses `/server/auth/logout` for admins and users alike.
 
+The `/server/{admin_path}/admins` page shows the signed-in admin's own account and the total
+admin count. It does not list other admins' usernames, email addresses, sessions, or credentials.
+Use `/server/{admin_path}/admins/invite` to invite another admin. Each admin's profile and
+security settings are under `/server/{admin_path}/{admin_username}/`.
+
+Admin web forms use the admin session cookie, CSRF protection, and POST-redirect-GET feedback.
+They remain usable with JavaScript disabled. The separate `/api/v1/server/{admin_path}/` routes
+are Bearer-token APIs and are not form targets.
+
 ### Dashboard
 
-The dashboard provides an overview of server status and activity.
+The dashboard shows total user accounts, administrator accounts, saved
+locations, and service status. Its quick links open the server-rendered user,
+invite, settings, security, database, SSL, backup, token, log, scheduler, and
+administrator pages. Each management page owns its own forms and feedback.
 
-**Displays:**
-- Server uptime and version
-- Active users and sessions
-- Recent API requests
-- System resource usage (CPU, memory, disk)
-- Weather data cache statistics
-- GeoIP database status
-- Recent errors and warnings
+### Roles
+
+The Roles page reads and updates `server.users.roles`. It lists configured roles
+and assigned user counts, sets the default role for new accounts, and lets
+admins create custom roles with `read`, `write`, and `moderate` permissions.
+Custom permissions can be updated in place. Built-in `admin` and `user` roles
+are locked. A custom role cannot be deleted while assigned to users or while it
+is the default role.
 
 **Quick Actions:**
 - Restart server (graceful shutdown; a service manager or container restart policy starts the new process, a manually started server re-executes itself)
@@ -97,7 +109,29 @@ The dashboard provides an overview of server status and activity.
 
 ### Users
 
-Manage user accounts.
+Open `/server/{admin_path}/moderation/users` to search and filter accounts. The
+user detail page shows the selected account's profile, two-factor status, active
+session metadata, and recent activity. Session-authenticated forms can disable
+or enable the account, revoke all of its sessions, and delete it. Delete requires
+an explicit confirmation checkbox. These forms use CSRF protection and
+POST-redirect-GET feedback, so the moderation pages remain usable without
+JavaScript.
+
+The **Impersonate user** action creates a separate 15-minute user session and
+keeps the admin session in its own cookie. The user session does not contain
+admin privileges. A notice with a **Stop impersonating and return to admin**
+form appears in the user navigation; submitting it revokes the impersonation
+session and returns to the admin panel. Start and stop are recorded in the
+audit log with the acting admin and target user. The Bearer-token API remains
+separate from these browser forms.
+
+### API token registry
+
+The API token page lists user-token names, owner email addresses, token prefixes,
+creation and use times, and expiry. Admins can revoke a token through a
+CSRF-protected form. Creating a token displays its plaintext once in the POST
+response; copy it before leaving the page because it cannot be retrieved later.
+The stored token remains hashed. Browser token forms do not call the Bearer API.
 
 **Features:**
 - List all registered users
@@ -294,6 +328,10 @@ Monitor system performance and usage.
 - Cache performance
 - Top API endpoints
 - Geographic distribution of requests
+
+The Metrics page's settings form works without JavaScript. Its no-JavaScript links open the
+registered-metrics listing and the Prometheus, JSON, or OpenMetrics export through the
+session-authenticated admin web routes.
 
 ### Scheduler
 

@@ -355,6 +355,10 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `POST` | `/api/{api_version}/server/auth/invite/user/{token}` |
 | `POST` | `/api/{api_version}/server/auth/login` |
 | `POST` | `/api/{api_version}/server/auth/logout` |
+| `GET` | `/api/{api_version}/server/auth/saml` |
+| `GET` | `/api/{api_version}/server/auth/saml/{provider}` |
+| `POST` | `/api/{api_version}/server/auth/saml/{provider}/exchange` |
+| `POST` | `/api/{api_version}/server/auth/saml/{provider}/slo` |
 | `POST` | `/api/{api_version}/server/auth/passkey/challenge` |
 | `POST` | `/api/{api_version}/server/auth/passkey/verify` |
 | `POST` | `/api/{api_version}/server/auth/password/forgot` |
@@ -375,6 +379,8 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `GET` | `/api/{api_version}/server/metrics/{service}` |
 | `GET` | `/api/{api_version}/server/preferences` |
 | `POST` | `/api/{api_version}/server/preferences` |
+| `GET` | `/api/{api_version}/server/preferences/sync` |
+| `GET` | `/api/{api_version}/server/preferences/sync/import` |
 | `GET` | `/api/{api_version}/server/preferences/export` |
 | `GET` | `/api/{api_version}/server/preferences/import` |
 | `GET` | `/api/{api_version}/server/privacy` |
@@ -497,6 +503,17 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `GET` | `/api/{api_version}/server/{admin_path}/security/allowlist/check/{ip}` |
 | `DELETE` | `/api/{api_version}/server/{admin_path}/security/allowlist/{id}` |
 | `POST` | `/api/{api_version}/server/{admin_path}/security/auth` |
+| `GET` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers` |
+| `POST` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers` |
+| `GET` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}` |
+| `PATCH` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}` |
+| `DELETE` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}` |
+| `POST` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}/test` |
+| `GET` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}/metadata` |
+| `POST` | `/api/{api_version}/server/{admin_path}/security/auth/saml/providers/{provider}/certificate` |
+| `POST` | `/api/{api_version}/server/{admin_path}/nodes/join` |
+| `POST` | `/api/{api_version}/server/{admin_path}/nodes/leave` |
+| `POST` | `/api/{api_version}/server/{admin_path}/nodes/token` |
 | `GET` | `/api/{api_version}/server/{admin_path}/security/blocked-ips` |
 | `POST` | `/api/{api_version}/server/{admin_path}/security/blocked-ips` |
 | `DELETE` | `/api/{api_version}/server/{admin_path}/security/blocked-ips/expired` |
