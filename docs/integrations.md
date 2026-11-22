@@ -72,10 +72,29 @@ mapping.
 With `auto_register: false`, an unmatched OIDC identity is denied and no local account is created;
 the user must contact the operator. Existing mapped OIDC accounts can still sign in.
 
-The username confirmation flow currently covers new **regular-user OIDC** accounts only. LDAP
-login is a separate username/password endpoint and does not use this confirmation page; its current
-handler can create a regular-user account directly from the submitted username. OIDC-backed admin
-accounts and SAML authentication are not implemented, so neither uses the confirmation flow.
+LDAP login is a separate username/password endpoint and does not use this confirmation page; its
+current handler can create a regular-user account directly from the submitted username.
+
+### SAML regular-user accounts
+
+SAML providers are configured in the server authentication settings. Browser-initiated login uses
+`/server/auth/saml/{provider}`, publishes SP metadata at
+`/server/auth/saml/{provider}/metadata`, and accepts IdP responses at
+`/server/auth/saml/{provider}/acs`. IdP metadata must use HTTPS. The SP signing private key is
+encrypted with the configured server encryption key before it is written to the private secrets
+file. Assertions are validated by the SAML protocol library, request IDs are correlated to the
+browser state, and assertion IDs are recorded in the server database for replay rejection.
+
+New users with `auto_register: true` complete the shared plain POST username confirmation step at
+`/server/auth/external/username`. Existing identities match by provider name and persistent NameID.
+For transient NameID, configure a stable external ID attribute or login is rejected. With
+`auto_register: false`, unmatched identities are denied.
+
+SAML currently covers regular-user SP-initiated browser login. SAML Server Admin authentication,
+role/admin group application, IdP-initiated login, SLO, API polling, provider test actions, and
+certificate upload/rotation are not implemented yet. Pending browser request and first-login state
+is held in process memory, so this flow is not suitable for multi-node deployments without shared
+state.
 
 ---
 

@@ -133,6 +133,10 @@ Manage user accounts.
 
 Configure server-wide settings through the web UI.
 
+Admin settings and operational changes use session-authenticated HTML POST forms with CSRF
+tokens and redirect-after-save feedback, so those controls remain usable with JavaScript disabled.
+JavaScript adds live dashboards, previews, and other optional enhancements.
+
 #### General Settings
 
 - **Server Name** - Display name for the service
@@ -207,7 +211,7 @@ hours), or permanent. Changes apply immediately.
 - View certificate status, validity dates, domains, and renewal information.
 - Obtain or renew certificates through HTTP-01, TLS-ALPN-01, or a supported DNS-01 provider.
 - Start auto-renewal for a domain list and challenge type, or revoke a certificate.
-- The revoke and auto-renew actions are ordinary CSRF-protected POST forms and work without JavaScript.
+- Obtain, renew, auto-renew, DNS provider save, and revoke actions use CSRF-protected POST forms.
 
 ### Branding and SEO
 
@@ -227,7 +231,9 @@ image URLs are also supported and are fetched through the validated image pipeli
   path that `robots.txt` disallows.
 - **Syndication feeds** - entries per feed (1 to 200) and the feed title for `/feed.xml` and
   `/rss.xml`, which are always served.
-- **security.txt** and the MCP endpoint switch.
+- **security.txt** - Contact, preferred languages, policy URL, and encryption key URL.
+- **MCP endpoint** - Always available at the displayed endpoint URL and authenticated with the
+  same Bearer tokens as the API. AI.md does not define an admin toggle for MCP.
 
 ### Security reports
 
