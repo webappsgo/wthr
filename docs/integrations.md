@@ -12,7 +12,7 @@ All weather data sources used by wthr are free and public — no API keys are re
 | [Environment Canada](https://weather.gc.ca/warnings/index_e.html) | Canadian weather alerts | `https://weather.gc.ca/warnings/` (Atom feed) |
 | [UK Met Office](https://www.metoffice.gov.uk/services/data/datapoint) | UK weather warnings | Met Office DataPoint API |
 | [Australia BOM](http://www.bom.gov.au/catalogue/data-feeds.shtml) | Australian weather warnings | BOM data feeds |
-| [Japan JMA](https://www.jma.go.jp/bosai/) | Japan weather alerts | JMA public APIs |
+| [Japan JMA](https://www.jma.go.jp/bosai/) | Japan weather alerts | `https://www.jma.go.jp/bosai/warning/data/r8/map.json` (JMA website data feed; not a documented API) |
 | [Mexico CONAGUA](https://smn.conagua.gob.mx/) | Mexico weather warnings | SMN data feeds |
 | [USGS Earthquake Hazards](https://earthquake.usgs.gov/earthquakes/feed/) | Real-time seismic data | GeoJSON feeds |
 
@@ -26,9 +26,9 @@ Location lookup uses maintained public reference datasets:
 | Dataset | Source | Refresh and use |
 |---------|--------|-----------------|
 | US ZIP codes | [GeoNames postal-code data](https://download.geonames.org/export/zip/US.zip) ([license and format](https://download.geonames.org/export/zip/readme.txt)) | The server downloads the US archive at startup and during its scheduled data refresh. Postal-code coordinates are representative locations, not official USPS delivery boundaries. GeoNames requires attribution under CC BY 4.0 and provides the data without accuracy, timeliness, or completeness guarantees. |
-| Airports | [OurAirports airport data](https://ourairports.com/data/airports.csv) ([data terms](https://ourairports.com/data/)) | The server downloads the CSV at startup and during its scheduled data refresh. The dataset is public domain and community maintained, with no accuracy or fitness guarantee; use it for location lookup, not flight operations or navigation. |
+| Airports | [OurAirports airport data](https://ourairports.com/data/airports.csv) ([data terms](https://ourairports.com/data/)) | The airport lookup service downloads the CSV when instantiated and can refresh it on demand. The dataset is public domain and community maintained, with no accuracy or fitness guarantee; use it for location lookup, not flight operations or navigation. |
 
-Both loaders validate the downloaded schema, record counts, codes, and coordinate bounds before replacing the in-memory snapshot. If a refresh fails, the last validated airport cache remains available; ZIP lookup retains its previous in-memory snapshot. These directories are reference data and can lag authoritative postal or aviation records.
+The ZIP and airport loaders validate the downloaded schema, record counts, codes, and coordinate bounds before replacing the in-memory snapshot. If a refresh fails, the last validated airport cache remains available; ZIP lookup retains its previous in-memory snapshot. These directories are reference data and can lag authoritative postal or aviation records. JMA changed its warning feed in 2026; the server reads the current Reiwa 8 map feed and tracks the latest update or cancellation for each area and warning code. JMA may change this website feed without notice, so consult [JMA's warnings](https://www.jma.go.jp/bosai/warning/) directly for current official information.
 
 ---
 
@@ -59,7 +59,8 @@ their saved presets in `/server/{admin_path}/network/geoip`.
 
 ### REST API
 
-Full REST API documentation is available at `/swagger/` (OpenAPI/Swagger UI). Example usage:
+Full REST API documentation is available at `/server/docs/swagger` (OpenAPI/Swagger UI).
+The JSON document is served at `/api/{api_version}/server/swagger`. Example usage:
 
 ```sh
 # Current weather for a location

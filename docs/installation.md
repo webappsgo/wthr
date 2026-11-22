@@ -85,7 +85,8 @@ After setup, use:
 
 - Admin panel: `https://wthr.top/server/administration`
 - Health: `https://wthr.top/healthz`
-- OpenAPI: `https://wthr.top/openapi`
+- Swagger UI: `https://wthr.top/server/docs/swagger`
+- OpenAPI JSON: `https://wthr.top/api/v1/server/swagger`
 
 ## Verification
 

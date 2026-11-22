@@ -455,7 +455,13 @@ journalctl -u wthr -f
 
 ### Update API Docs
 
-Edit `docs/api.md` when adding/changing endpoints.
+When adding or changing an API route, update the `### API routes` inventory in
+`IDEA.md` first, then register the matching route and document its behavior in
+`docs/api.md`. The OpenAPI JSON is generated from the router by
+`go generate ./src/swagger`; the `make dev`, `make local`, and `make build`
+targets run generation inside the project Go container. Never edit
+`src/swagger/openapi.json` by hand. The Swagger route drift test compares the
+generated document, registered API routes, and the AI.md/IDEA.md route contract.
 
 ### Update Configuration Docs
 

@@ -4,13 +4,13 @@ The Weather Service admin panel provides a web interface for managing the server
 
 ## Accessing the Admin Panel
 
-Default URL: `https://wthr.top/server/administration`
+Default path: `/server/administration` (the operator may configure another admin path).
 
 ### First-Time Setup
 
 On first run, Weather Service launches the setup wizard:
 
-1. Navigate to `https://wthr.top/server/administration/setup` in your browser
+1. Navigate to `/server/administration/setup` in your browser
 2. The setup wizard automatically opens
 3. Create the primary admin account:
    - Username (email address)
@@ -25,9 +25,9 @@ The setup wizard is a one-time process. After completion, access the admin panel
 
 ### Login
 
-1. Go to `https://wthr.top/server/administration`
+1. Go to `/server/administration`
 2. Enter admin username and password
-3. If the account has a passkey registered, complete the passkey prompt
+3. If the account has a passkey registered, complete the passkey prompt. Otherwise, enter the authenticator code or an unused recovery code when TOTP is enabled.
 4. Click **Login**
 
 ### Passkeys
@@ -38,7 +38,16 @@ Register a passkey to add a second factor to password sign-in:
 2. Enter your current password and register a passkey using the browser prompt
 3. Remove a passkey from the same page when it is no longer trusted
 
-Admin TOTP enrollment and recovery codes are not available in this build.
+### TOTP and recovery codes
+
+Open your admin profile's **Security** page, confirm your current password, then scan the setup
+QR code or enter its manual key in an authenticator app. Confirm setup with the current six-digit
+code and acknowledge that you saved the ten recovery codes. Each recovery code works once. Store
+them offline; they are shown only when created or regenerated. To regenerate them, enter a current
+authenticator code. Disabling TOTP requires an authenticator code or an unused recovery code.
+
+The profile API exposes the same controls under
+`/api/v1/server/{admin_path}/{admin_username}/profile/security/totp`.
 
 ### Password Requirements
 

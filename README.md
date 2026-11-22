@@ -143,7 +143,11 @@ Key settings:
   invite and admin direct-create still work). Any other value is rejected and
   falls back to `open`.
 
-Configuration file: `$CONFIG_DIR/server.yml`
+The configuration directory is selected from `CONFIG_DIR` or the operating
+system user's standard configuration path. `server.yml` contains this node's
+listener and database settings. Shared sections are stored in private drop-in
+files under `yaml.d/`; branding and SEO live in `yaml.d/branding.yml`, while
+credentials live in `secrets.yml`. Area files are reloaded when changed.
 
 ```yaml
 server:
@@ -152,12 +156,12 @@ server:
   mode: production
   admin_path: administration
   api_version: v1
-
-weather:
-  forecast_days: 16
-  update_interval: 900
-  location_search_enabled: true
 ```
+
+The administrator's **Branding** page edits the application title, theme,
+custom page content and SEO metadata. Uploaded branding images are stored in
+the private `assets/` directory. Existing branding keys in `server.yml` are
+migrated automatically to `yaml.d/branding.yml`.
 
 ## API
 

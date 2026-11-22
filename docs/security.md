@@ -6,14 +6,18 @@
 
 Server Admins sign in at the shared `/server/auth/login` page with their username (or email) and
 password (Argon2id). An admin who has registered a passkey (WebAuthn: YubiKey, Touch ID, Windows
-Hello or any FIDO2 device) must also complete the passkey prompt before the session is created.
+Hello or any FIDO2 device) must complete the passkey prompt before the session is created. If no
+passkey is registered and TOTP is enabled, the admin must enter a current authenticator code or an
+unused recovery code before the session is created.
 Passkeys are stored in the `passkeys` table of `users.db`; the authenticator private key never
 leaves the device. An unauthenticated request to `/server/administration` redirects to the login page.
 
 | Flow | Description |
 |------|-------------|
-| **Sign in** | `/server/auth/login` → password → passkey prompt when one is registered → session (30-day cookie) |
+| **Sign in** | `/server/auth/login` → password → passkey prompt or TOTP/recovery challenge → session (30-day cookie) |
 | **Register a passkey** | Admin panel → your profile → Security → add a passkey (the password is asked again) |
+| **Enable TOTP** | Admin profile → Security → confirm password → scan QR/manual key → verify code and save ten one-time recovery codes |
+| **Recovery codes** | Admin profile → Security; regenerate with a current TOTP code. Each code is stored hashed and consumed once |
 | **Revoke** | Admin panel → your profile → Security → remove a passkey |
 
 ### User Authentication
