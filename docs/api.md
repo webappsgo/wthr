@@ -76,8 +76,6 @@ These authenticated self-service routes use the admin username in the path:
 
 | Method and route | Description |
 |------------------|-------------|
-| `PUT /api/v1/server/{admin_path}/{admin_username}/profile/security/pgp` | Register an armored OpenPGP public key as `{ "public_key": "..." }`; the key is validated before storage |
-| `DELETE /api/v1/server/{admin_path}/{admin_username}/profile/security/pgp` | Remove the current admin's registered report key |
 
 The key is public material and is used to encrypt maintainer security-report notifications sent to
 the registering admin.

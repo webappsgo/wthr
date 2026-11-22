@@ -308,8 +308,7 @@ All external API responses are validated before use. Network calls have 30-secon
 **Interfaces.** Every feature is available as a web page (HTML for browsers, plain
 text for curl and terminals), as a versioned JSON API, as GraphQL and OpenAPI, and
 through the CLI client. An MCP server (Streamable HTTP, public weather operations
-as tools) lets AI assistants use the service; it can be switched off in the admin
-panel. The standard server pages (about, help, MCP help, privacy, terms, contact,
+as tools) lets AI assistants use the service and is always enabled. The standard server pages (about, help, MCP help, privacy, terms, contact,
 security reporting, data protection officer contact, health, preferences) have
 real content derived from this document.
 
