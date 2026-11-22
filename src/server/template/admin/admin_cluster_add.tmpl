@@ -28,10 +28,10 @@
         <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
         {{if not .remote_database}}
         <label for="cluster-database-url">PostgreSQL or MySQL connection URL</label>
-        <input id="cluster-database-url" name="database_url" type="password" required autocomplete="new-password" placeholder="postgres://user:password@host:5432/database">
+        <input id="cluster-database-url" name="database_url" type="password" required autocomplete="new-password" placeholder="postgres://db.example.test:5432/database">
         {{end}}
         <label for="cluster-cache-url">Valkey or Redis connection URL</label>
-        <input id="cluster-cache-url" name="cache_url" type="password" required autocomplete="new-password" placeholder="valkey://user:password@host:6379/0">
+        <input id="cluster-cache-url" name="cache_url" type="password" required autocomplete="new-password" placeholder="valkey://cache.example.test:6379/0">
         <button class="btn btn-primary" type="submit">Enable Cluster and Generate Token</button>
       </form>
     </div>

@@ -151,12 +151,13 @@ database. Configure it with a URL or individual fields:
 server:
   database:
     driver: postgres
-    url: postgres://user:password@db.example.com:5432/wthr?sslmode=require
+    url: postgres://db.example.com:5432/wthr?sslmode=require
 ```
 
 `DATABASE_URL` seeds the URL on first run. A saved URL takes precedence over
 the separate `host`, `port`, `name`, `username`, `password`, and `sslmode`
-fields. Cluster settings are stored in `srv_config`/`srv_config_meta` and
+fields. Include authentication in the URL when the database requires it.
+Cluster settings are stored in `srv_config`/`srv_config_meta` and
 written to each node's `yaml.d/` area files. Nodes poll shared changes every
 five seconds and reconcile hand-edited area files every five minutes. Uploaded
 files in `assets/` are mirrored as validated, size-limited `assets.*` entries

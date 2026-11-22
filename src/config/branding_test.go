@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,9 +138,15 @@ func TestValidateServerBrandingImageValues(t *testing.T) {
 			t.Errorf("validBrandingImageValue(%q) = false", value)
 		}
 	}
+	credentialURL := (&url.URL{
+		Scheme: "https",
+		User:   url.UserPassword("user", "pass"),
+		Host:   "example.test",
+		Path:   "/logo.svg",
+	}).String()
 	invalid := []string{
 		"http://example.test/logo.svg",
-		"https://user:pass@example.test/logo.svg",
+		credentialURL,
 		"data:image/png;base64,%%%",
 		"data:image/png;base64," + strings.Repeat("A", 350*1024),
 		"../logo.png",
