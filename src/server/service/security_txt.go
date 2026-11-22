@@ -9,6 +9,7 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	paths "github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // SecurityTxtService handles security.txt generation per RFC 9116
@@ -63,7 +64,9 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 	if expires.IsZero() || expires.Before(time.Now()) {
 		// Auto-renew 1 year from now
 		expires = time.Now().AddDate(1, 0, 0)
-		s.settingsModel.SetString("security.expires", expires.Format(time.RFC3339))
+		if err := s.settingsModel.SetString("security.expires", expires.Format(time.RFC3339)); err != nil {
+			util.LogError("Unable to save security.txt expiry: %v", err)
+		}
 	}
 	lines = append(lines, fmt.Sprintf("Expires: %s", expires.Format(time.RFC3339)))
 
@@ -102,7 +105,7 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 
 	// Add comment header
 	content.WriteString("# Security Contact Information\n")
-	content.WriteString(fmt.Sprintf("# Generated: %s\n", time.Now().Format(time.RFC3339)))
+	fmt.Fprintf(&content, "# Generated: %s\n", time.Now().Format(time.RFC3339))
 	content.WriteString("# This file follows RFC 9116\n")
 	content.WriteString("# https://www.rfc-editor.org/rfc/rfc9116.html\n\n")
 

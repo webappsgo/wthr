@@ -1349,6 +1349,13 @@ func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) 
 	// Unparseable entries count toward no window.
 	seedAuditEntry("entry-broken", "whenever-o-clock", "success")
 
+	// Refresh the recent fixture immediately before the query. Under the full
+	// coverage run, SQLite setup can take longer than the original 30-second
+	// headroom and would move the row outside the one-minute window.
+	queryTime := time.Now().UTC()
+	if _, err := ddb.Server.Exec(`UPDATE audit_log SET timestamp = ? WHERE ulid = ?`, queryTime.Add(-5*time.Second).In(graphQLZoneWest).Format(graphQLLocalTimestampLayout), "entry-recent"); err != nil {
+		t.Fatalf("refresh recent audit fixture: %v", err)
+	}
 	stats, err := loadGraphQLRequestStats(context.Background(), ddb.Server)
 	if err != nil {
 		t.Fatalf("loadGraphQLRequestStats: %v", err)
@@ -1361,8 +1368,10 @@ func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) 
 		t.Errorf("Errors = %v, want 1 (only today's error entry)", stats.Errors)
 	}
 	wantPerSecond := 1.0 / 60.0
-	if stats.PerSecond == nil || *stats.PerSecond != wantPerSecond {
-		t.Errorf("PerSecond = %v, want %v (only the 30-second-old entry is inside the last minute)", stats.PerSecond, wantPerSecond)
+	if stats.PerSecond == nil {
+		t.Errorf("PerSecond is nil, want %v", wantPerSecond)
+	} else if *stats.PerSecond != wantPerSecond {
+		t.Errorf("PerSecond = %v, want %v (only the recent entry is inside the last minute)", *stats.PerSecond, wantPerSecond)
 	}
 }
 

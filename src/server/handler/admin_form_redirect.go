@@ -13,7 +13,8 @@ import (
 // than negative so a token-auth POST that carries no body and no content type
 // keeps its canonical JSON response.
 func wantsFormSubmission(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded")
+	contentType := r.Header.Get("Content-Type")
+	return strings.Contains(contentType, "application/x-www-form-urlencoded") || strings.Contains(contentType, "multipart/form-data")
 }
 
 // adminPagePath resolves the session-auth admin page that owns a mutation

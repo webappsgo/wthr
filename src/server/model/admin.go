@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -36,16 +37,17 @@ const (
 // Per TEMPLATE.md PART 22: Admins MUST be in server.db, NOT users.db
 // AI.md PART 11: API tokens stored as SHA-256 hash, never plaintext
 type Admin struct {
-	ID             int64      `json:"id"`
-	Username       string     `json:"username"`
-	Email          string     `json:"email"`
-	PasswordHash   string     `json:"-"`
-	APITokenPrefix string     `json:"api_token_prefix,omitempty"`
-	IsSuperAdmin   bool       `json:"is_super_admin"`
-	IsActive       bool       `json:"is_active"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	LastLoginAt    *time.Time `json:"last_login_at,omitempty"`
+	ID                   int64      `json:"id"`
+	Username             string     `json:"username"`
+	Email                string     `json:"email"`
+	PasswordHash         string     `json:"-"`
+	APITokenPrefix       string     `json:"api_token_prefix,omitempty"`
+	IsSuperAdmin         bool       `json:"is_super_admin"`
+	IsActive             bool       `json:"is_active"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	LastLoginAt          *time.Time `json:"last_login_at,omitempty"`
+	PersonalPGPPublicKey string     `json:"personal_pgp_public_key,omitempty"`
 }
 
 // AdminSession represents an active admin session
@@ -267,7 +269,7 @@ func (m *AdminModel) GetAll() ([]Admin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query admins: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var admins []Admin
 	for rows.Next() {
@@ -324,7 +326,7 @@ func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 	var storedLastLoginAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, username, email, password_hash, (SELECT token_prefix FROM tokens WHERE owner_type = 'admin' AND owner_id = admins.id AND name = 'default'), is_super_admin, is_active, created_at, updated_at, last_login_at
+		SELECT id, username, email, password_hash, (SELECT token_prefix FROM tokens WHERE owner_type = 'admin' AND owner_id = admins.id AND name = 'default'), is_super_admin, is_active, created_at, updated_at, last_login_at, COALESCE(personal_pgp_public_key, '')
 		FROM admins
 		WHERE id = ?
 	`, id).Scan(
@@ -338,6 +340,7 @@ func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 		&storedCreatedAt,
 		&storedUpdatedAt,
 		&storedLastLoginAt,
+		&admin.PersonalPGPPublicKey,
 	)
 
 	if err != nil {
@@ -982,7 +985,7 @@ func (m *AdminInviteModel) DeleteExpiredInvites() error {
 }
 
 // GetPendingInvites returns all pending (unused, not expired) invites
-func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
+func (m *AdminInviteModel) GetPendingInvites() (invites []AdminInvite, retErr error) {
 	// admin_invites has no "id" column (PK is token); use the
 	// implicit SQLite rowid, matching GetInvite.
 	// The unexpired test is applied in Go, not as SQL, for the reason described
@@ -999,11 +1002,10 @@ func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pending invites: %w", err)
 	}
-	defer rows.Close()
+	defer func() { retErr = errors.Join(retErr, rows.Close()) }()
 
 	now := time.Now().UTC()
 
-	var invites []AdminInvite
 	for rows.Next() {
 		var invite AdminInvite
 		var storedCreatedAt, storedExpiresAt interface{}
@@ -1074,9 +1076,9 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 	// See AdminInviteModel.CreateInvite for why expires_at must be bound
 	// as SQLite's own canonical text format rather than a raw time.Time.
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, sessionRowID, HashAdminSessionToken(sessionToken), adminID, ipAddress, userAgent, sqlTimestamp(now), sqlTimestamp(expiresAt))
+		INSERT INTO admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at, last_used_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, sessionRowID, HashAdminSessionToken(sessionToken), adminID, ipAddress, userAgent, sqlTimestamp(now), sqlTimestamp(expiresAt), sqlTimestamp(now))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -1103,10 +1105,10 @@ func (m *AdminSessionModel) GetSession(rawToken string) (*AdminSession, error) {
 	// scanned directly into a time.Time so that a row written by an older build
 	// in the driver's local-zone layout still resolves to the correct absolute
 	// instant rather than failing the scan.
-	var storedCreatedAt, storedExpiresAt interface{}
+	var storedCreatedAt, storedExpiresAt, storedLastUsedAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
+		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM admin_sessions
 		WHERE token_hash = ?
 	`, HashAdminSessionToken(rawToken)).Scan(
@@ -1116,6 +1118,7 @@ func (m *AdminSessionModel) GetSession(rawToken string) (*AdminSession, error) {
 		&session.UserAgent,
 		&storedCreatedAt,
 		&storedExpiresAt,
+		&storedLastUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -1132,16 +1135,20 @@ func (m *AdminSessionModel) GetSession(rawToken string) (*AdminSession, error) {
 	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
 		session.ExpiresAt = parsed
 	}
-	session.LastUsedAt = session.CreatedAt
+	if parsed, ok := parseStoredTimestamp(storedLastUsedAt); ok {
+		session.LastUsedAt = parsed
+	} else {
+		session.LastUsedAt = session.CreatedAt
+	}
 
 	return &session, nil
 }
 
-// UpdateSessionLastUsed is a no-op: admin_sessions has no
-// last_used_at column (see src/database/server_schema.go), so there is
-// nothing to persist. Kept for API symmetry with UserSessionModel.
+// UpdateSessionLastUsed refreshes the session activity timestamp.
 func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
-	return nil
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite,
+		`UPDATE admin_sessions SET last_used_at = ? WHERE token_hash = ?`, sqlTimestamp(time.Now()), HashAdminSessionToken(sessionID))
+	return err
 }
 
 // DeleteSession deletes a session (logout)
@@ -1184,7 +1191,7 @@ func (m *AdminSessionModel) DeleteExpiredSessions() error {
 }
 
 // GetActiveSessions returns all active sessions for an admin
-func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, error) {
+func (m *AdminSessionModel) GetActiveSessions(adminID int64) (sessions []AdminSession, retErr error) {
 	// "Still active" is decided in Go for the reason described in
 	// DeleteExpiredSessions - the SQL comparison could not be trusted across
 	// timezones or across the two on-disk layouts this column can hold.
@@ -1198,11 +1205,10 @@ func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { retErr = errors.Join(retErr, rows.Close()) }()
 
 	now := time.Now().UTC()
 
-	var sessions []AdminSession
 	for rows.Next() {
 		var session AdminSession
 		var storedCreatedAt, storedExpiresAt interface{}
@@ -1238,33 +1244,45 @@ func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, er
 	return sessions, nil
 }
 
+type AdminSessionActivity struct {
+	AdminID    int
+	CreatedAt  interface{}
+	LastUsedAt interface{}
+	ExpiresAt  interface{}
+}
+
 // LookupActiveAdminSession returns the admin id and raw stored expiry of the
 // session whose token hash is tokenHash, provided the owning admin account is
 // active. admin_sessions lives in server.db and admins in users.db (AI.md PART
 // 12), so the two are read with separate queries instead of a join. The expiry
 // is returned as the raw driver value so the caller judges it with dbtime.
 func LookupActiveAdminSession(sessionDB, accountsDB *sql.DB, tokenHash string) (int, interface{}, error) {
-	var adminID int
-	var storedExpiresAt interface{}
+	activity, err := LookupAdminSessionActivity(sessionDB, accountsDB, tokenHash)
+	return activity.AdminID, activity.ExpiresAt, err
+}
+
+// LookupAdminSessionActivity returns timestamps needed to enforce absolute and idle expiry.
+func LookupAdminSessionActivity(sessionDB, accountsDB *sql.DB, tokenHash string) (AdminSessionActivity, error) {
+	var activity AdminSessionActivity
 	err := database.QueryRowContext(context.Background(), sessionDB, database.TimeoutSimpleSelect, `
-		SELECT admin_id, expires_at
+		SELECT admin_id, created_at, last_used_at, expires_at
 		FROM admin_sessions
 		WHERE token_hash = ?
-	`, tokenHash).Scan(&adminID, &storedExpiresAt)
+	`, tokenHash).Scan(&activity.AdminID, &activity.CreatedAt, &activity.LastUsedAt, &activity.ExpiresAt)
 	if err != nil {
-		return 0, nil, err
+		return AdminSessionActivity{}, err
 	}
 
 	var activeCount int
 	err = database.QueryRowContext(context.Background(), accountsDB, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM admins WHERE id = ? AND is_active = 1
-	`, adminID).Scan(&activeCount)
+	`, activity.AdminID).Scan(&activeCount)
 	if err != nil {
-		return 0, nil, err
+		return AdminSessionActivity{}, err
 	}
 	if activeCount == 0 {
-		return 0, nil, sql.ErrNoRows
+		return AdminSessionActivity{}, sql.ErrNoRows
 	}
 
-	return adminID, storedExpiresAt, nil
+	return activity, nil
 }

@@ -3,6 +3,7 @@ package util
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
@@ -66,19 +67,33 @@ type ServerContext struct {
 // AI.md PART 32.2: the link is rendered only when I2P is enabled, running, and
 // an address has actually been published.
 var i2pLinkProvider func() (string, bool)
+var torAddressProvider func() (string, bool)
+var overlayProviderMu sync.RWMutex
 
 // SetI2PLinkProvider registers the resolver used to render the shared I2P links.
 // Passing nil clears the provider, which hides every I2P link again.
 func SetI2PLinkProvider(provider func() (string, bool)) {
+	overlayProviderMu.Lock()
+	defer overlayProviderMu.Unlock()
 	i2pLinkProvider = provider
+}
+
+// SetTorAddressProvider registers the resolver used in operator branding content.
+func SetTorAddressProvider(provider func() (string, bool)) {
+	overlayProviderMu.Lock()
+	defer overlayProviderMu.Unlock()
+	torAddressProvider = provider
 }
 
 // i2pTemplateInfo resolves the shared I2P template payload for every page.
 func i2pTemplateInfo() map[string]interface{} {
-	if i2pLinkProvider == nil {
+	overlayProviderMu.RLock()
+	provider := i2pLinkProvider
+	overlayProviderMu.RUnlock()
+	if provider == nil {
 		return map[string]interface{}{"Show": false, "Address": ""}
 	}
-	address, show := i2pLinkProvider()
+	address, show := provider()
 	if address == "" {
 		show = false
 	}
@@ -125,6 +140,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	if csrfToken == nil {
 		csrfToken = ""
 	}
+	adminImpersonation, _ := reqctx.GetValue(r.Context(), "admin_impersonation")
 
 	// Get current URL for OpenGraph per AI.md PART 16
 	// Resolved via TrustedGetHostFromRequest/TrustedIsHTTPS (gated on trusted_proxies)
@@ -135,10 +151,16 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 		scheme = "https"
 	}
 	currentURL := scheme + "://" + TrustedGetHostFromRequest(r) + r.URL.Path
+	if cfg, _ := config.CurrentConfig(); cfg != nil && cfg.Server.SEO.Canonical != "" {
+		currentURL = strings.TrimRight(cfg.Server.SEO.Canonical, "/") + r.URL.Path
+	}
 
 	// Compute the per-route robots directive per AI.md PART 16 "Robots Directive"
 	// Only explicitly allow-listed public routes are indexable; everything else fails closed
 	robots := RobotsMetaForPath(r.URL.Path)
+	if cfg, _ := config.CurrentConfig(); cfg != nil && cfg.Server.SEO.Noindex {
+		robots = "noindex,nofollow"
+	}
 
 	// Get configurable paths per AI.md PART 17
 	// Templates must use these instead of hardcoded "/server/administration/" or "/api/v1/server/administration/"
@@ -169,10 +191,44 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	}
 
 	// Create enriched data
+	brandingConfig := config.GetGlobalConfig()
+	operatorVersion := "unknown"
+	if value, ok := reqctx.GetValue(r.Context(), "operator_version"); ok {
+		if text, ok := value.(string); ok && text != "" {
+			operatorVersion = text
+		}
+	}
+	buildDatetime := "unknown"
+	if value, ok := reqctx.GetValue(r.Context(), "operator_build_datetime"); ok {
+		if text, ok := value.(string); ok && text != "" {
+			buildDatetime = text
+		}
+	}
+	onionAddress := ""
+	overlayProviderMu.RLock()
+	torProvider := torAddressProvider
+	overlayProviderMu.RUnlock()
+	if torProvider != nil {
+		if address, running := torProvider(); running {
+			onionAddress = address
+		}
+	}
+	i2pInfo := i2pTemplateInfo()
+	i2pAddress, _ := i2pInfo["Address"].(string)
+	if show, _ := i2pInfo["Show"].(bool); !show {
+		i2pAddress = ""
+	}
+	operatorVariables := map[string]string{
+		"project_version": operatorVersion,
+		"build_datetime":  buildDatetime,
+		"onion_address":   onionAddress,
+		"i2p_address":     i2pAddress,
+	}
 	enriched := map[string]interface{}{
 		"server":              serverCtx,
 		"user":                userCtx,
 		"csrf_token":          csrfToken,
+		"admin_impersonation": adminImpersonation == true,
 		"current_url":         currentURL,
 		"robots":              robots,
 		"gpc_opt_out":         r.Header.Get("Sec-GPC") == "1",
@@ -181,7 +237,12 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 		"admin_api_path":      adminAPIPath,
 		"lang":                lang,
 		"available_languages": availableLangs,
-		"i2p":                 i2pTemplateInfo(),
+		"i2p":                 i2pInfo,
+		"operator_header":     operatorHTML(brandingConfig, "header", lang, operatorVariables),
+		"operator_about":      operatorHTML(brandingConfig, "about", lang, operatorVariables),
+		"operator_privacy":    operatorHTML(brandingConfig, "privacy", lang, operatorVariables),
+		"operator_footer":     operatorHTML(brandingConfig, "footer", lang, operatorVariables),
+		"operator_terms":      operatorHTML(brandingConfig, "terms", lang, operatorVariables),
 	}
 
 	// Merge user-provided data

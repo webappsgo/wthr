@@ -154,7 +154,7 @@ func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var tokens []*APIToken
 	for rows.Next() {

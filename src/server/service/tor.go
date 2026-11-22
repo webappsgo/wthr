@@ -167,7 +167,7 @@ func (ts *TorService) startTorService(httpPort int) error {
 	defer readyCancel()
 
 	if err := t.EnableNetwork(readyCtx, true); err != nil {
-		ts.StopTorService()
+		_ = ts.StopTorService()
 		return fmt.Errorf("failed to enable Tor network: %w", err)
 	}
 
@@ -178,7 +178,7 @@ func (ts *TorService) startTorService(httpPort int) error {
 	keyPath := filepath.Join(ts.dataDir, "site", "private_key")
 	onionKey, err := loadOrCreateOnionKey(keyPath)
 	if err != nil {
-		ts.StopTorService()
+		_ = ts.StopTorService()
 		return fmt.Errorf("failed to prepare the hidden service key: %w", err)
 	}
 
@@ -187,7 +187,7 @@ func (ts *TorService) startTorService(httpPort int) error {
 		Ports: []*control.KeyVal{control.NewKeyVal("80", fmt.Sprintf("127.0.0.1:%d", httpPort))},
 	})
 	if err != nil {
-		ts.StopTorService()
+		_ = ts.StopTorService()
 		return fmt.Errorf("failed to create hidden service: %w", err)
 	}
 	ts.onionServiceID = onionResponse.ServiceID

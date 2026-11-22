@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,7 +20,8 @@ import (
 )
 
 type AuthHandler struct {
-	DB *sql.DB
+	DB   *sql.DB
+	SAML *SAMLAuthHandler
 }
 
 type CurrentUserProfileResponse struct {
@@ -207,6 +207,33 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// TOTP admins must prove possession before an admin session is issued.
+		// If passkeys are also registered, the passkey challenge above remains
+		// the selected second factor for this login attempt.
+		mfaStatus, mfaErr := model.AdminTOTPStatusFor(database.GetUsersDB(), admin.ID)
+		if mfaErr != nil {
+			respondWithError(w, r, http.StatusInternalServerError, "Failed to load admin MFA status")
+			return
+		}
+		if mfaStatus.Enabled {
+			if req.TwoFactorCode == "" {
+				if strings.Contains(contentType, "application/json") {
+					writeAuthJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": Translate(r, "errors.auth.two_factor_required"), "require_2fa": true, "type": "admin"})
+				} else {
+					middleware.RenderHTML(w, r, http.StatusOK, "page/login.tmpl", util.TemplateData(r, map[string]interface{}{
+						"title": Translate(r, "login.2fa_required_title"), "require_2fa": true, "identifier": req.Identifier,
+						"error": Translate(r, "errors.auth.two_factor_required"),
+					}))
+				}
+				return
+			}
+			valid, verifyErr := VerifyAdminTOTP(database.GetUsersDB(), admin.ID, req.TwoFactorCode, req.UseRecoveryKey)
+			if verifyErr != nil || !valid {
+				respondWithError(w, r, http.StatusUnauthorized, Translate(r, "errors.user.public.invalid_two_factor_code"))
+				return
+			}
+		}
+
 		// No passkeys registered — issue a full admin session. 30 days default.
 		cfg := config.GetGlobalConfig()
 		adminPath := "/server/" + cfg.GetAdminPath()
@@ -219,7 +246,9 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		adminModel.UpdateLastLogin(admin.ID)
+		if err := adminModel.UpdateLastLogin(admin.ID); err != nil {
+			log.Printf("WARNING: failed to update last login for admin %d: %v", admin.ID, err)
+		}
 
 		http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountAdmin, adminSession.SessionID, time.Duration(int(duration.Seconds()))*time.Second))
 
@@ -487,11 +516,16 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 // HandleLogout processes logout requests
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	if h.SAML != nil && h.SAML.TryStartSAMLLogout(w, r) {
+		return
+	}
 	// Get session from context
 	session, exists := middleware.GetCurrentSession(r)
 	if exists {
 		sessionModel := &model.SessionModel{DB: h.DB}
-		sessionModel.DeleteSession(session.ID)
+		if err := sessionModel.DeleteSession(session.ID); err != nil {
+			log.Printf("WARNING: logout: failed to delete user session: %v", err)
+		}
 	}
 
 	// AI.md PART 17: one logout endpoint ends a Server Admin session as well
@@ -590,12 +624,14 @@ func UpdateCurrentUserProfile(db *sql.DB, userID int64, req *UpdateCurrentUserPr
 // Helper functions
 
 func (h *AuthHandler) getSessionTimeout() (int, error) {
-	var timeoutStr string
-
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "auth.session_timeout").Scan(&timeoutStr)
+	value, exists, err := config.ReadSetting("auth.session_timeout")
 	if err != nil {
 		return 0, err
 	}
+	if !exists {
+		return 0, sql.ErrNoRows
+	}
+	timeoutStr := fmt.Sprint(value)
 
 	timeout, err := strconv.Atoi(timeoutStr)
 	if err != nil {

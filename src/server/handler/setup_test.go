@@ -23,6 +23,11 @@ import (
 // injected field.
 func newSetupTestHandler(t *testing.T) (*SetupHandler, *sql.DB) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
@@ -238,16 +243,14 @@ func TestGetSetupStatus(t *testing.T) {
 	})
 
 	t.Run("setup marked completed reports completed", func(t *testing.T) {
-		h, serverDB := newSetupTestHandler(t)
+		h, _ := newSetupTestHandler(t)
 		if _, err := database.GetUsersDB().Exec(`
 			INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 			VALUES ('administrator', 'admin@example.com', 'hash', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`); err != nil {
 			t.Fatalf("seed admin: %v", err)
 		}
-		if _, err := serverDB.Exec(`
-			INSERT INTO server_config (key, value, updated_at) VALUES ('setup.completed', 'true', datetime('now'))
-		`); err != nil {
+		if err := config.WriteSetting("setup.completed", true); err != nil {
 			t.Fatalf("seed setup.completed: %v", err)
 		}
 

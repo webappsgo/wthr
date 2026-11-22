@@ -2,10 +2,13 @@ package service
 
 import (
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 
 	_ "modernc.org/sqlite"
@@ -25,13 +28,13 @@ func setupDeliverySystemTestDB(t *testing.T) (serverDB, usersDB *sql.DB) {
 	if err != nil {
 		t.Fatalf("failed to open server db: %v", err)
 	}
-	t.Cleanup(func() { serverDB.Close() })
+	t.Cleanup(func() { _ = serverDB.Close() })
 
 	usersDB, err = sql.Open("sqlite", "file:"+name+"_users?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatalf("failed to open users db: %v", err)
 	}
-	t.Cleanup(func() { usersDB.Close() })
+	t.Cleanup(func() { _ = usersDB.Close() })
 	// MaxOpenConns is intentionally left unbounded (matches convention used
 	// elsewhere in this package): ProcessQueue holds an open *sql.Rows while
 	// dispatching goroutines that immediately issue further queries against
@@ -104,18 +107,27 @@ func TestDeliverySystem_NewDeliverySystem(t *testing.T) {
 	}
 }
 
-// TestDeliverySystem_LoadSettings covers overrides from seeded config rows
+// TestDeliverySystem_LoadSettings covers overrides from file-backed settings
 // and the fallback-to-default behavior when a key is absent.
 func TestDeliverySystem_LoadSettings(t *testing.T) {
 	t.Run("applies overrides for present keys, keeps default for absent ones", func(t *testing.T) {
 		serverDB, usersDB := setupDeliverySystemTestDB(t)
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
+		configDir := t.TempDir()
+		t.Setenv("CONFIG_DIR", configDir)
+		if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+			t.Fatalf("write isolated config: %v", err)
+		}
+		previousConfig := config.GetGlobalConfig()
+		config.SetGlobalConfig(nil)
+		t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 
-		if _, err := serverDB.Exec(`INSERT INTO server_config (key, value) VALUES
-			('notifications.retry_max', '7'),
-			('notifications.retry_backoff', 'linear')`); err != nil {
-			t.Fatalf("seed failed: %v", err)
+		if err := config.WriteSetting("notifications.retry_max", 7); err != nil {
+			t.Fatalf("write retry max: %v", err)
+		}
+		if err := config.WriteSetting("notifications.retry_backoff", "linear"); err != nil {
+			t.Fatalf("write retry backoff: %v", err)
 		}
 
 		ds := NewDeliverySystem(serverDB, nil, nil)
@@ -138,6 +150,14 @@ func TestDeliverySystem_LoadSettings(t *testing.T) {
 		serverDB, usersDB := setupDeliverySystemTestDB(t)
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
+		configDir := t.TempDir()
+		t.Setenv("CONFIG_DIR", configDir)
+		if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+			t.Fatalf("write isolated config: %v", err)
+		}
+		previousConfig := config.GetGlobalConfig()
+		config.SetGlobalConfig(nil)
+		t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 
 		ds := NewDeliverySystem(serverDB, nil, nil)
 		if err := ds.LoadSettings(); err != nil {
@@ -248,7 +268,9 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		}
 
 		var historyCount int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'delivered'`, id).Scan(&historyCount)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'delivered'`, id).Scan(&historyCount); err != nil {
+			t.Fatalf("query delivery history: %v", err)
+		}
 		if historyCount != 1 {
 			t.Errorf("expected 1 delivered history row, got %d", historyCount)
 		}
@@ -302,7 +324,9 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		}
 
 		var state string
-		serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state)
+		if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state); err != nil {
+			t.Fatalf("query notification state: %v", err)
+		}
 		if state != string(StateFailed) {
 			t.Errorf("expected state=failed when no recipient found, got %q", state)
 		}
@@ -327,7 +351,9 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		ds.processNotification(nq)
 
 		var state, errMsg string
-		serverDB.QueryRow(`SELECT state, error_message FROM notification_queue WHERE id = ?`, id).Scan(&state, &errMsg)
+		if err := serverDB.QueryRow(`SELECT state, error_message FROM notification_queue WHERE id = ?`, id).Scan(&state, &errMsg); err != nil {
+			t.Fatalf("query notification failure: %v", err)
+		}
 		if state != string(StateFailed) {
 			t.Errorf("expected state=failed, got %q", state)
 		}
@@ -375,7 +401,9 @@ func TestDeliverySystem_ProcessQueue(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		var state string
-		serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, readyID).Scan(&state)
+		if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, readyID).Scan(&state); err != nil {
+			t.Fatalf("query ready notification state: %v", err)
+		}
 		if state == string(StateDelivered) {
 			break
 		}
@@ -383,8 +411,12 @@ func TestDeliverySystem_ProcessQueue(t *testing.T) {
 	}
 
 	var readyState, futureState string
-	serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, readyID).Scan(&readyState)
-	serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, futureID).Scan(&futureState)
+	if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, readyID).Scan(&readyState); err != nil {
+		t.Fatalf("query ready notification state: %v", err)
+	}
+	if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, futureID).Scan(&futureState); err != nil {
+		t.Fatalf("query future notification state: %v", err)
+	}
 
 	if readyState != string(StateDelivered) {
 		t.Errorf("expected the eligible row to reach delivered state, got %q", readyState)
@@ -416,7 +448,9 @@ func TestDeliverySystem_handleFailure(t *testing.T) {
 
 		var state string
 		var retryCount int
-		serverDB.QueryRow(`SELECT state, retry_count FROM notification_queue WHERE id = ?`, id).Scan(&state, &retryCount)
+		if err := serverDB.QueryRow(`SELECT state, retry_count FROM notification_queue WHERE id = ?`, id).Scan(&state, &retryCount); err != nil {
+			t.Fatalf("query retry state: %v", err)
+		}
 		if state != string(StateFailed) {
 			t.Errorf("expected state=failed, got %q", state)
 		}
@@ -442,13 +476,17 @@ func TestDeliverySystem_handleFailure(t *testing.T) {
 		ds.handleFailure(nq, sql.ErrNoRows)
 
 		var state string
-		serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state)
+		if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state); err != nil {
+			t.Fatalf("query dead-letter state: %v", err)
+		}
 		if state != string(StateDeadLetter) {
 			t.Errorf("expected state=dead_letter when retry_count reaches max, got %q", state)
 		}
 
 		var historyCount int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'dead_letter'`, id).Scan(&historyCount)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'dead_letter'`, id).Scan(&historyCount); err != nil {
+			t.Fatalf("query dead-letter history: %v", err)
+		}
 		if historyCount != 1 {
 			t.Errorf("expected 1 dead_letter history row, got %d", historyCount)
 		}
@@ -631,7 +669,9 @@ func TestDeliverySystem_CleanupOld(t *testing.T) {
 		}
 
 		var count int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count); err != nil {
+			t.Fatalf("query remaining notification count: %v", err)
+		}
 		if count != 2 {
 			t.Errorf("expected 2 rows remaining (recent delivered + failed), got %d", count)
 		}
@@ -687,7 +727,9 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 
 		var state string
 		var retryCount int
-		serverDB.QueryRow(`SELECT state, retry_count FROM notification_queue WHERE id = ?`, id).Scan(&state, &retryCount)
+		if err := serverDB.QueryRow(`SELECT state, retry_count FROM notification_queue WHERE id = ?`, id).Scan(&state, &retryCount); err != nil {
+			t.Fatalf("query requeued notification: %v", err)
+		}
 		if state != string(StateQueued) || retryCount != 0 {
 			t.Errorf("expected state=queued retry_count=0, got state=%q retry_count=%d", state, retryCount)
 		}
@@ -715,7 +757,9 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		}
 
 		var queuedCount int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE state = ?`, StateQueued).Scan(&queuedCount)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE state = ?`, StateQueued).Scan(&queuedCount); err != nil {
+			t.Fatalf("query requeued notification count: %v", err)
+		}
 		if queuedCount != 3 {
 			t.Errorf("expected all 3 dead letters requeued, got %d", queuedCount)
 		}
@@ -738,7 +782,9 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		}
 
 		var state string
-		serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state)
+		if err := serverDB.QueryRow(`SELECT state FROM notification_queue WHERE id = ?`, id).Scan(&state); err != nil {
+			t.Fatalf("query non-dead-letter state: %v", err)
+		}
 		if state != string(StateDelivered) {
 			t.Errorf("expected delivered row to be untouched, got state=%q", state)
 		}
@@ -755,7 +801,11 @@ func openDecoyServerDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open decoy server db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close decoy database: %v", err)
+		}
+	})
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema to decoy: %v", err)
 	}
@@ -763,23 +813,19 @@ func openDecoyServerDB(t *testing.T) *sql.DB {
 }
 
 // TestDeliverySystem_UsesInjectedServerDB proves the *sql.DB passed to
-// NewDeliverySystem is the database actually used for its server.db tables.
-// The process-global server handle is deliberately pointed at a DIFFERENT
-// database holding contradicting data: if the injected handle were ignored
-// again, LoadSettings would read the decoy's retry_max and Enqueue would
-// write the decoy's notification_queue, failing every assertion below.
+// NewDeliverySystem is used for queue writes, while settings come from files.
 func TestDeliverySystem_UsesInjectedServerDB(t *testing.T) {
 	injected, usersDB := setupDeliverySystemTestDB(t)
 	decoy := openDecoyServerDB(t)
 
 	database.SetGlobalDualDB(&database.DualDB{Server: decoy, Users: usersDB})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
-
-	if _, err := injected.Exec(`INSERT INTO server_config (key, value) VALUES ('notifications.retry_max', '7')`); err != nil {
-		t.Fatalf("seed injected server_config: %v", err)
-	}
-	if _, err := decoy.Exec(`INSERT INTO server_config (key, value) VALUES ('notifications.retry_max', '99')`); err != nil {
-		t.Fatalf("seed decoy server_config: %v", err)
+	t.Setenv("CONFIG_DIR", t.TempDir())
+	previousConfig := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
+	if err := config.WriteSetting("notifications.retry_max", 7); err != nil {
+		t.Fatalf("write retry max: %v", err)
 	}
 
 	ds := NewDeliverySystem(injected, nil, nil)
@@ -788,7 +834,7 @@ func TestDeliverySystem_UsesInjectedServerDB(t *testing.T) {
 		t.Fatalf("LoadSettings: %v", err)
 	}
 	if ds.maxRetries != 7 {
-		t.Errorf("expected maxRetries=7 from the injected database, got %d (99 means the global was read)", ds.maxRetries)
+		t.Errorf("expected maxRetries=7 from file-backed settings, got %d", ds.maxRetries)
 	}
 
 	if _, err := ds.Enqueue(nil, "email", "Subject", "Body", 1, nil); err != nil {

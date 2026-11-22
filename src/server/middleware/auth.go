@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -41,7 +43,11 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 						user, err = userModel.GetByID(int64(apiToken.UserID))
 						if err == nil {
 							// Update last used timestamp asynchronously
-							go tokenModel.UpdateLastUsed(apiToken.ID)
+							go func(tokenID int) {
+								if err := tokenModel.UpdateLastUsed(tokenID); err != nil {
+									log.Printf("Unable to update API token last-used time: %v", err)
+								}
+							}(apiToken.ID)
 							ctx := reqctx.SetValue(r.Context(), UserContextKey, user)
 							// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
 							ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
@@ -60,6 +66,15 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 				sessionID := sessionCookie.Value
 				session, err = sessionModel.GetByID(sessionID)
 				if err == nil {
+					settings := SessionSettingsFor(SessionAccountUser)
+					if settings.IdleTimeout > 0 && !time.Now().Before(session.LastUsedAt.Add(settings.IdleTimeout)) {
+						_ = sessionModel.DeleteSession(sessionID)
+						err = sql.ErrNoRows
+					} else if sessionConfig().ExtendOnActivity {
+						err = sessionModel.Touch(sessionID)
+					}
+				}
+				if err == nil {
 					user, err = userModel.GetByID(int64(session.UserID))
 					if err == nil {
 						ctx := reqctx.SetValue(r.Context(), UserContextKey, user)
@@ -67,6 +82,9 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 						ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
 						ctx = reqctx.SetValue(ctx, SessionContextKey, session)
 						ctx = reqctx.SetValue(ctx, "auth_method", "session")
+						if session.Data["admin_impersonation"] == true {
+							ctx = reqctx.SetValue(ctx, "admin_impersonation", true)
+						}
 						r = r.WithContext(ctx)
 						next.ServeHTTP(w, r)
 						return

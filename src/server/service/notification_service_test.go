@@ -73,10 +73,20 @@ func setupNotificationService(t *testing.T) (*NotificationService, *sql.DB, *sql
 	return service, userDB, serverDB
 }
 
+func closeNotificationTestDBs(t *testing.T, userDB, serverDB *sql.DB) {
+	t.Helper()
+	if err := userDB.Close(); err != nil {
+		t.Errorf("close users database: %v", err)
+	}
+	if err := serverDB.Close(); err != nil {
+		t.Errorf("close server database: %v", err)
+	}
+}
+
 func TestNotificationService_SendSuccessToUser(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendSuccessToUser(1, "Test Success", "This is a test success message")
 	if err != nil {
@@ -99,8 +109,8 @@ func TestNotificationService_SendSuccessToUser(t *testing.T) {
 
 func TestNotificationService_SendInfoToUser(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendInfoToUser(1, "Test Info", "This is a test info message")
 	if err != nil {
@@ -114,8 +124,8 @@ func TestNotificationService_SendInfoToUser(t *testing.T) {
 
 func TestNotificationService_SendWarningToUser(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendWarningToUser(1, "Test Warning", "This is a test warning message")
 	if err != nil {
@@ -129,8 +139,8 @@ func TestNotificationService_SendWarningToUser(t *testing.T) {
 
 func TestNotificationService_SendErrorToUser(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendErrorToUser(1, "Test Error", "This is a test error message")
 	if err != nil {
@@ -144,8 +154,8 @@ func TestNotificationService_SendErrorToUser(t *testing.T) {
 
 func TestNotificationService_SendSecurityToUser(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendSecurityToUser(1, "Security Alert", "This is a security alert")
 	if err != nil {
@@ -159,8 +169,8 @@ func TestNotificationService_SendSecurityToUser(t *testing.T) {
 
 func TestNotificationService_SendSuccessToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	notif, err := service.SendSuccessToAdmin(1, "Admin Success", "Admin test message")
 	if err != nil {
@@ -180,8 +190,8 @@ func TestNotificationService_SendSuccessToAdmin(t *testing.T) {
 
 func TestNotificationService_GetUserNotifications(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	// Create multiple notifications
 	_, _ = service.SendSuccessToUser(1, "Test 1", "Message 1")
@@ -201,8 +211,8 @@ func TestNotificationService_GetUserNotifications(t *testing.T) {
 
 func TestNotificationService_GetUnreadUserNotifications(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	// Create notifications
 	notif1, _ := service.SendSuccessToUser(1, "Test 1", "Message 1")
@@ -224,8 +234,8 @@ func TestNotificationService_GetUnreadUserNotifications(t *testing.T) {
 
 func TestNotificationService_GetUserUnreadCount(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() { _ = userDB.Close() }()
+	defer func() { _ = serverDB.Close() }()
 
 	// Create notifications
 	notif1, _ := service.SendSuccessToUser(1, "Test 1", "Message 1")
@@ -248,8 +258,16 @@ func TestNotificationService_GetUserUnreadCount(t *testing.T) {
 
 func TestNotificationService_MarkAllUserNotificationsRead(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() {
+		if err := userDB.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+	}()
+	defer func() {
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	}()
 
 	// Create notifications
 	_, _ = service.SendSuccessToUser(1, "Test 1", "Message 1")
@@ -275,8 +293,16 @@ func TestNotificationService_MarkAllUserNotificationsRead(t *testing.T) {
 
 func TestNotificationService_DismissUserNotification(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() {
+		if err := userDB.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+	}()
+	defer func() {
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	}()
 
 	// Create notification
 	notif, _ := service.SendSuccessToUser(1, "Test", "Message")
@@ -293,8 +319,16 @@ func TestNotificationService_DismissUserNotification(t *testing.T) {
 
 func TestNotificationService_DeleteUserNotification(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer func() {
+		if err := userDB.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+	}()
+	defer func() {
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	}()
 
 	// Create notification
 	notif, _ := service.SendSuccessToUser(1, "Test", "Message")
@@ -311,8 +345,7 @@ func TestNotificationService_DeleteUserNotification(t *testing.T) {
 
 func TestNotificationService_GetUserStatistics(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	// Create notifications of different types
 	_, _ = service.SendSuccessToUser(1, "Success", "Message")
@@ -341,8 +374,7 @@ func TestNotificationService_GetUserStatistics(t *testing.T) {
 
 func TestNotificationService_GetUserPreferences(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	prefs, err := service.GetUserPreferences(1)
 	if err != nil {
@@ -366,8 +398,7 @@ func TestNotificationService_GetUserPreferences(t *testing.T) {
 
 func TestNotificationService_UpdateUserPreferences(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	userID := 1
 	newPrefs := &model.NotificationPreferences{
@@ -405,8 +436,7 @@ func TestNotificationService_UpdateUserPreferences(t *testing.T) {
 
 func TestNotificationService_ShouldSendEmail(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	tests := []struct {
 		name           string
@@ -463,8 +493,7 @@ func TestNotificationService_ShouldSendEmail(t *testing.T) {
 
 func TestNewNotificationService(t *testing.T) {
 	userDB, serverDB := setupNotificationTestDB(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	wsHub := NewWebSocketHub()
 	service := NewNotificationService(userDB, serverDB, wsHub)
@@ -496,8 +525,7 @@ func TestNewNotificationService(t *testing.T) {
 
 func TestNotificationService_SendInfoToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	notif, err := service.SendInfoToAdmin(1, "Admin Info", "Info message")
 	if err != nil {
@@ -510,8 +538,7 @@ func TestNotificationService_SendInfoToAdmin(t *testing.T) {
 
 func TestNotificationService_SendWarningToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	notif, err := service.SendWarningToAdmin(1, "Admin Warning", "Warning message")
 	if err != nil {
@@ -524,8 +551,7 @@ func TestNotificationService_SendWarningToAdmin(t *testing.T) {
 
 func TestNotificationService_SendErrorToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	notif, err := service.SendErrorToAdmin(1, "Admin Error", "Error message")
 	if err != nil {
@@ -538,8 +564,7 @@ func TestNotificationService_SendErrorToAdmin(t *testing.T) {
 
 func TestNotificationService_SendSecurityToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	notif, err := service.SendSecurityToAdmin(1, "Admin Security", "Security message")
 	if err != nil {
@@ -555,8 +580,7 @@ func TestNotificationService_SendSecurityToAdmin(t *testing.T) {
 
 func TestNotificationService_AdminNotificationsLifecycle(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	first, err := service.SendSuccessToAdmin(1, "First", "First message")
 	if err != nil {
@@ -623,8 +647,7 @@ func TestNotificationService_AdminNotificationsLifecycle(t *testing.T) {
 
 func TestNotificationService_GetAdminStatistics(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	_, _ = service.SendSuccessToAdmin(1, "Success", "Message")
 	_, _ = service.SendInfoToAdmin(1, "Info", "Message")
@@ -649,8 +672,7 @@ func TestNotificationService_GetAdminStatistics(t *testing.T) {
 
 func TestNotificationService_AdminPreferences(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	prefs, err := service.GetAdminPreferences(1)
 	if err != nil {
@@ -686,8 +708,7 @@ func TestNotificationService_AdminPreferences(t *testing.T) {
 
 func TestNotificationService_CleanupExpired(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	_, _ = service.SendSuccessToUser(1, "Test", "Message")
 	_, _ = service.SendSuccessToAdmin(1, "Test", "Message")
@@ -699,8 +720,7 @@ func TestNotificationService_CleanupExpired(t *testing.T) {
 
 func TestNotificationService_EnforceLimits(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	if err := service.EnforceLimits(); err != nil {
 		t.Fatalf("EnforceLimits() error = %v", err)
@@ -709,8 +729,7 @@ func TestNotificationService_EnforceLimits(t *testing.T) {
 
 func TestNotificationService_ShouldSendEmailToAdmin(t *testing.T) {
 	service, userDB, serverDB := setupNotificationService(t)
-	defer userDB.Close()
-	defer serverDB.Close()
+	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	tests := []struct {
 		name           string

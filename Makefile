@@ -44,9 +44,12 @@ REGISTRY ?= ghcr.io/$(PROJECT_ORG)/$(PROJECT_NAME)
 # Resource caps keep one build from starving concurrent builds on the same host
 DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
+DOCKER_NETWORK ?=
+DOCKER_NETWORK_FLAG = $(if $(strip $(DOCKER_NETWORK)),--network $(DOCKER_NETWORK),)
 
 GO_DOCKER := docker run --rm \
 	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	$(DOCKER_NETWORK_FLAG) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -70,6 +73,7 @@ build: clean
 	@echo "Tidying and downloading Go modules..."
 	@$(GO_DOCKER) go mod tidy
 	@$(GO_DOCKER) go mod download
+	@$(GO_DOCKER) go generate ./src/swagger
 
 	# Build for local OS/ARCH
 	@echo "Building local binary..."
@@ -129,6 +133,7 @@ local: clean
 	@echo "Tidying and downloading Go modules..."
 	@$(GO_DOCKER) go mod tidy
 	@$(GO_DOCKER) go mod download
+	@$(GO_DOCKER) go generate ./src/swagger
 
 	# Build server binary
 	@echo "Building $(PROJECT_NAME)..."
@@ -245,6 +250,7 @@ test:
 dev:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@$(GO_DOCKER) go mod tidy
+	@$(GO_DOCKER) go generate ./src/swagger
 	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX") && \
 		echo "Quick dev build to $$BUILD_DIR..." && \

@@ -92,7 +92,7 @@ func (m *LocationModel) GetByUserID(userID int) ([]*SavedLocation, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var locations []*SavedLocation
 	for rows.Next() {

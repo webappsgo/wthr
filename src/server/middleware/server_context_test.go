@@ -1,13 +1,20 @@
 package middleware
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	_ "modernc.org/sqlite"
@@ -31,7 +38,11 @@ func openServerContextTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	})
 
 	database.SetGlobalDualDB(&database.DualDB{Server: db})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
@@ -39,23 +50,24 @@ func openServerContextTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// TestInjectServerContext_DefaultsWhenNoSettingsStored verifies that with an
-// empty server_config table, InjectServerContext falls back to its hardcoded
-// defaults (title, tagline, description) and defaults Lang to "en" when no
-// upstream "lang" key exists in context.
+// TestInjectServerContext_DefaultsWhenNoSettingsStored verifies branding
+// defaults and the language fallback.
 func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 	db := openServerContextTestDB(t)
+	previous := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, exists := GetServerContext(r.Context())
 		if !exists {
 			t.Fatal("server context not set by InjectServerContext")
 		}
-		if ctx.Title != "Weather" {
-			t.Errorf("Title = %q, want default %q", ctx.Title, "Weather")
+		if ctx.Title != "wthr" {
+			t.Errorf("Title = %q, want default %q", ctx.Title, "wthr")
 		}
-		if ctx.Tagline != "Your personal weather dashboard" {
-			t.Errorf("Tagline = %q, want the default tagline", ctx.Tagline)
+		if ctx.Tagline != "" {
+			t.Errorf("Tagline = %q, want empty default", ctx.Tagline)
 		}
 		if ctx.Version != "1.2.3" {
 			t.Errorf("Version = %q, want %q (passed to InjectServerContext)", ctx.Version, "1.2.3")
@@ -76,27 +88,17 @@ func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 	}
 }
 
-// TestInjectServerContext_UsesStoredSettingsAndUpstreamLang verifies that
-// values stored in server_config override the hardcoded defaults, the
-// Twitter handle gets a "@" prefix normalized on, and an upstream "lang"
-// context value (set by an earlier i18n middleware) is honored instead of
-// the "en" fallback.
+// TestInjectServerContext_UsesBrandingConfigAndUpstreamLang verifies typed
+// branding settings and an upstream language context.
 func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 	db := openServerContextTestDB(t)
-
-	seed := []struct{ key, value string }{
-		{"server.title", "My Weather Site"},
-		{"server.tagline", "Storms ahead"},
-		{"seo.twitter_handle", "wthrapp"},
-	}
-	for _, s := range seed {
-		if _, err := db.Exec(
-			"INSERT INTO server_config (key, value, type) VALUES (?, ?, 'string')",
-			s.key, s.value,
-		); err != nil {
-			t.Fatalf("seed server_config %q: %v", s.key, err)
-		}
-	}
+	previous := config.GetGlobalConfig()
+	cfg := &config.AppConfig{}
+	cfg.Server.Branding.Title = "My Weather Site"
+	cfg.Server.Branding.Tagline = "Storms ahead"
+	cfg.Server.SEO.TwitterHandle = "wthrapp"
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 
 	setLang := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,10 +113,10 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 			t.Fatal("server context not set by InjectServerContext")
 		}
 		if ctx.Title != "My Weather Site" {
-			t.Errorf("Title = %q, want the stored setting %q", ctx.Title, "My Weather Site")
+			t.Errorf("Title = %q, want configured title", ctx.Title)
 		}
 		if ctx.Tagline != "Storms ahead" {
-			t.Errorf("Tagline = %q, want the stored setting %q", ctx.Tagline, "Storms ahead")
+			t.Errorf("Tagline = %q, want configured tagline", ctx.Tagline)
 		}
 		if ctx.TwitterHandle != "@wthrapp" {
 			t.Errorf("TwitterHandle = %q, want %q (normalized with a leading @)", ctx.TwitterHandle, "@wthrapp")
@@ -135,6 +137,63 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 	}
 }
 
+func TestInjectServerContextUsesGeneratedBrandingVariants(t *testing.T) {
+	configDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server:\n  port: 8080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CONFIG_DIR", configDir)
+	imageSource := image.NewNRGBA(image.Rect(0, 0, 400, 200))
+	for y := 0; y < imageSource.Bounds().Dy(); y++ {
+		for x := 0; x < imageSource.Bounds().Dx(); x++ {
+			imageSource.Set(x, y, color.NRGBA{R: 40, G: 90, B: 180, A: 255})
+		}
+	}
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, imageSource); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SaveBrandingAsset("brand.png", encoded.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	variants, err := GenerateBrandingImageVariants("brand", encoded.Bytes(), "image/png")
+	if err != nil {
+		t.Fatalf("generate branding variants: %v", err)
+	}
+	for _, variant := range variants {
+		if err := config.SaveBrandingAsset(variant.Name, variant.Data); err != nil {
+			t.Fatalf("save %s: %v", variant.Name, err)
+		}
+	}
+	previous := config.GetGlobalConfig()
+	cfg := &config.AppConfig{}
+	cfg.Server.Branding.Logo = "brand.png"
+	cfg.Server.Branding.Favicon = "brand.png"
+	cfg.Server.SEO.OGImage = "brand.png"
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+	db := openServerContextTestDB(t)
+
+	var got ServerContext
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		var ok bool
+		got, ok = GetServerContext(r.Context())
+		if !ok {
+			t.Fatal("server context missing")
+		}
+	})
+	InjectServerContext(db, "test")(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if got.Logo200 != "/assets/brand-logo-200.png" || got.Logo50 != "/assets/brand-logo-50.png" {
+		t.Fatalf("logo variants = %q, %q", got.Logo200, got.Logo50)
+	}
+	if got.Favicon16 != "/assets/brand-favicon-16.png" || got.Favicon512 != "/assets/brand-favicon-512.png" {
+		t.Fatalf("favicon variants = %q, %q", got.Favicon16, got.Favicon512)
+	}
+	if got.OGImage1200 != "/assets/brand-og-1200x630.jpg" {
+		t.Fatalf("OpenGraph image variant = %q", got.OGImage1200)
+	}
+}
+
 // TestGetServerContext_MissingReturnsSafeDefaults verifies GetServerContext
 // on a context where InjectServerContext never ran returns a safe zero-value
 // fallback (exists=false) rather than panicking on a failed type assertion.
@@ -145,8 +204,8 @@ func TestGetServerContext_MissingReturnsSafeDefaults(t *testing.T) {
 	if exists {
 		t.Error("exists = true, want false when InjectServerContext never ran")
 	}
-	if ctx.Title != "Weather" {
-		t.Errorf("Title = %q, want the safe fallback default %q", ctx.Title, "Weather")
+	if ctx.Title != "wthr" {
+		t.Errorf("Title = %q, want the safe fallback default %q", ctx.Title, "wthr")
 	}
 	if ctx.Version != "unknown" {
 		t.Errorf("Version = %q, want the safe fallback %q", ctx.Version, "unknown")

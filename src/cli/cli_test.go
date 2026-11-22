@@ -169,7 +169,7 @@ func TestCLI_Parse_ShellDispatch(t *testing.T) {
 // env var for main.go to observe rather than dispatching to a command.
 func TestCLI_Parse_StatusFlag(t *testing.T) {
 	c := NewCLI()
-	t.Cleanup(func() { os.Unsetenv("CLI_STATUS_FLAG") })
+	t.Cleanup(func() { _ = os.Unsetenv("CLI_STATUS_FLAG") })
 
 	if err := c.Parse([]string{"--status"}); err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -188,11 +188,11 @@ func TestCLI_Parse_EnvVarPropagation(t *testing.T) {
 		"BASE_URL", "CLI_COLOR_MODE",
 	}
 	for _, v := range envVars {
-		os.Unsetenv(v)
+		_ = os.Unsetenv(v)
 	}
 	t.Cleanup(func() {
 		for _, v := range envVars {
-			os.Unsetenv(v)
+			_ = os.Unsetenv(v)
 		}
 	})
 
@@ -237,7 +237,7 @@ func TestCLI_IsFlagSet(t *testing.T) {
 	if err := c.Parse([]string{"--mode", "development"}); err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	t.Cleanup(func() { os.Unsetenv("MODE") })
+	t.Cleanup(func() { _ = os.Unsetenv("MODE") })
 
 	if !c.IsFlagSet("mode") {
 		t.Error("IsFlagSet(\"mode\") = false, want true (was passed on command line)")

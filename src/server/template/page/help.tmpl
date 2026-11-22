@@ -23,15 +23,15 @@
             </div>
             <div class="command-item">
                 <strong class="console-label">{{t .server.Lang "help.json_api_label"}}</strong>
-                <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/weather?location=Tokyo</code>
+                <code class="mobile-code">curl {{.HostInfo.FullHost}}{{.server.APIPath}}/weather?location=Tokyo</code>
             </div>
             <div class="command-item">
                 <strong class="console-label">{{t .server.Lang "help.earthquakes_label"}}</strong>
-                <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/earthquakes?feed=all_day</code>
+                <code class="mobile-code">curl {{.HostInfo.FullHost}}{{.server.APIPath}}/earthquakes?feed=all_day</code>
             </div>
             <div class="command-item">
                 <strong class="console-label">{{t .server.Lang "help.severe_weather_label"}}</strong>
-                <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/severe-weather?location=Miami</code>
+                <code class="mobile-code">curl {{.HostInfo.FullHost}}{{.server.APIPath}}/severe-weather?location=Miami</code>
             </div>
         </div>
     </div>
@@ -142,14 +142,14 @@
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.api_endpoints_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help.api_endpoints_intro"}} <code>/api/v1/</code>:</p>
+                <p>{{t .server.Lang "help.api_endpoints_intro"}} <code>{{.server.APIPath}}/</code>:</p>
                 <ul>
-                    <li><code>GET /api/v1/weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_weather"}}</li>
-                    <li><code>GET /api/v1/earthquakes?feed=all_day</code> - {{t .server.Lang "help.api_endpoint_earthquakes"}}</li>
-                    <li><code>GET /api/v1/severe-weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_severe"}}</li>
-                    <li><code>GET /api/v1/hurricanes</code> - {{t .server.Lang "help.api_endpoint_hurricanes"}}</li>
-                    <li><code>GET /api/v1/moon?location=CITY</code> - {{t .server.Lang "help.api_endpoint_moon"}}</li>
-                    <li><code>GET /api/v1/search?q=QUERY</code> - {{t .server.Lang "help.api_endpoint_search"}}</li>
+                    <li><code>GET {{.server.APIPath}}/weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_weather"}}</li>
+                    <li><code>GET {{.server.APIPath}}/earthquakes?feed=all_day</code> - {{t .server.Lang "help.api_endpoint_earthquakes"}}</li>
+                    <li><code>GET {{.server.APIPath}}/severe-weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_severe"}}</li>
+                    <li><code>GET {{.server.APIPath}}/hurricanes</code> - {{t .server.Lang "help.api_endpoint_hurricanes"}}</li>
+                    <li><code>GET {{.server.APIPath}}/moon?location=CITY</code> - {{t .server.Lang "help.api_endpoint_moon"}}</li>
+                    <li><code>GET {{.server.APIPath}}/search?q=QUERY</code> - {{t .server.Lang "help.api_endpoint_search"}}</li>
                     <li><code>GET /server/healthz</code> - {{t .server.Lang "help.api_endpoint_healthz"}}</li>
                 </ul>
                 <p>{{t .server.Lang "help.api_docs_visit"}} <a href="/docs" class="text-cyan">/docs</a> {{t .server.Lang "help.api_docs_suffix"}}</p>
@@ -280,10 +280,10 @@
     <div class="card margin-y-lg">
         <h2 class="text-cyan">{{t .server.Lang "help.still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">
-            <a href="{{path "/server/contact"}}" class="btn btn-primary">{{t .server.Lang "help.contact_support_label"}}</a>
-            {{if .MCPEnabled}}<a href="{{path "/server/help/mcp"}}" class="btn btn-secondary">{{t .server.Lang "help_mcp.link"}}</a>{{end}}
+            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" rel="noopener noreferrer" class="btn btn-primary">{{t .server.Lang "help.report_issue_label"}}</a>
+            <a href="{{path "/server/help/mcp"}}" class="btn btn-secondary">{{t .server.Lang "help_mcp.link"}}</a>
             <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api.docs_heading"}}</a>
-            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">{{t .server.Lang "help.report_issue_label"}}</a>
+            <a href="{{path "/server/security"}}" class="btn btn-secondary">{{t .server.Lang "security.title"}}</a>
         </div>
     </div>
 </div>

@@ -272,7 +272,7 @@ func TestFetchReleases(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `[{"tag_name":"v1.2.3","name":"Release 1.2.3"}]`)
+			_, _ = fmt.Fprint(w, `[{"tag_name":"v1.2.3","name":"Release 1.2.3"}]`)
 		}))
 		defer srv.Close()
 
@@ -313,7 +313,7 @@ func TestFetchReleases(t *testing.T) {
 
 	t.Run("malformed_json_errors", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "not json")
+			_, _ = fmt.Fprint(w, "not json")
 		}))
 		defer srv.Close()
 
@@ -328,7 +328,7 @@ func TestFetchReleases(t *testing.T) {
 func TestDownloadFile(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "payload-bytes")
+			_, _ = fmt.Fprint(w, "payload-bytes")
 		}))
 		defer srv.Close()
 
@@ -369,7 +369,7 @@ func TestFetchChecksum(t *testing.T) {
 
 	newServer := func(t *testing.T) *httptest.Server {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, body)
+			_, _ = fmt.Fprint(w, body)
 		}))
 		t.Cleanup(srv.Close)
 		return srv

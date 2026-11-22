@@ -7,6 +7,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/text/feature/plural"
+	"golang.org/x/text/language"
+
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -41,6 +44,7 @@ func init() {
 type I18n struct {
 	mu            sync.RWMutex
 	translations  map[string]map[string]string
+	plurals       map[string]map[string]map[string]string
 	defaultLang   string
 	supportedLang []string
 }
@@ -56,6 +60,7 @@ func NewI18n(fs embed.FS, defaultLang string) (*I18n, error) {
 func loadI18nFromFS(fs embed.FS, dir, defaultLang string) (*I18n, error) {
 	i18n := &I18n{
 		translations:  make(map[string]map[string]string),
+		plurals:       make(map[string]map[string]map[string]string),
 		defaultLang:   defaultLang,
 		supportedLang: []string{},
 	}
@@ -77,16 +82,79 @@ func loadI18nFromFS(fs embed.FS, dir, defaultLang string) (*I18n, error) {
 			return nil, fmt.Errorf("failed to read locale file %s: %w", entry.Name(), err)
 		}
 
-		var translations map[string]string
-		if err := json.Unmarshal(data, &translations); err != nil {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return nil, fmt.Errorf("failed to parse locale file %s: %w", entry.Name(), err)
+		}
+		translations := make(map[string]string, len(raw))
+		pluralMessages := make(map[string]map[string]string)
+		for key, value := range raw {
+			if key == "plurals" {
+				if err := json.Unmarshal(value, &pluralMessages); err != nil {
+					return nil, fmt.Errorf("failed to parse plural messages in locale file %s: %w", entry.Name(), err)
+				}
+				continue
+			}
+			var message string
+			if err := json.Unmarshal(value, &message); err != nil {
+				return nil, fmt.Errorf("locale file %s message %s must be a string: %w", entry.Name(), key, err)
+			}
+			translations[key] = message
 		}
 
 		i18n.translations[lang] = translations
+		i18n.plurals[lang] = pluralMessages
 		i18n.supportedLang = append(i18n.supportedLang, lang)
 	}
 
 	return i18n, nil
+}
+
+// TPlural returns the CLDR category selected for count, falling back to the
+// default language and then the message's other category.
+func (i *I18n) TPlural(lang, key string, count int) string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	category := pluralCategory(lang, count)
+	if message := i.plurals[lang][key]; message != nil {
+		if value := message[category]; value != "" {
+			return value
+		}
+		if value := message["other"]; value != "" {
+			return value
+		}
+	}
+	defaultCategory := pluralCategory(i.defaultLang, count)
+	if message := i.plurals[i.defaultLang][key]; message != nil {
+		if value := message[defaultCategory]; value != "" {
+			return value
+		}
+		if value := message["other"]; value != "" {
+			return value
+		}
+	}
+	return key
+}
+
+func pluralCategory(lang string, count int) string {
+	tag, err := language.Parse(lang)
+	if err != nil {
+		tag = language.English
+	}
+	switch plural.Cardinal.MatchPlural(tag, count, 0, 0, 0, 0) {
+	case plural.Zero:
+		return "zero"
+	case plural.One:
+		return "one"
+	case plural.Two:
+		return "two"
+	case plural.Few:
+		return "few"
+	case plural.Many:
+		return "many"
+	default:
+		return "other"
+	}
 }
 
 // T translates a key for the given language

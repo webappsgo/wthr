@@ -109,7 +109,7 @@ func (h *WebSocketHub) StopWebSocketHub() {
 	h.clientsMux.Lock()
 	for _, client := range h.clients {
 		if client.Conn != nil {
-			client.Conn.Close()
+			_ = client.Conn.Close()
 		}
 	}
 	h.clientsMux.Unlock()
@@ -213,7 +213,7 @@ func (h *WebSocketHub) sendToClient(client *WebSocketClient, message *WebSocketM
 	default:
 		// Client send buffer is full, close connection
 		h.UnregisterClient(client)
-		client.Conn.Close()
+		_ = client.Conn.Close()
 	}
 }
 
@@ -256,7 +256,7 @@ func (h *WebSocketHub) cleanupStaleConnections() {
 	for _, client := range staleClients {
 		delete(h.clients, client.ID)
 		close(client.Send)
-		client.Conn.Close()
+		_ = client.Conn.Close()
 		log.Printf("Removed stale WebSocket connection: %s", client.ID)
 	}
 }
@@ -330,12 +330,16 @@ func ClientIDForAdmin(adminID int) string {
 func (c *WebSocketClient) ReadPump() {
 	defer func() {
 		c.Hub.UnregisterClient(c)
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
-	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+		return
+	}
 	c.Conn.SetPongHandler(func(string) error {
-		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+			return err
+		}
 		c.LastPing = time.Now()
 		return nil
 	})
@@ -364,16 +368,18 @@ func (c *WebSocketClient) WritePump() {
 	ticker := time.NewTicker(54 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
 	for {
 		select {
 		case message, ok := <-c.Send:
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				return
+			}
 			if !ok {
 				// Hub closed the channel
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
@@ -381,13 +387,22 @@ func (c *WebSocketClient) WritePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			if _, err := w.Write(message); err != nil {
+				_ = w.Close()
+				return
+			}
 
 			// Coalesce queued messages
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
-				w.Write([]byte{'\n'})
-				w.Write(<-c.Send)
+				if _, err := w.Write([]byte{'\n'}); err != nil {
+					_ = w.Close()
+					return
+				}
+				if _, err := w.Write(<-c.Send); err != nil {
+					_ = w.Close()
+					return
+				}
 			}
 
 			if err := w.Close(); err != nil {
@@ -395,7 +410,9 @@ func (c *WebSocketClient) WritePump() {
 			}
 
 		case <-ticker.C:
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				return
+			}
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

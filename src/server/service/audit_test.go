@@ -33,7 +33,7 @@ func TestAudit_NewAuditLogger(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		if logger.logFile != filepath.Join(dir, "audit.log") {
 			t.Errorf("unexpected logFile path: %s", logger.logFile)
@@ -66,7 +66,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		event := AuditEvent{
 			Event:    "test.event",
@@ -102,7 +102,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		if err := logger.Log(AuditEvent{Event: "test.fail", Result: "failure"}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -123,7 +123,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		fixedTime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 		event := AuditEvent{
@@ -158,7 +158,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		// A channel value is not JSON-marshalable, forcing json.Marshal to fail.
 		event := AuditEvent{
@@ -194,7 +194,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		for i := 0; i < 2; i++ {
 			if err := logger.Log(AuditEvent{Event: "test.dup", Result: "success"}); err != nil {
@@ -224,7 +224,7 @@ func TestAudit_Log(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		const n = 50
 		var wg sync.WaitGroup
@@ -257,7 +257,7 @@ func TestAudit_LogSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	details := map[string]interface{}{"key": "value"}
 	if err := logger.LogSuccess("user.login", "authentication", "user", "42", "1.2.3.4", details); err != nil {
@@ -288,7 +288,7 @@ func TestAudit_LogFailure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		if err := logger.LogFailure("user.login.failed", "authentication", "user", "42", "1.2.3.4", "bad password", nil); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -312,7 +312,7 @@ func TestAudit_LogFailure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer logger.Close()
+		defer func() { _ = logger.Close() }()
 
 		details := map[string]interface{}{"attempt": 3}
 		if err := logger.LogFailure("user.login.failed", "authentication", "user", "42", "1.2.3.4", "locked out", details); err != nil {
@@ -357,7 +357,7 @@ func TestAudit_Rotate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	if err := logger.Log(AuditEvent{Event: "before.rotate", Result: "success"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -414,7 +414,7 @@ func TestAudit_Rotate_MissingFile(t *testing.T) {
 	}
 
 	// Close and remove the file so the rename in Rotate fails.
-	logger.Close()
+	_ = logger.Close()
 	if err := os.Remove(logger.logFile); err != nil {
 		t.Fatalf("failed to remove log file: %v", err)
 	}

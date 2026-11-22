@@ -1145,7 +1145,13 @@
      */
     collectOIDCProviders: function(form) {
       const rows = form.querySelectorAll('#oidcProviders .oidc-provider-row');
-      return Array.from(rows).map(function(row) {
+      return Array.from(rows).filter(function(row) {
+        const remove = row.querySelector('[name="oidc_provider_remove"]');
+        if (remove && remove.checked) return false;
+        return Array.from(row.querySelectorAll('input')).some(function(input) {
+          return input.name !== 'oidc_provider_remove' && input.value.trim() !== '';
+        });
+      }).map(function(row) {
         return {
           name: row.querySelector('[name="oidc_provider_name"]').value,
           client_id: row.querySelector('[name="oidc_provider_client_id"]').value,
@@ -2396,12 +2402,20 @@
       document.getElementById('smtp_enabled').addEventListener('change', AdminEmailPage.toggleSMTPFields);
 
       document.getElementById('smtp-form').addEventListener('submit', function(e) {
+        if (e.submitter && e.submitter.id === 'test-email-btn') {
+          e.preventDefault();
+          AdminEmailPage.sendTestEmail();
+          return;
+        }
+        if (e.submitter && e.submitter.id === 'autodetect-btn') {
+          e.preventDefault();
+          AdminEmailPage.autodetectSMTP();
+          return;
+        }
         e.preventDefault();
         AdminEmailPage.submitSMTPForm(e.target);
       });
 
-      document.getElementById('test-email-btn').addEventListener('click', AdminEmailPage.sendTestEmail);
-      document.getElementById('autodetect-btn').addEventListener('click', AdminEmailPage.autodetectSMTP);
     }
   };
 
@@ -2916,6 +2930,7 @@
     },
 
     savePreferences: function(e) {
+      if (e.submitter && e.submitter.name === 'reset') return;
       e.preventDefault();
 
       const preferences = {
@@ -7345,14 +7360,6 @@
     SettingsPage.init();
     ProfilePage.init();
     NotificationsListPage.init();
-
-    const authSettingsForm = document.getElementById('authSettingsForm');
-    if (authSettingsForm) {
-      authSettingsForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        AdminAuthSettings.submitForm(authSettingsForm);
-      });
-    }
 
     document.addEventListener('click', function(e) {
       const btn = e.target.closest('[data-action]');

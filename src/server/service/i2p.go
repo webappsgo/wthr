@@ -105,16 +105,17 @@ func (s *I2PService) StartedAt() time.Time { return s.startedAt }
 
 // Close shuts down the provider (i2pd process or SAM session).
 func (s *I2PService) Close() error {
+	var closeErr error
 	if s.samConn != nil {
-		s.samConn.Close()
+		closeErr = errors.Join(closeErr, s.samConn.Close())
 		s.samConn = nil
 	}
 	if s.i2pd != nil && s.i2pd.Process != nil {
 		err := terminateI2PD(s.i2pd, &s.i2pdExited)
 		s.i2pd = nil
-		return err
+		closeErr = errors.Join(closeErr, err)
 	}
-	return nil
+	return closeErr
 }
 
 // i2pdStopGrace is how long the managed i2pd gets to stop after the interrupt before it is killed.
@@ -190,7 +191,7 @@ func samReachable(addr string) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
 
@@ -255,20 +256,20 @@ func updateI2PTunnels(tunnelsPath string, content []byte) error {
 	}
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(content); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("write temp tunnels file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("close temp tunnels file: %w", err)
 	}
 	if err := os.Chmod(tmpName, 0600); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("chmod temp tunnels file: %w", err)
 	}
 	if err := os.Rename(tmpName, tunnelsPath); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("install tunnels file %s: %w", tunnelsPath, err)
 	}
 	return nil
@@ -303,7 +304,7 @@ func startI2PD(ctx context.Context, cfg *config.I2PConfig, binary, keysPath stri
 
 	// Reap the child so its exit is observable portably, without signal probing.
 	go func(c *exec.Cmd, s *I2PService) {
-		c.Wait()
+		_ = c.Wait()
 		s.i2pdExited.Store(true)
 	}(cmd, svc)
 
@@ -416,18 +417,18 @@ func startSAMEepsite(ctx context.Context, cfg *config.I2PConfig, keysPath string
 
 	// 1. Handshake.
 	if _, err := fmt.Fprintf(conn, "HELLO VERSION MIN=3.0 MAX=3.3\n"); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 	if _, err := readSAMReply(r, "HELLO REPLY"); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 
 	// 2. Load the persisted destination or generate and persist a new one.
 	dest, err := loadOrCreateSAMDestination(conn, r, keysPath, cfg.SignatureType)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 
@@ -435,21 +436,21 @@ func startSAMEepsite(ctx context.Context, cfg *config.I2PConfig, keysPath string
 	if _, err := fmt.Fprintf(conn, "SESSION CREATE STYLE=STREAM ID=site DESTINATION=%s "+
 		"inbound.length=%d outbound.length=%d inbound.quantity=%d outbound.quantity=%d\n",
 		dest.priv, cfg.InboundLength, cfg.OutboundLength, cfg.InboundQuantity, cfg.OutboundQuantity); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 	if _, err := readSAMReply(r, "SESSION STATUS"); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 
 	// 4. Forward incoming eepsite streams to the backend port.
 	if _, err := fmt.Fprintf(conn, "STREAM FORWARD ID=site PORT=%d HOST=127.0.0.1\n", i2pBackendPort); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 	if _, err := readSAMReply(r, "STREAM STATUS"); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return "", err
 	}
 
@@ -584,7 +585,7 @@ func startDedicatedI2P(ctx context.Context, cfg *config.I2PConfig, backendPort i
 	}
 
 	// Resolve the provider first, before allocating a port or writing files.
-	provider := I2PProviderNone
+	var provider I2PProvider
 	i2pdBinary := ""
 	if b, err := resolveI2PDBinary(cfg); err == nil {
 		provider, i2pdBinary = I2PProviderI2PD, b
@@ -660,7 +661,9 @@ func i2pProviderHealthy(service *I2PService) bool {
 		}
 		var probe [1]byte
 		_, err := conn.Read(probe[:])
-		conn.SetReadDeadline(time.Time{})
+		if resetErr := conn.SetReadDeadline(time.Time{}); resetErr != nil {
+			return false
+		}
 		if err == nil {
 			// The router sent unsolicited data, so the session is alive.
 			return true
@@ -732,7 +735,9 @@ func (im *I2PManager) monitorLoop(ctx context.Context) {
 				im.service != nil && !i2pProviderHealthy(im.service)
 			if needsRestart {
 				log.Println("I2P provider unresponsive, restarting...")
-				im.service.Close()
+				if err := im.service.Close(); err != nil {
+					log.Printf("Failed to close unresponsive I2P provider: %v", err)
+				}
 				im.service = nil
 				if err := im.startLocked(); err != nil {
 					log.Printf("Failed to restart I2P: %v", err)
@@ -751,7 +756,10 @@ func (im *I2PManager) Restart() error {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	if im.service != nil {
-		im.service.Close()
+		if err := im.service.Close(); err != nil {
+			im.service = nil
+			return fmt.Errorf("failed to close I2P provider: %w", err)
+		}
 		im.service = nil
 	}
 	if im.config == nil || !im.config.Enabled {
@@ -827,7 +835,10 @@ func (im *I2PManager) UpdateConfig(cfg *config.I2PConfig) error {
 	defer im.mu.Unlock()
 	im.config = cfg
 	if im.service != nil {
-		im.service.Close()
+		if err := im.service.Close(); err != nil {
+			im.service = nil
+			return fmt.Errorf("failed to close I2P provider before updating config: %w", err)
+		}
 		im.service = nil
 	}
 	// A config that disables I2P leaves the eepsite down, respecting opt-in.
@@ -845,7 +856,10 @@ func (im *I2PManager) RegenerateAddress() (string, error) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	if im.service != nil {
-		im.service.Close()
+		if err := im.service.Close(); err != nil {
+			im.service = nil
+			return "", fmt.Errorf("failed to close I2P provider before regenerating address: %w", err)
+		}
 		im.service = nil
 	}
 	if err := os.RemoveAll(filepath.Join(im.dataDir, "site")); err != nil {

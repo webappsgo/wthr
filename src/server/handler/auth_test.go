@@ -2,12 +2,16 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp/totp"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
@@ -23,6 +27,11 @@ import (
 // to the h.DB field, which only backs the users.db-scoped model calls).
 func newAuthTestHandler(t *testing.T) (*AuthHandler, *sql.DB, *sql.DB) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
@@ -109,6 +118,65 @@ func TestHandleLogin_Admin(t *testing.T) {
 		if !found {
 			t.Errorf("expected admin_session cookie to be set; got cookies=%v", w.Result().Cookies())
 		}
+	})
+
+	t.Run("enabled admin TOTP blocks session until a valid code is supplied", func(t *testing.T) {
+		h, _, usersDB := newAuthTestHandler(t)
+		cfg := &config.AppConfig{}
+		cfg.Server.Security.EncryptionKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
+		config.SetGlobalConfig(cfg)
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
+		adminID := seedAdmin(t, usersDB, "totp-admin", "totp@example.com", "correct-horse-battery")
+		secret, err := totp.Generate(totp.GenerateOpts{Issuer: "wthr test", AccountName: "totp-admin"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := models.StorePendingAdminTOTPSecret(usersDB, adminID, secret.Secret()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := models.EnableAdminTOTP(usersDB, adminID, secret.Secret()); err != nil {
+			t.Fatal(err)
+		}
+
+		required, requiredResponse := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+			"identifier": "totp-admin", "password": "correct-horse-battery",
+		})
+		withJSONAccept(required)
+		h.HandleLogin(requiredResponse, required)
+		if requiredResponse.Code != http.StatusUnauthorized {
+			t.Fatalf("missing code status=%d, want 401", requiredResponse.Code)
+		}
+		var response map[string]interface{}
+		if err := json.Unmarshal(requiredResponse.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response["require_2fa"] != true {
+			t.Fatalf("require_2fa=%v, want true", response["require_2fa"])
+		}
+		for _, cookie := range requiredResponse.Result().Cookies() {
+			if cookie.Name == middleware.AdminSessionCookieName() {
+				t.Fatal("admin session issued before TOTP verification")
+			}
+		}
+
+		code, err := totp.GenerateCode(secret.Secret(), time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		verified, verifiedResponse := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+			"identifier": "totp-admin", "password": "correct-horse-battery", "two_factor_code": code,
+		})
+		withJSONAccept(verified)
+		h.HandleLogin(verifiedResponse, verified)
+		if verifiedResponse.Code != http.StatusOK {
+			t.Fatalf("valid code status=%d, want 200; body=%s", verifiedResponse.Code, verifiedResponse.Body.String())
+		}
+		for _, cookie := range verifiedResponse.Result().Cookies() {
+			if cookie.Name == middleware.AdminSessionCookieName() && cookie.Value != "" {
+				return
+			}
+		}
+		t.Fatal("valid admin TOTP did not issue an admin session cookie")
 	})
 
 	t.Run("wrong admin password falls through and is rejected as invalid credentials", func(t *testing.T) {
@@ -231,7 +299,9 @@ func TestHandleLogin_User(t *testing.T) {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
 		var body map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &body)
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode login response: %v", err)
+		}
 		if body["require_2fa"] != true {
 			t.Errorf("require_2fa = %v, want true; body=%s", body["require_2fa"], w.Body.String())
 		}
@@ -667,6 +737,11 @@ func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
 // instead of stranding the account on a verification step that can never
 // complete.
 func TestRequiresEmailVerification(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Run("no config skips verification", func(t *testing.T) {
 		t.Setenv("SMTP_HOST", "")
 		t.Setenv("SMTP_FROM_ADDRESS", "")
@@ -771,16 +846,18 @@ func TestRequiresEmailVerification(t *testing.T) {
 	})
 }
 
-// replaceServerConfigRow upserts a server_config value, letting a test change
-// a setting it already seeded without colliding on the key's unique index.
+// replaceServerConfigRow updates a setting in its canonical config file.
 func replaceServerConfigRow(t *testing.T, db *sql.DB, key, value string) {
 	t.Helper()
-	if _, err := db.Exec(
-		`INSERT INTO server_config (key, value, type, description) VALUES (?, ?, 'string', '')
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		key, value,
-	); err != nil {
-		t.Fatalf("replace server_config %s: %v", key, err)
+	if err := config.WriteSetting(key, value); err != nil {
+		t.Fatalf("write setting %s: %v", key, err)
+	}
+}
+
+func seedServerConfigRow(t *testing.T, db *sql.DB, key, value, settingType string) {
+	t.Helper()
+	if err := (&models.SettingsModel{}).SetSetting(key, value, settingType); err != nil {
+		t.Fatalf("write setting %s: %v", key, err)
 	}
 }
 

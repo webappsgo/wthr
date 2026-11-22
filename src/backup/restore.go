@@ -158,7 +158,7 @@ func readBackupBounded(path string, limit int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (s *BackupService) extractManifest(archiveData []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	// Create tar reader
 	tarReader := tar.NewReader(gzReader)
@@ -223,7 +223,7 @@ func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, 
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	// Create tar reader
 	tarReader := tar.NewReader(gzReader)
@@ -269,7 +269,7 @@ func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, 
 		// Determine destination path per AI.md PART 22 backup contents
 		var destPath string
 		var baseDir string
-		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "yaml.d/") || strings.HasPrefix(header.Name, "template/") ||
+		if header.Name == "server.yml" || header.Name == "secrets.yml" || strings.HasPrefix(header.Name, "yaml.d/") || strings.HasPrefix(header.Name, "assets/") || strings.HasPrefix(header.Name, "template/") ||
 			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") || strings.HasPrefix(header.Name, "security/") {
 			baseDir = configDir
 		} else {

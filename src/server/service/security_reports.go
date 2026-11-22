@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -49,7 +50,7 @@ func InstallationSecret(db *sql.DB) ([]byte, error) {
 // securityIDFor computes the id for the 48 hour window that contains t.
 func securityIDFor(secret []byte, t time.Time) string {
 	mac := hmac.New(sha256.New, secret)
-	fmt.Fprintf(mac, "%d", t.Unix()/securityIDWindow)
+	_, _ = fmt.Fprintf(mac, "%d", t.Unix()/securityIDWindow)
 	return hex.EncodeToString(mac.Sum(nil))[:16]
 }
 
@@ -253,7 +254,11 @@ func (s *SecurityReportStore) List(status string) ([]*SecurityReportRow, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close security report rows: %v", err)
+		}
+	}()
 	var out []*SecurityReportRow
 	for rows.Next() {
 		r, err := scanReport(rows.Scan)
@@ -454,7 +459,11 @@ func (s *SecurityReportStore) Thanks(onlyVisible bool) ([]ThanksEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close security thanks rows: %v", err)
+		}
+	}()
 	var out []ThanksEntry
 	for rows.Next() {
 		var e ThanksEntry

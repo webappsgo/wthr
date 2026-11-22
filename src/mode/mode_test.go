@@ -110,7 +110,7 @@ func TestFromEnv(t *testing.T) {
 
 	// MODE selects the mode
 	t.Setenv("MODE", "development")
-	os.Unsetenv("DEBUG")
+	_ = os.Unsetenv("DEBUG")
 	SetDebugEnabled(false)
 	FromEnv()
 	if !IsAppModeDev() {
@@ -148,10 +148,10 @@ func TestFromEnv(t *testing.T) {
 func restoreEnv(t *testing.T, key, value string, existed bool) {
 	t.Helper()
 	if existed {
-		os.Setenv(key, value)
+		_ = os.Setenv(key, value)
 		return
 	}
-	os.Unsetenv(key)
+	_ = os.Unsetenv(key)
 }
 
 func TestAppModeString(t *testing.T) {

@@ -8,16 +8,30 @@
     <h1>{{t $lang "admin.moderation.title"}}</h1>
     <p class="admin-page-intro">{{t $lang "admin.moderation.intro"}}</p>
   </div>
-
-  <section class="admin-section" aria-labelledby="moderation-queue-heading">
-    <div class="section-header">
-      <h2 id="moderation-queue-heading">{{t $lang "admin.moderation.queue_heading"}}</h2>
-    </div>
-    <div class="empty-state">
-      <p class="empty-state__icon" aria-hidden="true">&#128737;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.moderation.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.moderation.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/users">{{t $lang "admin.moderation.empty_action"}}</a>
-    </div>
+  {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
+  <section class="admin-section" aria-labelledby="moderation-users-heading">
+    <div class="section-header"><h2 id="moderation-users-heading">{{t $lang "admin.moderation.users_heading"}}</h2></div>
+    <form method="get" action="{{$ap}}/moderation/users" class="admin-form">
+      <label for="moderation-search">{{t $lang "admin.moderation.search_label"}}</label>
+      <input id="moderation-search" type="search" name="q" value="{{.query}}">
+      <label for="moderation-status">{{t $lang "admin.moderation.status_label"}}</label>
+      <select id="moderation-status" name="status">
+        <option value="">{{t $lang "admin.moderation.status_all"}}</option>
+        <option value="active" {{if eq .status "active"}}selected{{end}}>{{t $lang "admin.moderation.status_active"}}</option>
+        <option value="disabled" {{if eq .status "disabled"}}selected{{end}}>{{t $lang "admin.moderation.status_disabled"}}</option>
+      </select>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.moderation.search_action"}}</button>
+    </form>
+    {{if .users}}
+    <div class="table-responsive"><table class="admin-table">
+      <thead><tr><th>{{t $lang "admin.moderation.username"}}</th><th>{{t $lang "admin.moderation.email"}}</th><th>{{t $lang "admin.moderation.status_label"}}</th><th>{{t $lang "admin.moderation.actions"}}</th></tr></thead>
+      <tbody>{{range .users}}<tr>
+        <td><a href="{{$ap}}/moderation/users/{{.ID}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</a></td>
+        <td>{{.Email}}</td>
+        <td>{{if and .IsActive (not .IsBanned)}}{{t $lang "admin.moderation.status_active"}}{{else}}{{t $lang "admin.moderation.status_disabled"}}{{end}}</td>
+        <td><a class="btn btn-secondary" href="{{$ap}}/moderation/users/{{.ID}}">{{t $lang "admin.moderation.view_action"}}</a></td>
+      </tr>{{end}}</tbody>
+    </table></div>
+    {{else}}<p>{{t $lang "admin.moderation.no_users"}}</p>{{end}}
   </section>
 {{template "admin_footer" .}}

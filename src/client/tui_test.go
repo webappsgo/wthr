@@ -333,7 +333,7 @@ func TestTUIModelFetchData(t *testing.T) {
 			var gotPath string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotPath = r.URL.String()
-				w.Write([]byte(`{"temperature":70}`))
+				_, _ = w.Write([]byte(`{"temperature":70}`))
 			}))
 			defer server.Close()
 
@@ -362,7 +362,7 @@ func TestTUIModelFetchData(t *testing.T) {
 		var gotPath string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			gotPath = r.URL.String()
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 

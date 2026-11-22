@@ -130,6 +130,7 @@ type LocationParts struct {
 // OpenMeteoCurrentResponse represents the Open-Meteo current weather API response
 type OpenMeteoCurrentResponse struct {
 	Current struct {
+		Time                string  `json:"time"`
 		Temperature2m       float64 `json:"temperature_2m"`
 		RelativeHumidity2m  int     `json:"relative_humidity_2m"`
 		ApparentTemperature float64 `json:"apparent_temperature"`
@@ -414,16 +415,25 @@ func (ws *WeatherService) GetCurrentWeather(latitude, longitude float64, units s
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch weather data: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Open-Meteo forecast API returned status %d", resp.StatusCode)
+	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if len(body) > 8<<20 {
+		return nil, fmt.Errorf("Open-Meteo response exceeds 8388608 bytes")
 	}
 
 	var data OpenMeteoCurrentResponse
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse weather data: %w", err)
+	}
+	if data.Current.Time == "" || data.Timezone == "" {
+		return nil, fmt.Errorf("Open-Meteo response is missing current conditions or timezone")
 	}
 
 	weather := &CurrentWeather{
@@ -450,6 +460,9 @@ func (ws *WeatherService) GetCurrentWeather(latitude, longitude float64, units s
 
 // GetForecast retrieves weather forecast
 func (ws *WeatherService) GetForecast(latitude, longitude float64, days int, units string) (*Forecast, error) {
+	if days < 1 || days > 16 {
+		return nil, fmt.Errorf("forecast days must be between 1 and 16")
+	}
 	cacheKey := fmt.Sprintf("forecast_%.4f_%.4f_%d_%s", latitude, longitude, days, units)
 	if cached, found := ws.cache.Get(cacheKey); found {
 		return cached.(*Forecast), nil
@@ -469,16 +482,72 @@ func (ws *WeatherService) GetForecast(latitude, longitude float64, days int, uni
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch forecast data: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Open-Meteo forecast API returned status %d", resp.StatusCode)
+	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if len(body) > 8<<20 {
+		return nil, fmt.Errorf("Open-Meteo response exceeds 8388608 bytes")
 	}
 
 	var data OpenMeteoForecastResponse
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse forecast data: %w", err)
+	}
+	if data.Timezone == "" || len(data.Daily.Time) == 0 {
+		return nil, fmt.Errorf("Open-Meteo response is missing daily forecast data or timezone")
+	}
+	dailyCount := len(data.Daily.Time)
+	for _, field := range []struct {
+		name  string
+		count int
+	}{
+		{"weather_code", len(data.Daily.WeatherCode)},
+		{"temperature_2m_max", len(data.Daily.Temperature2mMax)},
+		{"temperature_2m_min", len(data.Daily.Temperature2mMin)},
+		{"apparent_temperature_max", len(data.Daily.ApparentTemperatureMax)},
+		{"apparent_temperature_min", len(data.Daily.ApparentTemperatureMin)},
+		{"precipitation_sum", len(data.Daily.PrecipitationSum)},
+		{"precipitation_hours", len(data.Daily.PrecipitationHours)},
+		{"precipitation_probability_max", len(data.Daily.PrecipitationProbabilityMax)},
+		{"wind_speed_10m_max", len(data.Daily.WindSpeed10mMax)},
+		{"wind_gusts_10m_max", len(data.Daily.WindGusts10mMax)},
+		{"wind_direction_10m_dominant", len(data.Daily.WindDirection10mDominant)},
+		{"shortwave_radiation_sum", len(data.Daily.ShortwaveRadiationSum)},
+	} {
+		if field.count != dailyCount {
+			return nil, fmt.Errorf("Open-Meteo daily %s count %d does not match date count %d", field.name, field.count, dailyCount)
+		}
+	}
+	hourlyCount := len(data.Hourly.Time)
+	if hourlyCount == 0 {
+		return nil, fmt.Errorf("Open-Meteo response is missing hourly forecast data")
+	}
+	for _, field := range []struct {
+		name  string
+		count int
+	}{
+		{"temperature_2m", len(data.Hourly.Temperature2m)},
+		{"apparent_temperature", len(data.Hourly.ApparentTemperature)},
+		{"relative_humidity_2m", len(data.Hourly.RelativeHumidity2m)},
+		{"precipitation", len(data.Hourly.Precipitation)},
+		{"precipitation_probability", len(data.Hourly.PrecipitationProbability)},
+		{"weather_code", len(data.Hourly.WeatherCode)},
+		{"cloud_cover", len(data.Hourly.CloudCover)},
+		{"wind_speed_10m", len(data.Hourly.WindSpeed10m)},
+		{"wind_direction_10m", len(data.Hourly.WindDirection10m)},
+		{"wind_gusts_10m", len(data.Hourly.WindGusts10m)},
+		{"visibility", len(data.Hourly.Visibility)},
+		{"uv_index", len(data.Hourly.UVIndex)},
+	} {
+		if field.count != hourlyCount {
+			return nil, fmt.Errorf("Open-Meteo hourly %s count %d does not match timestamp count %d", field.name, field.count, hourlyCount)
+		}
 	}
 
 	forecast := &Forecast{
@@ -510,9 +579,10 @@ func (ws *WeatherService) GetForecast(latitude, longitude float64, days int, uni
 	// Group hourly data by day
 	if len(data.Hourly.Time) > 0 {
 		for i := range data.Hourly.Time {
-			// Extract date from hourly timestamp (format: "2024-10-02T14:00")
 			hourTime := data.Hourly.Time[i]
-			// Get YYYY-MM-DD
+			if len(hourTime) < len("2006-01-02") {
+				return nil, fmt.Errorf("Open-Meteo returned invalid hourly timestamp %q", hourTime)
+			}
 			hourDate := hourTime[:10]
 
 			// Find matching day and append hourly data
@@ -566,11 +636,17 @@ func (ws *WeatherService) SearchLocations(query string, limit int) ([]Coordinate
 	if err != nil {
 		return nil, fmt.Errorf("search error: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Open-Meteo geocoding API returned status %d", resp.StatusCode)
+	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if len(body) > 4<<20 {
+		return nil, fmt.Errorf("Open-Meteo geocoding response exceeds 4194304 bytes")
 	}
 
 	var data GeocodeResponse
@@ -623,31 +699,35 @@ func (ws *WeatherService) ReverseGeocode(latitude, longitude float64) (*Coordina
 
 	resp, err := ws.client.Get(apiURL)
 	if err == nil {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode == http.StatusOK {
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
 
-		var data GeocodeResponse
-		if json.Unmarshal(body, &data) == nil && len(data.Results) > 0 {
-			result := data.Results[0]
+			var data GeocodeResponse
+			if readErr == nil && len(body) <= 4<<20 && json.Unmarshal(body, &data) == nil && len(data.Results) > 0 {
+				result := data.Results[0]
 
-			// Enhance with external database
-			enhancedData, err := ws.locationEnhancer.EnhanceLocationData(&result)
-			if err == nil {
-				coords := &Coordinates{
-					Latitude:    latitude,
-					Longitude:   longitude,
-					Name:        enhancedData.Name,
-					Country:     enhancedData.Country,
-					CountryCode: strings.ToUpper(enhancedData.CountryCode),
-					Timezone:    enhancedData.Timezone,
-					Admin1:      enhancedData.Admin1,
-					Admin2:      enhancedData.Admin2,
-					Population:  enhancedData.Population,
-					FullName:    enhancedData.FullName,
-					ShortName:   enhancedData.ShortName,
+				// Enhance with external database
+				if ws.locationEnhancer != nil {
+					enhancedData, err := ws.locationEnhancer.EnhanceLocationData(&result)
+					if err == nil {
+						coords := &Coordinates{
+							Latitude:    latitude,
+							Longitude:   longitude,
+							Name:        enhancedData.Name,
+							Country:     enhancedData.Country,
+							CountryCode: strings.ToUpper(enhancedData.CountryCode),
+							Timezone:    enhancedData.Timezone,
+							Admin1:      enhancedData.Admin1,
+							Admin2:      enhancedData.Admin2,
+							Population:  enhancedData.Population,
+							FullName:    enhancedData.FullName,
+							ShortName:   enhancedData.ShortName,
+						}
+						ws.cache.Set(cacheKey, coords, 1*time.Hour)
+						return coords, nil
+					}
 				}
-				ws.cache.Set(cacheKey, coords, 1*time.Hour)
-				return coords, nil
 			}
 		}
 	}
@@ -659,8 +739,14 @@ func (ws *WeatherService) ReverseGeocode(latitude, longitude float64) (*Coordina
 
 	nominatimResp, err := ws.client.Do(req)
 	if err == nil {
-		defer nominatimResp.Body.Close()
-		body, _ := io.ReadAll(nominatimResp.Body)
+		defer func() { _ = nominatimResp.Body.Close() }()
+		if nominatimResp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("nominatim reverse geocoding returned status %d", nominatimResp.StatusCode)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(nominatimResp.Body, (4<<20)+1))
+		if readErr != nil || len(body) > 4<<20 {
+			return nil, fmt.Errorf("nominatim response could not be read within the 4194304-byte limit")
+		}
 
 		var nominatimData struct {
 			Address struct {
@@ -858,7 +944,7 @@ func (ws *WeatherService) isValidLocationInput(location string) bool {
 	}
 	// Location must start with a letter or digit (not special characters)
 	first := rune(location[0])
-	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || (first >= '0' && first <= '9')) {
+	if (first < 'a' || first > 'z') && (first < 'A' || first > 'Z') && (first < '0' || first > '9') {
 		return false
 	}
 	// Must contain at least one letter or digit
@@ -946,10 +1032,14 @@ func (ws *WeatherService) tryMultipleGeocodingApproaches(searchName string, loca
 		if err != nil {
 			continue
 		}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			continue
+		}
 
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
+		body, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
+		_ = resp.Body.Close()
+		if err != nil || len(body) > 4<<20 {
 			continue
 		}
 
@@ -1329,22 +1419,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 		return coords, nil
 	}
 
-	// Service 2: ip-api.com
-	coords, err = ws.tryIPAPIcom(ip)
-	if err == nil {
-		if geoipCoords != nil {
-			distanceKM := haversineDistance(geoipCoords.Latitude, geoipCoords.Longitude, coords.Latitude, coords.Longitude)
-			distanceMiles := distanceKM * 0.621371
-			if distanceMiles > 100 {
-				fmt.Printf("WARNING: GeoIP mismatch: using API result (%s)\n", coords.ShortName)
-				return coords, nil
-			}
-			return geoipCoords, nil
-		}
-		return coords, nil
-	}
-
-	// Service 3: ipwho.is
+	// Service 2: ipwho.is
 	coords, err = ws.tryIPWhois(ip)
 	if err == nil {
 		if geoipCoords != nil {
@@ -1376,7 +1451,7 @@ func (ws *WeatherService) tryIPAPIco(ip string) (*Coordinates, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ipapi.co returned status %d", resp.StatusCode)
@@ -1391,59 +1466,41 @@ func (ws *WeatherService) tryIPAPIco(ip string) (*Coordinates, error) {
 		Longitude   float64 `json:"longitude"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := decodeRemoteJSON(resp, &data); err != nil {
 		return nil, err
 	}
 
 	if data.City == "" {
 		return nil, fmt.Errorf("no city data from ipapi.co")
 	}
-
-	// Get full location data
-	return ws.GetCoordinates(fmt.Sprintf("%s, %s", data.City, data.Region), data.CountryCode)
-}
-
-// tryIPAPIcom tries ip-api.com service
-func (ws *WeatherService) tryIPAPIcom(ip string) (*Coordinates, error) {
-	apiURL := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,city,regionName,country,countryCode,lat,lon", ip)
-
-	resp, err := ws.client.Get(apiURL)
-	if err != nil {
-		return nil, err
+	if !validIPGeoCoordinates(data.Latitude, data.Longitude) || data.City == "" {
+		return nil, fmt.Errorf("ipapi.co returned invalid location data")
 	}
-	defer resp.Body.Close()
-
-	var data struct {
-		Status      string  `json:"status"`
-		City        string  `json:"city"`
-		Region      string  `json:"regionName"`
-		Country     string  `json:"country"`
-		CountryCode string  `json:"countryCode"`
-		Latitude    float64 `json:"lat"`
-		Longitude   float64 `json:"lon"`
+	name := data.City
+	if data.Region != "" {
+		name += ", " + data.Region
 	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-
-	if data.Status != "success" || data.City == "" {
-		return nil, fmt.Errorf("no city data from ip-api.com")
-	}
-
-	// Get full location data
-	return ws.GetCoordinates(fmt.Sprintf("%s, %s", data.City, data.Region), data.CountryCode)
+	// Keep the provider's network-location coordinates instead of geocoding
+	// the city label, which can resolve to a different point in the region.
+	return &Coordinates{
+		Latitude: data.Latitude, Longitude: data.Longitude, Name: data.City,
+		Country: data.Country, CountryCode: strings.ToUpper(data.CountryCode),
+		Admin1: data.Region, FullName: name, ShortName: name,
+	}, nil
 }
 
 // tryIPWhois tries ipwho.is service
 func (ws *WeatherService) tryIPWhois(ip string) (*Coordinates, error) {
-	apiURL := fmt.Sprintf("http://ipwho.is/%s", ip)
+	apiURL := fmt.Sprintf("https://ipwho.is/%s", ip)
 
 	resp, err := ws.client.Get(apiURL)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ipwho.is returned status %d", resp.StatusCode)
+	}
 
 	var data struct {
 		Success     bool    `json:"success"`
@@ -1455,16 +1512,27 @@ func (ws *WeatherService) tryIPWhois(ip string) (*Coordinates, error) {
 		Longitude   float64 `json:"longitude"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := decodeRemoteJSON(resp, &data); err != nil {
 		return nil, err
 	}
 
-	if !data.Success || data.City == "" {
+	if !data.Success || data.City == "" || !validIPGeoCoordinates(data.Latitude, data.Longitude) {
 		return nil, fmt.Errorf("no city data from ipwho.is")
 	}
 
-	// Get full location data
-	return ws.GetCoordinates(fmt.Sprintf("%s, %s", data.City, data.Region), data.CountryCode)
+	name := data.City
+	if data.Region != "" {
+		name += ", " + data.Region
+	}
+	return &Coordinates{
+		Latitude: data.Latitude, Longitude: data.Longitude, Name: data.City,
+		Country: data.Country, CountryCode: strings.ToUpper(data.CountryCode),
+		Admin1: data.Region, FullName: name, ShortName: name,
+	}, nil
+}
+
+func validIPGeoCoordinates(latitude, longitude float64) bool {
+	return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
 }
 
 // GetHistoricalWeather retrieves historical weather data for a specific day across multiple years
@@ -1523,14 +1591,19 @@ func (ws *WeatherService) GetHistoricalWeather(latitude, longitude float64, mont
 			log.Printf("WARNING: Failed to fetch historical data for %s: %v", targetDate, err)
 			continue
 		}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			log.Printf("WARNING: Open-Meteo archive API returned status %d for %s", resp.StatusCode, targetDate)
+			continue
+		}
 
 		var apiResp OpenMeteoHistoricalResponse
-		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-			resp.Body.Close()
+		if err := decodeRemoteJSON(resp, &apiResp); err != nil {
+			_ = resp.Body.Close()
 			log.Printf("WARNING: Failed to decode historical data for %s: %v", targetDate, err)
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		// Parse the response - should have exactly 1 day of data
 		if len(apiResp.Daily.Time) != 1 {

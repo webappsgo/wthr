@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -107,6 +109,11 @@ func TestLogFormatHandler_GetLogFormat_DefaultsToApache(t *testing.T) {
 // TestLogFormatHandler_GetLogFormat_ReflectsStoredValue verifies a value
 // previously written by SetLogFormat is read back correctly.
 func TestLogFormatHandler_GetLogFormat_ReflectsStoredValue(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
 

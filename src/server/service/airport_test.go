@@ -1,11 +1,14 @@
 package service
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -59,12 +62,12 @@ func TestAirport_LookupAirport_NotLoaded(t *testing.T) {
 func TestAirport_LookupAirport(t *testing.T) {
 	jfk := &AirportData{
 		ICAO: "KJFK", IATA: "JFK", Name: "John F Kennedy Intl",
-		City: "New York", State: "NY", Country: "United States",
+		City: "New York", State: "NY", Country: "United States", CountryCode: "US",
 		Lat: 40.6413, Lon: -73.7781,
 	}
 	lhr := &AirportData{
 		ICAO: "EGLL", IATA: "LHR", Name: "Heathrow",
-		City: "London", State: "", Country: "United Kingdom",
+		City: "London", State: "", Country: "United Kingdom", CountryCode: "GB",
 		Lat: 51.4700, Lon: -0.4543,
 	}
 
@@ -163,6 +166,7 @@ func TestAirport_IsLoaded(t *testing.T) {
 
 func writeAirportFixture(t *testing.T, path string, airports []AirportData) {
 	t.Helper()
+	airports = withMinimumAirportRecords(airports)
 	body, err := json.Marshal(airports)
 	if err != nil {
 		t.Fatalf("failed to marshal fixture: %v", err)
@@ -172,9 +176,70 @@ func writeAirportFixture(t *testing.T, path string, airports []AirportData) {
 	}
 }
 
+func withMinimumAirportRecords(airports []AirportData) []AirportData {
+	result := append([]AirportData(nil), airports...)
+	validCount := 0
+	for _, airport := range result {
+		if validAirportCoordinates(airport.Lat, airport.Lon) && airport.Name != "" && (IsAirportCode(airport.ICAO) || IsAirportCode(airport.IATA)) {
+			validCount++
+		}
+	}
+	for validCount < minAirportRecords {
+		index := len(result)
+		result = append(result, AirportData{
+			ICAO: "X" + leftPadAirportNumber(index%1000, 3), IATA: "Q" + leftPadAirportNumber(index%100, 2),
+			Name: "Fixture Airport", Country: "United States", CountryCode: "US",
+			Type: "small_airport", Lat: 10 + float64(index%70), Lon: 10 + float64(index%150),
+		})
+		validCount++
+	}
+	return result
+}
+
+func leftPadAirportNumber(value, width int) string {
+	text := strconv.Itoa(value)
+	for len(text) < width {
+		text = "0" + text
+	}
+	return text
+}
+
+func writeAirportCSVFixture(t *testing.T, airports []AirportData) []byte {
+	t.Helper()
+	var output strings.Builder
+	writer := csv.NewWriter(&output)
+	if err := writer.Write([]string{"type", "name", "latitude_deg", "longitude_deg", "elevation_ft", "iso_country", "iso_region", "municipality", "icao_code", "iata_code", "scheduled_service"}); err != nil {
+		t.Fatalf("write airport CSV header: %v", err)
+	}
+	for _, airport := range withMinimumAirportRecords(airports) {
+		if airport.Type == "" {
+			airport.Type = "small_airport"
+		}
+		if airport.CountryCode == "" {
+			airport.CountryCode = "GB"
+		}
+		scheduled := "no"
+		if airport.Scheduled {
+			scheduled = "yes"
+		}
+		if err := writer.Write([]string{
+			airport.Type, airport.Name, strconv.FormatFloat(airport.Lat, 'f', -1, 64), strconv.FormatFloat(airport.Lon, 'f', -1, 64),
+			strconv.Itoa(airport.Elevation), airport.CountryCode, airport.CountryCode + "-" + airport.State,
+			airport.City, airport.ICAO, airport.IATA, scheduled,
+		}); err != nil {
+			t.Fatalf("write airport CSV row: %v", err)
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		t.Fatalf("flush airport CSV fixture: %v", err)
+	}
+	return []byte(output.String())
+}
+
 // TestAirport_LoadAirports_FromCache covers loading entirely from an
-// on-disk cache file (no network access), including that entries missing
-// coordinates are excluded and that both ICAO and IATA indexes are built.
+// on-disk cache file (no network access), excluding invalid coordinates and
+// building both ICAO and IATA indexes.
 func TestAirport_LoadAirports_FromCache(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "airports.json")
 	writeAirportFixture(t, cachePath, []AirportData{
@@ -209,16 +274,11 @@ func TestAirport_LoadAirports_FromCache(t *testing.T) {
 // downloads from dataURL (a local httptest server, never a real network
 // endpoint) and persists the result to cachePath.
 func TestAirport_LoadAirports_FromHTTP(t *testing.T) {
-	fixture := []AirportData{
-		{ICAO: "EGLL", IATA: "LHR", Name: "Heathrow", City: "London", Country: "UK", Lat: 51.47, Lon: -0.4543},
-	}
-	body, err := json.Marshal(fixture)
-	if err != nil {
-		t.Fatalf("failed to marshal fixture: %v", err)
-	}
+	fixture := []AirportData{{ICAO: "EGLL", IATA: "LHR", Name: "Heathrow", City: "London", Country: "United Kingdom", CountryCode: "GB", Lat: 51.47, Lon: -0.4543}}
+	body := writeAirportCSVFixture(t, fixture)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/csv")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	}))
@@ -246,12 +306,49 @@ func TestAirport_LoadAirports_FromHTTP(t *testing.T) {
 	}
 }
 
-// TestAirport_LoadAirports_MalformedJSON covers the parse-error path: the
-// database is left unloaded when the response body is not valid JSON.
-func TestAirport_LoadAirports_MalformedJSON(t *testing.T) {
+func TestParseOurAirportsCSV(t *testing.T) {
+	body := writeAirportCSVFixture(t, []AirportData{{
+		ICAO: "KJFK", IATA: "JFK", Name: "John F Kennedy International Airport", City: "New York",
+		State: "NY", CountryCode: "US", Type: "large_airport", Scheduled: true,
+		Elevation: 13, Lat: 40.63980103, Lon: -73.77890015,
+	}})
+	airports, err := parseOurAirportsCSV(body)
+	if err != nil {
+		t.Fatalf("parseOurAirportsCSV() error = %v", err)
+	}
+	if len(airports) < minAirportRecords {
+		t.Fatalf("airport count = %d, want at least %d", len(airports), minAirportRecords)
+	}
+	var jfk *AirportData
+	for i := range airports {
+		if airports[i].ICAO == "KJFK" {
+			jfk = &airports[i]
+			break
+		}
+	}
+	if jfk == nil {
+		t.Fatal("JFK record was not parsed")
+	}
+	if jfk.IATA != "JFK" || jfk.City != "New York" || jfk.Country != "United States" || jfk.CountryCode != "US" || !jfk.Scheduled {
+		t.Errorf("parsed JFK metadata = %+v", jfk)
+	}
+	if jfk.Lat != 40.63980103 || jfk.Lon != -73.77890015 {
+		t.Errorf("parsed JFK coordinates = %.8f, %.8f", jfk.Lat, jfk.Lon)
+	}
+}
+
+func TestParseOurAirportsCSVRejectsBadSchema(t *testing.T) {
+	if _, err := parseOurAirportsCSV([]byte("name,latitude_deg,longitude_deg\nJFK,40,-73\n")); err == nil {
+		t.Fatal("expected an error when required source columns are absent")
+	}
+}
+
+// TestAirport_LoadAirports_MalformedCSV covers the parse-error path when the
+// response is missing the required OurAirports columns.
+func TestAirport_LoadAirports_MalformedCSV(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not,csv,with,required,columns\n1,2,3,4,5\n"))
 	}))
 	defer server.Close()
 
@@ -265,7 +362,7 @@ func TestAirport_LoadAirports_MalformedJSON(t *testing.T) {
 	as.loadAirports()
 
 	if as.IsLoaded() {
-		t.Error("expected database to remain unloaded after malformed JSON response")
+		t.Error("expected database to remain unloaded after malformed CSV response")
 	}
 }
 
@@ -289,7 +386,7 @@ func TestAirport_LoadAirports_HTTPUnreachable(t *testing.T) {
 // TestAirport_Reload covers reload success (from a fixture cache) and
 // reload failure (network unreachable, no cache) surfacing as an error.
 func TestAirport_Reload(t *testing.T) {
-	t.Run("successful reload from cache", func(t *testing.T) {
+	t.Run("failed refresh keeps validated cache available", func(t *testing.T) {
 		cachePath := filepath.Join(t.TempDir(), "airports.json")
 		writeAirportFixture(t, cachePath, []AirportData{
 			{ICAO: "KJFK", IATA: "JFK", Name: "JFK", City: "New York", Country: "US", Lat: 40.64, Lon: -73.77},
@@ -303,8 +400,8 @@ func TestAirport_Reload(t *testing.T) {
 			loaded:    true, // simulate a previously-loaded service being reloaded
 		}
 
-		if err := as.Reload(); err != nil {
-			t.Fatalf("Reload() error = %v", err)
+		if err := as.Reload(); err == nil {
+			t.Fatal("Reload() error = nil, want the upstream failure reported")
 		}
 		if !as.IsLoaded() {
 			t.Error("expected IsLoaded() = true after successful reload")

@@ -29,7 +29,6 @@ var sitemapPages = []sitemapPage{
 	{"/moon", "0.7", "daily", true},
 	{"/server/about", "0.8", "weekly", false},
 	{"/server/help", "0.8", "weekly", false},
-	{"/server/contact", "0.8", "weekly", false},
 	{"/server/privacy", "0.8", "weekly", false},
 	{"/server/terms", "0.8", "weekly", false},
 	{"/server/security", "0.8", "weekly", false},

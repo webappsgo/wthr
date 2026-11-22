@@ -21,14 +21,14 @@ func fakeSMTPServer(t *testing.T, handleConn func(r *bufio.Reader, w *bufio.Writ
 	if err != nil {
 		t.Fatalf("failed to start fake SMTP listener: %v", err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { _ = ln.Close() })
 
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		handleConn(bufio.NewReader(conn), bufio.NewWriter(conn))
 	}()
 
@@ -94,15 +94,15 @@ func smtpRejectSenderScript() func(r *bufio.Reader, w *bufio.Writer) {
 
 // writeLine writes a CRLF-terminated SMTP response line and flushes it.
 func writeLine(w *bufio.Writer, line string) {
-	w.WriteString(line + "\r\n")
-	w.Flush()
+	_, _ = w.WriteString(line + "\r\n")
+	_ = w.Flush()
 }
 
 // readLine reads and discards a single client command line, ignoring EOF so
 // a client that disconnects early (e.g. after an error) doesn't panic the
 // fake server goroutine.
 func readLine(r *bufio.Reader) {
-	r.ReadString('\n')
+	_, _ = r.ReadString('\n')
 }
 
 // TestNew_Disabled verifies the service stays disabled when SMTP is not
@@ -506,7 +506,7 @@ func TestNew_ConnectionRefused(t *testing.T) {
 	}
 	addr := ln.Addr().(*net.TCPAddr)
 	// Close immediately so the port is guaranteed to be refused on connect.
-	ln.Close()
+	_ = ln.Close()
 
 	svc := New(SMTPConfig{Host: addr.IP.String(), Port: addr.Port})
 	if svc.IsEnabled() {
@@ -522,7 +522,7 @@ func TestNew_TLSHandshakeFailure(t *testing.T) {
 		// Plain TCP peer: read whatever the TLS client hello sends and do
 		// nothing SSL/TLS-aware with it, forcing the handshake to fail.
 		buf := make([]byte, 512)
-		r.Read(buf)
+		_, _ = r.Read(buf)
 	})
 
 	svc := New(SMTPConfig{Host: host, Port: port, TLS: true})

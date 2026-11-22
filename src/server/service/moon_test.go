@@ -28,7 +28,7 @@ func TestMoon_NewMoonService(t *testing.T) {
 func TestMoon_CalculateMoonAge_KnownNewMoon(t *testing.T) {
 	ms := NewMoonService()
 	knownNewMoon := time.Date(2000, 1, 6, 18, 14, 0, 0, time.UTC)
-	var synodicDays float64 = 29.53058867
+	var synodicDays = 29.53058867
 	// Build offsets directly in nanoseconds (days * hours-per-day *
 	// ns-per-hour) rather than time.Duration(days*24)*time.Hour, which
 	// truncates to whole hours before scaling and would throw off the

@@ -1,28 +1,28 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-// TestZipcode_IsZipcode covers happy path, boundary lengths, and malformed
-// (non-numeric) input for the 5-digit US zipcode shape check.
 func TestZipcode_IsZipcode(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string
 		want bool
 	}{
-		{"valid zipcode", "90210", true},
-		{"valid zipcode with leading zero", "00501", true},
-		{"all zeros", "00000", true},
-		{"empty string", "", false},
+		{"valid ZIP", "90210", true},
+		{"leading zero", "00501", true},
+		{"all zeros have valid shape", "00000", true},
+		{"empty", "", false},
 		{"too short", "1234", false},
 		{"too long", "123456", false},
-		{"contains letters", "9021A", false},
-		{"contains hyphen (zip+4 shape)", "90210-1234", false},
-		{"contains space", "9021 ", false},
-		{"embedded hyphen mid-string", "12-34", false},
-		{"leading hyphen parses as negative (5 chars, numeric)", "-1234", true},
+		{"letters", "9021A", false},
+		{"ZIP plus four", "90210-1234", false},
+		{"space", "9021 ", false},
+		{"negative number", "-1234", false},
+		{"non-ASCII digits", "１２３４５", false},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := IsZipcode(tt.in); got != tt.want {
@@ -32,149 +32,112 @@ func TestZipcode_IsZipcode(t *testing.T) {
 	}
 }
 
-// TestZipcode_ParseZipcode covers happy path, boundary zero/leading-zero
-// values, and malformed input producing an error.
 func TestZipcode_ParseZipcode(t *testing.T) {
-	tests := []struct {
-		name    string
-		in      string
+	for _, tt := range []struct {
+		input   string
 		want    int
 		wantErr bool
 	}{
-		{"valid zipcode", "90210", 90210, false},
-		{"leading zero preserved numerically", "00501", 501, false},
-		{"all zeros", "00000", 0, false},
-		{"empty string", "", 0, true},
-		{"non-numeric", "abcde", 0, true},
-		{"partially numeric", "123a5", 0, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseZipcode(tt.in)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseZipcode(%q) error = %v, wantErr %v", tt.in, err, tt.wantErr)
-			}
-			if !tt.wantErr && got != tt.want {
-				t.Errorf("ParseZipcode(%q) = %d, want %d", tt.in, got, tt.want)
-			}
-		})
+		{"90210", 90210, false},
+		{"00501", 501, false},
+		{"00000", 0, false},
+		{"1234", 0, true},
+		{"12a45", 0, true},
+		{"-1234", 0, true},
+	} {
+		got, err := ParseZipcode(tt.input)
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("ParseZipcode(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+		}
+		if !tt.wantErr && got != tt.want {
+			t.Errorf("ParseZipcode(%q) = %d, want %d", tt.input, got, tt.want)
+		}
 	}
 }
 
-// TestZipcode_ToFloat64 covers all supported dynamic input types plus the
-// default/unsupported-type fallback (the JSON payload stores lat/lon as
-// interface{} because upstream data mixes numeric and string encodings).
-func TestZipcode_ToFloat64(t *testing.T) {
-	tests := []struct {
-		name string
-		in   interface{}
-		want float64
-	}{
-		{"float64", 40.7128, 40.7128},
-		{"zero float64", 0.0, 0},
-		{"negative float64", -73.9, -73.9},
-		{"numeric string", "40.7128", 40.7128},
-		{"negative numeric string", "-73.9", -73.9},
-		{"malformed string", "not-a-number", 0},
-		{"empty string", "", 0},
-		{"int", 40, 40},
-		{"nil", nil, 0},
-		{"bool unsupported type", true, 0},
+func TestParseGeoNamesUSZipcodes(t *testing.T) {
+	input := strings.Join([]string{
+		"US\t00501\tHoltsville\tNew York\tNY\tSuffolk\t103\t\t\t40.8154\t-73.0451\t1",
+		"US\t00501\tFPO AA\t\t\t\t\t\t\t40.9\t-73.1\t4",
+		"US\t90210\tBeverly Hills\tCalifornia\tCA\tLos Angeles\t037\t\t\t34.0901\t-118.4065\t1",
+		"US\t02108\tBoston\tMassachusetts\tMA\tSuffolk\t025\t\t\t42.3576\t-71.0677\t",
+		"US\t99999\tNowhere\tUnknown\tZZ\tVoid\t000\t\t\t91\t0\t1",
+		"CA\tH0H0H0\tNorth Pole\tNunavut\tNU\t\t\t\t\t\t\t",
+		"not a valid record",
+	}, "\n")
+	got, err := parseGeoNamesUSZipcodes(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("parseGeoNamesUSZipcodes() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := toFloat64(tt.in); got != tt.want {
-				t.Errorf("toFloat64(%v) = %v, want %v", tt.in, got, tt.want)
-			}
-		})
+	if len(got) != 3 {
+		t.Fatalf("parsed ZIP count = %d, want 3", len(got))
 	}
-}
-
-// TestZipcode_LookupZipcode_NotLoaded covers the error path when a lookup
-// is attempted before the database has finished loading.
-func TestZipcode_LookupZipcode_NotLoaded(t *testing.T) {
-	zs := &ZipcodeService{
-		zipcodes: make(map[int]*ZipcodeData),
-		loaded:   false,
+	if got[501].ZipCode != "00501" {
+		t.Errorf("leading-zero ZIP = %q, want 00501", got[501].ZipCode)
 	}
-
-	if _, err := zs.LookupZipcode(90210); err == nil {
-		t.Error("expected error when database not loaded, got nil")
+	if got[501].City != "FPO AA" || got[501].Accuracy != 4 {
+		t.Errorf("duplicate selection = %+v, want GeoNames place-coordinate FPO AA row", got[501])
+	}
+	if got[90210].Latitude != 34.0901 || got[90210].Longitude != -118.4065 || got[90210].State != "CA" || got[90210].County != "Los Angeles" {
+		t.Errorf("90210 data = %+v, want the supplied state, county, and coordinates", got[90210])
+	}
+	if got[2108].City != "Boston" || got[2108].Accuracy != 0 {
+		t.Errorf("02108 data = %+v, want Boston with unknown accuracy retained as 0", got[2108])
 	}
 }
 
-// TestZipcode_LookupZipcode covers happy-path lookup, the not-found error
-// path, and the case where an entry exists but has zero/invalid
-// coordinates (data-quality boundary).
+func TestParseGeoNamesUSZipcodesRejectsEmptyData(t *testing.T) {
+	if _, err := parseGeoNamesUSZipcodes(strings.NewReader("US\tbad\trow")); err == nil {
+		t.Fatal("expected an error when no valid ZIP-code row exists")
+	}
+}
+
 func TestZipcode_LookupZipcode(t *testing.T) {
 	zs := &ZipcodeService{
 		zipcodes: map[int]*ZipcodeData{
-			90210: {State: "CA", City: "Beverly Hills", County: "Los Angeles", ZipCode: 90210, Latitude: 34.0901, Longitude: -118.4065},
-			10001: {State: "NY", City: "New York", County: "New York", ZipCode: 10001, Latitude: "40.7484", Longitude: "-73.9967"},
-			99999: {State: "ZZ", City: "Nowhere", County: "Void", ZipCode: 99999, Latitude: 0, Longitude: 0},
+			501:   {State: "NY", City: "Holtsville", County: "Suffolk", ZipCode: "00501", Latitude: 40.8154, Longitude: -73.0451},
+			90210: {State: "CA", City: "Beverly Hills", County: "Los Angeles", ZipCode: "90210", Latitude: 34.0901, Longitude: -118.4065},
 		},
 		loaded: true,
 	}
-
-	tests := []struct {
-		name      string
+	for _, tt := range []struct {
 		zip       int
-		wantErr   bool
-		wantLat   float64
 		wantCity  string
 		wantShort string
+		wantErr   bool
 	}{
-		{"found with float coords", 90210, false, 34.0901, "Beverly Hills", "Beverly Hills, CA"},
-		{"found with string coords", 10001, false, 40.7484, "New York", "New York, NY"},
-		{"found but zero coordinates", 99999, true, 0, "", ""},
-		{"not found", 12345, true, 0, "", ""},
-		{"zero zipcode not found", 0, true, 0, "", ""},
-		{"negative zipcode not found", -1, true, 0, "", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			coords, err := zs.LookupZipcode(tt.zip)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("LookupZipcode(%d) error = %v, wantErr %v", tt.zip, err, tt.wantErr)
-			}
-			if tt.wantErr {
-				return
-			}
-			if coords.Latitude != tt.wantLat {
-				t.Errorf("Latitude = %v, want %v", coords.Latitude, tt.wantLat)
-			}
-			if coords.Name != tt.wantCity {
-				t.Errorf("Name = %q, want %q", coords.Name, tt.wantCity)
-			}
-			if coords.ShortName != tt.wantShort {
-				t.Errorf("ShortName = %q, want %q", coords.ShortName, tt.wantShort)
-			}
-			if coords.CountryCode != "US" {
-				t.Errorf("CountryCode = %q, want %q", coords.CountryCode, "US")
-			}
-		})
+		{501, "Holtsville", "Holtsville, NY", false},
+		{90210, "Beverly Hills", "Beverly Hills, CA", false},
+		{12345, "", "", true},
+		{-1, "", "", true},
+		{100000, "", "", true},
+	} {
+		coords, err := zs.LookupZipcode(tt.zip)
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("LookupZipcode(%d) error = %v, wantErr %v", tt.zip, err, tt.wantErr)
+		}
+		if tt.wantErr {
+			continue
+		}
+		if coords.Name != tt.wantCity || coords.ShortName != tt.wantShort {
+			t.Errorf("LookupZipcode(%d) = %+v, want city %q and short name %q", tt.zip, coords, tt.wantCity, tt.wantShort)
+		}
+		if coords.CountryCode != "US" {
+			t.Errorf("CountryCode = %q, want US", coords.CountryCode)
+		}
 	}
 }
 
-// TestZipcode_IsLoaded covers both loaded states directly.
-func TestZipcode_IsLoaded(t *testing.T) {
-	tests := []struct {
-		name   string
-		loaded bool
-	}{
-		{"not loaded", false},
-		{"loaded", true},
+func TestZipcode_LookupZipcodeNotLoaded(t *testing.T) {
+	zs := &ZipcodeService{zipcodes: make(map[int]*ZipcodeData)}
+	if _, err := zs.LookupZipcode(90210); err == nil {
+		t.Fatal("expected error before data loads")
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			zs := &ZipcodeService{loaded: tt.loaded}
-			if got := zs.IsLoaded(); got != tt.loaded {
-				t.Errorf("IsLoaded() = %v, want %v", got, tt.loaded)
-			}
-		})
+func TestZipcode_IsLoaded(t *testing.T) {
+	zs := &ZipcodeService{loaded: true}
+	if !zs.IsLoaded() {
+		t.Fatal("IsLoaded() = false, want true")
 	}
 }

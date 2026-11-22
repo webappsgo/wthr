@@ -88,8 +88,8 @@ func DropinDir(configPath string) string {
 // listDropinFiles returns the usable drop-in files in byte-wise filename order.
 // Only *.yml and *.yaml regular files qualify; hidden files, backups, other
 // extensions and subdirectories are ignored. A symlink is followed only when
-// its target stays inside the directory, and a file that is group or world
-// writable is refused.
+// its target stays inside the directory, and file permissions are repaired
+// to 0600 before the file is accepted.
 func listDropinFiles(dir string) (files, warnings []string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -134,9 +134,16 @@ func listDropinFiles(dir string) (files, warnings []string) {
 		if !info.Mode().IsRegular() {
 			continue
 		}
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0o022 != 0 {
-			warnings = append(warnings, fmt.Sprintf("%s/%s: refused, the file is group or world writable", DropinDirName, name))
-			continue
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+			if err := os.Chmod(path, 0o600); err != nil {
+				warnings = append(warnings, fmt.Sprintf("%s/%s: refused, could not set mode 0600: %v", DropinDirName, name, err))
+				continue
+			}
+			info, err = os.Stat(path)
+			if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+				warnings = append(warnings, fmt.Sprintf("%s/%s: refused, could not verify mode 0600", DropinDirName, name))
+				continue
+			}
 		}
 		files = append(files, path)
 	}
@@ -362,7 +369,7 @@ func applyLayers(cfg *AppConfig, merged *yaml.Node) error {
 // dropinOwnedKeys returns the dotted leaf keys that the current drop-in files
 // set, mapped to the file that owns each, read fresh from disk.
 func dropinOwnedKeys(configPath string) map[string]string {
-	owned := map[string]string{}
+	owned := brandingAreaOwnedKeys()
 	if configPath == "" {
 		return owned
 	}
@@ -415,7 +422,7 @@ func pruneOwned(node *yaml.Node, prefix string, owned map[string]string) bool {
 		if prefix != "" {
 			path = prefix + "." + key.Value
 		}
-		if _, hit := owned[path]; hit && value.Kind != yaml.MappingNode {
+		if _, hit := owned[path]; hit {
 			continue
 		}
 		if value.Kind == yaml.MappingNode && pruneOwned(value, path, owned) {

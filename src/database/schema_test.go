@@ -39,7 +39,7 @@ func TestDB_HealthCheck(t *testing.T) {
 
 	t.Run("disconnected reports error", func(t *testing.T) {
 		db := newSchemaDB(t, "healthcheck_closed")
-		db.Close()
+		_ = db.Close()
 		status, _, err := db.HealthCheck()
 		if err == nil {
 			t.Fatal("HealthCheck on closed db = nil error, want error")

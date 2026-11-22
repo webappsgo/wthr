@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +21,8 @@ import (
 	"github.com/go-acme/lego/v4/challenge/tlsalpn01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // ChallengeCertSink receives the certificate a TLS-ALPN-01 validation handshake must be
@@ -362,7 +363,6 @@ func (s *LetsEncryptService) RenewCertificate(domain string, challengeType strin
 	if err := s.saveCertificate(domain, renewed); err != nil {
 		return nil, fmt.Errorf("failed to save renewed certificate: %w", err)
 	}
-
 	return renewed, nil
 }
 
@@ -570,20 +570,5 @@ func saveUser(user *LEUser, certsDir string) error {
 // valid in a hostname, so a malformed/hostile domain can never introduce
 // path separators or traversal sequences into the certificate file path.
 func sanitizeDomain(domain string) string {
-	domain = strings.ReplaceAll(domain, "*", "_wildcard_")
-	var b strings.Builder
-	for _, r := range domain {
-		switch {
-		case r >= 'a' && r <= 'z',
-			r >= 'A' && r <= 'Z',
-			r >= '0' && r <= '9',
-			r == '-', r == '.', r == '_':
-			b.WriteRune(r)
-		default:
-			b.WriteRune('_')
-		}
-	}
-	sanitized := b.String()
-	sanitized = strings.ReplaceAll(sanitized, "..", "__")
-	return sanitized
+	return util.CertDirName(domain)
 }

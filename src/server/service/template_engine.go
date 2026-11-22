@@ -209,7 +209,11 @@ func (te *TemplateEngine) ListTemplates(channelType string) ([]*NotificationTemp
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification template rows: %v", err)
+		}
+	}()
 
 	var templates []*NotificationTemplate
 	for rows.Next() {

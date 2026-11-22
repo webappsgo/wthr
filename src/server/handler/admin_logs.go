@@ -3,7 +3,9 @@ package handler
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/server/lifecycle"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -25,6 +28,76 @@ func NewLogsHandler(logsDir string) *LogsHandler {
 		logsDir: logsDir,
 		logFile: filepath.Join(logsDir, "wthr.log"),
 	}
+}
+
+// ShowLogsPage renders log entries and filtering controls in HTML for no-JavaScript use.
+func (h *LogsHandler) ShowLogsPage(w http.ResponseWriter, r *http.Request) {
+	tail := 250
+	tailValue := r.URL.Query().Get("tail")
+	if tailValue == "" {
+		tailValue = "250"
+	}
+	if raw := tailValue; raw != "" {
+		if raw == "all" {
+			tail = -1
+		} else if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 1000 {
+			tail = parsed
+		}
+	}
+	if tail == -1 {
+		tailValue = "all"
+	} else {
+		tailValue = strconv.Itoa(tail)
+	}
+	entries, err := h.readLogs(tail)
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_read_logs"))
+		return
+	}
+	level := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("level")))
+	source := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("source")))
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	filtered := make([]LogEntry, 0, len(entries))
+	errorCount, warningCount := 0, 0
+	for _, entry := range entries {
+		if level != "" && level != "ALL" && entry.Level != level {
+			continue
+		}
+		if source != "" && source != "all" && !strings.EqualFold(entry.Source, source) {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(entry.Message), strings.ToLower(query)) {
+			continue
+		}
+		filtered = append(filtered, entry)
+		if entry.Level == "ERROR" || entry.Level == "FATAL" {
+			errorCount++
+		}
+		if entry.Level == "WARN" {
+			warningCount++
+		}
+	}
+	data := AdminTemplateData(r, map[string]interface{}{
+		"title": "System Logs - Admin", "page": "logs", "breadcrumb": "System Logs",
+		"logs": filtered, "total": len(entries), "filtered": len(filtered), "errors": errorCount, "warnings": warningCount,
+		"level": level, "source": source, "query": query, "tail": tailValue,
+		"cleared":     r.URL.Query().Get("cleared") == "1",
+		"clear_error": r.URL.Query().Get("clear_error") == "1",
+	})
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_logs.tmpl", data)
+}
+
+// ClearLogsForm clears the current application log through the session-authenticated form route.
+func (h *LogsHandler) ClearLogsForm(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || r.Form.Get("confirm") != "yes" {
+		http.Redirect(w, r, adminPagePath(r, "/logs")+"?clear_error=1", http.StatusSeeOther)
+		return
+	}
+	if err := os.Truncate(h.logFile, 0); err != nil {
+		http.Redirect(w, r, adminPagePath(r, "/logs")+"?clear_error=1", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, adminPagePath(r, "/logs")+"?cleared=1", http.StatusSeeOther)
 }
 
 type LogEntry struct {
@@ -158,7 +231,9 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	defer ticker.Stop()
 
 	// AI.md PART 8: clients reconnect with a 3s base delay after a clean close
-	fmt.Fprint(w, "retry: 3000\n\n")
+	if _, err := fmt.Fprint(w, "retry: 3000\n\n"); err != nil {
+		return
+	}
 	flusher.Flush()
 
 	for {
@@ -166,7 +241,9 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-lifecycle.Done():
-			fmt.Fprint(w, "event: shutdown\ndata: {}\n\n")
+			if _, err := fmt.Fprint(w, "event: shutdown\ndata: {}\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 			return
 		case <-ticker.C:
@@ -183,18 +260,27 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				file.Seek(lastSize, 0)
+				if _, err := file.Seek(lastSize, 0); err != nil {
+					_ = file.Close()
+					return
+				}
 				scanner := bufio.NewScanner(file)
 
 				for scanner.Scan() {
 					line := scanner.Text()
 					if line != "" {
 						entry := h.parseLine(line)
-						writeSSEEvent(w, "log", entry)
+						if err := writeSSEEvent(w, "log", entry); err != nil {
+							_ = file.Close()
+							return
+						}
 					}
 				}
 
-				file.Close()
+				if err := file.Close(); err != nil {
+					log.Printf("WARNING: failed to close streamed log file: %v", err)
+					return
+				}
 				lastSize = fileInfo.Size()
 				flusher.Flush()
 			}
@@ -204,16 +290,17 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 // Helper: write a Server-Sent Event using the standard SSE wire framing
 // ("event: <name>\ndata: <json>\n\n").
-func writeSSEEvent(w http.ResponseWriter, event string, data interface{}) {
+func writeSSEEvent(w http.ResponseWriter, event string, data interface{}) error {
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return
+		return err
 	}
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, payload)
+	_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, payload)
+	return err
 }
 
 // Helper: Read logs from file
-func (h *LogsHandler) readLogs(tailLines int) ([]LogEntry, error) {
+func (h *LogsHandler) readLogs(tailLines int) (result []LogEntry, retErr error) {
 	// Check if log file exists
 	if _, err := os.Stat(h.logFile); os.IsNotExist(err) {
 		// Return empty logs if file doesn't exist yet
@@ -224,7 +311,7 @@ func (h *LogsHandler) readLogs(tailLines int) ([]LogEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { retErr = errors.Join(retErr, file.Close()) }()
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
@@ -331,18 +418,18 @@ func (h *LogsHandler) ListArchivedLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper: Copy file
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (retErr error) {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { retErr = errors.Join(retErr, sourceFile.Close()) }()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { retErr = errors.Join(retErr, destFile.Close()) }()
 
 	_, err = destFile.ReadFrom(sourceFile)
 	return err
@@ -517,7 +604,7 @@ func (h *LogsHandler) GetAuditStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper: Read audit logs from file
-func (h *LogsHandler) readAuditLogs(filePath string, limit, offset int, eventType, username, startDate, endDate string) ([]service.AuditEvent, int, error) {
+func (h *LogsHandler) readAuditLogs(filePath string, limit, offset int, eventType, username, startDate, endDate string) (events []service.AuditEvent, count int, retErr error) {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		// Return empty events if file doesn't exist yet
@@ -528,7 +615,7 @@ func (h *LogsHandler) readAuditLogs(filePath string, limit, offset int, eventTyp
 	if err != nil {
 		return nil, 0, err
 	}
-	defer file.Close()
+	defer func() { retErr = errors.Join(retErr, file.Close()) }()
 
 	var allEvents []service.AuditEvent
 	scanner := bufio.NewScanner(file)
@@ -601,7 +688,7 @@ func (h *LogsHandler) searchAuditLogs(filePath string, searchReq struct {
 	Success   *bool  `json:"success"`
 	Limit     int    `json:"limit"`
 	Offset    int    `json:"offset"`
-}) ([]service.AuditEvent, int, error) {
+}) (events []service.AuditEvent, count int, retErr error) {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return []service.AuditEvent{}, 0, nil
@@ -611,7 +698,7 @@ func (h *LogsHandler) searchAuditLogs(filePath string, searchReq struct {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer file.Close()
+	defer func() { retErr = errors.Join(retErr, file.Close()) }()
 
 	var allEvents []service.AuditEvent
 	scanner := bufio.NewScanner(file)

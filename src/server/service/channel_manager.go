@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/webappsgo/wthr/src/database"
@@ -193,7 +194,11 @@ func (cm *ChannelManager) ListEnabledChannels() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close enabled notification channel rows: %v", err)
+		}
+	}()
 
 	var channels []string
 	for rows.Next() {
@@ -252,7 +257,7 @@ func (cm *ChannelManager) TestChannel(channelType, recipient string) error {
 	}
 
 	// Update state to testing
-	cm.UpdateChannelState(channelType, "testing")
+	_ = cm.UpdateChannelState(channelType, "testing")
 
 	// Run test
 	err = channel.Test(recipient)

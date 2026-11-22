@@ -70,7 +70,7 @@ func (p *PIDFile) CheckStalePID() (bool, int, error) {
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
 		// Invalid PID file - remove it
-		os.Remove(p.Path)
+		_ = os.Remove(p.Path)
 		return false, 0, fmt.Errorf("invalid PID in file %s: %s (removed stale file)", p.Path, pidStr)
 	}
 
@@ -85,7 +85,7 @@ func (p *PIDFile) CheckStalePID() (bool, int, error) {
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		// Process doesn't exist - remove stale PID file
-		os.Remove(p.Path)
+		_ = os.Remove(p.Path)
 		return false, 0, nil
 	}
 
@@ -93,13 +93,13 @@ func (p *PIDFile) CheckStalePID() (bool, int, error) {
 	err = process.Signal(syscall.Signal(0))
 	if err != nil && !errors.Is(err, syscall.EPERM) {
 		// Process doesn't exist - remove stale PID file
-		os.Remove(p.Path)
+		_ = os.Remove(p.Path)
 		return false, pid, nil
 	}
 
 	// The PID may have been reused by another program; only our own binary counts
 	if !isOurProcess(pid) {
-		os.Remove(p.Path)
+		_ = os.Remove(p.Path)
 		return false, pid, nil
 	}
 

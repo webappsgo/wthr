@@ -27,7 +27,7 @@ func TestInitServerDB_NewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initServerDB: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	stats := db.Stats()
 	if stats.MaxOpenConnections != poolMaxOpen {
@@ -50,7 +50,7 @@ func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open legacy database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	if _, err := db.Exec(`
 		CREATE TABLE admin_sessions (
 			id TEXT PRIMARY KEY,
@@ -59,6 +59,9 @@ func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
 			created_at DATETIME
 		);
 		CREATE TABLE audit_log (ulid TEXT PRIMARY KEY);
+		CREATE TABLE server_blocklists (id INTEGER PRIMARY KEY, type TEXT, value TEXT);
+		CREATE TABLE server_join_tokens (token TEXT PRIMARY KEY, expires_at DATETIME);
+		CREATE TABLE server_nodes (node_id TEXT PRIMARY KEY);
 		INSERT INTO admin_sessions (id, admin_id, expires_at)
 		VALUES ('legacy-raw-admin-cookie', 1, '2030-01-01 00:00:00');
 	`); err != nil {
@@ -111,7 +114,7 @@ func TestInitUsersDB_NewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initUsersDB: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	stats := db.Stats()
 	if stats.MaxOpenConnections != poolMaxOpen {
@@ -139,6 +142,10 @@ func TestApplySchemaUpdates_AddsMissingColumns(t *testing.T) {
 	db := newSchemaDB(t, "schemaupdates")
 
 	if _, err := db.Exec(`
+		CREATE TABLE admins (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT NOT NULL
+		);
 		CREATE TABLE user_sessions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			user_id INTEGER NOT NULL,
@@ -219,7 +226,7 @@ func TestInitDualDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitDualDB: %v", err)
 	}
-	t.Cleanup(func() { ddb.Close() })
+	t.Cleanup(func() { _ = ddb.Close() })
 
 	if ddb.Server == nil || ddb.Users == nil {
 		t.Fatal("InitDualDB returned nil Server or Users db")
@@ -263,7 +270,7 @@ func TestDualDB_HealthCheck_ServerDown(t *testing.T) {
 		Server: mustOpenMem(t, "hcserver"),
 		Users:  mustOpenMem(t, "hcusers"),
 	}
-	ddb.Server.Close()
+	_ = ddb.Server.Close()
 
 	status, _, err := ddb.HealthCheck()
 	if err == nil {
@@ -282,7 +289,7 @@ func TestDualDB_HealthCheck_UsersDown(t *testing.T) {
 		Server: mustOpenMem(t, "hc2server"),
 		Users:  mustOpenMem(t, "hc2users"),
 	}
-	ddb.Users.Close()
+	_ = ddb.Users.Close()
 
 	status, _, err := ddb.HealthCheck()
 	if err == nil {
@@ -325,7 +332,7 @@ func TestDualDB_GettersAndWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryServer: %v", err)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	if _, err := ddb.ExecUsers("CREATE TABLE u (id INTEGER PRIMARY KEY)"); err != nil {
 		t.Fatalf("ExecUsers: %v", err)
@@ -340,7 +347,7 @@ func TestDualDB_GettersAndWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryUsers: %v", err)
 	}
-	rows.Close()
+	_ = rows.Close()
 }
 
 // mustOpenMem is a small local alias for openMemDB to make each dual_db

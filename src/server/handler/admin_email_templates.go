@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -277,7 +278,9 @@ func (h *EmailTemplateHandler) ExportTemplate(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.json", templateName))
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(template)
+	if err := json.NewEncoder(w).Encode(template); err != nil {
+		log.Printf("WARNING: failed to export email template %q: %v", templateName, err)
+	}
 }
 
 // ImportTemplate imports a template from JSON

@@ -37,12 +37,16 @@ func setupTestDB(t *testing.T) *sql.DB {
 	}
 
 	if _, err := db.Exec(database.UsersSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("Failed to apply UsersSchema: %v", err)
 	}
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("Failed to apply ServerSchema: %v", err)
 	}
 
@@ -51,7 +55,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestUserNotificationModel_Create(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -141,7 +149,11 @@ func TestUserNotificationModel_Create(t *testing.T) {
 
 func TestUserNotificationModel_GetByID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -197,7 +209,11 @@ func TestUserNotificationModel_GetByID(t *testing.T) {
 
 func TestUserNotificationModel_MarkAsRead(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -226,7 +242,11 @@ func TestUserNotificationModel_MarkAsRead(t *testing.T) {
 
 func TestUserNotificationModel_GetUnreadCount(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -251,7 +271,11 @@ func TestUserNotificationModel_GetUnreadCount(t *testing.T) {
 
 func TestUserNotificationModel_CleanupExpired(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -287,7 +311,11 @@ func TestUserNotificationModel_CleanupExpired(t *testing.T) {
 
 func TestUserNotificationModel_EnforceLimit(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -324,10 +352,14 @@ func TestUserNotificationModel_EnforceLimit(t *testing.T) {
 
 func TestNotificationPreferencesModel_GetUserPreferences(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	serverDB := setupTestDB(t)
-	defer serverDB.Close()
+	defer func() { _ = serverDB.Close() }()
 
 	model := &NotificationPreferencesModel{UserDB: db}
 
@@ -363,10 +395,14 @@ func TestNotificationPreferencesModel_GetUserPreferences(t *testing.T) {
 
 func TestNotificationPreferencesModel_UpdateUserPreferences(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	serverDB := setupTestDB(t)
-	defer serverDB.Close()
+	defer func() { _ = serverDB.Close() }()
 
 	model := &NotificationPreferencesModel{UserDB: db}
 
@@ -405,7 +441,11 @@ func TestNotificationPreferencesModel_UpdateUserPreferences(t *testing.T) {
 
 func TestAdminNotificationModel_Create(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &AdminNotificationModel{DB: db}
 
@@ -427,7 +467,11 @@ func TestAdminNotificationModel_Create(t *testing.T) {
 
 func TestUserNotificationModel_GetStatistics(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 
@@ -554,7 +598,11 @@ func TestUserNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 	for _, tc := range notificationExpiryCases {
 		t.Run(tc.name, func(t *testing.T) {
 			db := setupTestDB(t)
-			defer db.Close()
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Errorf("close test database: %v", err)
+				}
+			})
 
 			model := &UserNotificationModel{DB: db}
 			insertNotificationExpiryFixture(t, db, "user_notifications", "user_id", "fixture-user-1", 42, tc.expiresAt(time.Now().UTC()))
@@ -609,7 +657,11 @@ func TestAdminNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 	for _, tc := range notificationExpiryCases {
 		t.Run(tc.name, func(t *testing.T) {
 			db := setupTestDB(t)
-			defer db.Close()
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Errorf("close test database: %v", err)
+				}
+			})
 
 			model := &AdminNotificationModel{DB: db}
 			insertNotificationExpiryFixture(t, db, "admin_notifications", "admin_id", "fixture-admin-1", 7, tc.expiresAt(time.Now().UTC()))
@@ -666,7 +718,11 @@ func TestAdminNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 // test would have consumed a slot on a row the caller must never see.
 func TestNotificationPaginationSkipsExpiredRowsBeforeWindowing(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	model := &UserNotificationModel{DB: db}
 	now := time.Now().UTC()

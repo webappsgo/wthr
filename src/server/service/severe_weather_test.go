@@ -401,6 +401,8 @@ func TestMapJapaneseWarningType(t *testing.T) {
 		{"heavy rain", "大雨", "Heavy Rain Warning"},
 		{"tsunami", "津波", "Tsunami Warning"},
 		{"typhoon", "台風", "Typhoon Warning"},
+		{"R8 warning code", "03", "Level 3 Heavy Rain Warning"},
+		{"R8 danger code", "49", "Level 4 Landslide Danger Warning"},
 		{"unknown falls back", "未知", "未知 Warning"},
 	}
 	for _, tt := range tests {
@@ -409,6 +411,25 @@ func TestMapJapaneseWarningType(t *testing.T) {
 				t.Errorf("mapJapaneseWarningType(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseJMAWarningMapUsesLatestAreaAndWarningStatus(t *testing.T) {
+	body := []byte(`[
+		{"dataTypeCode":"VPWW58","reportDatetime":"2026-11-21T09:00:00+09:00","publishingOffice":"Tokyo","warning":{"class10Items":[{"areaCode":"130010","kinds":[{"code":"15","status":"発表"}]}]}},
+		{"dataTypeCode":"VPWW58","reportDatetime":"2026-11-21T10:00:00+09:00","publishingOffice":"Tokyo","warning":{"class10Items":[{"areaCode":"130010","kinds":[{"code":"15","status":"解除"},{"code":"49","status":"継続"}]}]}},
+		{"dataTypeCode":"VPWW58","reportDatetime":"2026-11-21T08:00:00+09:00","publishingOffice":"Tokyo","warning":{"class10Items":[{"areaCode":"130010","kinds":[{"code":"03","status":"発表"}]}]}},
+		{"dataTypeCode":"VPWW58","reportDatetime":"2026-11-21T10:30:00+09:00","publishingOffice":"Tokyo","warning":{"class10Items":[{"areaCode":"130010","kinds":[{"code":"03","status":"解除"}]}]}}
+	]`)
+	alerts, err := parseJMAWarningMap(body)
+	if err != nil {
+		t.Fatalf("parseJMAWarningMap() error = %v", err)
+	}
+	if len(alerts) != 1 {
+		t.Fatalf("len(alerts) = %d, want only the latest active warning", len(alerts))
+	}
+	if alerts[0].Event != "Level 4 Landslide Danger Warning" || alerts[0].Severity != "Extreme" || alerts[0].AreaDesc != "Tokyo (130010)" {
+		t.Errorf("alert = %+v", alerts[0])
 	}
 }
 
@@ -526,19 +547,15 @@ func TestSevereWeatherService_fetchNOAAStorms(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed json treated as no storms", func(t *testing.T) {
+	t.Run("malformed json returns an error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`not json`))
 		}))
 		defer server.Close()
 
 		s := newTestSevereWeatherService()
-		storms, err := s.fetchNOAAStorms(server.URL)
-		if err != nil {
-			t.Fatalf("fetchNOAAStorms returned error for malformed json: %v", err)
-		}
-		if len(storms) != 0 {
-			t.Errorf("len(storms) = %d, want 0 for malformed json", len(storms))
+		if _, err := s.fetchNOAAStorms(server.URL); err == nil {
+			t.Fatal("expected error for malformed JSON")
 		}
 	})
 }

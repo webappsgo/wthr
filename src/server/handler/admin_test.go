@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
@@ -47,6 +50,11 @@ func withReqCtxValue(r *http.Request, key string, value interface{}) *http.Reque
 // database.GetServerDB()/GetUsersDB() rather than the injected field.
 func newAdminTestHandler(t *testing.T) (*AdminHandler, *sql.DB, *sql.DB) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
@@ -278,13 +286,11 @@ func TestAdminHandler_UpdateUserPassword(t *testing.T) {
 	})
 }
 
-// TestAdminHandler_ListSettings_GetSetting_UpdateSetting exercises the
-// server_config-backed settings endpoints end to end, since they correctly
-// match the real ServerSchema (no schema-mismatch bugs found here).
+// TestAdminHandler_ListSettings_GetSetting_UpdateSetting exercises settings
+// endpoints backed by the canonical YAML configuration files.
 func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
-	h, serverDB, _ := newAdminTestHandler(t)
-	if _, err := serverDB.Exec(`INSERT INTO server_config (key, value, type, description) VALUES (?, ?, ?, ?)`,
-		"server.title", "Weather", "string", "site title"); err != nil {
+	h, _, _ := newAdminTestHandler(t)
+	if err := config.WriteSetting("server.branding.title", "Weather"); err != nil {
 		t.Fatalf("seed setting: %v", err)
 	}
 
@@ -298,14 +304,20 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &settings); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if len(settings) != 1 || settings[0]["key"] != "server.title" {
-			t.Fatalf("unexpected settings payload: %+v", settings)
+		found := false
+		for _, setting := range settings {
+			if setting["key"] == "server.branding.title" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("settings payload omitted server.branding.title: %+v", settings)
 		}
 	})
 
 	t.Run("GetSetting found", func(t *testing.T) {
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings/server.title")
-		r = setURLParam(r, "key", "server.title")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings/server.branding.title")
+		r = setURLParam(r, "key", "server.branding.title")
 		h.GetSetting(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -322,8 +334,8 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("UpdateSetting success", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.title", map[string]interface{}{"value": "New Title"})
-		r = setURLParam(r, "key", "server.title")
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.branding.title", map[string]interface{}{"value": "New Title"})
+		r = setURLParam(r, "key", "server.branding.title")
 		h.UpdateSetting(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -331,8 +343,8 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("UpdateSetting missing value returns 400", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.title", map[string]interface{}{})
-		r = setURLParam(r, "key", "server.title")
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.branding.title", map[string]interface{}{})
+		r = setURLParam(r, "key", "server.branding.title")
 		h.UpdateSetting(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())

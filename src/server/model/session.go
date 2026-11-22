@@ -57,11 +57,12 @@ func deleteRowsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn 
 // ID holds the raw bearer token (what the browser cookie contains).
 // The token is never stored in plaintext — only its SHA-256 hash is persisted.
 type Session struct {
-	ID        string                 `json:"id"`
-	UserID    int                    `json:"user_id"`
-	Data      map[string]interface{} `json:"data,omitempty"`
-	ExpiresAt time.Time              `json:"expires_at"`
-	CreatedAt time.Time              `json:"created_at"`
+	ID         string                 `json:"id"`
+	UserID     int                    `json:"user_id"`
+	Data       map[string]interface{} `json:"data,omitempty"`
+	ExpiresAt  time.Time              `json:"expires_at"`
+	CreatedAt  time.Time              `json:"created_at"`
+	LastUsedAt time.Time              `json:"last_used_at"`
 }
 
 // SessionModel handles session database operations
@@ -160,11 +161,12 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	// session.
 	var storedExpiresAt interface{}
 	var storedCreatedAt interface{}
+	var storedLastUsedAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT token_hash, user_id, data, expires_at, created_at
+		SELECT token_hash, user_id, data, expires_at, created_at, last_used_at
 		FROM user_sessions WHERE token_hash = ?
-	`, hashToken(rawToken)).Scan(&session.ID, &session.UserID, &dataJSON, &storedExpiresAt, &storedCreatedAt)
+	`, hashToken(rawToken)).Scan(&session.ID, &session.UserID, &dataJSON, &storedExpiresAt, &storedCreatedAt, &storedLastUsedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("session not found")
@@ -179,6 +181,11 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 
 	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
 		session.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastUsedAt); ok {
+		session.LastUsedAt = parsed
+	} else {
+		session.LastUsedAt = session.CreatedAt
 	}
 
 	// Check if session is expired. An expires_at this project cannot parse fails
@@ -202,6 +209,13 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	}
 
 	return session, nil
+}
+
+// Touch records activity without extending the absolute session lifetime.
+func (m *SessionModel) Touch(rawToken string) error {
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite,
+		`UPDATE user_sessions SET last_used_at = ? WHERE token_hash = ?`, sqlTimestamp(time.Now()), hashToken(rawToken))
+	return err
 }
 
 // UpdateData stores arbitrary key-value data on the session (used for 2FA

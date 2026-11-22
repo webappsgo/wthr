@@ -53,7 +53,11 @@ func TestTaskHistoryTableComesFromServerSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read table info: %v", err)
 	}
-	defer rows.Close()
+	t.Cleanup(func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close scheduler schema rows: %v", err)
+		}
+	})
 
 	var columns []string
 	for rows.Next() {

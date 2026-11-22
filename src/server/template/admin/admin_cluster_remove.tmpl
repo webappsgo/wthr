@@ -1,0 +1,20 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+<div class="admin-header">
+  <h1>Remove This Node</h1>
+  <p class="admin-page-intro">This action removes only this node from cluster membership.</p>
+</div>
+<section class="admin-section" aria-labelledby="cluster-remove-heading">
+  <h2 id="cluster-remove-heading">Return this node to standalone mode?</h2>
+  <p>Shared database and cache settings will be removed from this node. Its local SQLite database files will be replaced with fresh databases on restart.</p>
+  <form method="post" action="{{$ap}}/cluster/remove">
+    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+    <button class="btn btn-danger" type="submit">Remove This Node from Cluster</button>
+    <a class="btn btn-secondary" href="{{$ap}}/cluster/nodes">Cancel</a>
+  </form>
+</section>
+{{template "admin_footer" .}}

@@ -138,7 +138,7 @@ func (h *PreferencesHandler) SavePreferences(w http.ResponseWriter, r *http.Requ
 	result, applied, ignored := applyGuestPreferences(w, r, values)
 	w.Header().Set("Cache-Control", "no-store")
 	if isPreferencesAPIRequest(r) {
-		if len(applied) == 0 && !(middleware.GPCOptOut(r) && len(values) > 0) {
+		if len(applied) == 0 && (!middleware.GPCOptOut(r) || len(values) <= 0) {
 			RespondError(w, r, http.StatusBadRequest, ErrValidationFailed, "No supplied preference value was valid")
 			return
 		}
@@ -367,7 +367,7 @@ func (h *PreferencesHandler) ExportPreferences(w http.ResponseWriter, r *http.Re
 		writePreferenceData(w, map[string]interface{}{"theme": state.Theme, "lang": state.Lang, "prefs": state.Prefs, "url": fullURL, "code": code})
 	case strings.Contains(r.Header.Get("Accept"), "text/plain"):
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintf(w, "URL: %s\nCode: %s\n", fullURL, code)
+		_, _ = fmt.Fprintf(w, "URL: %s\nCode: %s\n", fullURL, code)
 	default:
 		w.Header().Set("Cache-Control", "no-store")
 		NegotiateResponse(w, r, "page/preferences.tmpl", map[string]interface{}{"page": "preferences", "theme": state.Theme, "preferences_url": fullURL, "preferences_code": code})
@@ -384,6 +384,15 @@ func (h *PreferencesHandler) ExportCurrentPreferences(w http.ResponseWriter, r *
 // ImportPreferences applies a share URL or code using the same validator as save.
 func (h *PreferencesHandler) ImportPreferences(w http.ResponseWriter, r *http.Request) {
 	direct := cloneValues(r.URL.Query())
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err == nil {
+			for key, values := range r.PostForm {
+				if _, exists := direct[key]; !exists {
+					direct[key] = append([]string(nil), values...)
+				}
+			}
+		}
+	}
 	values := cloneValues(direct)
 	if code := strings.TrimSpace(direct.Get("code")); len(code) <= 2048 && code != "" {
 		if i := strings.IndexByte(code, '?'); i >= 0 {

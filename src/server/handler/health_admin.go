@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -77,6 +78,10 @@ func buildAdminServerStatusResponse(db *database.DB, r *http.Request, httpPort s
 	schedulerStatus := getSchedulerStatus()
 	requestStats := getRequestStats()
 	serverInfo := getServerInfo(r, httpPort, httpsPort, sslManager)
+	databaseType := "sqlite"
+	if database.IsRemoteDatabase(database.GetServerDB()) {
+		databaseType = database.RemoteDatabaseDialect(database.GetServerDB())
+	}
 
 	response := map[string]interface{}{
 		"status":         overallStatus,
@@ -86,7 +91,7 @@ func buildAdminServerStatusResponse(db *database.DB, r *http.Request, httpPort s
 		"checks": map[string]interface{}{
 			"database": map[string]interface{}{
 				"status":     dbStatus,
-				"type":       "sqlite",
+				"type":       databaseType,
 				"latency_ms": dbLatency,
 			},
 			"initialization": map[string]interface{}{
@@ -309,7 +314,11 @@ func getRequestStats() map[string]interface{} {
 		WHERE timestamp IS NOT NULL
 	`)
 	if err == nil {
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				log.Printf("WARNING: failed to close admin audit health rows: %v", err)
+			}
+		}()
 
 		for rows.Next() {
 			var status string

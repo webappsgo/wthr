@@ -1,15 +1,15 @@
 package model
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
-	"github.com/webappsgo/wthr/src/path"
 )
 
 // Setting represents a configuration setting
@@ -28,40 +28,20 @@ type Setting struct {
 
 // SettingsModel handles settings operations
 type SettingsModel struct {
-	// DB must be the SERVER database handle (server.db) since server_config
-	// lives in database.ServerSchema, not the users database.
+	// DB is retained for source compatibility. Settings use the config files.
 	DB *sql.DB
-}
-
-// getDB returns the server.db handle this model was constructed with. The only
-// table SettingsModel touches (server_config) is declared in
-// database.ServerSchema, so the injected handle is the correct database for
-// every query below.
-// Fallback: when the injected handle is nil (unit tests, or construction
-// before the global dual DB is wired) the process-global server handle is used
-// instead, so a nil handle degrades to the previous behavior rather than
-// panicking.
-func (m *SettingsModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
-	}
-
-	return database.GetServerDB()
 }
 
 // GetSetting retrieves a setting by key
 func (m *SettingsModel) GetSetting(key string) (*Setting, error) {
-	setting := &Setting{}
-	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect,
-		"SELECT key, value, type FROM server_config WHERE key = ?",
-		key,
-	).Scan(&setting.Key, &setting.Value, &setting.Type)
-
+	value, exists, err := config.ReadSetting(key)
 	if err != nil {
 		return nil, err
 	}
-
-	return setting, nil
+	if !exists {
+		return nil, sql.ErrNoRows
+	}
+	return settingFromValue(key, value), nil
 }
 
 // GetString retrieves a setting value as string
@@ -94,7 +74,7 @@ func (m *SettingsModel) GetBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 
-	return setting.Value == "true" || setting.Value == "1"
+	return config.IsTruthy(setting.Value)
 }
 
 // GetJSON retrieves a setting value as JSON
@@ -109,24 +89,19 @@ func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
 
 // SetSetting creates or updates a setting
 func (m *SettingsModel) SetSetting(key, value, settingType string) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO server_config (key, value, type)
-		VALUES (?, ?, ?)
-		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?
-	`, key, value, settingType, value, settingType)
-
-	return err
+	var decoded any = value
+	switch settingType {
+	case "number", "boolean", "json":
+		if err := json.Unmarshal([]byte(value), &decoded); err != nil {
+			return fmt.Errorf("invalid %s setting %s: %w", settingType, key, err)
+		}
+	}
+	return config.WriteSetting(key, decoded)
 }
 
 // SetWithDescription sets a setting with description
 func (m *SettingsModel) SetWithDescription(key, value, settingType, description string) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO server_config (key, value, type, description)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?, description = ?
-	`, key, value, settingType, description, value, settingType, description)
-
-	return err
+	return m.SetSetting(key, value, settingType)
 }
 
 // SetString sets a string setting
@@ -159,235 +134,79 @@ func (m *SettingsModel) SetJSON(key string, value interface{}) error {
 
 // DeleteSetting removes a setting
 func (m *SettingsModel) DeleteSetting(key string) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
-	return err
+	return config.DeleteSetting(key)
 }
 
 // List returns all settings
 func (m *SettingsModel) List() ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, "SELECT key, value, type FROM server_config ORDER BY key")
+	values, err := config.ReadAllSettings()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var settings []*Setting
-	for rows.Next() {
-		setting := &Setting{}
-		if err := rows.Scan(&setting.Key, &setting.Value, &setting.Type); err != nil {
-			return nil, err
-		}
-		settings = append(settings, setting)
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
 	}
-
-	return settings, rows.Err()
+	sort.Strings(keys)
+	settings := make([]*Setting, 0, len(keys))
+	for _, key := range keys {
+		settings = append(settings, settingFromValue(key, values[key]))
+	}
+	return settings, nil
 }
 
 // ListByPrefix returns all settings with a specific prefix
 func (m *SettingsModel) ListByPrefix(prefix string) ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect,
-		"SELECT key, value, type FROM server_config WHERE key LIKE ? ORDER BY key",
-		prefix+"%",
-	)
+	settings, err := m.List()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var settings []*Setting
-	for rows.Next() {
-		setting := &Setting{}
-		if err := rows.Scan(&setting.Key, &setting.Value, &setting.Type); err != nil {
-			return nil, err
+	filtered := make([]*Setting, 0)
+	for _, setting := range settings {
+		if strings.HasPrefix(setting.Key, prefix) {
+			filtered = append(filtered, setting)
 		}
-		settings = append(settings, setting)
 	}
-
-	return settings, rows.Err()
+	return filtered, nil
 }
 
-// InitializeDefaults sets default values for all settings
-// backupPath is optional - if empty, the resolved backup directory (AI.md PART 8) is the default
-func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
-	defaultBackupPath := path.GetBackupDir()
-	if len(backupPath) > 0 && backupPath[0] != "" {
-		defaultBackupPath = backupPath[0]
-	}
-
-	defaults := map[string]Setting{
-		// Server settings
-		"server.title":         {Value: "Weather", Type: "string", Description: "Application display name shown in the header and page titles"},
-		"server.tagline":       {Value: "Your personal weather dashboard", Type: "string", Description: "Short subtitle or slogan displayed under the title"},
-		"server.description":   {Value: "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.", Type: "string", Description: "Full description shown on about page and in meta tags"},
-		"server.port":          {Value: "64580", Type: "number", Description: "Server listen port (requires restart to apply)"},
-		"server.mode":          {Value: "production", Type: "string", Description: "Server mode: production or development (requires restart)"},
-		"server.fqdn":          {Value: "", Type: "string", Description: "Fully qualified domain name (auto-detected if empty)"},
-		"server.address":       {Value: "[::]", Type: "string", Description: "Server listen address ([::] for all IPv4/IPv6, requires restart)"},
-		"server.daemonize":     {Value: "false", Type: "boolean", Description: "Detach from terminal on start (requires restart, not for systemd/docker)"},
-		"server.pidfile":       {Value: "true", Type: "boolean", Description: "Create PID file for process management (requires restart)"},
-		"server.http_port":     {Value: "0", Type: "number", Description: "HTTP port number (requires restart to apply)"},
-		"server.https_port":    {Value: "0", Type: "number", Description: "HTTPS port number (0 to disable, requires restart)"},
-		"server.https_enabled": {Value: "false", Type: "boolean", Description: "Enable HTTPS/TLS connections"},
-		"server.timezone":      {Value: "America/New_York", Type: "string", Description: "Default server timezone for date/time display"},
-		"server.date_format":   {Value: "US", Type: "string", Description: "Date format: US (Jan 1, 2024), EU (1 Jan 2024), or ISO (2024-01-01)"},
-		"server.time_format":   {Value: "12-hour", Type: "string", Description: "Time format: 12-hour (3:30 PM) or 24-hour (15:30)"},
-
-		// Security settings
-		"security.session_timeout":     {Value: "2592000", Type: "number", Description: "Session timeout in seconds (default: 2592000 = 30 days)"},
-		"security.max_login_attempts":  {Value: "5", Type: "number", Description: "Maximum failed login attempts before account lockout"},
-		"security.lockout_duration":    {Value: "30", Type: "number", Description: "Account lockout duration in minutes after max login attempts"},
-		"security.password_min_length": {Value: "8", Type: "number", Description: "Minimum required password length for user accounts"},
-
-		// security.txt (RFC 9116) settings
-		"security.contact":                       {Value: "", Type: "string", Description: "Security contact (email, URL, or phone) - comma separated for multiple"},
-		"security.expires":                       {Value: "", Type: "string", Description: "security.txt expiration date (RFC3339 format) - auto-renewed yearly"},
-		"security.languages":                     {Value: "en", Type: "string", Description: "Preferred languages for security reports (comma separated)"},
-		"security.canonical":                     {Value: "", Type: "string", Description: "Canonical URL for security.txt - auto-generated if empty"},
-		"security.hiring":                        {Value: "", Type: "string", Description: "URL to security job postings (optional)"},
-		"security.policy_text":                   {Value: "", Type: "string", Description: "Disclosure policy text for /server/security/policy (Markdown); empty shows the default"},
-		"web.security.report_url":                {Value: "", Type: "string", Description: "Primary security.txt Contact: private vulnerability reporting URL (optional)"},
-		"web.security.keyservers":                {Value: "https://keys.openpgp.org", Type: "string", Description: "Keyservers the project PGP public key is published to (comma separated)"},
-		"server.security.reports.retention_days": {Value: "365", Type: "number", Description: "Days after closing before a closed security report is deleted"},
-
-		// Web frontend settings (app.* are aliases for server.* for consistency)
-		"app.name":        {Value: "Weather", Type: "string", Description: "Alias for server.title - Application display name"},
-		"app.tagline":     {Value: "Your personal weather dashboard", Type: "string", Description: "Alias for server.tagline - Short subtitle"},
-		"app.description": {Value: "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.", Type: "string", Description: "Alias for server.description - Full description"},
-
-		// SEO settings
-		"seo.keywords": {Value: "weather, forecast, alerts, temperature, humidity, precipitation", Type: "string", Description: "Meta keywords for search engines (comma-separated)"},
-		"seo.author":   {Value: "", Type: "string", Description: "Website author or organization name"},
-		"seo.og_image": {Value: "", Type: "string", Description: "Social media preview image URL (1200x630px recommended)"},
-
-		// security.txt (RFC 9116)
-		"web.security_txt": {Value: fmt.Sprintf("Contact: mailto:%s\nExpires: %s\nPreferred-Languages: en\nCanonical: {app_url}/.well-known/security.txt", config.DefaultEmailAddress("security", config.GetGlobalConfig()), time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)), Type: "text", Description: "security.txt content (RFC 9116) - {app_url} will be replaced with actual URL"},
-
-		// Features
-		"features.registration_enabled": {Value: "true", Type: "boolean", Description: "Allow new users to register accounts"},
-		"features.api_enabled":          {Value: "true", Type: "boolean", Description: "Enable JSON API endpoints"},
-		"features.weather_alerts":       {Value: "true", Type: "boolean", Description: "Enable weather alert notifications"},
-
-		// Database settings
-		"database.pool_size":     {Value: "25", Type: "number", Description: "Maximum database connection pool size"},
-		"database.timeout":       {Value: "30", Type: "number", Description: "Database query timeout in seconds"},
-		"database.auto_optimize": {Value: "false", Type: "boolean", Description: "Automatically optimize database weekly"},
-
-		// Backup settings
-		"backup.enabled":   {Value: "true", Type: "boolean", Description: "Enable automatic backup system"},
-		"backup.interval":  {Value: "6", Type: "number", Description: "Backup interval in hours"},
-		"backup.retention": {Value: "30", Type: "number", Description: "Number of days to retain backups"},
-		"backup.location":  {Value: defaultBackupPath, Type: "string", Description: "Directory path for storing backups"},
-
-		// Logging settings
-		"logging.level":         {Value: "info", Type: "string", Description: "Log level: debug, info, warn, error"},
-		"logging.format":        {Value: "apache", Type: "string", Description: "Log format: apache, json, or plain"},
-		"logging.access_log":    {Value: "true", Type: "boolean", Description: "Enable HTTP access logging"},
-		"logging.error_log":     {Value: "true", Type: "boolean", Description: "Enable error logging"},
-		"logging.audit_log":     {Value: "true", Type: "boolean", Description: "Enable audit logging for security events"},
-		"logging.rotation_days": {Value: "30", Type: "number", Description: "Number of days to retain log files before rotation"},
-
-		// SMTP settings
-		"smtp.enabled":        {Value: "false", Type: "boolean", Description: "Enable email notifications via SMTP"},
-		"smtp.host":           {Value: "", Type: "string", Description: "SMTP server hostname or IP address"},
-		"smtp.port":           {Value: "587", Type: "number", Description: "SMTP server port (usually 587 for TLS, 465 for SSL)"},
-		"smtp.username":       {Value: "", Type: "string", Description: "SMTP authentication username"},
-		"smtp.password":       {Value: "", Type: "string", Description: "SMTP authentication password"},
-		"smtp.from_address":   {Value: "", Type: "string", Description: "Email address to send notifications from"},
-		"smtp.from_name":      {Value: "", Type: "string", Description: "Display name for sent emails"},
-		"smtp.encryption":     {Value: "tls", Type: "string", Description: "Encryption method: tls (STARTTLS), ssl, or none"},
-		"smtp.use_tls":        {Value: "true", Type: "boolean", Description: "Legacy: Use TLS/STARTTLS for secure SMTP connections"},
-		"smtp.test_recipient": {Value: "", Type: "string", Description: "Test email address for verifying SMTP configuration"},
-
-		// Security headers
-		"security.csp":                {Value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;", Type: "text", Description: "Content-Security-Policy header value"},
-		"security.hsts":               {Value: "max-age=31536000; includeSubDomains", Type: "string", Description: "Strict-Transport-Security header value"},
-		"security.x_frame_options":    {Value: "DENY", Type: "string", Description: "X-Frame-Options header (DENY, SAMEORIGIN, or ALLOW-FROM)"},
-		"security.x_content_type":     {Value: "nosniff", Type: "string", Description: "X-Content-Type-Options header"},
-		"security.referrer_policy":    {Value: "strict-origin-when-cross-origin", Type: "string", Description: "Referrer-Policy header"},
-		"security.permissions_policy": {Value: "geolocation=(), microphone=(), camera=()", Type: "text", Description: "Permissions-Policy header"},
-
-		// CORS settings
-		"security.cors_enabled":     {Value: "false", Type: "boolean", Description: "Enable Cross-Origin Resource Sharing"},
-		"security.cors_origins":     {Value: "*", Type: "text", Description: "Allowed CORS origins (one per line, or * for all)"},
-		"security.cors_methods":     {Value: "GET, POST, PUT, DELETE, OPTIONS", Type: "string", Description: "Allowed HTTP methods for CORS"},
-		"security.cors_headers":     {Value: "Content-Type, Authorization, X-Requested-With", Type: "string", Description: "Allowed request headers for CORS"},
-		"security.cors_credentials": {Value: "false", Type: "boolean", Description: "Allow credentials in CORS requests"},
-		"security.cors_max_age":     {Value: "3600", Type: "number", Description: "CORS preflight cache duration in seconds"},
-
-		// Rate limiting settings
-		"rate_limit.enabled": {Value: "true", Type: "boolean", Description: "Enable rate limiting to prevent abuse"},
-		"rate_limit.global":  {Value: "100", Type: "number", Description: "Global rate limit (requests per second)"},
-		"rate_limit.per_ip":  {Value: "60", Type: "number", Description: "Per-IP rate limit (requests per minute)"},
-		"rate_limit.api":     {Value: "120", Type: "number", Description: "API rate limit (requests per minute)"},
-		"rate_limit.admin":   {Value: "300", Type: "number", Description: "Admin panel rate limit (requests per minute)"},
-		"rate_limit.window":  {Value: "900", Type: "number", Description: "Rate limit window in seconds (default: 900 = 15 minutes)"},
-
-		// SSL/TLS settings
-		"ssl.enabled":       {Value: "false", Type: "boolean", Description: "Enable SSL/TLS for HTTPS connections"},
-		"ssl.cert_file":     {Value: "", Type: "string", Description: "Path to SSL certificate file"},
-		"ssl.key_file":      {Value: "", Type: "string", Description: "Path to SSL private key file"},
-		"ssl.acme_enabled":  {Value: "false", Type: "boolean", Description: "Enable automatic certificate management via ACME (Let's Encrypt)"},
-		"ssl.acme_email":    {Value: "", Type: "string", Description: "Email address for ACME certificate registration"},
-		"ssl.acme_provider": {Value: "letsencrypt", Type: "string", Description: "ACME provider: letsencrypt or zerossl"},
-
-		// Weather settings
-		"weather.refresh_interval": {Value: "1800", Type: "number", Description: "Weather data refresh interval in seconds (default: 1800 = 30 minutes)"},
-		"weather.default_units":    {Value: "auto", Type: "string", Description: "Default units: auto, metric, or imperial"},
-		"weather.cache_enabled":    {Value: "true", Type: "boolean", Description: "Enable weather data caching for faster responses"},
-
-		// Severe weather alerts settings
-		"alerts.enabled":        {Value: "true", Type: "boolean", Description: "Enable severe weather alert monitoring"},
-		"alerts.check_interval": {Value: "900", Type: "number", Description: "Alert check interval in seconds (default: 900 = 15 minutes)"},
-
-		// Notifications settings
-		"notifications.enabled":       {Value: "true", Type: "boolean", Description: "Enable notification system"},
-		"notifications.queue_workers": {Value: "4", Type: "number", Description: "Number of notification queue worker threads"},
-		"notifications.retry_max":     {Value: "3", Type: "number", Description: "Maximum retry attempts for failed notifications"},
-		"notifications.retry_backoff": {Value: "exponential", Type: "string", Description: "Retry backoff strategy: linear or exponential"},
-
-		// GeoIP settings
-		"geoip.enabled":         {Value: "true", Type: "boolean", Description: "Enable GeoIP location detection"},
-		"geoip.update_interval": {Value: "604800", Type: "number", Description: "GeoIP database update interval in seconds (default: 604800 = 7 days)"},
-
-		// CORS settings
-		"cors.enabled":           {Value: "true", Type: "boolean", Description: "Enable Cross-Origin Resource Sharing (CORS)"},
-		"cors.allowed_origins":   {Value: "*", Type: "string", Description: "Allowed CORS origins (comma-separated, * for all)"},
-		"cors.allow_credentials": {Value: "true", Type: "boolean", Description: "Allow credentials in CORS requests"},
-		"cors.max_age":           {Value: "43200", Type: "number", Description: "CORS preflight cache duration in seconds (default: 43200 = 12 hours)"},
-
-		// Scheduler settings
-		"scheduler.enabled":                     {Value: "true", Type: "boolean", Description: "Enable scheduled task system"},
-		"scheduler.cleanup_sessions_interval":   {Value: "3600", Type: "number", Description: "Session cleanup interval in seconds (default: 3600 = 1 hour)"},
-		"scheduler.cleanup_audit_logs_days":     {Value: "90", Type: "number", Description: "Audit log retention in days"},
-		"scheduler.weather_alerts_interval":     {Value: "900", Type: "number", Description: "Weather alerts check interval in seconds (default: 900 = 15 minutes)"},
-		"scheduler.notification_queue_interval": {Value: "120", Type: "number", Description: "Notification queue processing interval in seconds (default: 120 = 2 minutes)"},
-		"scheduler.cleanup_notifications_days":  {Value: "30", Type: "number", Description: "Notification retention in days"},
-		"scheduler.geoip_update_day":            {Value: "sunday", Type: "string", Description: "Day of week for GeoIP database updates"},
-		"scheduler.geoip_update_time":           {Value: "03:00", Type: "string", Description: "Time for GeoIP database updates (HH:MM format)"},
-
-		// Tor hidden service settings (TEMPLATE.md PART 32 - NON-NEGOTIABLE)
-		"tor.enabled":       {Value: "true", Type: "boolean", Description: "Enable Tor hidden service (.onion address)"},
-		"tor.onion_address": {Value: "", Type: "string", Description: "Tor hidden service .onion address (auto-generated)"},
-		"tor.socks_port":    {Value: "9050", Type: "number", Description: "Tor SOCKS5 proxy port"},
-		"tor.control_port":  {Value: "9051", Type: "number", Description: "Tor control port"},
-		"tor.data_dir":      {Value: "", Type: "string", Description: "Tor data directory (auto-set to {data_dir}/tor)"},
-
-		// Historical weather settings
-		"history.enabled":       {Value: "true", Type: "boolean", Description: "Enable historical weather data feature"},
-		"history.default_years": {Value: "10", Type: "number", Description: "Default number of years to display in historical view (5-50)"},
-		"history.min_years":     {Value: "5", Type: "number", Description: "Minimum number of years allowed for historical queries"},
-		"history.max_years":     {Value: "50", Type: "number", Description: "Maximum number of years allowed for historical queries"},
-	}
-
-	for key, setting := range defaults {
-		// Only set if doesn't exist
-		_, err := m.GetSetting(key)
-		if err == sql.ErrNoRows {
-			if err := m.SetWithDescription(key, setting.Value, setting.Type, setting.Description); err != nil {
-				return fmt.Errorf("failed to set default %s: %w", key, err)
-			}
+func settingFromValue(key string, value any) *Setting {
+	setting := &Setting{Key: key}
+	switch typed := value.(type) {
+	case string:
+		setting.Value = typed
+		setting.Type = "string"
+	case bool:
+		setting.Value = fmt.Sprintf("%t", typed)
+		setting.Type = "boolean"
+	case int, int64, uint64, float32, float64:
+		setting.Value = fmt.Sprint(typed)
+		setting.Type = "number"
+	default:
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			setting.Value = "null"
+		} else {
+			setting.Value = string(encoded)
 		}
+		setting.Type = "json"
 	}
+	if dot := strings.IndexByte(key, '.'); dot >= 0 {
+		setting.Category = key[:dot]
+	}
+	return setting
+}
 
-	return nil
+// MigrateLegacyDatabaseSettings moves previously persisted settings into the
+// canonical file that owns each key. Existing file values win and the legacy
+// table is retained until the complete schema migration can remove it.
+func (m *SettingsModel) MigrateLegacyDatabaseSettings() error {
+	db := m.DB
+	if db == nil {
+		db = database.GetServerDB()
+	}
+	if database.IsRemoteDatabase(db) {
+		return nil
+	}
+	return config.MigrateLegacyDatabaseSettings(db)
 }

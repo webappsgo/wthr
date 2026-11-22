@@ -4,14 +4,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 func seedSettings(t *testing.T) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	db := newTestServerDB(t)
 	setGlobalTestDualDB(t, db, db)
+	settings := &model.SettingsModel{DB: db}
 	for _, row := range [][]string{
 		{"demo.title", "Old", "string"},
 		{"demo.count", "5", "number"},
@@ -19,7 +29,7 @@ func seedSettings(t *testing.T) {
 		{"demo.api_password", "keepme", "string"},
 		{"other.title", "Untouched", "string"},
 	} {
-		if _, err := db.Exec(`INSERT INTO server_config (key, value, type, description) VALUES (?, ?, ?, '')`, row[0], row[1], row[2]); err != nil {
+		if err := settings.SetSetting(row[0], row[1], row[2]); err != nil {
 			t.Fatalf("seed %s: %v", row[0], err)
 		}
 	}

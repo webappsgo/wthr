@@ -13,11 +13,39 @@
     <div class="section-header">
       <h2 id="cluster-add-join-heading">{{t $lang "admin.cluster_add.join_heading"}}</h2>
     </div>
+    {{if .error}}<p class="alert alert-danger" role="alert">{{.error}}</p>{{end}}
+    {{if .join_token}}
+    <div class="alert alert-warning" role="status">
+      <p><strong>Copy this one-time token now.</strong> It expires at {{.expires_at}} and will not be shown again.</p>
+      <code>{{.join_token}}</code>
+      <p>On the new node, set <code>CLUSTER_JOIN_URL</code> to this server's versioned <code>/nodes/join</code> API URL and <code>CLUSTER_JOIN_TOKEN</code> to this token, then start the service.</p>
+    </div>
+    {{else if .needs_conversion}}
+    <div class="empty-state">
+      <h3 class="empty-state__title">Enable cluster mode</h3>
+      <p class="empty-state__message">The wizard migrates this instance's local data to shared PostgreSQL or MySQL and configures a shared Valkey or Redis cache.</p>
+      <form method="post" action="{{$ap}}/cluster/add/enable">
+        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        {{if not .remote_database}}
+        <label for="cluster-database-url">PostgreSQL or MySQL connection URL</label>
+        <input id="cluster-database-url" name="database_url" type="password" required autocomplete="new-password" placeholder="postgres://user:password@host:5432/database">
+        {{end}}
+        <label for="cluster-cache-url">Valkey or Redis connection URL</label>
+        <input id="cluster-cache-url" name="cache_url" type="password" required autocomplete="new-password" placeholder="valkey://user:password@host:6379/0">
+        <button class="btn btn-primary" type="submit">Enable Cluster and Generate Token</button>
+      </form>
+    </div>
+    {{else}}
+    {{if .restart_required}}<p class="alert alert-info" role="status">Cluster mode is configured. Restart this node before serving traffic so it switches to the shared database and cache.</p>{{end}}
     <div class="empty-state">
       <p class="empty-state__icon" aria-hidden="true">&#10133;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.cluster_add.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.cluster_add.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/cluster/nodes">{{t $lang "admin.cluster_add.empty_action"}}</a>
+      <h3 class="empty-state__title">Create a one-time join token</h3>
+      <p class="empty-state__message">The new node receives this node's shared database, cache, TLS files, and generated secrets.</p>
+      <form method="post" action="{{$ap}}/cluster/add/token">
+        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        <button class="btn btn-primary" type="submit">Generate Join Token</button>
+      </form>
     </div>
+    {{end}}
   </section>
 {{template "admin_footer" .}}

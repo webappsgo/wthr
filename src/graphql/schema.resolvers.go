@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
 	"sort"
 	"strconv"
@@ -770,7 +771,11 @@ func (r *queryResolver) UserTokens(ctx context.Context) ([]*UserToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user tokens: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL user token rows: %v", err)
+		}
+	}()
 
 	// Each token is carried alongside the instant its created_at resolves to, so the sort below never has to
 	// re-parse the stored text.
@@ -858,7 +863,11 @@ func (r *queryResolver) SavedLocations(ctx context.Context) ([]*models.SavedLoca
 	if err != nil {
 		return nil, fmt.Errorf("failed to get saved locations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL saved location rows: %v", err)
+		}
+	}()
 
 	var locations []*models.SavedLocation
 	for rows.Next() {
@@ -927,7 +936,11 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 	if err != nil {
 		return nil, fmt.Errorf("failed to get notifications: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL notification rows: %v", err)
+		}
+	}()
 
 	var notifications []*models.Notification
 	for rows.Next() {
@@ -1010,7 +1023,11 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL user rows: %v", err)
+		}
+	}()
 
 	var users []*models.User
 	for rows.Next() {
@@ -1146,23 +1163,10 @@ func (r *queryResolver) AdminSettings(ctx context.Context) ([]*models.Setting, e
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config ORDER BY key",
-	)
+	settings, err := (&models.SettingsModel{}).List()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get settings: %w", err)
 	}
-	defer rows.Close()
-
-	var settings []*models.Setting
-	for rows.Next() {
-		setting, err := scanGraphQLSetting(rows.Scan)
-		if err != nil {
-			continue
-		}
-		settings = append(settings, setting)
-	}
-
 	return settings, nil
 }
 
@@ -1257,7 +1261,11 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit logs: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL audit log rows: %v", err)
+		}
+	}()
 
 	var logs []*AuditLog
 	for rows.Next() {
@@ -1355,10 +1363,10 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to count active users: %w", err)
 	}
+	defer func() { _ = activeRows.Close() }()
 	for activeRows.Next() {
 		var storedLastLogin interface{}
 		if scanErr := activeRows.Scan(&storedLastLogin); scanErr != nil {
-			activeRows.Close()
 			return nil, fmt.Errorf("failed to count active users: %w", scanErr)
 		}
 		if lastLogin, ok := dbtime.ParseStoredTimestamp(storedLastLogin); ok && lastLogin.After(activeCutoff) {
@@ -1366,10 +1374,8 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 		}
 	}
 	if rowsErr := activeRows.Err(); rowsErr != nil {
-		activeRows.Close()
 		return nil, fmt.Errorf("failed to count active users: %w", rowsErr)
 	}
-	activeRows.Close()
 	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
 		return nil, fmt.Errorf("failed to count saved locations: %w", err)
 	}
@@ -1430,7 +1436,11 @@ func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL scheduled task rows: %v", err)
+		}
+	}()
 
 	var tasks []*ScheduledTask
 	for rows.Next() {
@@ -1486,7 +1496,11 @@ func (r *queryResolver) AdminChannels(ctx context.Context) ([]*NotificationChann
 	if err != nil {
 		return nil, fmt.Errorf("failed to get channels: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL notification channel rows: %v", err)
+		}
+	}()
 
 	var channels []*NotificationChannel
 	for rows.Next() {

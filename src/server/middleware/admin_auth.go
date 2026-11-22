@@ -76,16 +76,31 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			// dbtime.IsAfter resolves both layouts to the same absolute instant and
 			// reports false for a NULL or unparseable value, so a session this
 			// project cannot interpret is rejected rather than trusted.
-			adminID, storedExpiresAt, err := model.LookupActiveAdminSession(db, database.UsersDBOr(db), model.HashAdminSessionToken(session))
+			activity, err := model.LookupAdminSessionActivity(db, database.UsersDBOr(db), model.HashAdminSessionToken(session))
+			now := time.Now().UTC()
+			createdAt, createdAtOK := dbtime.ParseStoredTimestamp(activity.CreatedAt)
+			lastUsedAt, lastUsedAtOK := dbtime.ParseStoredTimestamp(activity.LastUsedAt)
+			if !lastUsedAtOK {
+				lastUsedAt = createdAt
+				lastUsedAtOK = createdAtOK
+			}
+			settings := SessionSettingsFor(SessionAccountAdmin)
+			idleExpired := settings.IdleTimeout > 0 && (!lastUsedAtOK || !now.Before(lastUsedAt.Add(settings.IdleTimeout)))
+			if err == nil && !idleExpired && dbtime.IsAfter(activity.ExpiresAt, now) && sessionConfig().ExtendOnActivity {
+				err = (&model.AdminSessionModel{DB: db}).UpdateSessionLastUsed(session)
+			}
 
-			if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
+			if err != nil || idleExpired || !dbtime.IsAfter(activity.ExpiresAt, now) {
 				// Invalid or expired session
+				if idleExpired {
+					_ = (&model.AdminSessionModel{DB: db}).DeleteSession(session)
+				}
 				redirectAdminUnauthenticated(w, r)
 				return
 			}
 
 			// Valid session - store admin_id in context for handlers
-			ctx := reqctx.SetValue(r.Context(), "admin_id", adminID)
+			ctx := reqctx.SetValue(r.Context(), "admin_id", activity.AdminID)
 			r = r.WithContext(ctx)
 
 			// Session valid - continue to admin panel
@@ -233,7 +248,9 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		// Update last_login timestamp, bound as canonical UTC text so the value
 		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
 		// means to the backend in use.
-		database.ExecContext(context.Background(), database.UsersDBOr(db), database.TimeoutWrite, "UPDATE admins SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID)
+		if _, err := database.ExecContext(context.Background(), database.UsersDBOr(db), database.TimeoutWrite, "UPDATE admins SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID); err != nil {
+			log.Printf("Unable to update last login timestamp for admin %d: %v", adminID, err)
+		}
 
 		// Redirect to admin dashboard
 		http.Redirect(w, r, adminPath+"/dashboard", http.StatusFound)

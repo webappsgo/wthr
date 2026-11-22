@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/cretz/bine v0.2.0
+	github.com/crewjam/saml v0.6.3
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-acme/lego/v4 v4.34.0
 	github.com/go-chi/chi/v5 v5.3.2
@@ -20,6 +21,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/microsoft/go-mssqldb v1.9.3
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/oschwald/maxminddb-golang v1.13.1
@@ -29,9 +31,11 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/redis/go-redis/v9 v9.14.0
 	github.com/rs/cors v1.11.1
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/vektah/gqlparser/v2 v2.5.22
 	golang.org/x/crypto v0.58.0
+	golang.org/x/image v0.45.0
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.36.0
@@ -93,8 +97,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10 // indirect
 	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/aziontech/azionapi-go-sdk v0.144.0 // indirect
 	github.com/baidubce/bce-sdk-go v0.9.264 // indirect
+	github.com/beevik/etree v1.8.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bodgit/tsig v1.2.2 // indirect
@@ -156,6 +162,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
 	github.com/gophercloud/gophercloud v1.14.1 // indirect
 	github.com/gophercloud/utils v0.0.0-20231010081019-80377eca5d56 // indirect
+	github.com/gorilla/css v1.0.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -176,6 +183,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jinzhu/copier v0.4.0 // indirect
+	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.13-0.20220915233716-71ac16282d12 // indirect
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213 // indirect
@@ -233,7 +241,7 @@ require (
 	github.com/regfish/regfish-dnsapi-go v0.1.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/russellhaering/goxmldsig v1.6.1 // indirect
 	github.com/sacloud/api-client-go v0.3.5 // indirect
 	github.com/sacloud/go-http v0.1.9 // indirect
 	github.com/sacloud/iaas-api-go v1.23.1 // indirect

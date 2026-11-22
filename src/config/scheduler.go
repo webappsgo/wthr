@@ -229,7 +229,7 @@ func ParseDuration(value string) (time.Duration, error) {
 			end++
 		}
 		unitEnd := end
-		for unitEnd < len(rest) && !(rest[unitEnd] >= '0' && rest[unitEnd] <= '9' || rest[unitEnd] == '.') {
+		for unitEnd < len(rest) && ((rest[unitEnd] < '0' || rest[unitEnd] > '9') && rest[unitEnd] != '.') {
 			unitEnd++
 		}
 		if end == 0 || unitEnd == end {

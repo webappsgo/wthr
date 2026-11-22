@@ -18,7 +18,7 @@ func TestWantsFormSubmission(t *testing.T) {
 		{"urlencoded with charset", "application/x-www-form-urlencoded; charset=UTF-8", true},
 		{"json", "application/json", false},
 		{"empty", "", false},
-		{"multipart", "multipart/form-data; boundary=abc", false},
+		{"multipart", "multipart/form-data; boundary=abc", true},
 	}
 
 	for _, tt := range tests {

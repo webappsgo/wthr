@@ -1,28 +1,30 @@
 package service
 
 import (
-	"database/sql"
+	"strconv"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
-// seedEmailChannelSMTPConfig inserts host/port/from_address rows into
-// server_config. A port is seeded whenever one is supplied, so a test can
-// point the seeded host at a live local responder.
-func seedEmailChannelSMTPConfig(t *testing.T, db *sql.DB, host, fromAddress string, port ...string) {
+// seedEmailChannelSMTPConfig writes host/port/from.email file settings. A port
+// is seeded whenever supplied so tests can use a local SMTP responder.
+func seedEmailChannelSMTPConfig(t *testing.T, host, fromAddress string, port ...string) {
 	t.Helper()
-	_, err := db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.host", host)
-	if err != nil {
-		t.Fatalf("seed smtp.host: %v", err)
+	if err := config.WriteSetting("smtp.host", host); err != nil {
+		t.Fatalf("write smtp.host: %v", err)
 	}
 	if len(port) > 0 {
-		_, err = db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.port", port[0])
+		portValue, err := strconv.Atoi(port[0])
 		if err != nil {
-			t.Fatalf("seed smtp.port: %v", err)
+			t.Fatalf("parse SMTP port: %v", err)
+		}
+		if err := config.WriteSetting("smtp.port", portValue); err != nil {
+			t.Fatalf("write smtp.port: %v", err)
 		}
 	}
-	_, err = db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.from_address", fromAddress)
-	if err != nil {
-		t.Fatalf("seed smtp.from_address: %v", err)
+	if err := config.WriteSetting("from.email", fromAddress); err != nil {
+		t.Fatalf("write from.email: %v", err)
 	}
 }
 
@@ -71,7 +73,7 @@ func TestEmailChannel_IsEnabled_EnabledSMTP(t *testing.T) {
 	serverDB := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, serverDB)
 	host, port, _ := startFakeSMTPResponder(t, "")
-	seedEmailChannelSMTPConfig(t, serverDB, host, "noreply@example.com", port)
+	seedEmailChannelSMTPConfig(t, host, "noreply@example.com", port)
 
 	smtp := NewSMTPService(serverDB)
 	if err := smtp.VerifyConfiguredConnection(); err != nil {
@@ -227,7 +229,7 @@ func TestEmailChannel_Refresh_ReflectsConfigChange(t *testing.T) {
 	}
 
 	host, port, _ := startFakeSMTPResponder(t, "")
-	seedEmailChannelSMTPConfig(t, serverDB, host, "noreply@example.com", port)
+	seedEmailChannelSMTPConfig(t, host, "noreply@example.com", port)
 	// smtp.config is cached from the first IsEnabled() call above, so force
 	// a reload the same way LoadConfig would be re-invoked in production.
 	if err := smtp.LoadConfig(); err != nil {

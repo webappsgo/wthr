@@ -4,25 +4,40 @@ import (
 	"bufio"
 	"database/sql"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 )
 
 // setupSMTPServerDB opens a fresh in-memory SQLite database with the real
-// production ServerSchema applied (server_config and
-// server_notification_channels live there), uniquely named per test.
+// production ServerSchema applied and a fresh file-backed config directory.
 func setupSMTPServerDB(t *testing.T) *sql.DB {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
+	previousConfig := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
+
 	db, err := sql.Open("sqlite", "file:"+t.Name()+"_smtp?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
@@ -62,7 +77,7 @@ func startFakeSMTPResponder(t *testing.T, rcptResponse string) (host, port strin
 	if err != nil {
 		t.Fatalf("listen on 127.0.0.1:0: %v", err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { _ = ln.Close() })
 
 	ch := make(chan fakeSMTPResult, 1)
 	go func() {
@@ -71,11 +86,11 @@ func startFakeSMTPResponder(t *testing.T, rcptResponse string) (host, port strin
 			ch <- fakeSMTPResult{}
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		r := bufio.NewReader(conn)
 		writeLine := func(s string) {
-			conn.Write([]byte(s + "\r\n"))
+			_, _ = conn.Write([]byte(s + "\r\n"))
 		}
 
 		var result fakeSMTPResult
@@ -136,7 +151,7 @@ func startFakeSMTPResponder(t *testing.T, rcptResponse string) (host, port strin
 		writeLine("250 OK: queued as 1")
 
 		// QUIT (best-effort - client may close the connection without it)
-		r.ReadString('\n')
+		_, _ = r.ReadString('\n')
 		writeLine("221 Bye")
 
 		ch <- result
@@ -158,12 +173,12 @@ func startAcceptAndCloseListener(t *testing.T) (host, port string) {
 	if err != nil {
 		t.Fatalf("listen on 127.0.0.1:0: %v", err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { _ = ln.Close() })
 
 	go func() {
 		conn, err := ln.Accept()
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 	}()
 
@@ -423,6 +438,32 @@ func TestSMTP_LoadConfig(t *testing.T) {
 	})
 }
 
+func TestValidSMTPMode(t *testing.T) {
+	for _, mode := range []string{"auto", "starttls", "tls", "none"} {
+		if !validSMTPMode(mode) {
+			t.Errorf("validSMTPMode(%q) = false", mode)
+		}
+	}
+	for _, mode := range []string{"", "true", "disabled", "ssl"} {
+		if validSMTPMode(mode) {
+			t.Errorf("validSMTPMode(%q) = true", mode)
+		}
+	}
+}
+
+func TestPrivateSMTPAddress(t *testing.T) {
+	for _, address := range []string{"10.0.0.1", "172.17.0.1", "100.64.0.1", "127.0.0.1", "169.254.1.2", "fd00::1", "fe80::1"} {
+		if !isPrivateSMTPAddress(net.ParseIP(address)) {
+			t.Errorf("isPrivateSMTPAddress(%q) = false", address)
+		}
+	}
+	for _, address := range []string{"8.8.8.8", "2001:4860:4860::8888"} {
+		if isPrivateSMTPAddress(net.ParseIP(address)) {
+			t.Errorf("isPrivateSMTPAddress(%q) = true", address)
+		}
+	}
+}
+
 // TestSMTP_IsEnabled covers the happy path (host+from address configured and
 // a live handshake verified), the false path when unconfigured, and confirms
 // IsEnabled triggers an implicit LoadConfig when config has never been loaded.
@@ -579,7 +620,7 @@ func TestSMTP_TestConnection(t *testing.T) {
 			t.Fatalf("split addr: %v", splitErr)
 		}
 		// free the port so the subsequent dial is refused
-		ln.Close()
+		_ = ln.Close()
 
 		svc := &SMTPService{}
 		err = svc.TestConnection(&SMTPConfig{Host: host, Port: port, UseTLS: false})
@@ -758,10 +799,8 @@ func TestSMTP_EnableChannel_Idempotent(t *testing.T) {
 	}
 }
 
-// TestSMTP_getSetting_saveSetting_RoundTrip covers the raw DB helpers used
-// throughout this file: save then get returns the same value, overwriting
-// an existing key updates rather than duplicates, and a missing key returns
-// sql.ErrNoRows.
+// TestSMTP_getSetting_saveSetting_RoundTrip covers file-backed setting reads
+// and writes, including last-write-wins behavior and missing-key errors.
 func TestSMTP_getSetting_saveSetting_RoundTrip(t *testing.T) {
 	db := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, db)
@@ -799,40 +838,28 @@ func TestSMTP_getSetting_saveSetting_RoundTrip(t *testing.T) {
 			t.Errorf("getSetting() = %q, want second.example.com (last write wins)", got)
 		}
 
-		var count int
-		if err := db.QueryRow("SELECT COUNT(*) FROM server_config WHERE key = 'smtp.host'").Scan(&count); err != nil {
-			t.Fatalf("count query: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("row count = %d, want 1 (saveSetting must upsert)", count)
-		}
 	})
 }
 
 // TestSMTPService_UsesInjectedServerDB proves the *sql.DB passed to
-// NewSMTPService is the database actually read and written, not the
-// process-global one. The global is deliberately wired to a DIFFERENT server
-// database holding a contradicting smtp.host: if the injected handle were
-// ignored again, LoadConfig would return the decoy's host and EnableChannel
-// would write the decoy's server_notification_channels.
+// NewSMTPService is used for channel writes. SMTP settings remain file-backed.
 func TestSMTPService_UsesInjectedServerDB(t *testing.T) {
 	injected := setupSMTPServerDB(t)
 	decoy := openDecoyServerDB(t)
 	wireSMTPGlobalDB(t, decoy)
 
-	if _, err := injected.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'injected.example')`); err != nil {
-		t.Fatalf("seed injected server_config: %v", err)
-	}
-	if _, err := decoy.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'decoy.example')`); err != nil {
-		t.Fatalf("seed decoy server_config: %v", err)
-	}
-
 	svc := NewSMTPService(injected)
+	if err := svc.saveSetting("smtp.host", "injected.example"); err != nil {
+		t.Fatalf("save SMTP host: %v", err)
+	}
+	if err := svc.saveSetting("from.email", "mail@example.com"); err != nil {
+		t.Fatalf("save SMTP sender: %v", err)
+	}
 	if err := svc.LoadConfig(); err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 	if got := svc.GetConfig().Host; got != "injected.example" {
-		t.Errorf("expected host from the injected database, got %q (decoy.example means the global was read)", got)
+		t.Errorf("host = %q, want injected.example from file-backed settings", got)
 	}
 
 	if err := svc.EnableChannel(); err != nil {
@@ -861,8 +888,8 @@ func TestSMTPService_NilInjectedDBFallsBackToGlobal(t *testing.T) {
 	serverDB := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, serverDB)
 
-	if _, err := serverDB.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'global.example')`); err != nil {
-		t.Fatalf("seed server_config: %v", err)
+	if err := (&SMTPService{}).saveSetting("smtp.host", "global.example"); err != nil {
+		t.Fatalf("save SMTP host: %v", err)
 	}
 
 	svc := NewSMTPService(nil)
@@ -870,6 +897,6 @@ func TestSMTPService_NilInjectedDBFallsBackToGlobal(t *testing.T) {
 		t.Fatalf("LoadConfig with nil injected handle: %v", err)
 	}
 	if got := svc.GetConfig().Host; got != "global.example" {
-		t.Errorf("expected the nil handle to fall back to the global server db, got %q", got)
+		t.Errorf("expected file-backed SMTP host, got %q", got)
 	}
 }

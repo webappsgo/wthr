@@ -17,7 +17,7 @@ func readCPUSample() (cpuSample, error) {
 	if err != nil {
 		return cpuSample{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -58,7 +58,7 @@ func readSystemMemory() (memStat, error) {
 	if err != nil {
 		return memStat{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var total, available, free uint64
 

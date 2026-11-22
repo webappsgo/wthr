@@ -32,7 +32,7 @@ func openTokenAuthTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 	if _, err := sDB.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	t.Cleanup(func() { sDB.Close() })
+	t.Cleanup(func() { _ = sDB.Close() })
 
 	uDSN := fmt.Sprintf("file:token_auth_users_%d?mode=memory&cache=shared", seed+1)
 	uDB, err := sql.Open("sqlite", uDSN)
@@ -42,7 +42,7 @@ func openTokenAuthTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 	if _, err := uDB.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { uDB.Close() })
+	t.Cleanup(func() { _ = uDB.Close() })
 
 	// AdminModel.GetByAPIToken / TokenModelV2 (src/server/model/admin.go:352,
 	// token_v2.go) ignore the *sql.DB they're constructed with and query

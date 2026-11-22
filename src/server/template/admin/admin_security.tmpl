@@ -49,8 +49,9 @@
                     <p class="card-description">{{t $lang "admin.security.headers_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="headers-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="headers-form" class="settings-form" method="post" action="{{.admin_path}}/security/settings">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <input type="hidden" name="section" value="headers">
                         <div class="alert alert-info" role="status">
                             <strong>{{t $lang "admin.security.headers_alert_strong"}}</strong> {{t $lang "admin.security.headers_alert_text"}}
                         </div>
@@ -64,7 +65,7 @@
                                 rows="4"
                                 aria-describedby="csp_help"
                                 spellcheck="false"
-                            >default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;</textarea>
+                            >{{index .Settings "security.csp"}}</textarea>
                             <small id="csp_help" class="form-text">
                                 {{t $lang "admin.security.csp_help"}}
                             </small>
@@ -77,6 +78,7 @@
                                 id="hsts"
                                 name="security.hsts"
                                 class="form-control"
+                                value="{{index .Settings "security.hsts"}}"
                                 placeholder="max-age=31536000; includeSubDomains"
                                 aria-describedby="hsts_help"
                             >
@@ -88,9 +90,9 @@
                         <div class="form-group">
                             <label for="x_frame_options">{{t $lang "admin.security.x_frame_options_label"}}</label>
                             <select id="x_frame_options" name="security.x_frame_options" class="form-control" aria-describedby="x_frame_help">
-                                <option value="DENY">{{t $lang "admin.security.x_frame_deny_option"}}</option>
-                                <option value="SAMEORIGIN">{{t $lang "admin.security.x_frame_sameorigin_option"}}</option>
-                                <option value="ALLOW-FROM">{{t $lang "admin.security.x_frame_allowfrom_option"}}</option>
+                                <option value="DENY"{{if eq (index .Settings "security.x_frame_options") "DENY"}} selected{{end}}>{{t $lang "admin.security.x_frame_deny_option"}}</option>
+                                <option value="SAMEORIGIN"{{if eq (index .Settings "security.x_frame_options") "SAMEORIGIN"}} selected{{end}}>{{t $lang "admin.security.x_frame_sameorigin_option"}}</option>
+                                <option value="ALLOW-FROM"{{if eq (index .Settings "security.x_frame_options") "ALLOW-FROM"}} selected{{end}}>{{t $lang "admin.security.x_frame_allowfrom_option"}}</option>
                             </select>
                             <small id="x_frame_help" class="form-text">
                                 {{t $lang "admin.security.x_frame_help"}}
@@ -100,8 +102,8 @@
                         <div class="form-group">
                             <label for="x_content_type">{{t $lang "admin.security.x_content_type_label"}}</label>
                             <select id="x_content_type" name="security.x_content_type" class="form-control" aria-describedby="x_content_type_help">
-                                <option value="nosniff">{{t $lang "admin.security.x_content_type_nosniff_option"}}</option>
-                                <option value="">{{t $lang "admin.common.disabled"}}</option>
+                                <option value="nosniff"{{if eq (index .Settings "security.x_content_type") "nosniff"}} selected{{end}}>{{t $lang "admin.security.x_content_type_nosniff_option"}}</option>
+                                <option value=""{{if eq (index .Settings "security.x_content_type") ""}} selected{{end}}>{{t $lang "admin.common.disabled"}}</option>
                             </select>
                             <small id="x_content_type_help" class="form-text">
                                 {{t $lang "admin.security.x_content_type_help"}}
@@ -111,8 +113,8 @@
                         <div class="form-group">
                             <label for="referrer_policy">{{t $lang "admin.security.referrer_policy_label"}}</label>
                             <select id="referrer_policy" name="security.referrer_policy" class="form-control" aria-describedby="referrer_policy_help">
-                                <option value="strict-origin-when-cross-origin">{{t $lang "admin.security.referrer_strict_option"}}</option>
-                                <option value="no-referrer">{{t $lang "admin.security.referrer_no_referrer_option"}}</option>
+                                <option value="strict-origin-when-cross-origin"{{if eq (index .Settings "security.referrer_policy") "strict-origin-when-cross-origin"}} selected{{end}}>{{t $lang "admin.security.referrer_strict_option"}}</option>
+                                <option value="no-referrer"{{if eq (index .Settings "security.referrer_policy") "no-referrer"}} selected{{end}}>{{t $lang "admin.security.referrer_no_referrer_option"}}</option>
                                 <option value="no-referrer-when-downgrade">no-referrer-when-downgrade</option>
                                 <option value="same-origin">same-origin</option>
                                 <option value="origin">origin</option>
@@ -131,7 +133,7 @@
                                 rows="3"
                                 aria-describedby="permissions_policy_help"
                                 spellcheck="false"
-                            >geolocation=(), microphone=(), camera=()</textarea>
+                            >{{index .Settings "security.permissions_policy"}}</textarea>
                             <small id="permissions_policy_help" class="form-text">
                                 {{t $lang "admin.security.permissions_policy_help"}}
                             </small>
@@ -151,8 +153,9 @@
                     <p class="card-description">{{t $lang "admin.security.cors_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="cors-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="cors-form" class="settings-form" method="post" action="{{.admin_path}}/security/settings">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <input type="hidden" name="section" value="cors">
                         <div class="form-group">
                             <label class="toggle-label">
                                 <input
@@ -160,6 +163,7 @@
                                     id="cors_enabled"
                                     name="security.cors_enabled"
                                     class="toggle-input"
+                                    {{if eq (index .Settings "security.cors_enabled") "true"}}checked{{end}}
                                     aria-describedby="cors_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
@@ -180,7 +184,7 @@
                                     rows="3"
                                     placeholder="https://example.com&#10;https://app.example.com&#10;*"
                                     aria-describedby="cors_origins_help"
-                                ></textarea>
+                                >{{index .Settings "security.cors_origins"}}</textarea>
                                 <small id="cors_origins_help" class="form-text">
                                     {{t $lang "admin.security.cors_origins_help_prefix"}} <code>*</code> {{t $lang "admin.security.cors_origins_help_suffix"}}
                                 </small>
@@ -193,6 +197,7 @@
                                     id="cors_methods"
                                     name="security.cors_methods"
                                     class="form-control"
+                                    value="{{index .Settings "security.cors_methods"}}"
                                     placeholder="GET, POST, PUT, DELETE, OPTIONS"
                                     aria-describedby="cors_methods_help"
                                 >
@@ -208,6 +213,7 @@
                                     id="cors_headers"
                                     name="security.cors_headers"
                                     class="form-control"
+                                    value="{{index .Settings "security.cors_headers"}}"
                                     placeholder="Content-Type, Authorization, X-Requested-With"
                                     aria-describedby="cors_headers_help"
                                 >
@@ -223,6 +229,7 @@
                                         id="cors_credentials"
                                         name="security.cors_credentials"
                                         class="toggle-input"
+                                        {{if eq (index .Settings "security.cors_credentials") "true"}}checked{{end}}
                                         aria-describedby="cors_credentials_help"
                                     >
                                     <span class="toggle-slider"></span>
@@ -240,6 +247,7 @@
                                     id="cors_max_age"
                                     name="security.cors_max_age"
                                     class="form-control"
+                                    value="{{index .Settings "security.cors_max_age"}}"
                                     placeholder="3600"
                                     min="0"
                                     max="86400"
@@ -265,8 +273,9 @@
                     <p class="card-description">{{t $lang "admin.security.ratelimit_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="ratelimit-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="ratelimit-form" class="settings-form" method="post" action="{{.admin_path}}/security/settings">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <input type="hidden" name="section" value="ratelimit">
                         <div class="form-group">
                             <label class="toggle-label">
                                 <input
@@ -274,6 +283,7 @@
                                     id="ratelimit_enabled"
                                     name="rate_limit.enabled"
                                     class="toggle-input"
+                                    {{if eq (index .Settings "rate_limit.enabled") "true"}}checked{{end}}
                                     aria-describedby="ratelimit_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
@@ -292,6 +302,7 @@
                                     id="ratelimit_global"
                                     name="rate_limit.global"
                                     class="form-control"
+                                    value="{{index .Settings "rate_limit.global"}}"
                                     placeholder="100"
                                     min="1"
                                     max="10000"
@@ -309,6 +320,7 @@
                                     id="ratelimit_per_ip"
                                     name="rate_limit.per_ip"
                                     class="form-control"
+                                    value="{{index .Settings "rate_limit.per_ip"}}"
                                     placeholder="60"
                                     min="1"
                                     max="1000"
@@ -326,6 +338,7 @@
                                     id="ratelimit_api"
                                     name="rate_limit.api"
                                     class="form-control"
+                                    value="{{index .Settings "rate_limit.api"}}"
                                     placeholder="120"
                                     min="1"
                                     max="10000"
@@ -343,6 +356,7 @@
                                     id="ratelimit_admin"
                                     name="rate_limit.admin"
                                     class="form-control"
+                                    value="{{index .Settings "rate_limit.admin"}}"
                                     placeholder="300"
                                     min="1"
                                     max="10000"
@@ -372,8 +386,9 @@
                     <p class="card-description">{{t $lang "admin.security.auth_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="auth-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="auth-form" class="settings-form" method="post" action="{{.admin_path}}/security/settings">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <input type="hidden" name="section" value="auth">
                         <div class="form-group">
                             <label for="session_timeout">{{t $lang "admin.security.session_timeout_label"}}</label>
                             <input
@@ -381,6 +396,7 @@
                                 id="session_timeout"
                                 name="security.session_timeout"
                                 class="form-control"
+                                value="{{index .Settings "security.session_timeout"}}"
                                 placeholder="2592000"
                                 min="300"
                                 max="31536000"
@@ -398,6 +414,7 @@
                                 id="max_login_attempts"
                                 name="security.max_login_attempts"
                                 class="form-control"
+                                value="{{index .Settings "security.max_login_attempts"}}"
                                 placeholder="5"
                                 min="1"
                                 max="20"
@@ -415,6 +432,7 @@
                                 id="lockout_duration"
                                 name="security.lockout_duration"
                                 class="form-control"
+                                value="{{index .Settings "security.lockout_duration"}}"
                                 placeholder="30"
                                 min="1"
                                 max="1440"
@@ -432,6 +450,7 @@
                                 id="password_min_length"
                                 name="security.password_min_length"
                                 class="form-control"
+                                value="{{index .Settings "security.password_min_length"}}"
                                 placeholder="8"
                                 min="6"
                                 max="64"

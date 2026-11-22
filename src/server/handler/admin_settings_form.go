@@ -9,12 +9,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // settingsFormField is one rendered control on the settings page.
@@ -50,29 +48,24 @@ var settingsTextareaSuffixes = []string{"description", "policy_text", "keywords"
 // settingsSecretSuffixes marks settings whose value is never echoed back to the form.
 var settingsSecretSuffixes = []string{"password", "secret", "token", "private_key"}
 
-// settingsRow is one server_config row.
+// settingsRow is one file-backed setting.
 type settingsRow struct {
 	key, value, typ, description string
 }
 
-// loadSettingsRows reads every server_config row ordered by key.
-func loadSettingsRows(ctx context.Context) ([]settingsRow, error) {
-	rows, err := database.QueryContext(ctx, database.GetServerDB(), database.TimeoutSimpleSelect,
-		`SELECT key, value, type, COALESCE(description, '') FROM server_config ORDER BY key`)
+// loadSettingsRows reads the merged configuration without exposing secrets.
+func loadSettingsRows(context.Context) ([]settingsRow, error) {
+	listed, err := (&model.SettingsModel{}).List()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var result []settingsRow
-	for rows.Next() {
-		var row settingsRow
-		if err := rows.Scan(&row.key, &row.value, &row.typ, &row.description); err != nil {
-			return nil, err
-		}
-		result = append(result, row)
+	result := make([]settingsRow, 0, len(listed))
+	for _, setting := range listed {
+		result = append(result, settingsRow{
+			key: setting.Key, value: setting.Value, typ: setting.Type, description: setting.Description,
+		})
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 func settingsKeyHasSuffix(key string, suffixes []string) bool {
@@ -249,10 +242,9 @@ func (h *AdminHandler) SaveSettingsForm(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	now := dbtime.FormatSQLTimestamp(time.Now())
+	settingsModel := &model.SettingsModel{}
 	for key, value := range updates {
-		if _, execErr := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite,
-			`UPDATE server_config SET value = ?, updated_at = ? WHERE key = ?`, value, now, key); execErr != nil {
+		if saveErr := settingsModel.SetSetting(key, value, settingsTypeForRows(rows, key)); saveErr != nil {
 			SetFlash(w, r, "error", "flash.settings_save_failed")
 			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
@@ -261,4 +253,13 @@ func (h *AdminHandler) SaveSettingsForm(w http.ResponseWriter, r *http.Request) 
 
 	SetFlash(w, r, "success", "flash.settings_saved")
 	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func settingsTypeForRows(rows []settingsRow, key string) string {
+	for _, row := range rows {
+		if row.key == key {
+			return row.typ
+		}
+	}
+	return "string"
 }

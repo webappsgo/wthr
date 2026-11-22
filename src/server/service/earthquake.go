@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -137,6 +138,9 @@ func NewEarthquakeService() *EarthquakeService {
 //	"4.5_hour", "4.5_day", "4.5_week", "4.5_month"
 //	"significant_hour", "significant_day", "significant_week", "significant_month"
 func (es *EarthquakeService) GetEarthquakes(feedType string) (*EarthquakeCollection, error) {
+	if !validUSGSFeedType(feedType) {
+		return nil, fmt.Errorf("unsupported USGS earthquake feed %q", feedType)
+	}
 	cacheKey := fmt.Sprintf("earthquakes_%s", feedType)
 	if cached, found := es.cache.Get(cacheKey); found {
 		return cached.(*EarthquakeCollection), nil
@@ -148,20 +152,26 @@ func (es *EarthquakeService) GetEarthquakes(feedType string) (*EarthquakeCollect
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch earthquake data: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("USGS API returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (32<<20)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if len(body) > 32<<20 {
+		return nil, fmt.Errorf("USGS response exceeds 33554432 bytes")
 	}
 
 	var usgsData USGSGeoJSONResponse
 	if err := json.Unmarshal(body, &usgsData); err != nil {
 		return nil, fmt.Errorf("failed to parse earthquake data: %w", err)
+	}
+	if usgsData.Type != "FeatureCollection" || usgsData.Metadata.Status != http.StatusOK || usgsData.Metadata.Count != len(usgsData.Features) {
+		return nil, fmt.Errorf("USGS API returned an inconsistent GeoJSON feature collection")
 	}
 
 	// Convert USGS format to our format
@@ -208,6 +218,23 @@ func (es *EarthquakeService) GetEarthquakes(feedType string) (*EarthquakeCollect
 
 	es.cache.Set(cacheKey, collection, cache.DefaultExpiration)
 	return collection, nil
+}
+
+func validUSGSFeedType(feedType string) bool {
+	parts := strings.Split(feedType, "_")
+	if len(parts) != 2 {
+		return false
+	}
+	intervals := map[string]bool{"hour": true, "day": true, "week": true, "month": true}
+	if !intervals[parts[1]] {
+		return false
+	}
+	switch parts[0] {
+	case "all", "significant", "1.0", "2.5", "4.5":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetEarthquakesByLocation filters earthquakes within radius of location

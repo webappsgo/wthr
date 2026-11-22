@@ -6,6 +6,39 @@
 
     <h1>🔒 {{t $lang "admin.ssl.title"}}</h1>
     <p class="text-comment mb-4">{{t $lang "admin.ssl.subtitle"}}</p>
+    {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
+
+    <section class="card p-4 mb-4" aria-labelledby="ssl-renewal-heading">
+        <h2 id="ssl-renewal-heading" class="section-title">{{t $lang "admin.ssl.auto_renewal_heading"}}</h2>
+        <form method="post" action="/server/{{.admin_path}}/ssl/auto-renew">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <label for="auto-renew-domains">{{t $lang "admin.ssl.auto_renew_domains_label"}}</label>
+            <textarea id="auto-renew-domains" name="domains" rows="3" required aria-describedby="auto-renew-domains-hint"></textarea>
+            <p id="auto-renew-domains-hint" class="form-help">{{t $lang "admin.ssl.auto_renew_domains_hint"}}</p>
+            <label for="auto-renew-challenge">{{t $lang "admin.ssl.challenge_label"}}</label>
+            <select id="auto-renew-challenge" name="challengeType" required>
+                <option value="http-01">{{t $lang "admin.ssl.challenge_http01"}}</option>
+                <option value="tls-alpn-01">{{t $lang "admin.ssl.challenge_tlsalpn01"}}</option>
+                <option value="dns-01">{{t $lang "admin.ssl.challenge_dns01"}}</option>
+            </select>
+            <button type="submit">{{t $lang "admin.ssl.auto_renew_submit"}}</button>
+        </form>
+    </section>
+
+    <section class="card p-4 mb-4" aria-labelledby="ssl-revoke-heading">
+        <h2 id="ssl-revoke-heading" class="section-title">{{t $lang "admin.ssl.revoke_cert_action"}}</h2>
+        <form method="post" action="/server/{{.admin_path}}/ssl/revoke">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <label for="revoke-domain">{{t $lang "admin.ssl.revoke_domain_label"}}</label>
+            <input id="revoke-domain" name="domain" type="text" required>
+            <button type="button" popovertarget="ssl-revoke-confirm">{{t $lang "admin.ssl.revoke_cert_action"}}</button>
+            <div id="ssl-revoke-confirm" popover>
+                <p>{{t $lang "admin.ssl.revoke_confirmation"}}</p>
+                <button type="submit">{{t $lang "admin.ssl.revoke_cert_action"}}</button>
+                <button type="button" popovertarget="ssl-revoke-confirm" popovertargetaction="hide">{{t $lang "action.cancel"}}</button>
+            </div>
+        </form>
+    </section>
 
     <div class="grid-2 gap-lg">
         <section class="card p-4">
@@ -31,29 +64,29 @@
         <section class="card p-4">
             <h2 class="section-title">🌐 {{t $lang "admin.ssl.lets_encrypt_heading"}}</h2>
 
-            <form id="letsEncryptForm">
+            <form id="letsEncryptForm" method="post" action="{{.admin_path}}/ssl/obtain">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
                     <label for="domain" class="form-label">{{t $lang "admin.ssl.domain_name_label"}}</label>
-                    <input type="text" id="domain" class="form-input" placeholder="example.com" required aria-required="true">
+                    <input type="text" id="domain" name="domain" class="form-input" placeholder="example.com" required aria-required="true">
                     <small class="form-help">{{t $lang "admin.ssl.domain_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="email" class="form-label">{{t $lang "admin.ssl.contact_email_label"}}</label>
-                    <input type="email" id="email" class="form-input" placeholder="admin@example.com" required aria-required="true">
+                    <input type="email" id="email" name="email" class="form-input" placeholder="admin@example.com" required aria-required="true">
                     <small class="form-help">{{t $lang "admin.ssl.contact_email_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="altNames" class="form-label">{{t $lang "admin.ssl.alt_names_label"}}</label>
-                    <textarea id="altNames" class="form-textarea" rows="3" placeholder="www.example.com&#10;api.example.com"></textarea>
+                    <textarea id="altNames" name="altNames" class="form-textarea" rows="3" placeholder="www.example.com&#10;api.example.com"></textarea>
                     <small class="form-help">{{t $lang "admin.ssl.alt_names_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="challengeType" class="form-label">{{t $lang "admin.ssl.challenge_label"}}</label>
-                    <select id="challengeType" class="form-select">
+                    <select id="challengeType" name="challengeType" class="form-select">
                         <option value="http-01">{{t $lang "admin.ssl.challenge_http01"}}</option>
                         <option value="tls-alpn-01">{{t $lang "admin.ssl.challenge_tlsalpn01"}}</option>
                         <option value="dns-01">{{t $lang "admin.ssl.challenge_dns01"}}</option>
@@ -62,7 +95,7 @@
 
                 <div class="form-group">
                     <label class="checkbox-row">
-                        <input type="checkbox" id="staging">
+                        <input type="checkbox" id="staging" name="staging" value="true">
                         <span>{{t $lang "admin.ssl.staging_label"}}</span>
                     </label>
                 </div>
@@ -83,6 +116,20 @@
                     </button>
                 </div>
             </form>
+            <noscript>
+                <form method="post" action="{{.admin_path}}/ssl/renew">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <label for="renew-domain">{{t $lang "admin.ssl.domain_name_label"}}</label>
+                    <input id="renew-domain" name="domain" type="text" required>
+                    <label for="renew-challenge">{{t $lang "admin.ssl.challenge_label"}}</label>
+                    <select id="renew-challenge" name="challengeType" required>
+                        <option value="http-01">{{t $lang "admin.ssl.challenge_http01"}}</option>
+                        <option value="tls-alpn-01">{{t $lang "admin.ssl.challenge_tlsalpn01"}}</option>
+                        <option value="dns-01">{{t $lang "admin.ssl.challenge_dns01"}}</option>
+                    </select>
+                    <button type="submit" class="btn btn-warning">{{t $lang "admin.ssl.renew_cert_action"}}</button>
+                </form>
+            </noscript>
         </section>
     </div>
 
@@ -90,16 +137,21 @@
         <h2 class="section-title">🧩 {{t $lang "admin.ssl.dns_heading"}}</h2>
         <p class="text-comment mb-3">{{t $lang "admin.ssl.dns_intro"}}</p>
 
-        <form id="dnsForm">
+        <form id="dnsForm" method="post" action="{{.admin_path}}/ssl/dns">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="dnsProvider" class="form-label">{{t $lang "admin.ssl.dns_provider_label"}}</label>
-                <select id="dnsProvider" class="form-select">
-                    <option value="">{{t $lang "admin.ssl.dns_provider_manual"}}</option>
+                <select id="dnsProvider" name="provider" class="form-select">
+                    <option value=""{{if not .dns_provider}} selected{{end}}>{{t $lang "admin.ssl.dns_provider_manual"}}</option>
+                    {{range .dns_providers}}<option value="{{.}}"{{if eq . $.dns_provider}} selected{{end}}>{{.}}</option>{{end}}
                 </select>
             </div>
 
-            <div id="dnsVariables"></div>
+            <div class="form-group">
+                <label for="dnsCredentials">{{t $lang "admin.ssl.dns_variable_name"}}={{t $lang "admin.ssl.dns_variable_value"}}</label>
+                <textarea id="dnsCredentials" name="credentials" rows="6" class="form-control" aria-describedby="dns-credentials-help">{{.dns_credentials_form}}</textarea>
+                <small id="dns-credentials-help">{{t $lang "admin.ssl.dns_variable_stored_hint"}}</small>
+            </div>
 
             <div class="flex gap-sm mt-2">
                 <button type="button" class="btn btn-secondary" id="dnsVariableAdd" data-name-label="{{t $lang "admin.ssl.dns_variable_name"}}" data-value-label="{{t $lang "admin.ssl.dns_variable_value"}}">➕ {{t $lang "admin.ssl.dns_variable_add"}}</button>

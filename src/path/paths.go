@@ -104,10 +104,8 @@ func EnsureDir(path string, isRoot bool) error {
 	if runtime.GOOS != "windows" {
 		uid := os.Getuid()
 		gid := os.Getgid()
-		if err := os.Chown(path, uid, gid); err != nil {
-			// Non-fatal if we don't own the directory (e.g., system dirs)
-			// Only log, don't fail
-		}
+		// Ownership errors are non-fatal for directories the service does not own.
+		_ = os.Chown(path, uid, gid)
 	}
 
 	// Verify writable
@@ -115,7 +113,9 @@ func EnsureDir(path string, isRoot bool) error {
 	if err := os.WriteFile(testFile, []byte{}, 0600); err != nil {
 		return fmt.Errorf("directory %s is not writable: %w", path, err)
 	}
-	os.Remove(testFile)
+	if err := os.Remove(testFile); err != nil {
+		return fmt.Errorf("remove directory write probe %s: %w", testFile, err)
+	}
 
 	return nil
 }
@@ -148,9 +148,8 @@ func EnsureFile(path string, content []byte, isRoot bool) error {
 	if runtime.GOOS != "windows" {
 		uid := os.Getuid()
 		gid := os.Getgid()
-		if err := os.Chown(path, uid, gid); err != nil {
-			// Non-fatal if we don't own the file
-		}
+		// Ownership errors are non-fatal for files the service does not own.
+		_ = os.Chown(path, uid, gid)
 	}
 
 	return nil

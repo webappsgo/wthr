@@ -67,7 +67,11 @@ func (h *NotificationTemplateHandler) ListTemplates(w http.ResponseWriter, r *ht
 		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch templates")
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification template listing rows: %v", err)
+		}
+	}()
 
 	var templates []map[string]interface{}
 	for rows.Next() {
@@ -99,7 +103,10 @@ func (h *NotificationTemplateHandler) ListTemplates(w http.ResponseWriter, r *ht
 
 		if variables.Valid {
 			var varsMap map[string]interface{}
-			json.Unmarshal([]byte(variables.String), &varsMap)
+			if err := json.Unmarshal([]byte(variables.String), &varsMap); err != nil {
+				log.Printf("WARNING: notification template %q has invalid variables JSON: %v", templateName, err)
+				varsMap = map[string]interface{}{}
+			}
 			tmpl["variables"] = varsMap
 		}
 
@@ -170,7 +177,10 @@ func (h *NotificationTemplateHandler) GetTemplate(w http.ResponseWriter, r *http
 
 	if variables.Valid {
 		var varsMap map[string]interface{}
-		json.Unmarshal([]byte(variables.String), &varsMap)
+		if err := json.Unmarshal([]byte(variables.String), &varsMap); err != nil {
+			log.Printf("WARNING: notification template %q has invalid variables JSON: %v", templateName, err)
+			varsMap = map[string]interface{}{}
+		}
 		tmpl["variables"] = varsMap
 	}
 

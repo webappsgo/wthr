@@ -68,8 +68,12 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 	cleanup := func() {
 		database.SetGlobalDualDB(nil)
 		config.SetGlobalConfig(nil)
-		serverDB.Close()
-		usersDB.Close()
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server test database: %v", err)
+		}
+		if err := usersDB.Close(); err != nil {
+			t.Errorf("close users test database: %v", err)
+		}
 	}
 
 	return dualDB, cleanup

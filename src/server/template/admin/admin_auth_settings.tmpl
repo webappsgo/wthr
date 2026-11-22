@@ -3,41 +3,91 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 <div class="admin-header"><h1>🔐 {{t $lang "admin.auth.title"}}</h1></div>
-<form id="authSettingsForm" action="{{.admin_api_path}}/security/auth"
+{{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
+<form id="authSettingsForm" method="post" action="{{.admin_path}}/security/auth"
     data-msg-saved="{{t $lang "admin.common.settings_saved"}}"
     data-msg-error="{{t $lang "admin.common.settings_save_error"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 <section class="card"><h2>{{t $lang "admin.auth.oidc_heading"}}</h2>
-<label><input type="checkbox" name="oidc_enabled"> {{t $lang "admin.auth.oidc_enable"}}</label>
+<label><input type="checkbox" name="oidc_enabled" value="true" {{if .OIDCEnabled}}checked{{end}}> {{t $lang "admin.auth.oidc_enable"}}</label>
 <div id="oidcProviders"
     data-label-name="{{t $lang "admin.auth.oidc_provider_name_label"}}"
     data-label-client-id="{{t $lang "admin.auth.oidc_client_id_label"}}"
     data-label-client-secret="{{t $lang "admin.auth.oidc_client_secret_label"}}"
     data-label-issuer-url="{{t $lang "admin.auth.oidc_issuer_url_label"}}"
     data-label-redirect-url="{{t $lang "admin.auth.oidc_redirect_url_label"}}"
-    data-label-remove="{{t $lang "admin.auth.oidc_remove_provider"}}"></div>
-<button type="button" data-action="add-oidc-provider">{{t $lang "admin.auth.oidc_add_provider"}}</button>
+    data-label-remove="{{t $lang "admin.auth.oidc_remove_provider"}}">
+    {{range .OIDCProviders}}
+    <fieldset class="oidc-provider-row">
+        <legend>{{t $lang "admin.auth.oidc_provider_name_label"}}</legend>
+        <label>{{t $lang "admin.auth.oidc_provider_name_label"}} <input type="text" name="oidc_provider_name" value="{{.Name}}"></label>
+        <label>{{t $lang "admin.auth.oidc_client_id_label"}} <input type="text" name="oidc_provider_client_id" value="{{.ClientID}}"></label>
+        <label>{{t $lang "admin.auth.oidc_client_secret_label"}} <input type="password" name="oidc_provider_client_secret" autocomplete="new-password"></label>
+        <label>{{t $lang "admin.auth.oidc_issuer_url_label"}} <input type="url" name="oidc_provider_issuer_url" value="{{.IssuerURL}}"></label>
+        <label>{{t $lang "admin.auth.oidc_redirect_url_label"}} <input type="url" name="oidc_provider_redirect_url" value="{{.RedirectURL}}"></label>
+        {{if .Name}}<label><input type="checkbox" name="oidc_provider_remove" value="{{.Name}}"> {{t $lang "admin.auth.oidc_remove_provider"}}</label>{{end}}
+    </fieldset>
+    {{end}}
+</div>
+<p>{{t $lang "admin.auth.oidc_secret_saved_hint"}}</p>
+<button type="submit" name="action" value="save">{{t $lang "admin.common.save_settings"}}</button>
 </section>
 <section class="card"><h2>{{t $lang "admin.auth.ldap_heading"}}</h2>
-<label><input type="checkbox" name="ldap_enabled"> {{t $lang "admin.auth.ldap_enable"}}</label>
-<label>{{t $lang "admin.auth.ldap_server_label"}} <input type="text" name="ldap_server"></label>
-<label>{{t $lang "admin.auth.ldap_port_label"}} <input type="number" name="ldap_port" value="389"></label>
-<label>{{t $lang "admin.auth.ldap_bind_dn_label"}} <input type="text" name="ldap_bind_dn"></label>
-<label>{{t $lang "admin.auth.ldap_bind_password_label"}} <input type="password" name="ldap_bind_password"></label>
-<label>{{t $lang "admin.auth.ldap_base_dn_label"}} <input type="text" name="ldap_base_dn"></label>
-<label>{{t $lang "admin.auth.ldap_user_filter_label"}} <input type="text" name="ldap_user_filter" value="(uid=%s)"></label>
+<label><input type="checkbox" name="ldap_enabled" value="true" {{if .LDAPEnabled}}checked{{end}}> {{t $lang "admin.auth.ldap_enable"}}</label>
+<label>{{t $lang "admin.auth.ldap_server_label"}} <input type="text" name="ldap_server" value="{{.LDAPServer}}"></label>
+<label>{{t $lang "admin.auth.ldap_port_label"}} <input type="number" name="ldap_port" value="{{.LDAPPort}}" min="1" max="65535"></label>
+<label>{{t $lang "admin.auth.ldap_bind_dn_label"}} <input type="text" name="ldap_bind_dn" value="{{.LDAPBindDN}}"></label>
+<label>{{t $lang "admin.auth.ldap_bind_password_label"}} <input type="password" name="ldap_bind_password" autocomplete="new-password"></label>
+<small>{{t $lang "admin.auth.ldap_bind_password_saved_hint"}}</small>
+<label>{{t $lang "admin.auth.ldap_base_dn_label"}} <input type="text" name="ldap_base_dn" value="{{.LDAPBaseDN}}"></label>
+<label>{{t $lang "admin.auth.ldap_user_filter_label"}} <input type="text" name="ldap_user_filter" value="{{.LDAPUserFilter}}"></label>
 </section>
 <section class="card"><h2>{{t $lang "admin.auth.totp_heading"}}</h2>
-<label><input type="checkbox" name="totp_enabled"> {{t $lang "admin.auth.totp_enable"}}</label>
-<label>{{t $lang "admin.auth.totp_issuer_label"}} <input type="text" name="totp_issuer" value="Weather"></label>
-<label>{{t $lang "admin.auth.totp_digits_label"}} <input type="number" name="totp_digits" value="6"></label>
-<label>{{t $lang "admin.auth.totp_period_label"}} <input type="number" name="totp_period" value="30"></label>
+<label><input type="checkbox" name="totp_enabled" value="true" {{if .TOTPEnabled}}checked{{end}}> {{t $lang "admin.auth.totp_enable"}}</label>
+<label>{{t $lang "admin.auth.totp_issuer_label"}} <input type="text" name="totp_issuer" value="{{.TOTPIssuer}}"></label>
+<label>{{t $lang "admin.auth.totp_digits_label"}} <input type="number" name="totp_digits" value="{{.TOTPDigits}}" min="6" max="8"></label>
+<label>{{t $lang "admin.auth.totp_period_label"}} <input type="number" name="totp_period" value="{{.TOTPPeriod}}" min="15" max="120"></label>
 </section>
 <section class="card"><h2>{{t $lang "admin.auth.passkeys_heading"}}</h2>
-<label><input type="checkbox" name="passkeys_enabled"> {{t $lang "admin.auth.passkeys_enable"}}</label>
-<label>{{t $lang "admin.auth.passkeys_rp_id_label"}} <input type="text" name="passkeys_rp_id"></label>
-<label>{{t $lang "admin.auth.passkeys_rp_name_label"}} <input type="text" name="passkeys_rp_name" value="Weather"></label>
+<label><input type="checkbox" name="passkeys_enabled" value="true" {{if .PasskeysEnabled}}checked{{end}}> {{t $lang "admin.auth.passkeys_enable"}}</label>
+<label>{{t $lang "admin.auth.passkeys_rp_id_label"}} <input type="text" name="passkeys_rp_id" value="{{.PasskeysRPID}}"></label>
+<label>{{t $lang "admin.auth.passkeys_rp_name_label"}} <input type="text" name="passkeys_rp_name" value="{{.PasskeysRPName}}"></label>
 </section>
-<button type="submit" data-label-save="{{t $lang "admin.common.save_settings"}}" data-label-saving="{{t $lang "admin.common.saving"}}">{{t $lang "admin.common.save_settings"}}</button>
+<button type="submit" name="action" value="save" data-label-save="{{t $lang "admin.common.save_settings"}}" data-label-saving="{{t $lang "admin.common.saving"}}">{{t $lang "admin.common.save_settings"}}</button>
 </form>
+<section class="card"><h2>{{t $lang "admin.auth.saml_heading"}}</h2>
+<label><input type="checkbox" name="saml_enabled" value="true" {{if .SAMLEnabled}}checked{{end}}> {{t $lang "admin.auth.saml_enable"}}</label>
+{{range .SAMLProviders}}
+<fieldset><legend>{{t $lang "admin.auth.saml_provider"}}</legend>
+<label>{{t $lang "admin.auth.saml_provider_name"}} <input name="saml_provider_name" value="{{.Name}}" maxlength="48"></label>
+<label>{{t $lang "admin.auth.saml_provider_display_name"}} <input name="saml_provider_display_name" value="{{.DisplayName}}" maxlength="120"></label>
+<label>{{t $lang "admin.auth.saml_metadata_url"}} <input type="url" name="saml_provider_metadata_url" value="{{.IDPMetadataURL}}" required></label>
+<label>{{t $lang "admin.auth.saml_entity_id"}} <input type="url" name="saml_provider_entity_id" value="{{.SPEntityID}}"></label>
+<label>{{t $lang "admin.auth.saml_acs_url"}} <input type="url" name="saml_provider_acs_url" value="{{.ACSURL}}"></label>
+<label>{{t $lang "admin.auth.saml_certificate_path"}} <input name="saml_provider_certificate_path" value="{{.SPCertPath}}" autocomplete="off"></label>
+<label>{{t $lang "admin.auth.saml_private_key_path"}} <input name="saml_provider_private_key_path" value="{{.SPKeyPath}}" autocomplete="off"></label>
+<label>{{t $lang "admin.auth.saml_username_attribute"}} <input name="saml_provider_username_attribute" value="{{.AttributeMapping.Username}}"></label>
+<label>{{t $lang "admin.auth.saml_email_attribute"}} <input name="saml_provider_email_attribute" value="{{.AttributeMapping.Email}}"></label>
+<label>{{t $lang "admin.auth.saml_name_attribute"}} <input name="saml_provider_name_attribute" value="{{.AttributeMapping.Name}}"></label>
+<label>{{t $lang "admin.auth.saml_groups_attribute"}} <input name="saml_provider_groups_attribute" value="{{.AttributeMapping.Groups}}"></label>
+<label>{{t $lang "admin.auth.saml_external_id_attribute"}} <input name="saml_provider_external_id_attribute" value="{{.AttributeMapping.ExternalID}}"></label>
+<label>{{t $lang "admin.auth.saml_admin_groups"}} <input name="saml_provider_admin_groups" value="{{.AdminGroupsCSV}}"></label>
+<label>{{t $lang "admin.auth.saml_role_admin"}} <input name="saml_provider_role_admin" value="{{.RoleAdminCSV}}"></label>
+<label>{{t $lang "admin.auth.saml_role_moderator"}} <input name="saml_provider_role_moderator" value="{{.RoleModeratorCSV}}"></label>
+<label>{{t $lang "admin.auth.saml_role_user"}} <input name="saml_provider_role_user" value="{{.RoleUserCSV}}"></label>
+<label><input type="checkbox" name="saml_provider_auto_register" value="{{if .Name}}{{.Name}}{{else}}true{{end}}" {{if .AutoRegister}}checked{{end}}> {{t $lang "admin.auth.saml_auto_register"}}</label>
+{{if .CertificateFingerprint}}<p>{{t $lang "admin.auth.saml_certificate_fingerprint"}}: <code>{{.CertificateFingerprint}}</code></p><p>{{t $lang "admin.auth.saml_certificate_expiry"}}: {{.CertificateExpiry}}</p>{{end}}
+{{if .Name}}<label><input type="checkbox" name="saml_provider_remove" value="{{.Name}}"> {{t $lang "admin.auth.saml_remove_provider"}}</label>{{end}}
+{{if .Name}}
+<div class="button-group">
+<button type="submit" formmethod="post" formaction="{{$.admin_path}}/security/auth/saml/{{.Name}}/test">{{t $lang "admin.auth.saml_test_provider"}}</button>
+<button type="submit" formmethod="post" formaction="{{$.admin_path}}/security/auth/saml/{{.Name}}/certificate/regenerate">{{t $lang "admin.auth.saml_regenerate_certificate"}}</button>
+<button type="submit" formmethod="post" formaction="{{$.admin_path}}/security/auth/saml/{{.Name}}/delete">{{t $lang "admin.auth.saml_delete_provider"}}</button>
+<a class="button" href="/server/auth/saml/{{.Name}}/metadata">{{t $lang "admin.auth.saml_download_metadata"}}</a>
+</div>
+{{end}}
+</fieldset>
+{{end}}
+<p>{{t $lang "admin.auth.saml_key_notice"}}</p>
+</section>
 {{template "admin_footer" .}}

@@ -96,7 +96,7 @@ pipeline {
                                 -e GOOS=linux \
                                 -e GOARCH=amd64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-linux-amd64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-linux-amd64 ./src"
                         '''
                     }
                 }
@@ -114,7 +114,7 @@ pipeline {
                                 -e GOOS=linux \
                                 -e GOARCH=arm64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-linux-arm64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-linux-arm64 ./src"
                         '''
                     }
                 }
@@ -133,7 +133,7 @@ pipeline {
                                 -e GOOS=darwin \
                                 -e GOARCH=amd64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-darwin-amd64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-darwin-amd64 ./src"
                         '''
                     }
                 }
@@ -151,7 +151,7 @@ pipeline {
                                 -e GOOS=darwin \
                                 -e GOARCH=arm64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-darwin-arm64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-darwin-arm64 ./src"
                         '''
                     }
                 }
@@ -170,7 +170,7 @@ pipeline {
                                 -e GOOS=windows \
                                 -e GOARCH=amd64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-windows-amd64.exe ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-windows-amd64.exe ./src"
                         '''
                     }
                 }
@@ -188,7 +188,7 @@ pipeline {
                                 -e GOOS=windows \
                                 -e GOARCH=arm64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-windows-arm64.exe ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-windows-arm64.exe ./src"
                         '''
                     }
                 }
@@ -207,7 +207,7 @@ pipeline {
                                 -e GOOS=freebsd \
                                 -e GOARCH=amd64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-freebsd-amd64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-freebsd-amd64 ./src"
                         '''
                     }
                 }
@@ -225,7 +225,7 @@ pipeline {
                                 -e GOOS=freebsd \
                                 -e GOARCH=arm64 \
                                 casjaysdev/go:latest \
-                                go build -buildvcs=false -trimpath -ldflags "${LDFLAGS}" -o ${BINDIR}/${PROJECT_NAME}-freebsd-arm64 ./src
+                                sh -c "go generate ./src/swagger && go build -buildvcs=false -trimpath -ldflags \"${LDFLAGS}\" -o ${BINDIR}/${PROJECT_NAME}-freebsd-arm64 ./src"
                         '''
                     }
                 }

@@ -119,6 +119,9 @@ func TestCreateArchiveRoundTrip(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: config"), 0600); err != nil {
 		t.Fatalf("failed to seed server.yml: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(configDir, "secrets.yml"), []byte("server:\n  backup:\n    encryption_password: enc:v1:test"), 0600); err != nil {
+		t.Fatalf("failed to seed secrets.yml: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Join(dataDir, "db"), 0700); err != nil {
 		t.Fatalf("failed to seed db dir: %v", err)
 	}
@@ -127,7 +130,7 @@ func TestCreateArchiveRoundTrip(t *testing.T) {
 	}
 
 	svc := New(configDir, dataDir)
-	files := []string{"server.yml", "db/server.db"}
+	files := []string{"server.yml", "secrets.yml", "db/server.db"}
 	manifest := Manifest{
 		Version:    "1.0.0",
 		CreatedAt:  time.Now(),
@@ -168,6 +171,13 @@ func TestCreateArchiveRoundTrip(t *testing.T) {
 	}
 	if string(got) != "server: config" {
 		t.Errorf("restored server.yml = %q, want %q", got, "server: config")
+	}
+	got, err = os.ReadFile(filepath.Join(restoredConfig, "secrets.yml"))
+	if err != nil {
+		t.Fatalf("failed to read restored secrets.yml: %v", err)
+	}
+	if string(got) != "server:\n  backup:\n    encryption_password: enc:v1:test" {
+		t.Errorf("restored secrets.yml = %q, want the stored secret", got)
 	}
 
 	got, err = os.ReadFile(filepath.Join(restoredData, "db", "server.db"))
@@ -240,7 +250,7 @@ func TestCreateArchiveSkipsMissingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gzip.NewReader() error = %v", err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 	tr := tar.NewReader(gzReader)
 
 	var names []string
@@ -261,13 +271,13 @@ func TestCreateArchiveSkipsMissingFiles(t *testing.T) {
 func TestCollectFiles(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func(configDir, dataDir string)
+		setup func(configDir, dataDir string) error
 		opts  func(configDir, dataDir string) BackupOptions
 		want  []string
 	}{
 		{
 			name:  "nothing_present",
-			setup: func(configDir, dataDir string) {},
+			setup: func(configDir, dataDir string) error { return nil },
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir}
 			},
@@ -275,10 +285,14 @@ func TestCollectFiles(t *testing.T) {
 		},
 		{
 			name: "server_yml_and_db_present",
-			setup: func(configDir, dataDir string) {
-				os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("x"), 0600)
-				os.MkdirAll(filepath.Join(dataDir, "db"), 0700)
-				os.WriteFile(filepath.Join(dataDir, "db", "server.db"), []byte("x"), 0600)
+			setup: func(configDir, dataDir string) error {
+				if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("x"), 0600); err != nil {
+					return err
+				}
+				if err := os.MkdirAll(filepath.Join(dataDir, "db"), 0700); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(dataDir, "db", "server.db"), []byte("x"), 0600)
 			},
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir}
@@ -286,9 +300,22 @@ func TestCollectFiles(t *testing.T) {
 			want: []string{"server.yml", "db/server.db"},
 		},
 		{
+			name: "secrets_and_assets_present",
+			setup: func(configDir, dataDir string) error {
+				if err := os.WriteFile(filepath.Join(configDir, "secrets.yml"), []byte("x"), 0600); err != nil {
+					return err
+				}
+				return os.MkdirAll(filepath.Join(configDir, "assets"), 0700)
+			},
+			opts: func(configDir, dataDir string) BackupOptions {
+				return BackupOptions{ConfigDir: configDir, DataDir: dataDir}
+			},
+			want: []string{"secrets.yml", "assets/"},
+		},
+		{
 			name: "ssl_excluded_without_flag",
-			setup: func(configDir, dataDir string) {
-				os.MkdirAll(filepath.Join(configDir, "ssl"), 0700)
+			setup: func(configDir, dataDir string) error {
+				return os.MkdirAll(filepath.Join(configDir, "ssl"), 0700)
 			},
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir, IncludeSSL: false}
@@ -297,8 +324,8 @@ func TestCollectFiles(t *testing.T) {
 		},
 		{
 			name: "ssl_included_with_flag",
-			setup: func(configDir, dataDir string) {
-				os.MkdirAll(filepath.Join(configDir, "ssl"), 0700)
+			setup: func(configDir, dataDir string) error {
+				return os.MkdirAll(filepath.Join(configDir, "ssl"), 0700)
 			},
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir, IncludeSSL: true}
@@ -307,8 +334,8 @@ func TestCollectFiles(t *testing.T) {
 		},
 		{
 			name: "security_keypair_always_included",
-			setup: func(configDir, dataDir string) {
-				os.MkdirAll(filepath.Join(configDir, "security"), 0700)
+			setup: func(configDir, dataDir string) error {
+				return os.MkdirAll(filepath.Join(configDir, "security"), 0700)
 			},
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir}
@@ -317,7 +344,7 @@ func TestCollectFiles(t *testing.T) {
 		},
 		{
 			name:  "data_included_with_flag_even_if_absent",
-			setup: func(configDir, dataDir string) {},
+			setup: func(configDir, dataDir string) error { return nil },
 			opts: func(configDir, dataDir string) BackupOptions {
 				return BackupOptions{ConfigDir: configDir, DataDir: dataDir, IncludeData: true}
 			},
@@ -329,7 +356,9 @@ func TestCollectFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configDir := t.TempDir()
 			dataDir := t.TempDir()
-			tt.setup(configDir, dataDir)
+			if err := tt.setup(configDir, dataDir); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
 
 			svc := New(configDir, dataDir)
 			got, err := svc.collectFiles(tt.opts(configDir, dataDir))

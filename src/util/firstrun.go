@@ -14,7 +14,6 @@ import (
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/privilege"
-	"gopkg.in/yaml.v3"
 )
 
 // FirstRunConfig represents first-run auto-detected configuration
@@ -219,118 +218,9 @@ func SelectRandomPort() int {
 
 // CreateDefaultServerYML creates server.yml with auto-detected settings
 func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) error {
-	// Ensure config directory exists
-	// AI.md PART 7: Permissions - root: 0755, user: 0700
-	dirPerm := os.FileMode(0700)
-	if privilege.StartedAsRoot() {
-		dirPerm = 0755
-	}
-	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, dirPerm); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// AI.md PART 5: in Single Instance mode server.yml is the configuration
-	// source of truth. An existing file was supplied or edited by the operator,
-	// so the first-run defaults must never clobber it.
-	if _, err := os.Stat(configPath); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check server.yml: %w", err)
-	}
-
-	// AI.md PART 18: when auto-detection finds no working SMTP server, email
-	// features stay disabled. The generated config must not carry a blank host
-	// or claim email is enabled, or a later startup would treat the phantom
-	// entry as configured-but-unverified.
-	smtpDetected := smtpHost != "" && smtpPort > 0
-	if !smtpDetected {
-		smtpHost = ""
-		smtpPort = 0
-	}
-
-	// Default configuration
-	config := map[string]interface{}{
-		"mode": "production",
-		"server": map[string]interface{}{
-			"port":    80,
-			"address": "::",
-			"branding": map[string]interface{}{
-				"title":       "Weather",
-				"description": "Professional weather tracking and forecasting service with real-time updates, severe weather alerts, earthquake monitoring, and moon phase tracking",
-				"tagline":     "Your reliable weather companion",
-				"logo_url":    "",
-				"favicon_url": "",
-			},
-			"seo": map[string]interface{}{
-				"keywords":      []string{"weather", "forecast", "alerts", "tracking", "severe weather", "earthquakes", "moon phases"},
-				"author":        "Weather",
-				"canonical_url": "",
-				"og_image":      "",
-			},
-			"theme": map[string]interface{}{
-				"primary_color":   "#3b82f6",
-				"secondary_color": "#8b5cf6",
-				"dark_mode":       false,
-			},
-			"email": map[string]interface{}{
-				"host":      smtpHost,
-				"port":      smtpPort,
-				"username":  "",
-				"password":  "",
-				"from":      config.DefaultEmailAddress("noreply", nil),
-				"from_name": "Weather",
-				"use_tls":   false,
-			},
-			"notifications": map[string]interface{}{
-				"enabled":         true,
-				"email_enabled":   smtpDetected,
-				"webhook_enabled": false,
-			},
-			"rate_limit": map[string]interface{}{
-				"enabled":          true,
-				"requests_per_min": 60,
-				"burst_size":       10,
-			},
-			"web": map[string]interface{}{
-				"security_txt": fmt.Sprintf("Contact: mailto:%s\nExpires: %s\nPreferred-Languages: en", config.DefaultEmailAddress("security", nil), time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)),
-			},
-			"tor": map[string]interface{}{
-				"enabled":    false,
-				"onion_addr": "",
-			},
-			"features": map[string]interface{}{
-				"earthquakes":    true,
-				"hurricanes":     true,
-				"moon_phases":    true,
-				"severe_weather": true,
-				"audit_log":      true,
-			},
-		},
-	}
-
-	// Marshal to YAML
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	// Write to file
-	header := "# Weather Configuration\n"
-	header += "# Auto-generated on first run: " + time.Now().Format(time.RFC3339) + "\n"
-	if smtpDetected {
-		header += "# SMTP auto-detected: " + smtpHost + ":" + strconv.Itoa(smtpPort) + "\n"
-	} else {
-		header += "# No SMTP server detected - email features disabled\n"
-	}
-	header += "\n"
-
-	fullContent := header + string(data)
-	if err := os.WriteFile(configPath, []byte(fullContent), 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
+	_ = smtpHost
+	_ = smtpPort
+	return config.GenerateDefaultServerYML(filepath.Dir(configPath), "")
 }
 
 func findSubstring(s, substr string) bool {

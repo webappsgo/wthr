@@ -298,7 +298,7 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var tokens []*Token
 	for rows.Next() {

@@ -15,7 +15,7 @@ func TestIsPortAvailable_Available(t *testing.T) {
 		t.Fatalf("net.Listen: %v", err)
 	}
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	_ = l.Close()
 
 	if !IsPortAvailable(port) {
 		t.Errorf("IsPortAvailable(%d) = false immediately after closing, want true", port)
@@ -29,7 +29,7 @@ func TestIsPortAvailable_InUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	port := l.Addr().(*net.TCPAddr).Port
 
 	if IsPortAvailable(port) {

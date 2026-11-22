@@ -85,7 +85,9 @@ func TestListLocations(t *testing.T) {
 	t.Run("db error returns 500 without panicking", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		// force the query to fail
-		db.Close()
+		if err := db.Close(); err != nil {
+			t.Fatalf("close test database: %v", err)
+		}
 		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
 		r = setCurrentUser(r, 1)
 

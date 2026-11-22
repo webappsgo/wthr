@@ -61,6 +61,9 @@ func LoadTemplates() (*template.Template, error) {
 		"t": func(_, key string) string {
 			return key
 		},
+		"tp": func(_, key string, _ int) string {
+			return key
+		},
 		"tf": func(_, key string, _ ...string) string {
 			return key
 		},

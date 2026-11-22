@@ -21,6 +21,11 @@ func setupIntegrationTest(t *testing.T) (chi.Router, *database.DB) {
 		t.Fatalf("Failed to initialize test database: %v", err)
 	}
 	db := &database.DB{DB: raw}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close integration test database: %v", err)
+		}
+	})
 
 	r := chi.NewRouter()
 	locationEnhancer := service.NewLocationEnhancer(db.DB)
@@ -38,8 +43,7 @@ func setupIntegrationTest(t *testing.T) (chi.Router, *database.DB) {
 }
 
 func TestAPI_Weather_Coordinates(t *testing.T) {
-	r, db := setupIntegrationTest(t)
-	defer db.Close()
+	r, _ := setupIntegrationTest(t)
 
 	tests := []struct {
 		name       string
@@ -98,8 +102,7 @@ func TestAPI_Weather_Coordinates(t *testing.T) {
 }
 
 func TestAPI_Weather_CityID(t *testing.T) {
-	r, db := setupIntegrationTest(t)
-	defer db.Close()
+	r, _ := setupIntegrationTest(t)
 
 	tests := []struct {
 		name       string
@@ -152,8 +155,7 @@ func TestAPI_Weather_Nearest(t *testing.T) {
 	// and tests/docker.sh's matching check against the same production route).
 	t.Skip("live-network case covered in Phase 2 (tests/docker.sh, tests/incus.sh) per AI.md PART 29")
 
-	r, db := setupIntegrationTest(t)
-	defer db.Close()
+	r, _ := setupIntegrationTest(t)
 
 	url := "/api/v1/weather?lat=40.7128&lon=-74.0060&nearest=true"
 	req := httptest.NewRequest("GET", url, nil)
@@ -168,8 +170,7 @@ func TestAPI_Weather_Nearest(t *testing.T) {
 }
 
 func TestAPI_Forecast(t *testing.T) {
-	r, db := setupIntegrationTest(t)
-	defer db.Close()
+	r, _ := setupIntegrationTest(t)
 
 	tests := []struct {
 		name       string
@@ -234,8 +235,7 @@ func TestAPI_Forecast(t *testing.T) {
 }
 
 func TestAPI_Search(t *testing.T) {
-	r, db := setupIntegrationTest(t)
-	defer db.Close()
+	r, _ := setupIntegrationTest(t)
 
 	tests := []struct {
 		name       string

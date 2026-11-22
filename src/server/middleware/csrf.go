@@ -73,6 +73,29 @@ func CSRFProtectionLive() func(http.Handler) http.Handler {
 	}
 }
 
+// ValidateCSRFRequest verifies the signed double-submit token on a parsed
+// browser form. It is used by public authentication-adjacent POST handlers
+// whose route chain cannot rely on an authenticated context at the global
+// CSRF middleware layer.
+func ValidateCSRFRequest(r *http.Request) bool {
+	cfg := CurrentCSRFConfig()
+	if !cfg.Enabled {
+		return true
+	}
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		return false
+	}
+	cookie, err := r.Cookie(cfg.CookieName)
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	formToken := r.PostFormValue("csrf_token")
+	if formToken == "" {
+		formToken = r.Header.Get(cfg.HeaderName)
+	}
+	return formToken != "" && subtle.ConstantTimeCompare([]byte(formToken), []byte(cookie.Value)) == 1 && isCSRFTokenAuthentic(cookie.Value)
+}
+
 // CSRFProtection provides CSRF protection middleware
 // Per AI.md: "Security should never get in the way of usability"
 // CSRF is required for authenticated state-changing operations only
@@ -150,7 +173,7 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 			// Skip CSRF for unauthenticated users on public pages
 			// CSRF protects against session hijacking - no session = no risk
 			if _, exists := reqctx.GetValue(r.Context(), UserContextKey); !exists {
-				if _, adminExists := reqctx.GetValue(r.Context(), "admin_id"); !adminExists {
+				if _, adminExists := reqctx.GetValue(r.Context(), "admin_id"); !adminExists && !hasSessionCookie(r) {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -191,6 +214,18 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// hasSessionCookie keeps the global CSRF check effective for authenticated
+// routes whose route-local auth middleware runs after the global middleware.
+// SessionCookieSigning has already removed unsigned or tampered cookies.
+func hasSessionCookie(r *http.Request) bool {
+	for _, name := range sessionCookieNames() {
+		if cookie, err := r.Cookie(name); err == nil && cookie.Value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // writeCSRFForbidden writes the canonical CSRF-rejection body using the
@@ -393,10 +428,11 @@ func isCSRFTokenAuthentic(token string) bool {
 // setCSRFCookie sets the CSRF token cookie
 func setCSRFCookie(w http.ResponseWriter, r *http.Request, cfg CSRFConfig, token string) {
 	secure := false
-	if cfg.Secure == "auto" {
+	switch cfg.Secure {
+	case "auto":
 		// Auto-detect based on scheme
 		secure = r.TLS != nil
-	} else if cfg.Secure == "true" {
+	case "true":
 		secure = true
 	}
 
@@ -443,7 +479,7 @@ func logCSRFFailure(r *http.Request, reason string) {
 	// Get audit logger from context
 	if auditLogger, exists := reqctx.GetValue(r.Context(), "auditLogger"); exists {
 		if logger, ok := auditLogger.(*service.AuditLogger); ok {
-			logger.LogFailure(
+			if err := logger.LogFailure(
 				string(service.EventSecurityCSRFDetected),
 				"security",
 				"api",
@@ -455,7 +491,9 @@ func logCSRFFailure(r *http.Request, reason string) {
 					"method":     r.Method,
 					"user_agent": r.UserAgent(),
 				},
-			)
+			); err != nil {
+				util.LogError("Unable to record CSRF failure audit event: %v", err)
+			}
 		}
 	}
 }

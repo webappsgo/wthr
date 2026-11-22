@@ -22,6 +22,11 @@ import (
 // it (see src/main.go db middleware).
 func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}) (*sql.DB, *http.Request, *httptest.ResponseRecorder) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	db := newTestServerDB(t)
 	// SettingsModel and several admin_api.go helpers read through the
 	// package-level database.GetServerDB() accessor rather than the
@@ -103,11 +108,16 @@ func TestSaveWebSettings(t *testing.T) {
 		}
 	})
 
-	t.Run("db error returns 500", func(t *testing.T) {
-		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
-		if _, err := db.Exec("DROP TABLE server_config"); err != nil {
-			t.Fatalf("drop table: %v", err)
+	t.Run("config persistence error returns 500", func(t *testing.T) {
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
+		badConfigDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(badConfigDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+			t.Fatal(err)
 		}
+		if err := os.WriteFile(filepath.Join(badConfigDir, "yaml.d"), []byte("file"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("CONFIG_DIR", badConfigDir)
 		SaveWebSettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -162,7 +172,9 @@ func TestTestDatabaseConnection(t *testing.T) {
 
 	t.Run("closed db fails ping", func(t *testing.T) {
 		db, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/db/test", nil)
-		db.Close()
+		if err := db.Close(); err != nil {
+			t.Fatalf("close test database: %v", err)
+		}
 		TestDatabaseConnection(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -189,7 +201,9 @@ func TestOptimizeDatabase(t *testing.T) {
 
 	t.Run("closed db returns 500", func(t *testing.T) {
 		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/optimize", nil)
-		db.Close()
+		if err := db.Close(); err != nil {
+			t.Fatalf("close test database: %v", err)
+		}
 		OptimizeDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -216,7 +230,9 @@ func TestVacuumDatabase(t *testing.T) {
 
 	t.Run("closed db returns 500", func(t *testing.T) {
 		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
-		db.Close()
+		if err := db.Close(); err != nil {
+			t.Fatalf("close test database: %v", err)
+		}
 		VacuumDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -276,8 +292,8 @@ func TestCreateBackup(t *testing.T) {
 
 		r, w := newBackupFormContext(http.MethodPost, "/admin/backup", url.Values{})
 		CreateBackup(w, r)
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303; body=%s", w.Code, w.Body.String())
 		}
 	})
 }

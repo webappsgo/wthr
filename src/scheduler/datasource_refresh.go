@@ -79,7 +79,9 @@ func CalculateNextRunTime(targetTime string) time.Duration {
 
 	// Parse target time (format: "HH:MM")
 	var hour, minute int
-	fmt.Sscanf(targetTime, "%d:%d", &hour, &minute)
+	if _, err := fmt.Sscanf(targetTime, "%d:%d", &hour, &minute); err != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return 0
+	}
 
 	// Create target time for today
 	target := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())

@@ -21,7 +21,7 @@ func openMemDB(t *testing.T, name string) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open in-memory db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	if err := db.Ping(); err != nil {
 		t.Fatalf("failed to ping in-memory db: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestApplyPoolConfig_EnforcesMaxOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to acquire first conn: %v", err)
 	}
-	defer conn1.Close()
+	defer func() { _ = conn1.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
@@ -187,7 +187,7 @@ func TestPingWithTimeout(t *testing.T) {
 
 	t.Run("fails on closed db", func(t *testing.T) {
 		db := openMemDB(t, "pingclosed")
-		db.Close()
+		_ = db.Close()
 		if err := PingWithTimeout(db); err == nil {
 			t.Error("PingWithTimeout() on closed db = nil, want error")
 		}
@@ -247,7 +247,7 @@ func TestQueryContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryContext: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var count int
 	for rows.Next() {
@@ -334,7 +334,7 @@ func TestWithTransaction(t *testing.T) {
 
 	t.Run("returns error when begin fails on closed db", func(t *testing.T) {
 		db := openMemDB(t, "txclosed")
-		db.Close()
+		_ = db.Close()
 
 		err := WithTransaction(context.Background(), db, func(tx *sql.Tx) error {
 			t.Error("transaction function should not run when BeginTx fails")

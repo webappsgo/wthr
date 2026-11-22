@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -72,7 +73,11 @@ func (wns *WeatherNotificationService) CheckWeatherAlerts() error {
 	if err != nil {
 		return fmt.Errorf("failed to query locations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close weather alert location rows: %v", err)
+		}
+	}()
 
 	alertsFound := 0
 	for rows.Next() {
@@ -231,7 +236,11 @@ func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert Weathe
 	if err != nil {
 		return fmt.Errorf("failed to get user preferences: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close weather alert preference rows: %v", err)
+		}
+	}()
 
 	channelsSent := 0
 	for rows.Next() {
@@ -265,10 +274,11 @@ func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert Weathe
 		// Priority based on severity
 		// normal
 		priority := 2
-		if alert.Severity == "high" {
+		switch alert.Severity {
+		case "high":
 			// high
 			priority = 3
-		} else if alert.Severity == "critical" {
+		case "critical":
 			// critical
 			priority = 4
 		}
@@ -313,7 +323,11 @@ func (wns *WeatherNotificationService) hasRecentAlert(userID, locationID int, al
 	if err != nil {
 		return false
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close weather alert history rows: %v", err)
+		}
+	}()
 
 	cutoff := time.Now().Add(-alertDedupWindow)
 
@@ -357,7 +371,11 @@ func (wns *WeatherNotificationService) SendDailyForecast() error {
 	if err != nil {
 		return fmt.Errorf("failed to query subscriptions: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close forecast subscription rows: %v", err)
+		}
+	}()
 
 	forecastsSent := 0
 	for rows.Next() {
@@ -400,7 +418,11 @@ func (wns *WeatherNotificationService) sendDailyForecast(userID int, location st
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close daily forecast channel rows: %v", err)
+		}
+	}()
 
 	condition := wns.weatherService.GetWeatherDescription(weatherData.WeatherCode)
 	emoji := wns.weatherService.GetWeatherIcon(weatherData.WeatherCode, weatherData.IsDay == 1)
@@ -442,7 +464,11 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close system health subscriber rows: %v", err)
+		}
+	}()
 
 	for rows.Next() {
 		var userID int
@@ -459,6 +485,11 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 		if err != nil {
 			continue
 		}
+		defer func() {
+			if err := channels.Close(); err != nil {
+				log.Printf("WARNING: failed to close system health channel rows: %v", err)
+			}
+		}()
 
 		for channels.Next() {
 			var channelType string
@@ -474,9 +505,10 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 			}
 
 			priority := 2
-			if severity == "critical" {
+			switch severity {
+			case "critical":
 				priority = 4
-			} else if severity == "high" {
+			case "high":
 				priority = 3
 			}
 
@@ -485,7 +517,9 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 
 			_, _ = wns.deliverySystem.Enqueue(&userID, channelType, subject, body, priority, variables)
 		}
-		channels.Close()
+		if err := channels.Close(); err != nil {
+			return fmt.Errorf("close weather alert channels: %w", err)
+		}
 	}
 
 	return nil

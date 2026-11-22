@@ -104,12 +104,12 @@ func HandleQueryError(err error) error {
 		return nil
 	}
 
-	switch {
-	case err == context.DeadlineExceeded:
+	switch err {
+	case context.DeadlineExceeded:
 		return fmt.Errorf("TIMEOUT: Query timed out")
-	case err == sql.ErrNoRows:
+	case sql.ErrNoRows:
 		return fmt.Errorf("NOT_FOUND: Resource not found")
-	case err == context.Canceled:
+	case context.Canceled:
 		return fmt.Errorf("CANCELED: Request was canceled")
 	default:
 		return fmt.Errorf("DATABASE_ERROR: %w", err)
@@ -128,7 +128,7 @@ func WithTransaction(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) er
 	}
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 

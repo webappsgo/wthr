@@ -183,9 +183,10 @@ func checkForUpdates(branch string) error {
 		return nil
 	}
 	line := "cli.update.stable_line"
-	if branch == "beta" {
+	switch branch {
+	case "beta":
 		line = "cli.update.beta_line"
-	} else if branch == "devel" {
+	case "devel":
 		line = "cli.update.devel_line"
 	}
 	fmt.Printf(T(line)+"\n", release.TagName, release.PublishedAt.Format("2006-01-02"))
@@ -266,7 +267,7 @@ func performReleaseUpdate(release *GitHubRelease) error {
 	if err != nil {
 		return fmt.Errorf("failed to create update temp directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 	tmpPath := filepath.Join(tempDir, "cli.update.tmp")
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
@@ -373,7 +374,7 @@ func fetchReleases(url string) ([]GitHubRelease, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
@@ -381,9 +382,19 @@ func fetchReleases(url string) ([]GitHubRelease, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
+	if resp.ContentLength > 8<<20 {
+		return nil, fmt.Errorf("GitHub API response exceeds 8 MiB")
+	}
 
 	var releases []GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+	if err != nil {
+		return nil, fmt.Errorf("read GitHub API response: %w", err)
+	}
+	if len(body) > 8<<20 {
+		return nil, fmt.Errorf("GitHub API response exceeds 8 MiB")
+	}
+	if err := json.Unmarshal(body, &releases); err != nil {
 		return nil, err
 	}
 	return releases, nil
@@ -481,7 +492,7 @@ func downloadFile(filepath string, url string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
@@ -491,7 +502,7 @@ func downloadFile(filepath string, url string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	size := resp.ContentLength
 	downloaded := int64(0)
@@ -531,15 +542,18 @@ func fetchChecksum(checksumURL, assetName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to download checksum: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("checksum file not found (status %d)", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return "", fmt.Errorf("failed to read checksum: %w", err)
+	}
+	if len(data) > 1<<20 {
+		return "", fmt.Errorf("checksum file exceeds 1048576 bytes")
 	}
 
 	for _, line := range strings.Split(string(data), "\n") {
@@ -558,7 +572,7 @@ func verifyChecksum(path, expectedHash string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file for checksum: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {

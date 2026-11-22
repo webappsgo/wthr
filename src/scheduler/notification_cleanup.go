@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -121,16 +122,16 @@ func enforceRecipientLimits(db *sql.DB, query string, enforce func(id int, limit
 	for rows.Next() {
 		var id int
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return 0, err
+			return 0, errors.Join(err, rows.Close())
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, err
+		return 0, errors.Join(err, rows.Close())
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close notification recipient rows: %w", err)
+	}
 
 	var total int64
 	for _, id := range ids {

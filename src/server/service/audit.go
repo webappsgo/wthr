@@ -394,7 +394,7 @@ func (al *AuditLogger) Rotate() error {
 
 	// Close current file
 	if al.file != nil {
-		al.file.Close()
+		_ = al.file.Close()
 	}
 
 	// Rename current file with timestamp

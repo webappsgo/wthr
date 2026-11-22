@@ -25,23 +25,23 @@
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.uptime_label"}}</div>
-                            <div class="stat-value" id="uptime">
-                                <span class="loading">{{t $lang "admin.system.loading"}}</span>
-                            </div>
+                            <div class="stat-value" id="uptime">{{.uptime}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.version_label"}}</div>
-                            <div class="stat-value" id="version">-</div>
+                        <div class="stat-value" id="version">{{.version}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.build_date_label"}}</div>
-                            <div class="stat-value" id="build-date">-</div>
+                        <div class="stat-value" id="build-date">{{.build_date}}</div>
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" data-action="refresh-system-info" aria-label="{{t $lang "admin.system.refresh_system_aria"}}">
+                    <form method="get" action="{{.admin_path}}/info">
+                    <button class="btn btn-secondary" type="submit" data-action="refresh-system-info" aria-label="{{t $lang "admin.system.refresh_system_aria"}}">
                         🔄 {{t $lang "action.refresh"}}
                     </button>
+                    </form>
                 </div>
             </section>
 
@@ -55,27 +55,27 @@
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.os_label"}}</div>
-                            <div class="info-value" id="os">-</div>
+                            <div class="info-value" id="os">{{.os}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.arch_label"}}</div>
-                            <div class="info-value" id="arch">-</div>
+                            <div class="info-value" id="arch">{{.arch}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.go_version_label"}}</div>
-                            <div class="info-value" id="go-version">-</div>
+                            <div class="info-value" id="go-version">{{.go_version}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.hostname_label"}}</div>
-                            <div class="info-value" id="hostname">-</div>
+                            <div class="info-value" id="hostname">{{.hostname}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.working_dir_label"}}</div>
-                            <div class="info-value" id="working-dir">-</div>
+                            <div class="info-value" id="working-dir">{{.working_dir}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.pid_label"}}</div>
-                            <div class="info-value" id="pid">-</div>
+                            <div class="info-value" id="pid">{{.pid}}</div>
                         </div>
                     </div>
                 </div>
@@ -91,21 +91,19 @@
                     <div class="stats-grid">
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.memory_alloc_label"}}</div>
-                            <div class="stat-value" id="memory-alloc">
-                                <span class="loading">{{t $lang "admin.system.loading"}}</span>
-                            </div>
+                            <div class="stat-value" id="memory-alloc">{{.memory_alloc}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.memory_sys_label"}}</div>
-                            <div class="stat-value" id="memory-sys">-</div>
+                        <div class="stat-value" id="memory-sys">{{.memory_sys}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.goroutines_label"}}</div>
-                            <div class="stat-value" id="goroutines">-</div>
+                        <div class="stat-value" id="goroutines">{{.goroutines}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.system.gc_runs_label"}}</div>
-                            <div class="stat-value" id="gc-runs">-</div>
+                        <div class="stat-value" id="gc-runs">{{.gc_runs}}</div>
                         </div>
                     </div>
 
@@ -114,12 +112,12 @@
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-secondary" data-action="trigger-gc" aria-label="{{t $lang "admin.system.trigger_gc_aria"}}">
+                        <form method="post" action="{{.admin_path}}/info/gc"><input type="hidden" name="csrf_token" value="{{.csrf_token}}"><button class="btn btn-secondary" type="submit" data-action="trigger-gc" aria-label="{{t $lang "admin.system.trigger_gc_aria"}}">
                             🧹 {{t $lang "admin.system.run_gc_action"}}
-                        </button>
-                        <button class="btn btn-secondary" data-action="refresh-resource-usage" aria-label="{{t $lang "admin.system.refresh_resources_aria"}}">
+                        </button></form>
+                        <form method="get" action="{{.admin_path}}/info"><button class="btn btn-secondary" type="submit" data-action="refresh-resource-usage" aria-label="{{t $lang "admin.system.refresh_resources_aria"}}">
                             🔄 {{t $lang "action.refresh"}}
-                        </button>
+                        </button></form>
                     </div>
                 </div>
             </section>
@@ -134,19 +132,19 @@
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.http_port_label"}}</div>
-                            <div class="info-value" id="http-port">-</div>
+                            <div class="info-value" id="http-port">{{.http_port}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.https_port_label"}}</div>
-                            <div class="info-value" id="https-port">-</div>
+                            <div class="info-value" id="https-port">{{.https_port}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.https_enabled_label"}}</div>
-                            <div class="info-value" id="https-enabled">-</div>
+                            <div class="info-value" id="https-enabled">{{.https_enabled}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.tor_hidden_service_label"}}</div>
-                            <div class="info-value" id="tor-status">-</div>
+                            <div class="info-value" id="tor-status">{{.tor_enabled}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.onion_address_label"}}</div>
@@ -154,7 +152,7 @@
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.server_url_label"}}</div>
-                            <div class="info-value" id="server-url">-</div>
+                            <div class="info-value" id="server-url">{{.server_url}}</div>
                         </div>
                     </div>
                 </div>
@@ -170,27 +168,27 @@
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.mode_label"}}</div>
-                            <div class="info-value" id="mode">-</div>
+                            <div class="info-value" id="mode">{{.mode}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.debug_enabled_label"}}</div>
-                            <div class="info-value" id="debug">-</div>
+                            <div class="info-value" id="debug">{{.debug}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.data_dir_label"}}</div>
-                            <div class="info-value" id="data-dir">-</div>
+                            <div class="info-value" id="data-dir">{{.data_dir}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.config_dir_label"}}</div>
-                            <div class="info-value" id="config-dir">-</div>
+                            <div class="info-value" id="config-dir">{{.config_dir}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.log_dir_label"}}</div>
-                            <div class="info-value" id="log-dir">-</div>
+                            <div class="info-value" id="log-dir">{{.log_dir}}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">{{t $lang "admin.system.timezone_label"}}</div>
-                            <div class="info-value" id="timezone">-</div>
+                            <div class="info-value" id="timezone">{{.timezone}}</div>
                         </div>
                     </div>
                 </div>
@@ -208,15 +206,15 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button class="btn btn-secondary" data-action="reload-config" aria-label="{{t $lang "admin.system.reload_config_aria"}}">
+                        <form method="post" action="{{.admin_path}}/info/reload"><input type="hidden" name="csrf_token" value="{{.csrf_token}}"><button class="btn btn-secondary" type="submit" data-action="reload-config" aria-label="{{t $lang "admin.system.reload_config_aria"}}">
                             🔄 {{t $lang "admin.system.reload_config_action"}}
-                        </button>
-                        <button class="btn btn-info" data-action="view-all-routes" aria-label="{{t $lang "admin.system.view_routes_aria"}}">
+                        </button></form>
+                        <a class="btn btn-info" href="{{.admin_path}}/info/routes" aria-label="{{t $lang "admin.system.view_routes_aria"}}">
                             🗺️ {{t $lang "admin.system.view_routes_action"}}
-                        </button>
-                        <button class="btn btn-info" data-action="export-system-info" aria-label="{{t $lang "admin.system.export_info_aria"}}">
+                        </a>
+                        <a class="btn btn-info" href="{{.admin_path}}/info/export" aria-label="{{t $lang "admin.system.export_info_aria"}}">
                             📥 {{t $lang "admin.system.export_info_action"}}
-                        </button>
+                        </a>
                     </div>
 
                     <div id="action-result" class="alert d-none mt-4" role="status" aria-live="polite"></div>

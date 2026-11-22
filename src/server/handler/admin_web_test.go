@@ -34,8 +34,14 @@ func withTestGlobalConfig(t *testing.T) {
 		t.Fatalf("seed server.yml: %v", err)
 	}
 	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("CONFIG_DIR", dir)
-	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+	if err := os.Setenv("CONFIG_DIR", dir); err != nil {
+		t.Fatalf("set CONFIG_DIR: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Setenv("CONFIG_DIR", oldConfigDir); err != nil {
+			t.Errorf("restore CONFIG_DIR: %v", err)
+		}
+	})
 	config.SetGlobalConfig(&config.AppConfig{})
 }
 

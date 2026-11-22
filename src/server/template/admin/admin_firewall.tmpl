@@ -2,22 +2,76 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-{{- $ap := "/server/administration" -}}
-{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
-  <div class="admin-header">
-    <h1>{{t $lang "admin.firewall.title"}}</h1>
-    <p class="admin-page-intro">{{t $lang "admin.firewall.intro"}}</p>
-  </div>
-
-  <section class="admin-section" aria-labelledby="firewall-rules-heading">
-    <div class="section-header">
-      <h2 id="firewall-rules-heading">{{t $lang "admin.firewall.rules_heading"}}</h2>
+<main class="admin-page">
+    <div class="admin-header">
+        <h1>{{t $lang "admin.firewall.title"}}</h1>
+        <p class="admin-page-intro">{{t $lang "admin.firewall.intro"}}</p>
     </div>
-    <div class="empty-state">
-      <p class="empty-state__icon" aria-hidden="true">&#128737;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.firewall.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.firewall.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/security">{{t $lang "admin.firewall.empty_action"}}</a>
-    </div>
-  </section>
+    {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</p>{{end}}
+    <section class="admin-section" aria-labelledby="firewall-rules-heading">
+        <h2 id="firewall-rules-heading">{{t $lang "admin.firewall.allowlist_heading"}}</h2>
+        <p>{{t $lang "admin.firewall.allowlist_note"}}</p>
+        {{if .Entries}}
+        <ul>
+            {{range .Entries}}
+            <li><code>{{.CIDR}}</code> — {{.Description}}
+                <form method="post" action="/server/{{$.admin_path}}/security/firewall/allowlist/{{.ID}}/delete">
+                    <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+                    <button type="submit">{{t $lang "admin.firewall.remove_entry"}}</button>
+                </form>
+            </li>
+            {{end}}
+        </ul>
+        {{else}}
+        <div class="empty-state">
+            <p class="empty-state__icon" aria-hidden="true">&#128737;</p>
+            <h3 class="empty-state__title">{{t $lang "admin.firewall.empty_title"}}</h3>
+            <p class="empty-state__message">{{t $lang "admin.firewall.empty_message"}}</p>
+        </div>
+        {{end}}
+        <form method="post" action="/server/{{.admin_path}}/security/firewall/allowlist">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <label for="allowlist-cidr">{{t $lang "admin.firewall.cidr_label"}}</label>
+            <input id="allowlist-cidr" name="cidr" required maxlength="64" autocomplete="off" placeholder="192.0.2.0/24">
+            <label for="allowlist-description">{{t $lang "admin.firewall.description_label"}}</label>
+            <input id="allowlist-description" name="description" required maxlength="120">
+            <button type="submit">{{t $lang "admin.firewall.add_entry"}}</button>
+        </form>
+    </section>
+    <section class="admin-section" aria-labelledby="blocked-ips-heading">
+        <h2 id="blocked-ips-heading">{{t $lang "admin.firewall.blocklist_heading"}}</h2>
+        {{if .Blocks}}
+        <ul>
+            {{range .Blocks}}
+            <li>
+                {{if .IP}}<code>{{.IP}}</code>{{else}}<code>{{.CIDR}}</code>{{end}} — {{.Type}} — {{.Reason}}
+                {{if .ExpiresAt}} ({{t $lang "admin.firewall.expires_label"}}: {{.ExpiresAt}}){{end}}
+                <form method="post" action="/server/{{$.admin_path}}/security/firewall/blocks/{{.ID}}/delete">
+                    <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+                    <button type="submit">{{t $lang "admin.firewall.remove_entry"}}</button>
+                </form>
+            </li>
+            {{end}}
+        </ul>
+        {{else}}
+        <p>{{t $lang "admin.firewall.empty_blocks"}}</p>
+        {{end}}
+        <form method="post" action="/server/{{.admin_path}}/security/firewall/blocks">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <label for="block-ip">{{t $lang "admin.firewall.cidr_label"}}</label>
+            <input id="block-ip" name="ip" required maxlength="64" autocomplete="off">
+            <label for="block-type">{{t $lang "admin.firewall.block_type_label"}}</label>
+            <select id="block-type" name="block_type">
+                <option value="temporary">{{t $lang "admin.firewall.block_temporary"}}</option>
+                <option value="extended">{{t $lang "admin.firewall.block_extended"}}</option>
+                <option value="permanent">{{t $lang "admin.firewall.block_permanent"}}</option>
+            </select>
+            <label for="block-reason">{{t $lang "admin.firewall.block_reason_label"}}</label>
+            <input id="block-reason" name="reason" required maxlength="500">
+            <label for="block-expiry">{{t $lang "admin.firewall.expiry_input_label"}}</label>
+            <input id="block-expiry" name="expires_at" type="datetime-local">
+            <button type="submit">{{t $lang "admin.firewall.add_block"}}</button>
+        </form>
+    </section>
+</main>
 {{template "admin_footer" .}}

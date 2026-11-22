@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,88 @@ func newTestWeatherService() *WeatherService {
 		cache:            cache.New(5*time.Minute, 10*time.Minute),
 		openMeteoBaseURL: "https://api.open-meteo.com/v1",
 		geocodingURL:     "https://geocoding-api.open-meteo.com/v1",
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func TestIPGeolocationUsesHTTPSAndProviderCoordinates(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		call func(*WeatherService) (*Coordinates, error)
+		body string
+	}{
+		{
+			name: "ipapi",
+			call: func(ws *WeatherService) (*Coordinates, error) { return ws.tryIPAPIco("8.8.8.8") },
+			body: `{"city":"Mountain View","region":"California","country_name":"United States","country_code":"US","latitude":37.4056,"longitude":-122.0775}`,
+		},
+		{
+			name: "ipwho",
+			call: func(ws *WeatherService) (*Coordinates, error) { return ws.tryIPWhois("8.8.8.8") },
+			body: `{"success":true,"city":"Mountain View","region":"California","country":"United States","country_code":"US","latitude":37.4056,"longitude":-122.0775}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ws := newTestWeatherService()
+			ws.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Scheme != "https" {
+					t.Errorf("provider request scheme = %q, want https", request.URL.Scheme)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(test.body)), Header: make(http.Header), Request: request}, nil
+			})}
+			coords, err := test.call(ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if coords.Latitude != 37.4056 || coords.Longitude != -122.0775 || coords.CountryCode != "US" {
+				t.Fatalf("provider coordinates were not preserved: %+v", coords)
+			}
+		})
+	}
+}
+
+func TestValidIPGeoCoordinates(t *testing.T) {
+	for _, test := range []struct {
+		latitude, longitude float64
+		want                bool
+	}{
+		{90, 180, true},
+		{-90, -180, true},
+		{90.01, 0, false},
+		{0, -180.01, false},
+	} {
+		if got := validIPGeoCoordinates(test.latitude, test.longitude); got != test.want {
+			t.Errorf("validIPGeoCoordinates(%v, %v) = %v, want %v", test.latitude, test.longitude, got, test.want)
+		}
+	}
+}
+
+func TestGetCurrentWeatherRejectsRemoteAPIError(t *testing.T) {
+	ws := newTestWeatherService()
+	ws.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: io.NopCloser(strings.NewReader(`{"reason":"maintenance"}`)), Header: make(http.Header), Request: request}, nil
+	})}
+	if _, err := ws.GetCurrentWeather(40.7, -74, "metric"); err == nil || !strings.Contains(err.Error(), "status 503") {
+		t.Fatalf("GetCurrentWeather() error = %v, want HTTP 503", err)
+	}
+}
+
+func TestGetForecastRejectsInvalidDaysAndMismatchedRemoteArrays(t *testing.T) {
+	ws := newTestWeatherService()
+	if _, err := ws.GetForecast(40.7, -74, 17, "metric"); err == nil {
+		t.Fatal("GetForecast() accepted more than Open-Meteo's 16-day maximum")
+	}
+	ws.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"timezone":"America/New_York","daily":{"time":["2026-11-21"]},"hourly":{"time":["2026-11-21T00:00"]}}`
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: request}, nil
+	})}
+	if _, err := ws.GetForecast(40.7, -74, 7, "metric"); err == nil || !strings.Contains(err.Error(), "daily weather_code count") {
+		t.Fatalf("GetForecast() error = %v, want a mismatched-array error", err)
 	}
 }
 
@@ -592,6 +676,7 @@ func TestWeatherService_GetCurrentWeather_HTTPTest(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"current": {
+				"time": "2026-11-21T12:00",
 				"temperature_2m": 22.5,
 				"relative_humidity_2m": 55,
 				"apparent_temperature": 21.0,
@@ -636,7 +721,7 @@ func TestWeatherService_GetCurrentWeather_HTTPTest(t *testing.T) {
 func TestWeatherService_GetCurrentWeather_Imperial(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"current":{"temperature_2m":0,"wind_speed_10m":10},"timezone":"UTC"}`))
+		_, _ = w.Write([]byte(`{"current":{"time":"2026-11-21T12:00","temperature_2m":0,"wind_speed_10m":10},"timezone":"UTC"}`))
 	}))
 	defer server.Close()
 

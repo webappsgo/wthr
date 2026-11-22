@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -732,7 +733,9 @@ func (s *Scheduler) executeTask(task *Task) {
 	// caller polling GetLastTaskRun, every side effect of the run has
 	// already completed - avoids a caller tearing down the DB (e.g. test
 	// cleanup) while logTaskExecution is still in flight.
-	s.RecordTaskRun(task.Name, start, end, err)
+	if recordErr := s.RecordTaskRun(task.Name, start, end, err); recordErr != nil {
+		log.Printf("ERROR: Failed to record scheduler task run for %q: %v", task.Name, recordErr)
+	}
 }
 
 // runTaskFn invokes a task's function inside its own panic/recover boundary.
@@ -843,14 +846,12 @@ func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
 }
 
 // logTaskExecution logs task execution to audit log
-func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, err error) {
-	// Check if audit logging is enabled
-	var auditEnabled string
-	queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'audit.enabled'").Scan(&auditEnabled)
-	if queryErr != nil || auditEnabled != "true" {
-		return
-	}
+func serverSettingEnabled(key string) bool {
+	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	return settings.GetBool(key, false)
+}
 
+func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, err error) {
 	status := "success"
 	details := fmt.Sprintf("Completed in %v", duration)
 	if err != nil {
@@ -923,8 +924,12 @@ func CleanupOldAuditLogs() error {
 	// "scheduler.cleanup_audit_logs_days") - a prior mismatched key here
 	// ("audit.retention_days") meant the configured value was silently
 	// ignored and the 90-day default always applied.
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-	retentionDays := settingsModel.GetInt("scheduler.cleanup_audit_logs_days", 90)
+	retentionDays := 90
+	if value, exists, err := config.ReadSetting("scheduler.cleanup_audit_logs_days"); err == nil && exists {
+		if parsed, parseErr := strconv.Atoi(strings.TrimSpace(fmt.Sprint(value))); parseErr == nil && parsed > 0 {
+			retentionDays = parsed
+		}
+	}
 
 	// The retained window is measured against audit_log.timestamp (the
 	// table has no created_at column). That column has two producers - SQLite's
@@ -958,7 +963,11 @@ func CheckWeatherAlerts() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch locations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close saved location alert rows: %v", err)
+		}
+	}()
 
 	alertCount := 0
 
@@ -996,8 +1005,37 @@ func CheckWeatherAlerts() error {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
-			return json.NewDecoder(resp.Body).Decode(&weatherData)
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("Open-Meteo returned HTTP %d", resp.StatusCode)
+			}
+			if resp.ContentLength > 8<<20 {
+				return fmt.Errorf("Open-Meteo response exceeds 8 MiB")
+			}
+			body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+			if err != nil {
+				return fmt.Errorf("read Open-Meteo response: %w", err)
+			}
+			if len(body) > 8<<20 {
+				return fmt.Errorf("Open-Meteo response exceeds 8 MiB")
+			}
+			if err := json.Unmarshal(body, &weatherData); err != nil {
+				return fmt.Errorf("decode Open-Meteo response: %w", err)
+			}
+			var envelope map[string]json.RawMessage
+			if err := json.Unmarshal(body, &envelope); err != nil {
+				return fmt.Errorf("decode Open-Meteo response fields: %w", err)
+			}
+			var currentFields map[string]json.RawMessage
+			if len(envelope["current"]) == 0 || json.Unmarshal(envelope["current"], &currentFields) != nil {
+				return fmt.Errorf("Open-Meteo response is missing current weather")
+			}
+			for _, key := range []string{"temperature_2m", "wind_speed_10m", "precipitation", "weather_code"} {
+				if len(currentFields[key]) == 0 {
+					return fmt.Errorf("Open-Meteo response is missing current.%s", key)
+				}
+			}
+			return nil
 		}()
 		if fetchErr != nil {
 			log.Printf("WARNING: Failed to fetch weather for %s: %v", name, fetchErr)
@@ -1128,9 +1166,7 @@ func createNotification(userID int, notifType model.NotificationType, title, mes
 // AI.md PART 19/25: backup_daily task - creates verified backups
 func CreateSystemBackup() error {
 	// Get backup settings
-	var backupEnabled string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.enabled'").Scan(&backupEnabled)
-	if err != nil || backupEnabled != "true" {
+	if !serverSettingEnabled("backup.enabled") {
 		// Backups disabled, skip silently
 		return nil
 	}
@@ -1155,9 +1191,10 @@ func CreateSystemBackup() error {
 		return nil
 	}
 
-	// Check for encryption password from settings
-	var encryptionPassword string
-	_ = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.encryption_password'").Scan(&encryptionPassword)
+	encryptionPassword, err := scheduledBackupPassword()
+	if err != nil {
+		return err
+	}
 
 	retention := systemBackupRetention()
 
@@ -1172,7 +1209,7 @@ func CreateSystemBackup() error {
 		IncludeSSL:  false, // Don't include SSL in automated backups
 		IncludeData: false, // Don't include data files in automated backups
 		CreatedBy:   "scheduler",
-		AppVersion:  "1.0.0",
+		AppVersion:  appVersion,
 		Retention:   retention,
 	}
 
@@ -1350,49 +1387,36 @@ func logBackupRetentionAudit(db *sql.DB, actorType, actorID, backupPath string, 
 
 // systemBackupRetention reads the admin-configured tiered retention policy
 // (AI.md PART 22, "backup.retention.*" keys) for the scheduled system backup.
-// It mirrors CreateSystemBackup's own raw-SQL settings lookups rather than
-// SettingsModel, so a missing key (never saved by the admin) silently falls
-// through to backup.DefaultRetention()'s zero value and is left unset on the
-// pointer's fields, never blocking the scheduled run.
+// Missing or invalid values fall through to backup.DefaultRetention() and do
+// not block the scheduled run.
 func systemBackupRetention() *backup.RetentionConfig {
 	retention := backup.DefaultRetention()
 
-	serverDB := database.GetServerDB()
-	if serverDB == nil {
-		// Server DB not initialized (e.g. BackupHourlyTask/BackupTask
-		// exercised directly in tests, or called before startup wiring
-		// completes) - fall back to the spec default rather than panic.
-		return &retention
+	get := func(key string) string {
+		return (&model.SettingsModel{DB: database.GetServerDB()}).GetString(key, "")
 	}
 
-	get := func(key string) (string, bool) {
-		var value string
-		err := database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect,
-			"SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
-		return value, err == nil
-	}
-
-	if v, ok := get("backup.retention.max_backups"); ok {
+	if v := get("backup.retention.max_backups"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			retention.MaxBackups = n
 		}
 	}
-	if v, ok := get("backup.retention.keep_weekly"); ok {
+	if v := get("backup.retention.keep_weekly"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			retention.KeepWeekly = n
 		}
 	}
-	if v, ok := get("backup.retention.keep_monthly"); ok {
+	if v := get("backup.retention.keep_monthly"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			retention.KeepMonthly = n
 		}
 	}
-	if v, ok := get("backup.retention.keep_yearly"); ok {
+	if v := get("backup.retention.keep_yearly"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			retention.KeepYearly = n
 		}
 	}
-	if v, ok := get("backup.retention.max_total_size"); ok && v != "" {
+	if v := get("backup.retention.max_total_size"); v != "" {
 		retention.MaxTotalSize = v
 	}
 	return &retention
@@ -1487,9 +1511,7 @@ func UpdateBlocklist() error {
 	log.Println("INFO: Updating IP blocklist database...")
 
 	// Check if blocklist is enabled
-	var blocklistEnabled string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'security.blocklist.enabled'").Scan(&blocklistEnabled)
-	if err != nil || blocklistEnabled != "true" {
+	if !serverSettingEnabled("security.blocklist.enabled") {
 		// Blocklist not enabled, skip
 		return nil
 	}
@@ -1506,7 +1528,7 @@ func UpdateBlocklist() error {
 	db := database.GetServerDB()
 
 	// Create table if not exists
-	_, err = database.ExecContext(context.Background(), db, database.TimeoutMigration, `
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutMigration, `
 		CREATE TABLE IF NOT EXISTS server_ip_blocklist (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			source TEXT NOT NULL,
@@ -1516,8 +1538,7 @@ func UpdateBlocklist() error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(source, ip_range)
 		)
-	`)
-	if err != nil {
+	`); err != nil {
 		return fmt.Errorf("failed to create blocklist table: %w", err)
 	}
 
@@ -1532,7 +1553,7 @@ func UpdateBlocklist() error {
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			log.Printf("WARNING: Failed to fetch %s: HTTP %d", source.name, resp.StatusCode)
 			continue
 		}
@@ -1575,7 +1596,7 @@ func UpdateBlocklist() error {
 				totalAdded++
 			}
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Clean up old entries (older than 7 days and not in latest update)
@@ -1629,9 +1650,7 @@ func UpdateCVEDatabase() error {
 	log.Println("INFO: Updating CVE database...")
 
 	// Check if CVE monitoring is enabled
-	var cveEnabled string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'security.cve.enabled'").Scan(&cveEnabled)
-	if err != nil || cveEnabled != "true" {
+	if !serverSettingEnabled("security.cve.enabled") {
 		// CVE monitoring not enabled, skip
 		return nil
 	}
@@ -1667,10 +1686,13 @@ func UpdateCVEDatabase() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch CVE data: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("NVD API returned status %d", resp.StatusCode)
+	}
+	if resp.ContentLength > 16<<20 {
+		return fmt.Errorf("NVD API response exceeds 16 MiB")
 	}
 
 	var nvdResponse struct {
@@ -1699,7 +1721,14 @@ func UpdateCVEDatabase() error {
 		} `json:"vulnerabilities"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&nvdResponse); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (16<<20)+1))
+	if err != nil {
+		return fmt.Errorf("failed to read CVE data: %w", err)
+	}
+	if len(body) > 16<<20 {
+		return fmt.Errorf("NVD API response exceeds 16 MiB")
+	}
+	if err := json.Unmarshal(body, &nvdResponse); err != nil {
 		return fmt.Errorf("failed to parse CVE data: %w", err)
 	}
 
@@ -1762,9 +1791,7 @@ func UpdateCVEDatabase() error {
 // AI.md PART 19 (Built-in Tasks): cluster_heartbeat every 30 seconds (cluster mode only)
 func ClusterHeartbeat(nodeID string) error {
 	// Check if cluster mode is enabled
-	var clusterEnabled string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled)
-	if err != nil || clusterEnabled != "true" {
+	if !serverSettingEnabled("server.cluster.enabled") {
 		// Not in cluster mode, skip silently
 		return nil
 	}
@@ -1782,16 +1809,14 @@ func ClusterHeartbeat(nodeID string) error {
 	// project's single host-resolution helper (proxy/DOMAIN aware, falling back
 	// through os.Hostname to a routable address), so a node identifies itself the
 	// same way here as everywhere else the app names itself.
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	if _, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_nodes (node_id, hostname, last_heartbeat, status)
 		VALUES (?, ?, ?, 'online')
 		ON CONFLICT(node_id) DO UPDATE SET
 			hostname = excluded.hostname,
 			last_heartbeat = excluded.last_heartbeat,
 			status = 'online'
-	`, nodeID, util.GetFQDN(), heartbeat)
-
-	if err != nil {
+	`, nodeID, util.GetFQDN(), heartbeat); err != nil {
 		return fmt.Errorf("failed to send cluster heartbeat: %w", err)
 	}
 

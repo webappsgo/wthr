@@ -1,14 +1,13 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -27,12 +26,9 @@ func NewLogFormatHandler(db *sql.DB) *LogFormatHandler {
 // GetLogFormat returns the current log format setting
 func (h *LogFormatHandler) GetLogFormat(w http.ResponseWriter, r *http.Request) {
 	// Get log format from server config
-	var logFormat string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-		SELECT value FROM server_config WHERE key = 'logging.format'
-	`).Scan(&logFormat)
-
-	if err != nil && err != sql.ErrNoRows {
+	value, _, err := config.ReadSetting("logging.format")
+	logFormat, _ := value.(string)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to get log format setting",
 		})
@@ -81,11 +77,7 @@ func (h *LogFormatHandler) SetLogFormat(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Update or insert setting
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_config (key, value, type, description, updated_at)
-		VALUES ('logging.format', ?, 'string', 'Log format', ?)
-		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-	`, request.Format, time.Now(), request.Format, time.Now())
+	err := config.WriteSetting("logging.format", request.Format)
 
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
@@ -163,11 +155,9 @@ func (h *LogFormatHandler) PreviewLogFormat(w http.ResponseWriter, r *http.Reque
 // ShowLogFormatPage renders the log format configuration page
 func (h *LogFormatHandler) ShowLogFormatPage(w http.ResponseWriter, r *http.Request) {
 	// Get current format
-	var logFormat string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-		SELECT value FROM server_config WHERE key = 'logging.format'
-	`).Scan(&logFormat)
-	if err != nil && err != sql.ErrNoRows {
+	value, _, err := config.ReadSetting("logging.format")
+	logFormat, _ := value.(string)
+	if err != nil {
 		log.Printf("ERROR: ShowLogFormatPage: failed to read logging.format: %v", err)
 	}
 

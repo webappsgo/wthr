@@ -283,7 +283,7 @@ func (m *UserNotificationModel) GetByUserID(userID int, limit, offset int) ([]*N
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), offset, limit)
 }
@@ -302,7 +302,7 @@ func (m *UserNotificationModel) GetUnread(userID int) ([]*Notification, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), 0, noNotificationLimit)
 }
@@ -318,7 +318,7 @@ func (m *UserNotificationModel) GetUnreadCount(userID int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return countUnexpiredRows(rows, time.Now().UTC())
 }
@@ -430,7 +430,7 @@ func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatisti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	if err := tallyNotificationStatistics(rows, time.Now().UTC(), stats); err != nil {
 		return nil, err
@@ -611,7 +611,7 @@ func (m *AdminNotificationModel) GetByAdminID(adminID int, limit, offset int) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), offset, limit)
 }
@@ -630,7 +630,7 @@ func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), 0, noNotificationLimit)
 }
@@ -646,7 +646,7 @@ func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return countUnexpiredRows(rows, time.Now().UTC())
 }
@@ -757,7 +757,7 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	if err := tallyNotificationStatistics(rows, time.Now().UTC(), stats); err != nil {
 		return nil, err

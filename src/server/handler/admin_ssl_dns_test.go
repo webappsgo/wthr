@@ -62,9 +62,13 @@ func TestSaveDNSSettingsSealsCredentialsAndMasksTheView(t *testing.T) {
 		t.Error("changing the credentials must clear dns_validated_at")
 	}
 
-	file, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "server.yml"))
-	if err != nil || strings.Contains(string(file), "plain-token") || !strings.Contains(string(file), "enc:v1:") {
-		t.Errorf("server.yml must hold only the sealed value: %v\n%s", err, file)
+	serverFile, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "server.yml"))
+	if err != nil || strings.Contains(string(serverFile), "plain-token") || strings.Contains(string(serverFile), "enc:v1:") {
+		t.Errorf("server.yml must not carry DNS credentials: %v\n%s", err, serverFile)
+	}
+	secretsFile, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "secrets.yml"))
+	if err != nil || strings.Contains(string(secretsFile), "plain-token") || !strings.Contains(string(secretsFile), "enc:v1:") {
+		t.Errorf("secrets.yml must hold only the sealed DNS credential: %v\n%s", err, secretsFile)
 	}
 
 	rec = httptest.NewRecorder()

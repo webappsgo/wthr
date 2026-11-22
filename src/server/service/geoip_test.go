@@ -1,8 +1,11 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -450,7 +453,7 @@ func TestGeoIP_downloadDatabase_NetworkErrorSurfaced(t *testing.T) {
 	gs := &GeoIPService{}
 	dest := filepath.Join(t.TempDir(), "out.mmdb")
 
-	err := gs.downloadDatabase("not-a-valid://url", dest)
+	err := gs.downloadDatabaseWithChecksum("not-a-valid://url", "not-a-valid://checksum", dest)
 	if err == nil {
 		t.Fatal("expected error for invalid URL scheme, got nil")
 	}
@@ -459,18 +462,45 @@ func TestGeoIP_downloadDatabase_NetworkErrorSurfaced(t *testing.T) {
 	}
 }
 
+func TestGeoIP_downloadDatabaseRejectsChecksumMismatchWithoutReplacingLiveFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".sha256") {
+			_, _ = w.Write([]byte(strings.Repeat("0", 64) + "  sample.mmdb\n"))
+			return
+		}
+		_, _ = w.Write([]byte("unverified database contents"))
+	}))
+	defer server.Close()
+
+	previousClient := downloadClient
+	downloadClient = server.Client()
+	t.Cleanup(func() { downloadClient = previousClient })
+
+	dest := filepath.Join(t.TempDir(), "sample.mmdb")
+	if err := os.WriteFile(dest, []byte("known good database"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	gs := &GeoIPService{}
+	err := gs.downloadDatabaseWithChecksum(server.URL+"/sample.mmdb", server.URL+"/sample.mmdb.sha256", dest)
+	if err == nil || !strings.Contains(err.Error(), "checksum verification failed") {
+		t.Fatalf("download error = %v, want checksum verification failure", err)
+	}
+	contents, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(contents) != "known good database" {
+		t.Fatalf("live database was replaced after checksum mismatch: %q", contents)
+	}
+}
+
 // NOTE on coverage gaps:
-//   - This test file makes no real network calls. NewGeoIPService's
-//     background goroutine and Reload always take the network-free
-//     "cache warm" branch here, because every test that triggers them
+//   - NewGeoIPService's background goroutine and Reload take the network-free
+//     "cache warm" branch in these tests, because every test that triggers them
 //     pre-seeds all 4 expected mmdb files via seedGeoIPFixtureFiles first.
-//     UpdateDatabase/updateSingleDatabase's and loadDatabases' actual
-//     *download* success paths (the branch that calls http.Get against
-//     the ip-location-db release and CDN hosts) have no network-free seam — this environment has
-//     real internet access, so a test cannot rely on "no network" to force
-//     that branch to fail either. Only the deterministic, network-independent
-//     failure seam (os.MkdirAll failing because a plain file occupies the
-//     directory path) and the cache-warm success seam are covered.
+//     downloadDatabaseWithChecksum is injectable through downloadClient and
+//     its checksum-failure path is covered, but a successful download still
+//     needs a valid MMDB fixture for the parser check.
 //   - LookupIP's successful city/country hit paths (parsing a real MMDB
 //     record) are not covered because no valid fixture MMDB binary is
 //     constructed here; the surrounding seams (cache, private/invalid IP

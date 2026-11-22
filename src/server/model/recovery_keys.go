@@ -97,9 +97,12 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 	if err != nil {
 		return false, fmt.Errorf("failed to query recovery keys: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("failed to iterate recovery keys: %w", err)
+		}
 		return false, nil
 	}
 
@@ -107,7 +110,9 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 	if err := rows.Scan(&id); err != nil {
 		return false, fmt.Errorf("failed to scan recovery key: %w", err)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		return false, fmt.Errorf("failed to close recovery keys query: %w", err)
+	}
 
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE recovery_keys SET used_at = ? WHERE id = ?
@@ -140,7 +145,7 @@ func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var keys []RecoveryKey
 	for rows.Next() {

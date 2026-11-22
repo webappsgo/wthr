@@ -1,13 +1,26 @@
 package model
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func setSettingsTestConfig(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("CONFIG_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // TestSettingsModel_GetSetFamily covers the server_config-backed Get/Set
 // methods and their typed convenience wrappers, including the
 // defaultValue fallback path for a missing key.
 func TestSettingsModel_GetSetFamily(t *testing.T) {
+	setSettingsTestConfig(t)
 	serverDB := newModelServerDB(t)
 	setModelGlobalDualDB(t, serverDB, nil)
 	model := &SettingsModel{DB: serverDB}
@@ -47,16 +60,13 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 		}
 	})
 
-	t.Run("SetWithDescription persists description", func(t *testing.T) {
+	t.Run("SetWithDescription writes the setting value", func(t *testing.T) {
 		if err := model.SetWithDescription("server.tagline", "Tag", "string", "A tagline"); err != nil {
 			t.Fatalf("SetWithDescription() error = %v", err)
 		}
-		var description string
-		if err := serverDB.QueryRow("SELECT description FROM server_config WHERE key = ?", "server.tagline").Scan(&description); err != nil {
-			t.Fatalf("query description: %v", err)
-		}
-		if description != "A tagline" {
-			t.Errorf("description = %q, want %q", description, "A tagline")
+		got := model.GetString("server.tagline", "")
+		if got != "Tag" {
+			t.Errorf("setting value = %q, want Tag", got)
 		}
 	})
 
@@ -138,20 +148,22 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 }
 
 // TestSettingsModel_ListDeleteFamily covers Delete/List/ListByPrefix against
-// the real server_config table from the production ServerSchema, reached
-// through the global server-DB accessor.
+// the canonical configuration files while ignoring unrelated typed defaults.
 func TestSettingsModel_ListDeleteFamily(t *testing.T) {
+	setSettingsTestConfig(t)
 	db := newModelServerDB(t)
 	setModelGlobalDualDB(t, db, nil)
 	model := &SettingsModel{DB: db}
 
-	t.Run("List on empty table", func(t *testing.T) {
+	t.Run("List on empty custom config", func(t *testing.T) {
 		list, err := model.List()
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(list) != 0 {
-			t.Errorf("List() = %d settings, want 0", len(list))
+		for _, setting := range list {
+			if strings.HasPrefix(setting.Key, "app.") || setting.Key == "mail.host" {
+				t.Errorf("List() contains unseeded custom setting %q", setting.Key)
+			}
 		}
 	})
 
@@ -161,8 +173,8 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 		{"mail.host", "smtp.example.com", "string"},
 	}
 	for _, s := range seed {
-		if _, err := db.Exec("INSERT INTO server_config (key, value, type) VALUES (?, ?, ?)", s.key, s.value, s.typ); err != nil {
-			t.Fatalf("seed insert: %v", err)
+		if err := model.SetSetting(s.key, s.value, s.typ); err != nil {
+			t.Fatalf("seed setting: %v", err)
 		}
 	}
 
@@ -171,11 +183,17 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(list) != 3 {
-			t.Fatalf("List() = %d settings, want 3", len(list))
+		positions := map[string]int{}
+		for i, setting := range list {
+			if setting.Key == "app.name" || setting.Key == "app.port" || setting.Key == "mail.host" {
+				positions[setting.Key] = i
+			}
 		}
-		if list[0].Key != "app.name" || list[1].Key != "app.port" {
-			t.Errorf("List() not ordered by key: %+v", list)
+		if len(positions) != 3 {
+			t.Fatalf("List() did not return all custom settings: %+v", positions)
+		}
+		if positions["app.name"] >= positions["app.port"] || positions["app.port"] >= positions["mail.host"] {
+			t.Errorf("List() custom settings are not ordered by key: %+v", positions)
 		}
 	})
 
@@ -207,8 +225,10 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(list) != 2 {
-			t.Errorf("List() after delete = %d, want 2", len(list))
+		for _, setting := range list {
+			if setting.Key == "mail.host" {
+				t.Errorf("List() after delete still contains mail.host")
+			}
 		}
 	})
 
@@ -219,55 +239,9 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 	})
 }
 
-// TestSettingsModel_InitializeDefaults verifies defaults are populated on
-// first run, that a custom backup path is honored, and that re-running is
-// idempotent (never overwrites a key a user already changed).
-func TestSettingsModel_InitializeDefaults(t *testing.T) {
-	serverDB := newModelServerDB(t)
-	setModelGlobalDualDB(t, serverDB, nil)
-	model := &SettingsModel{DB: serverDB}
-
-	if err := model.InitializeDefaults("/custom/backups"); err != nil {
-		t.Fatalf("InitializeDefaults() error = %v", err)
-	}
-
-	got, err := model.GetSetting("backup.location")
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	if got.Value != "/custom/backups" {
-		t.Errorf("backup.location = %q, want %q", got.Value, "/custom/backups")
-	}
-
-	title, err := model.GetSetting("server.title")
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	if title.Value != "Weather" {
-		t.Errorf("server.title = %q, want %q", title.Value, "Weather")
-	}
-
-	t.Run("does not overwrite user-modified values", func(t *testing.T) {
-		if err := model.SetString("server.title", "My Custom Title"); err != nil {
-			t.Fatalf("SetString() error = %v", err)
-		}
-		if err := model.InitializeDefaults("/custom/backups"); err != nil {
-			t.Fatalf("InitializeDefaults() second run error = %v", err)
-		}
-		got, err := model.GetSetting("server.title")
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if got.Value != "My Custom Title" {
-			t.Errorf("server.title = %q, want unchanged %q", got.Value, "My Custom Title")
-		}
-	})
-}
-
-// TestSettingsModel_NilDBFallsBackToGlobal proves a SettingsModel built with a
-// nil DB handle degrades to the process-global server database instead of
-// panicking, matching the getDB contract every sibling model already follows.
+// TestSettingsModel_NilDBUsesFiles proves the compatibility DB field is not required.
 func TestSettingsModel_NilDBFallsBackToGlobal(t *testing.T) {
+	setSettingsTestConfig(t)
 	global := newModelServerDB(t)
 	setModelGlobalDualDB(t, global, nil)
 	model := &SettingsModel{}

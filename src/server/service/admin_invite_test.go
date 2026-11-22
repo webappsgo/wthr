@@ -21,7 +21,11 @@ func setupAdminInviteServerDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)

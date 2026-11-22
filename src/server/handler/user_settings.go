@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -666,7 +667,11 @@ func (h *UserSettingsHandler) getUserTokens(userID int64) ([]UserToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close user token rows: %v", err)
+		}
+	}()
 
 	var tokens []UserToken
 	for rows.Next() {
@@ -738,7 +743,10 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 
 	// Check token limit (max 5 per user per AI.md)
 	var count int
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ?", user.ID).Scan(&count)
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ?", user.ID).Scan(&count); err != nil {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
+	}
 	if count >= 5 {
 		BadRequest(w, r, Translate(r, "errors.user.settings.maximum_5_tokens_per_user"))
 		return
@@ -746,7 +754,10 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 
 	// Token names are unique per owner (AI.md PART 11 UNIQUE(owner_type, owner_id, name))
 	var sameName int
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ? AND name = ?", user.ID, req.Name).Scan(&sameName)
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user' AND owner_id = ? AND name = ?", user.ID, req.Name).Scan(&sameName); err != nil {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
+	}
 	if sameName > 0 {
 		Conflict(w, r, Translate(r, "errors.user.settings.token_name_exists"))
 		return

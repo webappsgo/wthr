@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -82,7 +83,14 @@ func mergeDNSCredentials(key string, current config.LetsEncryptConfig, request d
 func failDNSCheck(w http.ResponseWriter, r *http.Request, err error) {
 	var providerErr *service.DNSProviderError
 	if errors.As(err, &providerErr) {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.dns_provider_check_failed"), map[string]interface{}{
+		if len(providerErr.Variables) == 0 {
+			BadRequest(w, r, TranslateFormat(r, "errors.admin.ssl.dns_provider_rejected", map[string]string{"provider": providerErr.Provider}))
+			return
+		}
+		BadRequest(w, r, TranslateFormat(r, "errors.admin.ssl.dns_provider_check_failed", map[string]string{
+			"provider":  providerErr.Provider,
+			"variables": strings.Join(providerErr.Variables, ", "),
+		}), map[string]interface{}{
 			"provider":  providerErr.Provider,
 			"variables": providerErr.Variables,
 		})
@@ -123,16 +131,33 @@ func (h *SSLHandler) CheckDNSSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SaveDNSSettings validates the provider, seals the credentials, writes server.yml and clears
+// SaveDNSSettings validates the provider, seals the credentials, writes secrets.yml and clears
 // dns_validated_at when the provider or any credential value changed (AI.md PART 15).
 func (h *SSLHandler) SaveDNSSettings(w http.ResponseWriter, r *http.Request) {
 	var request dnsSettingsRequest
-	if !DecodeAndValidate(w, r, &request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_save_failed", err)
+			return
+		}
+		request.Provider = r.PostForm.Get("provider")
+		request.Credentials = make(map[string]string)
+		for _, line := range strings.Split(r.PostForm.Get("credentials"), "\n") {
+			name, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if ok && strings.TrimSpace(name) != "" {
+				request.Credentials[strings.TrimSpace(name)] = strings.TrimSpace(value)
+			}
+		}
+	} else if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 	request.Provider = strings.TrimSpace(request.Provider)
 	cfg := config.GetGlobalConfig()
 	if cfg == nil || cfg.Server.Security.EncryptionKey == "" {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_encryption_unavailable", errors.New("DNS encryption is unavailable"))
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.dns_encryption_unavailable"))
 		return
 	}
@@ -144,19 +169,45 @@ func (h *SSLHandler) SaveDNSSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !service.IsDNSProviderName(request.Provider) {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_provider_unsupported", errors.New("unsupported DNS provider"))
+			return
+		}
 		BadRequest(w, r, Translate(r, "errors.admin.ssl.dns_provider_unsupported"))
 		return
 	}
 	credentials, err := mergeDNSCredentials(key, current, request)
 	if err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_save_failed", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.dns_save_failed"))
 		return
 	}
 	if _, err := service.NewDNSProvider(request.Provider, credentials); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_provider_check_failed", err)
+			return
+		}
 		failDNSCheck(w, r, err)
 		return
 	}
 	h.storeDNSSettings(w, r, cfg, request.Provider, credentials, current)
+}
+
+// DNSCredentialFormValue returns names and masks only, never credential values.
+func DNSCredentialFormValue() string {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return ""
+	}
+	lines := make([]string, 0, len(cfg.Server.SSL.LetsEncrypt.DNSCredentials))
+	for name := range cfg.Server.SSL.LetsEncrypt.DNSCredentials {
+		lines = append(lines, name+"="+util.DNSCredentialMask)
+	}
+	sort.Strings(lines)
+	return strings.Join(lines, "\n")
 }
 
 // storeDNSSettings seals and persists the validated settings.
@@ -186,6 +237,10 @@ func (h *SSLHandler) storeDNSSettings(w http.ResponseWriter, r *http.Request, cf
 		stored, err := util.SealDNSCredential(key, value)
 		if err != nil {
 			log.Printf("ERROR: dns credential could not be encrypted: %v", err)
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_save_failed", err)
+				return
+			}
 			InternalError(w, r, Translate(r, "errors.admin.ssl.dns_save_failed"))
 			return
 		}
@@ -197,6 +252,10 @@ func (h *SSLHandler) storeDNSSettings(w http.ResponseWriter, r *http.Request, cf
 	if err := config.SaveConfig(cfg); err != nil {
 		cfg.Server.SSL.LetsEncrypt = current
 		log.Printf("ERROR: dns provider settings could not be written: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_save_failed", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.dns_save_failed"))
 		return
 	}
@@ -204,6 +263,10 @@ func (h *SSLHandler) storeDNSSettings(w http.ResponseWriter, r *http.Request, cf
 		if err := service.ClearDNSValidated(h.db); err != nil {
 			log.Printf("WARNING: dns_validated_at was not cleared: %v", err)
 		}
+	}
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.dns_saved", "errors.admin.ssl.dns_save_failed", nil)
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
@@ -225,7 +288,7 @@ func (h *SSLHandler) applyDNSSolver(challengeType string) error {
 	}
 	solver, err := service.ConfiguredDNSSolver(cfg.Server.SSL.LetsEncrypt, cfg.Server.Security.EncryptionKey)
 	if err != nil {
-		log.Printf("ERROR: dns-01 provider check failed: %v", err)
+		log.Printf("ERROR: %v", err)
 		return err
 	}
 	h.leService.SetDNSSolver(solver)

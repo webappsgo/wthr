@@ -120,8 +120,8 @@ func TestGetBool(t *testing.T) {
 // TestKeyIsolation verifies keys placed via this package's unexported ctxKey
 // type do not collide with plain string keys set directly on the context.
 func TestKeyIsolation(t *testing.T) {
-	//lint:ignore SA1029 intentionally using a raw string key to prove isolation from ctxKey
-	ctx := context.WithValue(context.Background(), "key", "raw-string-key-value")
+	type rawContextKey string
+	ctx := context.WithValue(context.Background(), rawContextKey("key"), "raw-string-key-value")
 
 	if _, ok := GetValue(ctx, "key"); ok {
 		t.Error("Get() found a value set with a raw string key; ctxKey isolation broken")

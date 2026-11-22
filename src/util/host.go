@@ -298,7 +298,7 @@ func parseHexIP(hex string) string {
 	var bytes [4]byte
 	for i := 0; i < 4; i++ {
 		var b int
-		fmt.Sscanf(hex[i*2:i*2+2], "%02X", &b)
+		_, _ = fmt.Sscanf(hex[i*2:i*2+2], "%02X", &b)
 		bytes[3-i] = byte(b)
 	}
 	return fmt.Sprintf("%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3])

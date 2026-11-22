@@ -179,39 +179,17 @@ func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request
 // Settings Management APIs
 
 func (h *AdminHandler) ListSettings(w http.ResponseWriter, r *http.Request) {
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config ORDER BY key")
+	settings, err := (&model.SettingsModel{}).List()
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_settings"))
 		return
 	}
-	defer rows.Close()
-
-	settings := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var key, value, settingType, description string
-		var updatedAt time.Time
-		if err := rows.Scan(&key, &value, &settingType, &description, &updatedAt); err != nil {
-			continue
-		}
-		settings = append(settings, map[string]interface{}{
-			"key":         key,
-			"value":       value,
-			"type":        settingType,
-			"description": description,
-			"updated_at":  updatedAt,
-		})
-	}
-
 	writeJSON(w, http.StatusOK, settings)
 }
 
 func (h *AdminHandler) GetSetting(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
-	var value, settingType, description string
-	var updatedAt time.Time
-
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value, type, COALESCE(description, ''), updated_at FROM server_config WHERE key = ?", key).
-		Scan(&value, &settingType, &description, &updatedAt)
+	setting, err := (&model.SettingsModel{}).GetSetting(key)
 
 	if err == sql.ErrNoRows {
 		NotFound(w, r, Translate(r, "errors.admin.core.setting_not_found"))
@@ -222,13 +200,7 @@ func (h *AdminHandler) GetSetting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"key":         key,
-		"value":       value,
-		"type":        settingType,
-		"description": description,
-		"updated_at":  updatedAt,
-	})
+	writeJSON(w, http.StatusOK, setting)
 }
 
 func (h *AdminHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
@@ -248,8 +220,7 @@ func (h *AdminHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "UPDATE server_config SET value = ?, updated_at = ? WHERE key = ?",
-		req.Value, time.Now(), key)
+	err := (&model.SettingsModel{}).SetString(key, req.Value)
 
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_setting"))
@@ -291,7 +262,11 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close admin token rows: %v", err)
+		}
+	}()
 
 	// Timestamp columns are scanned as raw driver values and parsed with
 	// dbtime rather than scanned straight into time.Time/sql.NullTime: rows
@@ -410,7 +385,11 @@ func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_audit_logs"))
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close audit log rows: %v", err)
+		}
+	}()
 
 	var logs []map[string]interface{}
 	for rows.Next() {
@@ -501,7 +480,11 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, r, fmt.Errorf("count recent audit logs: %w", err).Error())
 		return
 	}
-	defer recentRows.Close()
+	defer func() {
+		if err := recentRows.Close(); err != nil {
+			log.Printf("WARNING: failed to close recent audit rows: %v", err)
+		}
+	}()
 
 	recentCutoff := time.Now().UTC().Add(-24 * time.Hour)
 
@@ -607,7 +590,11 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.core.failed_to_fetch_scheduled_tasks"), map[string]interface{}{"details": err.Error()})
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close scheduled task rows: %v", err)
+		}
+	}()
 
 	var tasks []map[string]interface{}
 	for rows.Next() {

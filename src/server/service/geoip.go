@@ -1,12 +1,15 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -186,24 +189,71 @@ func (gs *GeoIPService) loadDatabases() {
 
 // downloadDatabase downloads a database file
 func (gs *GeoIPService) downloadDatabase(url, path string) error {
+	checksumURL := geoIPChecksumURL(url)
+	return gs.downloadDatabaseWithChecksum(url, checksumURL, path)
+}
+
+func geoIPChecksumURL(databaseURL string) string {
+	return "https://github.com/sapics/ip-location-db/releases/download/checksum/" + filepath.Base(databaseURL) + ".sha256"
+}
+
+func (gs *GeoIPService) downloadDatabaseWithChecksum(url, checksumURL, path string) error {
+	checksumResp, err := downloadClient.Get(checksumURL)
+	if err != nil {
+		return fmt.Errorf("download checksum: %w", err)
+	}
+	defer func() { _ = checksumResp.Body.Close() }()
+	if checksumResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("checksum download returned status %d", checksumResp.StatusCode)
+	}
+	checksumText, err := io.ReadAll(io.LimitReader(checksumResp.Body, 4096))
+	if err != nil {
+		return fmt.Errorf("read checksum: %w", err)
+	}
+	checksum := strings.Fields(string(checksumText))
+	if len(checksum) == 0 || len(checksum[0]) != sha256.Size*2 {
+		return fmt.Errorf("checksum response is malformed")
+	}
+	wantDigest, err := hex.DecodeString(checksum[0])
+	if err != nil {
+		return fmt.Errorf("checksum response is malformed")
+	}
+
 	resp, err := downloadClient.Get(url)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	out, err := os.Create(path)
+	tempPath := path + ".tmp"
+	out, err := os.OpenFile(tempPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
+	defer func() { _ = os.Remove(tempPath) }()
+	digest := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(out, digest), resp.Body); err != nil {
+		_ = out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	if !strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), hex.EncodeToString(wantDigest)) {
+		return fmt.Errorf("SHA-256 checksum verification failed for %s", filepath.Base(path))
+	}
+	reader, err := maxminddb.Open(tempPath)
+	if err != nil {
+		return fmt.Errorf("downloaded database is invalid: %w", err)
+	}
+	if err := reader.Close(); err != nil {
+		return fmt.Errorf("close downloaded database: %w", err)
+	}
+	return os.Rename(tempPath, path)
 }
 
 // LookupIP performs IP geolocation lookup using DB-IP City databases
@@ -249,13 +299,13 @@ func (gs *GeoIPService) LookupIP(ip string) (*GeoIPData, error) {
 		// Fallback to country database
 		return gs.lookupCountry(parsedIP, ip)
 	}
-	defer cityReader.Close()
+	defer func() { _ = cityReader.Close() }()
 
 	// Lookup city data
 	var record cityRecord
 	if err := cityReader.Lookup(parsedIP, &record); err != nil {
 		// Fallback to country database
-		cityReader.Close()
+		_ = cityReader.Close()
 		return gs.lookupCountry(parsedIP, ip)
 	}
 
@@ -293,7 +343,7 @@ func (gs *GeoIPService) lookupCountry(parsedIP net.IP, ipStr string) (*GeoIPData
 	if err != nil {
 		return nil, fmt.Errorf("failed to open country database: %w", err)
 	}
-	defer countryReader.Close()
+	defer func() { _ = countryReader.Close() }()
 
 	// Lookup country data
 	var record countryRecord
@@ -362,44 +412,7 @@ func (gs *GeoIPService) UpdateDatabase() error {
 // updateSingleDatabase updates a single database file
 func (gs *GeoIPService) updateSingleDatabase(url, path, name string) error {
 	fmt.Printf("  %s Downloading %s database...\n", display.Emoji("📥", "->"), name)
-
-	resp, err := downloadClient.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download returned status %d", resp.StatusCode)
-	}
-
-	// Create temporary file
-	tempPath := path + ".tmp"
-	out, err := os.Create(tempPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write to temp file
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		os.Remove(tempPath)
-		return err
-	}
-	out.Close()
-
-	// Verify database is valid
-	testReader, err := maxminddb.Open(tempPath)
-	if err != nil {
-		os.Remove(tempPath)
-		return fmt.Errorf("downloaded database is invalid: %w", err)
-	}
-	testReader.Close()
-
-	// Replace old with new
-	if err := os.Rename(tempPath, path); err != nil {
-		os.Remove(tempPath)
+	if err := gs.downloadDatabase(url, path); err != nil {
 		return err
 	}
 

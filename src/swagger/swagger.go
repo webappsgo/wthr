@@ -1,6 +1,9 @@
 package swagger
 
+//go:generate go run ./generate
+
 import (
+	"embed"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -8,7 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"github.com/webappsgo/wthr/src/util"
 )
+
+// openAPIFiles contains the build-generated API contract.
+//
+//go:embed openapi.json
+var openAPIFiles embed.FS
 
 // RegisterRoutes registers all Swagger/OpenAPI routes
 // Per AI.md specification: /openapi for UI, /openapi.json for spec
@@ -153,12 +162,33 @@ func GetSwaggerUI() http.HandlerFunc {
 	}
 }
 
-// GetOpenAPIJSON returns the OpenAPI JSON specification
-// Auto-generated from swag annotations
+// OpenAPIJSON returns the build-generated OpenAPI document.
+func OpenAPIJSON() ([]byte, error) {
+	return openAPIFiles.ReadFile("openapi.json")
+}
+
+// GetOpenAPIJSON serves the build-generated OpenAPI JSON document.
 func GetOpenAPIJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		spec, err := OpenAPIJSON()
+		if err != nil {
+			http.Error(w, "OpenAPI specification unavailable", http.StatusInternalServerError)
+			return
+		}
+		var document map[string]interface{}
+		if err := json.Unmarshal(spec, &document); err != nil {
+			http.Error(w, "OpenAPI specification unavailable", http.StatusInternalServerError)
+			return
+		}
+		document["servers"] = []map[string]string{{"url": util.BuildURL(r, ""), "description": "Current application origin"}}
+		encoded, err := json.MarshalIndent(document, "", "  ")
+		if err != nil {
+			http.Error(w, "OpenAPI specification unavailable", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		http.ServeFile(w, r, "./docs/swagger.json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(encoded)
 	}
 }
 

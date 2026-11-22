@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
-	"github.com/webappsgo/wthr/src/database"
 )
 
 type cacheConfigRequest struct {
@@ -88,17 +87,13 @@ func UpdateCacheConfig(w http.ResponseWriter, r *http.Request) {
 		BadRequest(w, r, err.Error())
 		return
 	}
-	clusterEnabled := false
-	if serverDB := database.GetServerDB(); serverDB != nil {
-		var enabled string
-		err := database.QueryRowContext(r.Context(), serverDB, database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&enabled)
-		if err == nil {
-			clusterEnabled = strings.EqualFold(strings.TrimSpace(enabled), "true")
-		} else if err != sql.ErrNoRows {
-			InternalError(w, r, "Cannot verify cluster cache requirements")
-			return
-		}
-	} else if strings.TrimSpace(cfg.Server.Database.Driver) != "" && !strings.EqualFold(cfg.Server.Database.Driver, "file") && !strings.EqualFold(cfg.Server.Database.Driver, "sqlite") {
+	clusterValue, _, clusterErr := config.ReadSetting("server.cluster.enabled")
+	if clusterErr != nil {
+		InternalError(w, r, "Cannot verify cluster cache requirements")
+		return
+	}
+	clusterEnabled := config.IsTruthy(fmt.Sprint(clusterValue))
+	if strings.TrimSpace(cfg.Server.Database.Driver) != "" && !strings.EqualFold(cfg.Server.Database.Driver, "file") && !strings.EqualFold(cfg.Server.Database.Driver, "sqlite") {
 		InternalError(w, r, "Cannot verify remote database cache requirements")
 		return
 	}

@@ -271,8 +271,41 @@ CREATE TABLE IF NOT EXISTS admins (
 	is_active BOOLEAN DEFAULT 1,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	last_login_at DATETIME
+	last_login_at DATETIME,
+	totp_enabled BOOLEAN NOT NULL DEFAULT 0,
+	totp_secret TEXT,
+	personal_pgp_public_key TEXT
 );
+
+CREATE TABLE IF NOT EXISTS admin_saml_mappings (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	admin_id INTEGER NOT NULL,
+	provider_name TEXT NOT NULL,
+	external_id TEXT NOT NULL,
+	email TEXT,
+	name TEXT,
+	groups_json TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	last_sync_at DATETIME,
+	UNIQUE(provider_name, external_id),
+	FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_saml_admin ON admin_saml_mappings(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_saml_provider ON admin_saml_mappings(provider_name, external_id);
+
+
+CREATE TABLE IF NOT EXISTS admin_recovery_keys (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	admin_id INTEGER NOT NULL,
+	key_hash TEXT NOT NULL,
+	used_at DATETIME,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_recovery_admin ON admin_recovery_keys(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_recovery_unused ON admin_recovery_keys(admin_id, used_at);
 
 CREATE INDEX IF NOT EXISTS idx_admin_username ON admins(username);
 CREATE INDEX IF NOT EXISTS idx_admin_email ON admins(email);
@@ -397,6 +430,34 @@ CREATE TABLE IF NOT EXISTS user_ldap_mappings (
 
 CREATE INDEX IF NOT EXISTS idx_ldap_user ON user_ldap_mappings(user_id);
 CREATE INDEX IF NOT EXISTS idx_ldap_server ON user_ldap_mappings(ldap_server, ldap_dn);
+
+-- SAML identity mappings use stable NameID or an explicitly mapped stable ID.
+CREATE TABLE IF NOT EXISTS user_saml_mappings (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	provider_name TEXT NOT NULL,
+	external_id TEXT NOT NULL,
+	email TEXT,
+	name TEXT,
+	groups_json TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	last_sync_at DATETIME,
+	UNIQUE(provider_name, external_id),
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_saml_user ON user_saml_mappings(user_id);
+CREATE INDEX IF NOT EXISTS idx_saml_provider ON user_saml_mappings(provider_name, external_id);
+
+CREATE TABLE IF NOT EXISTS user_saml_sessions (
+	session_id INTEGER PRIMARY KEY,
+	provider_name TEXT NOT NULL,
+	external_id TEXT NOT NULL,
+	name_id TEXT NOT NULL,
+	session_index TEXT,
+	FOREIGN KEY (session_id) REFERENCES user_sessions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_saml_sessions_provider ON user_saml_sessions(provider_name, external_id);
 
 -- Email Verification Tokens table
 CREATE TABLE IF NOT EXISTS email_verifications (

@@ -98,7 +98,7 @@ func countActiveSessions(db *sql.DB, table string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	now := time.Now()
 	count := 0

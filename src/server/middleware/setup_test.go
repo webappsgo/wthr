@@ -37,13 +37,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	setupTestConfigDir = dir
-	os.Setenv("CONFIG_DIR", dir)
+	if err := os.Setenv("CONFIG_DIR", dir); err != nil {
+		panic(err)
+	}
 	// Force initialization now, under our controlled CONFIG_DIR, before any
 	// test can race path.GetInstance() with a different expectation.
 	_ = path.GetConfigDir()
 
 	code := m.Run()
-	os.RemoveAll(dir)
+	_ = os.RemoveAll(dir)
 	os.Exit(code)
 }
 
@@ -61,7 +63,11 @@ func openSetupTestServerDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	})
 
 	// SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
 	// all query the global database handles directly, so they no longer take a
@@ -109,7 +115,7 @@ func signedProofCookie(cfg *config.AppConfig) *http.Cookie {
 // regardless of what a prior test in this file left behind.
 func removeSetupToken(t *testing.T) {
 	t.Helper()
-	os.Remove(setupTestConfigDir + "/setup_token.txt")
+	_ = os.Remove(setupTestConfigDir + "/setup_token.txt")
 }
 
 func writeSetupToken(t *testing.T) {

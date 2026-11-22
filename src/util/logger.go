@@ -60,7 +60,7 @@ func NewLogger(logDir string) (*Logger, error) {
 		0644,
 	)
 	if err != nil {
-		accessFile.Close()
+		_ = accessFile.Close()
 		return nil, fmt.Errorf("failed to open server.log: %w", err)
 	}
 
@@ -70,8 +70,8 @@ func NewLogger(logDir string) (*Logger, error) {
 		0644,
 	)
 	if err != nil {
-		accessFile.Close()
-		serverFile.Close()
+		_ = accessFile.Close()
+		_ = serverFile.Close()
 		return nil, fmt.Errorf("failed to open error.log: %w", err)
 	}
 
@@ -81,9 +81,9 @@ func NewLogger(logDir string) (*Logger, error) {
 		0644,
 	)
 	if err != nil {
-		accessFile.Close()
-		serverFile.Close()
-		errorFile.Close()
+		_ = accessFile.Close()
+		_ = serverFile.Close()
+		_ = errorFile.Close()
 		return nil, fmt.Errorf("failed to open audit.log: %w", err)
 	}
 
@@ -93,10 +93,10 @@ func NewLogger(logDir string) (*Logger, error) {
 		0644,
 	)
 	if err != nil {
-		accessFile.Close()
-		serverFile.Close()
-		errorFile.Close()
-		auditFile.Close()
+		_ = accessFile.Close()
+		_ = serverFile.Close()
+		_ = errorFile.Close()
+		_ = auditFile.Close()
 		return nil, fmt.Errorf("failed to open security.log: %w", err)
 	}
 
@@ -324,13 +324,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err

@@ -118,7 +118,11 @@ func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskR
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close scheduler history rows: %v", err)
+		}
+	}()
 
 	var history []TaskRun
 	for rows.Next() {

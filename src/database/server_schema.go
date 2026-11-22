@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
 	data TEXT,
 	expires_at DATETIME NOT NULL,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	last_used_at DATETIME,
 	ip_address TEXT,
 	user_agent TEXT
 );
@@ -18,17 +19,43 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON admin_sessions(admin_id);
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
 
--- Server Configuration table (all settings as key-value pairs)
-CREATE TABLE IF NOT EXISTS server_config (
-	key TEXT PRIMARY KEY,
-	value TEXT,
-	type TEXT DEFAULT 'string',
-	description TEXT,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	updated_by TEXT
+CREATE TABLE IF NOT EXISTS saml_replay_cache (
+	assertion_id TEXT PRIMARY KEY,
+	expires_at DATETIME NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_saml_replay_expires ON saml_replay_cache(expires_at);
 
-CREATE INDEX IF NOT EXISTS idx_config_updated ON server_config(updated_at);
+CREATE TABLE IF NOT EXISTS admin_saml_sessions (
+	session_id TEXT PRIMARY KEY,
+	provider_name TEXT NOT NULL,
+	external_id TEXT NOT NULL,
+	name_id TEXT NOT NULL,
+	session_index TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_admin_saml_sessions_provider ON admin_saml_sessions(provider_name, external_id);
+
+CREATE TABLE IF NOT EXISTS saml_logout_requests (
+	request_id TEXT PRIMARY KEY,
+	provider_name TEXT NOT NULL,
+	relay_state TEXT NOT NULL,
+	expires_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saml_logout_requests_provider ON saml_logout_requests(provider_name, expires_at);
+
+CREATE TABLE IF NOT EXISTS saml_api_requests (
+	request_id TEXT PRIMARY KEY,
+	authn_request_id TEXT NOT NULL,
+	provider_name TEXT NOT NULL,
+	relay_state TEXT NOT NULL UNIQUE,
+	client_binding TEXT NOT NULL,
+	code_hash TEXT NOT NULL DEFAULT '',
+	session_token TEXT NOT NULL DEFAULT '',
+	completed BOOLEAN NOT NULL DEFAULT 0,
+	username_required BOOLEAN NOT NULL DEFAULT 0,
+	consumed BOOLEAN NOT NULL DEFAULT 0,
+	expires_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saml_api_requests_expiry ON saml_api_requests(expires_at);
 
 -- Cluster State table (for future cluster mode support)
 CREATE TABLE IF NOT EXISTS server_cluster_state (
@@ -84,6 +111,7 @@ CREATE TABLE IF NOT EXISTS server_nodes (
 	status TEXT DEFAULT 'active',
 	last_heartbeat DATETIME,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	joined_at DATETIME,
 	metadata TEXT
 );
 
@@ -93,11 +121,13 @@ CREATE INDEX IF NOT EXISTS idx_nodes_heartbeat ON server_nodes(last_heartbeat);
 -- Node Join Tokens table (for cluster expansion)
 CREATE TABLE IF NOT EXISTS server_join_tokens (
 	token TEXT PRIMARY KEY,
+	token_hash VARCHAR(64),
 	created_by TEXT,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME,
 	used_by TEXT,
-	used_at DATETIME
+	used_at DATETIME,
+	lockout_until DATETIME
 );
 
 CREATE INDEX IF NOT EXISTS idx_join_tokens_expires ON server_join_tokens(expires_at);
@@ -243,6 +273,10 @@ CREATE TABLE IF NOT EXISTS server_blocklists (
 	added_by TEXT,
 	added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME,
+	block_type TEXT NOT NULL DEFAULT 'permanent',
+	offense_count INTEGER NOT NULL DEFAULT 0,
+	auto_blocked BOOLEAN NOT NULL DEFAULT 0,
+	blocked_by TEXT,
 	UNIQUE(type, value)
 );
 
@@ -378,7 +412,7 @@ CREATE INDEX IF NOT EXISTS idx_cve_alerts_severity ON server_cve_alerts(severity
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_published ON server_cve_alerts(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_acknowledged ON server_cve_alerts(acknowledged);
 
--- Project-level cryptographic secrets (AI.md PART 11 "Cryptographic Keys"); values are base64 and never leave the server
+-- Project-level cryptographic secrets (AI.md PART 11 "Cryptographic Keys"); values are base64 and leave only in the encrypted cluster join bootstrap
 CREATE TABLE IF NOT EXISTS app_secrets (
 	name TEXT PRIMARY KEY,
 	value TEXT NOT NULL,

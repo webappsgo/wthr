@@ -102,10 +102,10 @@
                 </div>
                 <div class="weather-details">
                     <div class="temperature">
-                        {{$visibleCount}} {{if eq $visibleCount 1}}{{t .server.Lang "severe.weather_active_alert_singular"}}{{else}}{{t .server.Lang "severe.weather_active_alert_plural"}}{{end}}
+                        {{$visibleCount}} {{tp .server.Lang "severe.weather_active_alert" $visibleCount}}
                     </div>
                     <div class="description">
-                        {{if .Data.Hurricanes}}{{len .Data.Hurricanes}}{{else}}0{{end}} {{if eq (len .Data.Hurricanes) 1}}{{t .server.Lang "severe.weather_hurricane_tracked_singular"}}{{else}}{{t .server.Lang "severe.weather_hurricane_tracked_plural"}}{{end}}
+                        {{$hurricaneCount := len .Data.Hurricanes}}{{$hurricaneCount}} {{tp .server.Lang "severe.weather_hurricane_tracked" $hurricaneCount}}
                     </div>
                     <div class="weather-stats">
                         <div class="stat">{{t .server.Lang "severe.weather_filter_label"}} <span class="stat-value">{{if eq .TypeFilter "all"}}{{t .server.Lang "severe.weather_type_all"}}{{else}}{{t .server.Lang (printf "severe.weather_type_%s" .TypeFilter)}}{{end}}</span></div>

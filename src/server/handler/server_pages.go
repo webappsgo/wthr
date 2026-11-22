@@ -40,6 +40,10 @@ func SetBuildInfo(version, buildDate, commitID string) {
 // middleware ServerContext and overrides only page-specific keys (AI.md PART 16).
 func pageServerData(r *http.Request, extra map[string]interface{}) map[string]interface{} {
 	ctx, _ := middleware.GetServerContext(r.Context())
+	apiPath := ""
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		apiPath = cfg.GetAPIPath()
+	}
 	data := map[string]interface{}{
 		"Title":            ctx.Title,
 		"Tagline":          ctx.Tagline,
@@ -52,6 +56,18 @@ func pageServerData(r *http.Request, extra map[string]interface{}) map[string]in
 		"Author":           ctx.Author,
 		"OGImage":          ctx.OGImage,
 		"TwitterHandle":    ctx.TwitterHandle,
+		"Logo":             ctx.Logo,
+		"Favicon":          ctx.Favicon,
+		"TitleSeparator":   ctx.TitleSeparator,
+		"Canonical":        ctx.Canonical,
+		"Noindex":          ctx.Noindex,
+		"OGEnabled":        ctx.OGEnabled,
+		"OGType":           ctx.OGType,
+		"OGSiteName":       ctx.OGSiteName,
+		"TwitterEnabled":   ctx.TwitterEnabled,
+		"TwitterCard":      ctx.TwitterCard,
+		"TwitterCreator":   ctx.TwitterCreator,
+		"MetaTags":         ctx.MetaTags,
 		"VerifyGoogle":     ctx.VerifyGoogle,
 		"VerifyBing":       ctx.VerifyBing,
 		"VerifyYandex":     ctx.VerifyYandex,
@@ -60,6 +76,7 @@ func pageServerData(r *http.Request, extra map[string]interface{}) map[string]in
 		"VerifyFacebook":   ctx.VerifyFacebook,
 		"TrackingHTML":     ctx.TrackingHTML,
 		"TrackingNoscript": ctx.TrackingNoscript,
+		"APIPath":          apiPath,
 	}
 	for key, value := range extra {
 		data[key] = value
@@ -128,13 +145,46 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowPrivacyPage renders the privacy policy page with content negotiation (AI.md PART 14)
 func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		privacy := config.DefaultPrivacyConfig()
+		var tracking config.TrackingConfig
+		var contact config.ContactConfig
+		brandTitle := ""
+		if cfg != nil {
+			privacy = cfg.Server.Privacy
+			tracking = cfg.Server.Tracking
+			contact = cfg.Server.Contact
+			brandTitle = cfg.Server.Branding.Title
+		}
+		dataUsage := privacy.Content.DataUsage
+		if privacy.Data.Sold {
+			dataUsage = privacy.Content.DataUsageIfSold
+		}
+		analyticsDescription := privacy.Cookies.Analytics.Description + privacy.Cookies.Analytics.DescriptionSuffixNotSold
+		if privacy.Data.Sold {
+			analyticsDescription = privacy.Cookies.Analytics.Description + privacy.Cookies.Analytics.DescriptionSuffixSold
+		}
+		ccpaOptedOut := false
+		if cookie, err := r.Cookie("ccpa_opt_out"); err == nil && cookie.Value == "true" {
+			ccpaOptedOut = true
+		}
 		data := map[string]interface{}{
 			"page": "privacy",
 			"server": pageServerData(r, map[string]interface{}{
-				"Title":     cfg.Server.Branding.Title,
+				"Title":     brandTitle,
 				"BuildDate": BuildDate,
 			}),
-			"HostInfo": util.GetHostInfo(r),
+			"HostInfo":             util.GetHostInfo(r),
+			"Privacy":              privacy,
+			"DataUsage":            dataUsage,
+			"AnalyticsDescription": analyticsDescription,
+			"Tracking":             tracking,
+			"TrackingEnabled":      tracking.Type != "",
+			"CCPAOptedOut":         ccpaOptedOut,
+			"DPOEmail":             contact.ResolveDPOEmail(),
+			"DPOName":              contact.DPO.Name,
+			"GPCReceived":          middleware.GPCOptOut(r),
+			"ConsentPreferences":   guestConsent(r).Preferences,
+			"ConsentAnalytics":     guestConsent(r).Analytics,
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -334,30 +384,82 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // GetPrivacyAPI returns the privacy policy as JSON (AI.md PART 14: /api/v1/server/privacy)
 func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
+		privacy := config.DefaultPrivacyConfig()
+		var tracking config.TrackingConfig
+		if cfg != nil {
+			privacy = cfg.Server.Privacy
+			tracking = cfg.Server.Tracking
+		}
+		analyticsDescription := privacy.Cookies.Analytics.Description + privacy.Cookies.Analytics.DescriptionSuffixNotSold
+		if privacy.Data.Sold {
+			analyticsDescription = privacy.Cookies.Analytics.Description + privacy.Cookies.Analytics.DescriptionSuffixSold
+		}
+		dataUsage := privacy.Content.DataUsage
+		if privacy.Data.Sold {
+			dataUsage = privacy.Content.DataUsageIfSold
+		}
+		consentMessage := privacy.Consent.Message
+		if privacy.Data.Sold {
+			consentMessage = privacy.Consent.MessageIfSold
+		}
+		services := make([]map[string]interface{}, 0, len(privacy.ThirdParty.Services))
+		for _, service := range privacy.ThirdParty.Services {
+			services = append(services, map[string]interface{}{
+				"name": service.Name, "purpose": service.Purpose, "data_sent": service.Data, "policy_url": service.URL,
+			})
+		}
+		sharing := make([]map[string]string, 0, len(privacy.Data.Sharing))
+		for _, item := range privacy.Data.Sharing {
+			sharing = append(sharing, map[string]string{"condition": item.Condition, "when": item.When, "data": item.Data})
+		}
+		cookieCategory := func(category config.PrivacyCookieCategory) map[string]interface{} {
+			return map[string]interface{}{"enabled": category.Enabled, "description": category.Description}
+		}
+		data := map[string]interface{}{
 			"title":        Translate(r, "privacy.page_heading"),
 			"last_updated": BuildDate,
-			"data_stored":  true,
-			"data_sold":    false,
+			"summary": map[string]interface{}{
+				"data_stored_on_server": privacy.Data.StoredOnServer,
+				"data_sold":             privacy.Data.Sold,
+				"user_control":          privacy.Retention.ExportAvailable || privacy.Retention.DeletionAvailable,
+			},
 			"cookies": map[string]interface{}{
-				"essential":   true,
-				"preferences": true,
-				"analytics":   false,
+				"essential":   cookieCategory(privacy.Cookies.Essential),
+				"preferences": cookieCategory(privacy.Cookies.Preferences),
+				"analytics": map[string]interface{}{
+					"enabled":     privacy.Cookies.Analytics.Enabled,
+					"description": analyticsDescription,
+				},
 			},
-			"data_collection": Translate(r, "privacy.api_data_collection"),
-			"data_retention":  Translate(r, "privacy.api_data_retention"),
-			"third_parties": []string{
-				Translate(r, "privacy.api_third_party_open_meteo"),
-				Translate(r, "privacy.api_third_party_usgs"),
-				Translate(r, "privacy.api_third_party_noaa"),
-				Translate(r, "privacy.api_third_party_alerts"),
-				Translate(r, "privacy.api_third_party_nominatim"),
-				Translate(r, "privacy.api_third_party_geonames"),
-				Translate(r, "privacy.api_third_party_dbip"),
-				Translate(r, "privacy.api_third_party_iptoasn"),
+			"data": map[string]interface{}{
+				"sold": privacy.Data.Sold, "stored_on_server": privacy.Data.StoredOnServer, "sharing": sharing,
 			},
-			"contact": "/server/contact",
-		})
+			"tracking": map[string]interface{}{"enabled": tracking.Type != "", "type": tracking.Type, "type_name": tracking.Type},
+			"retention": map[string]interface{}{
+				"period": privacy.Retention.Period, "export_available": privacy.Retention.ExportAvailable,
+				"deletion_available": privacy.Retention.DeletionAvailable,
+			},
+			"third_party": map[string]interface{}{"services": services},
+			"content": map[string]interface{}{
+				"data_collection": privacy.Content.DataCollection,
+				"data_usage":      dataUsage,
+				"data_security":   privacy.Content.DataSecurity,
+				"consent_message": consentMessage,
+			},
+			"contact": util.BuildURL(r, "/server/security"),
+		}
+		if privacy.Data.Sold {
+			ccpaOptedOut := false
+			if cookie, err := r.Cookie("ccpa_opt_out"); err == nil && cookie.Value == "true" {
+				ccpaOptedOut = true
+			}
+			data["ccpa"] = map[string]interface{}{
+				"applicable":     true,
+				"opt_out_url":    "/server/privacy#ccpa-opt-out",
+				"user_opted_out": ccpaOptedOut,
+			}
+		}
+		RespondNegotiatedData(w, r, http.StatusOK, data)
 	}
 }
 
@@ -730,9 +832,5 @@ func GetSMTPService(r *http.Request) *service.SMTPService {
 
 // mcpEnabled reports whether the MCP endpoint is switched on (admin setting first, config default second).
 func mcpEnabled(cfg *config.AppConfig) bool {
-	enabled := cfg != nil && cfg.Server.MCP.Enabled
-	if db := database.GetServerDB(); db != nil {
-		enabled = (&model.SettingsModel{DB: db}).GetBool("server.mcp.enabled", enabled)
-	}
-	return enabled
+	return true
 }

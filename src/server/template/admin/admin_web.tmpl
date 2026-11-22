@@ -21,18 +21,8 @@
                     <p class="card-description">{{t $lang "admin.web.mcp_desc"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="mcp-form" class="settings-form">
-                        <div class="form-group">
-                            <label for="mcp_enabled">{{t $lang "admin.web.mcp_enabled_label"}}</label>
-                            <select id="mcp_enabled" name="mcp_enabled" class="form-control">
-                                <option value="true" {{if .MCPEnabled}}selected{{end}}>{{t $lang "admin.web.mcp_enabled"}}</option>
-                                <option value="false" {{if not .MCPEnabled}}selected{{end}}>{{t $lang "admin.web.mcp_disabled"}}</option>
-                            </select>
-                            <small class="form-text">{{t $lang "admin.web.mcp_url_label"}} <a href="{{.MCPEndpointURL}}">{{.MCPEndpointURL}}</a></small>
-                        </div>
-                        <p class="form-text">{{t $lang "admin.web.mcp_auth_note"}}</p>
-                        <button type="submit" class="btn btn-primary">{{t $lang "admin.web.mcp_save"}}</button>
-                    </form>
+                    <p>{{t $lang "admin.web.mcp_auth_note"}}</p>
+                    <p>{{t $lang "admin.web.mcp_url_label"}} <a href="{{.MCPEndpointURL}}">{{.MCPEndpointURL}}</a></p>
                 </div>
             </section>
 
@@ -43,62 +33,8 @@
                     <p class="card-description">{{t $lang "admin.web.branding_desc"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="branding-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-                        <div class="form-group">
-                            <label for="app_name">
-                                {{t $lang "admin.web.app_name_label"}}
-                                <span class="required" aria-label="{{t $lang "admin.web.required_field_aria"}}">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="app_name"
-                                name="app.name"
-                                class="form-control"
-                                placeholder="{{t $lang "admin.web.app_name_placeholder"}}"
-                                required
-                                aria-required="true"
-                                aria-describedby="app_name_help"
-                            >
-                            <small id="app_name_help" class="form-text">
-                                {{t $lang "admin.web.app_name_help"}}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="app_tagline">{{t $lang "admin.web.app_tagline_label"}}</label>
-                            <input
-                                type="text"
-                                id="app_tagline"
-                                name="app.tagline"
-                                class="form-control"
-                                placeholder="{{t $lang "admin.web.app_tagline_placeholder"}}"
-                                aria-describedby="app_tagline_help"
-                            >
-                            <small id="app_tagline_help" class="form-text">
-                                {{t $lang "admin.web.app_tagline_help"}}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="app_description">{{t $lang "admin.web.app_description_label"}}</label>
-                            <textarea
-                                id="app_description"
-                                name="app.description"
-                                class="form-control"
-                                rows="3"
-                                placeholder="{{t $lang "admin.web.app_description_placeholder"}}"
-                                aria-describedby="app_description_help"
-                            ></textarea>
-                            <small id="app_description_help" class="form-text">
-                                {{t $lang "admin.web.app_description_help"}}
-                            </small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_branding_aria"}}">
-                            💾 {{t $lang "admin.web.save_branding_action"}}
-                        </button>
-                    </form>
+                    <p>{{t $lang "admin.branding.intro"}}</p>
+                    <a class="btn btn-primary" href="{{.admin_path}}/branding">{{t $lang "admin.web.save_branding_action"}}</a>
                 </div>
             </section>
 
@@ -109,57 +45,8 @@
                     <p class="card-description">{{t $lang "admin.web.seo_desc"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="seo-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-                        <div class="form-group">
-                            <label for="seo_keywords">{{t $lang "admin.web.seo_keywords_label"}}</label>
-                            <input
-                                type="text"
-                                id="seo_keywords"
-                                name="seo.keywords"
-                                class="form-control"
-                                placeholder="{{t $lang "admin.web.seo_keywords_placeholder"}}"
-                                aria-describedby="seo_keywords_help"
-                            >
-                            <small id="seo_keywords_help" class="form-text">
-                                {{t $lang "admin.web.seo_keywords_help"}}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="seo_author">{{t $lang "admin.web.seo_author_label"}}</label>
-                            <input
-                                type="text"
-                                id="seo_author"
-                                name="seo.author"
-                                class="form-control"
-                                placeholder="{{t $lang "admin.web.seo_author_placeholder"}}"
-                                aria-describedby="seo_author_help"
-                            >
-                            <small id="seo_author_help" class="form-text">
-                                {{t $lang "admin.web.seo_author_help"}}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="seo_og_image">{{t $lang "admin.web.seo_og_image_label"}}</label>
-                            <input
-                                type="url"
-                                id="seo_og_image"
-                                name="seo.og_image"
-                                class="form-control"
-                                placeholder="https://example.com/preview.png"
-                                aria-describedby="seo_og_image_help"
-                            >
-                            <small id="seo_og_image_help" class="form-text">
-                                {{t $lang "admin.web.seo_og_image_help"}}
-                            </small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_seo_aria"}}">
-                            💾 {{t $lang "admin.web.save_seo_action"}}
-                        </button>
-                    </form>
+                    <p>{{t $lang "admin.branding.intro"}}</p>
+                    <a class="btn btn-primary" href="{{.admin_path}}/branding">{{t $lang "admin.web.save_seo_action"}}</a>
                 </div>
             </section>
 
@@ -273,8 +160,8 @@
                         {{t $lang "admin.web.security_url_note"}}
                     </div>
 
-                    <form id="security-txt-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="security-txt-form" class="settings-form" method="post" action="{{if .admin_path}}{{.admin_path}}{{else}}/server/administration{{end}}/web/security">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label for="security_contact">
                                 {{t $lang "admin.web.contact_label"}} <span class="required" aria-label="{{t $lang "admin.web.required_field_aria"}}">*</span>
@@ -284,6 +171,7 @@
                                 id="security_contact"
                                 name="security.contact"
                                 class="form-control"
+                                value="{{.SecurityContact}}"
                                 placeholder="security@wthr.top, https://wthr.top/security"
                                 required
                                 aria-required="true"
@@ -301,6 +189,7 @@
                                 id="security_languages"
                                 name="security.languages"
                                 class="form-control"
+                                value="{{.SecurityLanguages}}"
                                 placeholder="en, es, fr"
                                 aria-describedby="security_languages_help"
                             >
@@ -316,6 +205,7 @@
                                 id="security_report_url"
                                 name="web.security.report_url"
                                 class="form-control"
+                                value="{{.SecurityPolicy}}"
                                 placeholder="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/security/advisories/new"
                                 aria-describedby="security_report_url_help"
                             >
@@ -331,6 +221,7 @@
                                 id="security_keyservers"
                                 name="web.security.keyservers"
                                 class="form-control"
+                                value="{{.SecurityEncryption}}"
                                 placeholder="https://keys.openpgp.org"
                                 aria-describedby="security_keyservers_help"
                             >
@@ -347,9 +238,9 @@
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_security_aria"}}">
                                 💾 {{t $lang "admin.web.save_security_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" data-action="admin-web-preview-security" aria-label="{{t $lang "admin.web.preview_security_aria"}}">
+                            <a class="btn btn-secondary" href="/.well-known/security.txt" target="_blank" rel="noopener" aria-label="{{t $lang "admin.web.preview_security_aria"}}">
                                 👁️ {{t $lang "admin.web.preview_action"}}
-                            </button>
+                            </a>
                         </div>
                     </form>
                 </div>

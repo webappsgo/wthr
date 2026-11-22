@@ -24,7 +24,7 @@ func IsPortAvailable(port int) bool {
 	if err != nil {
 		return false
 	}
-	listener.Close()
+	_ = listener.Close()
 	return true
 }
 
@@ -61,7 +61,7 @@ func GetServerIP() string {
 	// Fallback: try to get IP by connecting to external service
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err == nil {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
 		return localAddr.IP.String()
 	}

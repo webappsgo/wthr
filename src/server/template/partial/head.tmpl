@@ -5,7 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="wthr-boot-error" content="{{t .server.Lang "boot.error"}}">
-    <title>{{.title}} - {{.server.Title}}</title>
+    {{if .server.Favicon16}}<link rel="icon" type="image/png" sizes="16x16" href="{{.server.Favicon16}}">{{end}}
+    {{if .server.Favicon32}}<link rel="icon" type="image/png" sizes="32x32" href="{{.server.Favicon32}}">{{end}}
+    {{if .server.Favicon48}}<link rel="icon" type="image/png" sizes="48x48" href="{{.server.Favicon48}}">{{end}}
+    {{if .server.Favicon180}}<link rel="apple-touch-icon" sizes="180x180" href="{{.server.Favicon180}}">{{end}}
+    {{if .server.Favicon192}}<link rel="icon" type="image/png" sizes="192x192" href="{{.server.Favicon192}}">{{end}}
+    {{if .server.Favicon512}}<link rel="icon" type="image/png" sizes="512x512" href="{{.server.Favicon512}}">{{end}}
+    {{if not .server.Favicon16}}{{if .server.Favicon}}<link rel="icon" href="{{.server.Favicon}}">{{end}}{{end}}
+    <title>{{.server.Title}}{{if .server.Tagline}}{{if .server.TitleSeparator}}{{.server.TitleSeparator}}{{else}} - {{end}}{{.server.Tagline}}{{end}}</title>
     <meta name="description" content="{{.server.Description}}">
     {{if .server.Keywords}}<meta name="keywords" content="{{.server.Keywords}}">{{end}}
     {{if .server.Author}}<meta name="author" content="{{.server.Author}}">{{end}}
@@ -14,20 +21,27 @@
     <!-- fails closed to noindex,nofollow for any route not explicitly public -->
     <meta name="robots" content="{{if .robots}}{{.robots}}{{else}}noindex,nofollow{{end}}">
     <link rel="canonical" href="{{.current_url}}">
+    {{range $name, $content := .server.MetaTags}}<meta name="{{$name}}" content="{{$content}}">{{end}}
 
     <!-- OpenGraph meta tags per AI.md PART 16 -->
-    <meta property="og:title" content="{{.title}} - {{.server.Title}}">
+    {{if .server.OGEnabled}}
+    <meta property="og:title" content="{{.server.Title}}">
     <meta property="og:description" content="{{.server.Description}}">
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="{{if .server.OGType}}{{.server.OGType}}{{else}}website{{end}}">
     <meta property="og:url" content="{{.current_url}}">
-    {{if .server.OGImage}}<meta property="og:image" content="{{.server.OGImage}}">{{end}}
+    {{if .server.OGImage1200}}<meta property="og:image" content="{{.server.OGImage1200}}">{{end}}
+    {{if .server.OGSiteName}}<meta property="og:site_name" content="{{.server.OGSiteName}}">{{else}}<meta property="og:site_name" content="{{.server.Title}}">{{end}}
+    {{end}}
 
     <!-- Twitter Card meta tags per AI.md PART 16 -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{.title}} - {{.server.Title}}">
+    {{if .server.TwitterEnabled}}
+    <meta name="twitter:card" content="{{if .server.TwitterCard}}{{.server.TwitterCard}}{{else}}summary_large_image{{end}}">
+    <meta name="twitter:title" content="{{.server.Title}}">
     <meta name="twitter:description" content="{{.server.Description}}">
-    {{if .server.OGImage}}<meta name="twitter:image" content="{{.server.OGImage}}">{{end}}
+    {{if .server.OGImage1200}}<meta name="twitter:image" content="{{.server.OGImage1200}}">{{end}}
     {{if .server.TwitterHandle}}<meta name="twitter:site" content="{{.server.TwitterHandle}}">{{end}}
+    {{if .server.TwitterCreator}}<meta name="twitter:creator" content="{{.server.TwitterCreator}}">{{end}}
+    {{end}}
 
     <!-- Site verification meta tags per AI.md PART 16 (only if configured) -->
     {{if .server.VerifyGoogle}}<meta name="google-site-verification" content="{{.server.VerifyGoogle}}">{{end}}
@@ -66,6 +80,7 @@
     <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
     <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
+    <link rel="stylesheet" href="/static/css/accent.css">
     <!-- AI.md PART 16: All JavaScript in ONE file -->
     <script src="{{asset "/static/js/app.js"}}" defer></script>
     <link rel="manifest" href="/manifest.json">

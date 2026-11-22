@@ -41,12 +41,11 @@ func NewCacheManager(configs ...config.CacheConfig) *CacheManager {
 	if len(configs) != 0 {
 		cfg = mergeCacheConfig(configs[0])
 	}
+	cfg = cacheURLFromEnvironment(cfg)
 	backend := strings.ToLower(strings.TrimSpace(cfg.Type))
 	if backend == "" {
 		backend = "memory"
 	}
-	cfg = cacheURLFromEnvironment(cfg)
-	backend = strings.ToLower(strings.TrimSpace(cfg.Type))
 	ttl, err := time.ParseDuration(strings.TrimSpace(cfg.TTL))
 	if err != nil || ttl <= 0 {
 		ttl = time.Hour

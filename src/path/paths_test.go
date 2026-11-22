@@ -122,7 +122,7 @@ func TestResolvePath(t *testing.T) {
 	// Reset global state so this test controls the instance deterministically.
 	resetPathsSingleton(t)
 	setTempDirEnv(t)
-	Initialize("wthr")
+	_ = Initialize("wthr")
 
 	tests := []struct {
 		name  string
@@ -156,7 +156,7 @@ func TestResolvePath(t *testing.T) {
 func TestResolveConfigPath(t *testing.T) {
 	resetPathsSingleton(t)
 	setTempDirEnv(t)
-	Initialize("wthr")
+	_ = Initialize("wthr")
 
 	t.Run("absolute_path_passthrough", func(t *testing.T) {
 		abs := "/some/absolute/server.yml"
@@ -189,12 +189,12 @@ func setTempDirEnv(t *testing.T) {
 	}
 	for k, v := range vars {
 		old, had := os.LookupEnv(k)
-		os.Setenv(k, v)
+		_ = os.Setenv(k, v)
 		t.Cleanup(func() {
 			if had {
-				os.Setenv(k, old)
+				_ = os.Setenv(k, old)
 			} else {
-				os.Unsetenv(k)
+				_ = os.Unsetenv(k)
 			}
 		})
 	}

@@ -485,29 +485,27 @@ func TestModelHandleAccessors(t *testing.T) {
 	}
 }
 
-// TestSettingsModelUsesInjectedServerDB pins the documented contract on
-// SettingsModel.DB: it must be the SERVER database handle (server_config
-// lives in server.db, not the users database), and the model uses whatever
-// handle is injected directly, with no fallback or override.
-func TestSettingsModelUsesInjectedServerDB(t *testing.T) {
+// TestSettingsModelUsesConfigFiles proves settings writes are independent of
+// database handles and are persisted in the canonical config files.
+func TestSettingsModelUsesConfigFiles(t *testing.T) {
+	setSettingsTestConfig(t)
 	serverDB := newModelServerDB(t)
 	usersDB := newModelUsersDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
-	// Callers must inject the server handle explicitly; the model no longer
-	// resolves the global server handle on its own.
+	// The DB field is source-compatible only and does not select storage.
 	model := &SettingsModel{DB: serverDB}
 
 	if err := model.SetSetting("unit.test.key", "from-server-db", "string"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 
-	var stored string
-	if err := serverDB.QueryRow("SELECT value FROM server_config WHERE key = ?", "unit.test.key").Scan(&stored); err != nil {
-		t.Fatalf("settings row was not written to server.db: %v", err)
+	var count int
+	if err := serverDB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'server_config'").Scan(&count); err != nil {
+		t.Fatalf("query legacy table metadata: %v", err)
 	}
-	if stored != "from-server-db" {
-		t.Errorf("stored value = %q, want %q", stored, "from-server-db")
+	if count != 0 {
+		t.Errorf("fresh SQLite schema contains legacy server_config table")
 	}
 
 	setting, err := model.GetSetting("unit.test.key")

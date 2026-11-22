@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -88,14 +87,14 @@ func (s *HurricaneService) fetchNOAAStorms(url string) ([]Storm, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("NOAA API returned status %d", resp.StatusCode)
 	}
 
 	var noaaData struct {
-		ActiveStorms []struct {
+		ActiveStorms *[]struct {
 			ID               string  `json:"id"`
 			BinNumber        int     `json:"binNumber"`
 			Name             string  `json:"name"`
@@ -113,13 +112,15 @@ func (s *HurricaneService) fetchNOAAStorms(url string) ([]Storm, error) {
 		} `json:"activeStorms"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&noaaData); err != nil {
-		// If JSON parsing fails, might be no active storms
-		return []Storm{}, nil
+	if err := decodeRemoteJSON(resp, &noaaData); err != nil {
+		return nil, fmt.Errorf("decode NOAA active storms: %w", err)
+	}
+	if noaaData.ActiveStorms == nil {
+		return nil, fmt.Errorf("NOAA response is missing activeStorms")
 	}
 
-	storms := make([]Storm, 0, len(noaaData.ActiveStorms))
-	for _, s := range noaaData.ActiveStorms {
+	storms := make([]Storm, 0, len(*noaaData.ActiveStorms))
+	for _, s := range *noaaData.ActiveStorms {
 		intensity := s.Classification
 		if s.IntensityMPH > 0 {
 			intensity = fmt.Sprintf("%s (%d mph)", s.Classification, s.IntensityMPH)

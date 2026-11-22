@@ -10,7 +10,11 @@ import (
 // read/dismissed/expired exclusion filters and the NULL-expiry case.
 func TestNotificationModel_GetUnreadCount(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close notification test database: %v", err)
+		}
+	})
 	model := &NotificationModel{DB: db}
 
 	insert := func(id string, read, dismissed bool, expiresAt interface{}) {

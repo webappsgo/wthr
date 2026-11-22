@@ -10,8 +10,7 @@ import (
 // resolved value as CLI_LANG for the i18n bootstrap in main.go.
 func TestCLI_Parse_LangFlag(t *testing.T) {
 	t.Run("space-separated value", func(t *testing.T) {
-		os.Unsetenv("CLI_LANG")
-		t.Cleanup(func() { os.Unsetenv("CLI_LANG") })
+		t.Setenv("CLI_LANG", "")
 
 		c := NewCLI()
 		if err := c.Parse([]string{"--lang", "es"}); err != nil {
@@ -23,8 +22,7 @@ func TestCLI_Parse_LangFlag(t *testing.T) {
 	})
 
 	t.Run("equals-separated value", func(t *testing.T) {
-		os.Unsetenv("CLI_LANG")
-		t.Cleanup(func() { os.Unsetenv("CLI_LANG") })
+		t.Setenv("CLI_LANG", "")
 
 		c := NewCLI()
 		if err := c.Parse([]string{"--lang=ja"}); err != nil {
@@ -36,15 +34,14 @@ func TestCLI_Parse_LangFlag(t *testing.T) {
 	})
 
 	t.Run("omitted flag leaves CLI_LANG unset", func(t *testing.T) {
-		os.Unsetenv("CLI_LANG")
-		t.Cleanup(func() { os.Unsetenv("CLI_LANG") })
+		t.Setenv("CLI_LANG", "")
 
 		c := NewCLI()
 		if err := c.Parse([]string{}); err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
-		if _, set := os.LookupEnv("CLI_LANG"); set {
-			t.Fatal("CLI_LANG was set without a --lang flag")
+		if got := os.Getenv("CLI_LANG"); got != "" {
+			t.Fatalf("CLI_LANG = %q without a --lang flag, want empty", got)
 		}
 	})
 }

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
 // testUserPassword is a fake fixture password, not a real credential.
@@ -390,6 +392,11 @@ func TestUserModelMutations(t *testing.T) {
 	})
 
 	t.Run("enable and disable 2fa via aliases", func(t *testing.T) {
+		cfg := &config.AppConfig{}
+		cfg.Server.Security.EncryptionKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+		previousConfig := config.GetGlobalConfig()
+		config.SetGlobalConfig(cfg)
+		t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 		if err := m.EnableTwoFactor(u.ID, "SECRET123"); err != nil {
 			t.Fatalf("EnableTwoFactor: %v", err)
 		}
@@ -397,8 +404,12 @@ func TestUserModelMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetByID: %v", err)
 		}
-		if !got.TwoFactorEnabled || got.TwoFactorSecret != "SECRET123" {
-			t.Fatalf("expected 2FA enabled with secret, got %+v", got)
+		plainSecret, err := DecryptTwoFactorSecret(got.TwoFactorSecret)
+		if err != nil {
+			t.Fatalf("DecryptTwoFactorSecret: %v", err)
+		}
+		if !got.TwoFactorEnabled || plainSecret != "SECRET123" || got.TwoFactorSecret == "SECRET123" {
+			t.Fatalf("expected 2FA enabled with encrypted secret, got %+v", got)
 		}
 
 		if err := m.DisableTwoFactor(u.ID); err != nil {

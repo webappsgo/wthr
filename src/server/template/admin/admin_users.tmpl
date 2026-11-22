@@ -3,18 +3,19 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 <div class="admin-header"><h1>👥 {{t $lang "admin.users.title"}}</h1></div>
-<form id="userSettingsForm">
+{{template "flash" .}}
+<form id="userSettingsForm" method="post" action="{{.admin_path}}/users/settings">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 <section class="card"><h2>{{t $lang "admin.users.multi_user_heading"}}</h2>
-<label><input type="checkbox" name="enabled"> {{t $lang "admin.users.enable_multi_user_label"}}</label>
+<label><input type="checkbox" name="enabled" value="true" {{if .settings.enabled}}checked{{end}}> {{t $lang "admin.users.enable_multi_user_label"}}</label>
 </section>
 <section class="card"><h2>{{t $lang "admin.users.registration_heading"}}</h2>
 <label for="registration_mode">{{t $lang "admin.users.registration_mode_label"}}</label>
 <select id="registration_mode" name="registration_mode">
-    <option value="open">{{t $lang "admin.users.registration_mode_open"}}</option>
-    <option value="private">{{t $lang "admin.users.registration_mode_private"}}</option>
+    <option value="open" {{if eq .settings.registration_mode "open"}}selected{{end}}>{{t $lang "admin.users.registration_mode_open"}}</option>
+    <option value="private" {{if eq .settings.registration_mode "private"}}selected{{end}}>{{t $lang "admin.users.registration_mode_private"}}</option>
 </select>
-<label><input type="checkbox" name="registration_require_email_verification"> {{t $lang "admin.users.require_email_verification_label"}}</label>
+<label><input type="checkbox" name="registration_require_email_verification" value="true" {{if .settings.require_email_verification}}checked{{end}}> {{t $lang "admin.users.require_email_verification_label"}}</label>
 </section>
 <button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>

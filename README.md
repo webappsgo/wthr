@@ -39,6 +39,7 @@ https://wthr.top
 - Public user profiles with visibility controls and avatars (gravatar/upload/external)
 - Registration modes configurable by the operator (see Configuration)
 - LDAP and OIDC single sign-on for user accounts
+- SAML single sign-on with configurable providers
 - User self-service: change email/password, manage sessions, download data, delete account
 - Admin panel: dashboard, server/security/network config, users, notifications, scheduler, cluster, help
 - GraphQL API alongside the REST and Swagger surfaces
@@ -231,6 +232,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 - **US Alerts**: [NOAA NWS](https://www.weather.gov/)
 - **Hurricanes**: [NOAA NHC](https://www.nhc.noaa.gov/)
 - **Earthquakes**: [USGS](https://earthquake.usgs.gov/)
+- **US ZIP-code locations**: [GeoNames postal-code data](https://download.geonames.org/export/zip/US.zip), licensed under [CC BY 4.0](https://download.geonames.org/export/zip/readme.txt). Coordinates represent ZIP-code locations and are not USPS delivery boundaries.
 - **GeoIP**: [sapics/ip-location-db](https://github.com/sapics/ip-location-db)
 
 ### Troubleshooting

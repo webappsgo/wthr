@@ -116,7 +116,7 @@ func (h *EarthquakeHandler) HandleEarthquakes(w http.ResponseWriter, r *http.Req
 	// Get client location for map centering and distance calculation
 	// Priority: 1. Saved cookies, 2. IP geolocation
 	clientIP := util.TrustedGetClientIP(r)
-	var centerLat, centerLon float64 = 0.0, 0.0
+	var centerLat, centerLon = 0.0, 0.0
 	hasUserLocation := false
 
 	// Check cookies first
@@ -372,7 +372,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(w http.ResponseWriter, r *htt
 	if earthquakeID == "" {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, "Earthquake ID required\n")
+		_, _ = fmt.Fprint(w, "Earthquake ID required\n")
 		return
 	}
 
@@ -410,7 +410,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(w http.ResponseWriter, r *htt
 		} else {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, "Earthquake not found\n")
+			_, _ = fmt.Fprint(w, "Earthquake not found\n")
 		}
 		return
 	}
@@ -424,7 +424,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(w http.ResponseWriter, r *htt
 		output := h.renderASCIIEarthquakeDetail(earthquake)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	} else {
 		// Browser output
 		hostInfo := util.GetHostInfo(r)
@@ -536,7 +536,7 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(w http.ResponseWriter, r *http
 	output := h.renderASCIIEarthquakes(earthquakes, locationName, feedType)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, output)
+	_, _ = fmt.Fprint(w, output)
 }
 
 // renderASCIIEarthquakes formats earthquake data as ASCII text
@@ -555,30 +555,30 @@ func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.Earthqua
 
 	// Header
 	if location != "" {
-		sb.WriteString(fmt.Sprintf("%s%s%s Earthquakes near %s%s\n\n", bold, yellow, globe, location, reset))
+		fmt.Fprintf(&sb, "%s%s%s Earthquakes near %s%s\n\n", bold, yellow, globe, location, reset)
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s %s%s\n\n", bold, yellow, globe, earthquakes.Metadata.Title, reset))
+		fmt.Fprintf(&sb, "%s%s%s %s%s\n\n", bold, yellow, globe, earthquakes.Metadata.Title, reset)
 	}
 
-	sb.WriteString(fmt.Sprintf("%sTotal: %s%d%s earthquakes\n", comment, cyan, earthquakes.Metadata.Count, reset))
-	sb.WriteString(fmt.Sprintf("%sUpdated: %s%s\n\n", comment, time.UnixMilli(earthquakes.Metadata.Generated).Format(time.RFC1123), reset))
+	fmt.Fprintf(&sb, "%sTotal: %s%d%s earthquakes\n", comment, cyan, earthquakes.Metadata.Count, reset)
+	fmt.Fprintf(&sb, "%sUpdated: %s%s\n\n", comment, time.UnixMilli(earthquakes.Metadata.Generated).Format(time.RFC1123), reset)
 
 	if len(earthquakes.Earthquakes) == 0 {
-		sb.WriteString(fmt.Sprintf("%sNo earthquakes found.%s\n", comment, reset))
+		fmt.Fprintf(&sb, "%sNo earthquakes found.%s\n", comment, reset)
 		return sb.String()
 	}
 
 	// Table header with box drawing
-	sb.WriteString(fmt.Sprintf("%s┌─────────┬────────────────────────────────────────────────────┬──────────────────────┬─────────────┐%s\n",
-		purple, reset))
-	sb.WriteString(fmt.Sprintf("%s│%s %s%-7s%s %s│%s %s%-50s%s %s│%s %s%-20s%s %s│%s %s%-11s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s┌─────────┬────────────────────────────────────────────────────┬──────────────────────┬─────────────┐%s\n",
+		purple, reset)
+	fmt.Fprintf(&sb, "%s│%s %s%-7s%s %s│%s %s%-50s%s %s│%s %s%-20s%s %s│%s %s%-11s%s %s│%s\n",
 		purple, reset, orange, "MAG", reset,
 		purple, reset, orange, "LOCATION", reset,
 		purple, reset, orange, "TIME", reset,
 		purple, reset, orange, "DEPTH", reset,
-		purple, reset))
-	sb.WriteString(fmt.Sprintf("%s├─────────┼────────────────────────────────────────────────────┼──────────────────────┼─────────────┤%s\n",
-		purple, reset))
+		purple, reset)
+	fmt.Fprintf(&sb, "%s├─────────┼────────────────────────────────────────────────────┼──────────────────────┼─────────────┤%s\n",
+		purple, reset)
 
 	// Earthquake list
 	for i, eq := range earthquakes.Earthquakes {
@@ -601,7 +601,7 @@ func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.Earthqua
 			magColor = red
 		}
 
-		sb.WriteString(fmt.Sprintf("%s│%s %s%-7.1f%s %s│%s %-50s %s│%s %s%-20s%s %s│%s %s%-7.1fkm%s%s %s│%s\n",
+		fmt.Fprintf(&sb, "%s│%s %s%-7.1f%s %s│%s %-50s %s│%s %s%-20s%s %s│%s %s%-7.1fkm%s%s %s│%s\n",
 			purple, reset,
 			magColor, eq.Magnitude, reset,
 			purple, reset, truncateString(eq.Place, 50),
@@ -609,20 +609,20 @@ func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.Earthqua
 			cyan, eq.Time.Format("2006-01-02 15:04:05"), reset,
 			purple, reset,
 			comment, eq.Depth, reset, tsunamiWarning,
-			purple, reset))
+			purple, reset)
 
 		// Don't add separator after last item
 		if i < len(earthquakes.Earthquakes)-1 {
-			sb.WriteString(fmt.Sprintf("%s├─────────┼────────────────────────────────────────────────────┼──────────────────────┼─────────────┤%s\n",
-				purple, reset))
+			fmt.Fprintf(&sb, "%s├─────────┼────────────────────────────────────────────────────┼──────────────────────┼─────────────┤%s\n",
+				purple, reset)
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("%s└─────────┴────────────────────────────────────────────────────┴──────────────────────┴─────────────┘%s\n",
-		purple, reset))
+	fmt.Fprintf(&sb, "%s└─────────┴────────────────────────────────────────────────────┴──────────────────────┴─────────────┘%s\n",
+		purple, reset)
 
-	sb.WriteString(fmt.Sprintf("\n%s%s = Tsunami warning%s\n", cyan, wave, reset))
-	sb.WriteString(fmt.Sprintf("\n%sView details: https://earthquake.usgs.gov/earthquakes/map/%s\n", comment, reset))
+	fmt.Fprintf(&sb, "\n%s%s = Tsunami warning%s\n", cyan, wave, reset)
+	fmt.Fprintf(&sb, "\n%sView details: https://earthquake.usgs.gov/earthquakes/map/%s\n", comment, reset)
 
 	return sb.String()
 }
@@ -663,97 +663,97 @@ func (h *EarthquakeHandler) renderASCIIEarthquakeDetail(eq *service.Earthquake) 
 	}
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%s%s%s Earthquake Details%s\n\n", bold, yellow, globe, reset))
+	fmt.Fprintf(&sb, "%s%s%s Earthquake Details%s\n\n", bold, yellow, globe, reset)
 
 	// Main info box
-	sb.WriteString(fmt.Sprintf("%s┌─────────────────────────────────────────────────────────────────────┐%s\n", purple, reset))
-	sb.WriteString(fmt.Sprintf("%s│%s %s%-67s%s %s│%s\n",
-		purple, reset, bold, eq.Place, reset, purple, reset))
-	sb.WriteString(fmt.Sprintf("%s├─────────────────────────────────────────────────────────────────────┤%s\n", purple, reset))
+	fmt.Fprintf(&sb, "%s┌─────────────────────────────────────────────────────────────────────┐%s\n", purple, reset)
+	fmt.Fprintf(&sb, "%s│%s %s%-67s%s %s│%s\n",
+		purple, reset, bold, eq.Place, reset, purple, reset)
+	fmt.Fprintf(&sb, "%s├─────────────────────────────────────────────────────────────────────┤%s\n", purple, reset)
 
 	// Magnitude and tsunami
 	tsunamiIndicator := ""
 	if eq.Tsunami == 1 {
 		tsunamiIndicator = fmt.Sprintf("  %s%s TSUNAMI WARNING%s", cyan, wave, reset)
 	}
-	sb.WriteString(fmt.Sprintf("%s│%s %sMagnitude:%s %s%.1f%s %s(%s)%s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sMagnitude:%s %s%.1f%s %s(%s)%s%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		magColor, eq.Magnitude, reset,
 		comment, eq.MagnitudeType, reset,
 		tsunamiIndicator,
-		purple, reset))
+		purple, reset)
 
 	// Time
-	sb.WriteString(fmt.Sprintf("%s│%s %sTime:%s     %s%s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sTime:%s     %s%s%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		cyan, eq.Time.Format("2006-01-02 15:04:05 MST"), reset,
-		purple, reset))
+		purple, reset)
 
 	// Location
-	sb.WriteString(fmt.Sprintf("%s│%s %sLocation:%s  %sLat %.4f°, Lon %.4f°%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sLocation:%s  %sLat %.4f°, Lon %.4f°%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		cyan, eq.Latitude, eq.Longitude, reset,
-		purple, reset))
+		purple, reset)
 
 	// Depth
-	sb.WriteString(fmt.Sprintf("%s│%s %sDepth:%s     %s%.1f km%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sDepth:%s     %s%.1f km%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		cyan, eq.Depth, reset,
-		purple, reset))
+		purple, reset)
 
 	// Status
-	sb.WriteString(fmt.Sprintf("%s│%s %sStatus:%s    %s%s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sStatus:%s    %s%s%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		green, eq.Status, reset,
-		purple, reset))
+		purple, reset)
 
 	// Optional fields
 	if eq.Felt != nil && *eq.Felt > 0 {
-		sb.WriteString(fmt.Sprintf("%s│%s %sFelt:%s      %s%d reports%s %s│%s\n",
+		fmt.Fprintf(&sb, "%s│%s %sFelt:%s      %s%d reports%s %s│%s\n",
 			purple, reset,
 			orange, reset,
 			pink, *eq.Felt, reset,
-			purple, reset))
+			purple, reset)
 	}
 
 	if eq.CDI != nil {
-		sb.WriteString(fmt.Sprintf("%s│%s %sCDI:%s       %s%.1f%s %s│%s\n",
+		fmt.Fprintf(&sb, "%s│%s %sCDI:%s       %s%.1f%s %s│%s\n",
 			purple, reset,
 			orange, reset,
 			pink, *eq.CDI, reset,
-			purple, reset))
+			purple, reset)
 	}
 
 	if eq.MMI != nil {
-		sb.WriteString(fmt.Sprintf("%s│%s %sMMI:%s       %s%.1f%s %s│%s\n",
+		fmt.Fprintf(&sb, "%s│%s %sMMI:%s       %s%.1f%s %s│%s\n",
 			purple, reset,
 			orange, reset,
 			pink, *eq.MMI, reset,
-			purple, reset))
+			purple, reset)
 	}
 
 	// Network and ID
-	sb.WriteString(fmt.Sprintf("%s│%s %sNetwork:%s   %s%s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sNetwork:%s   %s%s%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		comment, eq.Network, reset,
-		purple, reset))
+		purple, reset)
 
-	sb.WriteString(fmt.Sprintf("%s│%s %sID:%s        %s%s%s %s│%s\n",
+	fmt.Fprintf(&sb, "%s│%s %sID:%s        %s%s%s %s│%s\n",
 		purple, reset,
 		orange, reset,
 		comment, eq.ID, reset,
-		purple, reset))
+		purple, reset)
 
-	sb.WriteString(fmt.Sprintf("%s└─────────────────────────────────────────────────────────────────────┘%s\n", purple, reset))
+	fmt.Fprintf(&sb, "%s└─────────────────────────────────────────────────────────────────────┘%s\n", purple, reset)
 
 	// External link
-	sb.WriteString(fmt.Sprintf("\n%sUSGS Details: %s%s%s\n", comment, cyan, eq.URL, reset))
+	fmt.Fprintf(&sb, "\n%sUSGS Details: %s%s%s\n", comment, cyan, eq.URL, reset)
 
 	return sb.String()
 }

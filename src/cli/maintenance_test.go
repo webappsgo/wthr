@@ -276,7 +276,7 @@ func TestVerifyDatabaseFile(t *testing.T) {
 		if _, err := setupDB.Exec("CREATE TABLE t (id INTEGER)"); err != nil {
 			t.Fatalf("setup: create table error = %v", err)
 		}
-		setupDB.Close()
+		_ = setupDB.Close()
 
 		if err := verifyDatabaseFile(dbPath); err != nil {
 			t.Errorf("verifyDatabaseFile() error = %v, want nil for valid db file", err)
@@ -305,7 +305,7 @@ func TestVerifyAdminExists(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setup: %v", err)
 		}
-		setupDB.Close()
+		_ = setupDB.Close()
 
 		if err := verifyAdminExists(dbPath); err == nil {
 			t.Error("verifyAdminExists() with no table = nil, want error")
@@ -349,13 +349,17 @@ func TestOpenDatabase_Succeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setup: %v", err)
 	}
-	setupDB.Close()
+	_ = setupDB.Close()
 
 	db, err := openDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("openDatabase() error = %v, want nil", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close opened database: %v", err)
+		}
+	})
 }
 
 // TestVerifySystem_AllMissing covers the failure path: no server.db, no
@@ -430,102 +434,6 @@ func TestVerifySystem_AllPresent(t *testing.T) {
 	}
 	if !strings.Contains(out, "System verification completed successfully") {
 		t.Errorf("output = %q, want success message", out)
-	}
-}
-
-// TestUpdateServerConfig_MissingDatabase covers the error path returned
-// before any database is opened: DATA_DIR set to a directory with no
-// db/server.db file.
-func TestUpdateServerConfig_MissingDatabase(t *testing.T) {
-	dataDir := t.TempDir()
-	t.Setenv("DATA_DIR", dataDir)
-	t.Setenv("CONFIG_DIR", t.TempDir())
-
-	err := updateServerConfig()
-	if err == nil {
-		t.Fatal("updateServerConfig() with no server.db = nil, want error")
-	}
-	if !strings.Contains(err.Error(), "server database not found") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "server database not found")
-	}
-}
-
-// TestUpdateServerConfig_OpenFails covers the failure path once openDatabase
-// succeeds (see TestOpenDatabase_Succeeds): a server.db file is present but
-// empty, so the database opens fine and updateServerConfig fails one step
-// later, reading the (nonexistent) server_config table.
-func TestUpdateServerConfig_OpenFails(t *testing.T) {
-	dataDir := t.TempDir()
-	dbDir := filepath.Join(dataDir, "db")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	// sql.Open is lazy and never creates the file on disk by itself; the
-	// os.Stat existence check in updateServerConfig needs a real file here.
-	if err := os.WriteFile(filepath.Join(dbDir, "server.db"), nil, 0644); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
-	t.Setenv("DATA_DIR", dataDir)
-	t.Setenv("CONFIG_DIR", t.TempDir())
-
-	err := updateServerConfig()
-	if err == nil {
-		t.Fatal("updateServerConfig() = nil, want error (empty db has no server_config table)")
-	}
-	if !strings.Contains(err.Error(), "failed to read settings") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "failed to read settings")
-	}
-}
-
-// TestUpdateServerConfig_Success covers the full happy path against the real
-// server_config table from database.ServerSchema: multi-segment dotted keys
-// across two sections and a value that requires YAML quoting, written to
-// CONFIG_DIR/server.yml grouped by top-level section.
-func TestUpdateServerConfig_Success(t *testing.T) {
-	dataDir := t.TempDir()
-	configDir := t.TempDir()
-	dbDir := filepath.Join(dataDir, "db")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
-	dbPath := filepath.Join(dbDir, "server.db")
-	applySchema(t, dbPath, database.ServerSchema)
-	execFixture(t, dbPath,
-		"INSERT INTO server_config (key, value, type) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)",
-		"server.mode", "production", "string",
-		"server.baseurl", "http://x", "string",
-		"auth.session.timeout", "24h", "string",
-	)
-
-	t.Setenv("DATA_DIR", dataDir)
-	t.Setenv("CONFIG_DIR", configDir)
-
-	var err2 error
-	out := captureStdout(t, func() { err2 = updateServerConfig() })
-	if err2 != nil {
-		t.Fatalf("updateServerConfig() error = %v, want nil", err2)
-	}
-	if !strings.Contains(out, "Configuration written to") {
-		t.Errorf("output = %q, want it to report the written path", out)
-	}
-
-	data, err := os.ReadFile(filepath.Join(configDir, "server.yml"))
-	if err != nil {
-		t.Fatalf("server.yml not written: %v", err)
-	}
-	content := string(data)
-
-	for _, want := range []string{
-		"server:", "auth:",
-		"mode: production",
-		`baseurl: "http://x"`,
-		"session.timeout: 24h",
-	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("server.yml content = %q, want substring %q", content, want)
-		}
 	}
 }
 
@@ -609,7 +517,7 @@ func TestAdminRecoverySetup_FirstRun_ShowsToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify DB open: %v", err)
 	}
-	defer verifyDB.Close()
+	defer func() { _ = verifyDB.Close() }()
 
 	var count int
 	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM admins").Scan(&count); err != nil {
@@ -641,7 +549,7 @@ func TestClearAdminCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open users db: %v", err)
 	}
-	defer usersDB.Close()
+	defer func() { _ = usersDB.Close() }()
 
 	if err := clearAdminCredentials(usersDB, serverPath); err != nil {
 		t.Fatalf("clearAdminCredentials: %v", err)
@@ -652,7 +560,11 @@ func TestClearAdminCredentials(t *testing.T) {
 		if err != nil {
 			t.Fatalf("open %s: %v", dbPath, err)
 		}
-		defer db.Close()
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Errorf("close verification database: %v", err)
+			}
+		})
 		var n int
 		if err := db.QueryRow(query).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", query, err)

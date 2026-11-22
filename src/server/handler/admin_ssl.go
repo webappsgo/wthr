@@ -6,8 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/i18n"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -21,6 +26,7 @@ type SSLHandler struct {
 	challengeSink service.ChallengeCertSink
 	// onCertificateChange makes the listener serve a certificate that was just obtained or renewed
 	onCertificateChange func()
+	leMu                sync.Mutex
 }
 
 // NewSSLHandler creates a new SSL handler
@@ -34,6 +40,31 @@ func NewSSLHandler(certsDir string, db *sql.DB, httpsAddr string) *SSLHandler {
 		db:        db,
 		httpsAddr: httpsAddr,
 	}
+}
+
+func saveLetsEncryptSettings(email, challengeType string, staging bool) error {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return fmt.Errorf("server configuration is not loaded")
+	}
+	previous := cfg.Server.SSL.LetsEncrypt
+	cfg.Server.SSL.LetsEncrypt.Enabled = true
+	cfg.Server.SSL.LetsEncrypt.Email = email
+	cfg.Server.SSL.LetsEncrypt.Challenge = challengeType
+	cfg.Server.SSL.LetsEncrypt.Staging = staging
+	if err := config.SaveConfig(cfg); err != nil {
+		cfg.Server.SSL.LetsEncrypt = previous
+		return err
+	}
+	return nil
+}
+
+func sslSystemMessage(key string) string {
+	translations := i18n.GetGlobalI18n()
+	if translations == nil {
+		return key
+	}
+	return translations.T(translations.GetDefaultLanguage(), key)
 }
 
 // SetCertificateHooks connects the handler to the HTTPS listener: the sink answers
@@ -52,7 +83,12 @@ func (h *SSLHandler) certificateChanged() {
 
 // InitLetsEncrypt initializes the Let's Encrypt service
 func (h *SSLHandler) InitLetsEncrypt(email string, staging bool) error {
-	leService, err := service.NewLetsEncryptService(email, h.certsDir, staging)
+	h.leMu.Lock()
+	defer h.leMu.Unlock()
+	if h.leService != nil {
+		return nil
+	}
+	leService, err := service.NewLetsEncryptService(email, filepath.Join(h.certsDir, "letsencrypt"), staging)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Let's Encrypt: %w", err)
 	}
@@ -61,6 +97,14 @@ func (h *SSLHandler) InitLetsEncrypt(email string, staging bool) error {
 	}
 	h.leService = leService
 	return nil
+}
+
+func (h *SSLHandler) initConfiguredLetsEncrypt() error {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil || strings.TrimSpace(cfg.Server.SSL.LetsEncrypt.Email) == "" {
+		return fmt.Errorf("%s", sslSystemMessage("errors.admin.ssl.contact_email_not_configured"))
+	}
+	return h.InitLetsEncrypt(cfg.Server.SSL.LetsEncrypt.Email, cfg.Server.SSL.LetsEncrypt.Staging)
 }
 
 type CertificateInfo struct {
@@ -121,7 +165,21 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		Staging bool `json:"staging"`
 	}
 
-	if !DecodeAndValidate(w, r, &request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_obtain_certificate", err)
+			return
+		}
+		request.Domain = strings.TrimSpace(r.PostForm.Get("domain"))
+		request.Email = strings.TrimSpace(r.PostForm.Get("email"))
+		request.AltNames = splitSSLFormDomains(r.PostForm.Get("altNames"))
+		request.ChallengeType = strings.TrimSpace(r.PostForm.Get("challengeType"))
+		request.Staging = r.PostForm.Get("staging") == "true"
+		if request.Domain == "" || request.Email == "" || !isSSLChallengeType(request.ChallengeType) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.invalid_challenge_type", fmt.Errorf("domain, email and valid challenge type are required"))
+			return
+		}
+	} else if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
@@ -132,10 +190,23 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		"dns-01":      true,
 	}
 	if !validChallenges[request.ChallengeType] {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.invalid_challenge_type", fmt.Errorf("invalid challenge type"))
+			return
+		}
 		BadRequest(w, r, Translate(r, "errors.admin.ssl.invalid_challenge_type"), map[string]interface{}{
 			"validTypes":    []string{"http-01", "tls-alpn-01", "dns-01"},
 			"challengeType": request.ChallengeType,
 		})
+		return
+	}
+	if err := saveLetsEncryptSettings(request.Email, request.ChallengeType, request.Staging); err != nil {
+		log.Printf("ERROR: %s", sslSystemMessage("log.ssl.settings_save_failed"))
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_initialize_lets_encrypt_service", err)
+			return
+		}
+		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
 		return
 	}
 
@@ -143,12 +214,20 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	if h.leService == nil {
 		if err := h.InitLetsEncrypt(request.Email, request.Staging); err != nil {
 			log.Printf("ssl init error: %v", err)
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_initialize_lets_encrypt_service", err)
+				return
+			}
 			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
 			return
 		}
 	}
 
 	if err := h.applyDNSSolver(request.ChallengeType); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_obtain_certificate", err)
+			return
+		}
 		failDNSCheck(w, r, err)
 		return
 	}
@@ -157,11 +236,19 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	cert, err := h.leService.ObtainCertificate(request.Domain, request.AltNames, request.ChallengeType)
 	if err != nil {
 		log.Printf("ssl obtain cert error: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_obtain_certificate", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_obtain_certificate"))
 		return
 	}
 	h.certificateChanged()
 	h.recordDNSValidated(request.ChallengeType)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_obtained_successfully", "errors.admin.ssl.failed_to_obtain_certificate", nil)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":                true,
@@ -184,14 +271,32 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		Force bool `json:"force"`
 	}
 
-	if !DecodeAndValidate(w, r, &request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_renew_certificate", err)
+			return
+		}
+		request.Domain = strings.TrimSpace(r.PostForm.Get("domain"))
+		request.ChallengeType = strings.TrimSpace(r.PostForm.Get("challengeType"))
+		request.Force = r.PostForm.Get("force") == "true"
+		if request.Domain == "" || !isSSLChallengeType(request.ChallengeType) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.invalid_challenge_type", fmt.Errorf("domain and valid challenge type are required"))
+			return
+		}
+	} else if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.let_s_encrypt_service_not_initialized"))
-		return
+		if err := h.initConfiguredLetsEncrypt(); err != nil {
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_initialize_lets_encrypt_service", err)
+				return
+			}
+			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
+			return
+		}
 	}
 
 	// Check if renewal is needed
@@ -199,11 +304,20 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		needsRenewal, daysRemaining, err := h.leService.CheckRenewal(request.Domain)
 		if err != nil {
 			log.Printf("ssl check renewal error: %v", err)
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_check_renewal_status", err)
+				return
+			}
 			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_check_renewal_status"))
 			return
 		}
 
 		if !needsRenewal {
+			if wantsFormSubmission(r) {
+				SetFlash(w, r, "info", "success.admin.ssl.certificate_does_not_need_renewal_yet")
+				http.Redirect(w, r, adminPagePath(r, "/ssl"), http.StatusSeeOther)
+				return
+			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message":       Translate(r, "success.admin.ssl.certificate_does_not_need_renewal_yet"),
 				"daysRemaining": daysRemaining,
@@ -214,6 +328,10 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.applyDNSSolver(request.ChallengeType); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_renew_certificate", err)
+			return
+		}
 		failDNSCheck(w, r, err)
 		return
 	}
@@ -222,11 +340,19 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	cert, err := h.leService.RenewCertificate(request.Domain, request.ChallengeType)
 	if err != nil {
 		log.Printf("ssl renew error: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_renew_certificate", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_renew_certificate"))
 		return
 	}
 	h.certificateChanged()
 	h.recordDNSValidated(request.ChallengeType)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_renewed_successfully", "errors.admin.ssl.failed_to_renew_certificate", nil)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":          true,
@@ -282,20 +408,45 @@ func (h *SSLHandler) RevokeCertificate(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 
-	if !DecodeAndValidate(w, r, &request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_revoked_successfully", "errors.admin.ssl.failed_to_revoke_certificate", err)
+			return
+		}
+		request.Domain = strings.TrimSpace(r.PostForm.Get("domain"))
+		request.Reason = strings.TrimSpace(r.PostForm.Get("reason"))
+		if request.Domain == "" {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_revoked_successfully", "errors.admin.ssl.failed_to_revoke_certificate", fmt.Errorf("domain is required"))
+			return
+		}
+	} else if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.let_s_encrypt_service_not_initialized"))
-		return
+		if err := h.initConfiguredLetsEncrypt(); err != nil {
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_revoked_successfully", "errors.admin.ssl.failed_to_initialize_lets_encrypt_service", err)
+				return
+			}
+			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
+			return
+		}
 	}
 
 	// Revoke certificate
 	if err := h.leService.RevokeCertificate(request.Domain); err != nil {
 		log.Printf("ssl revoke error: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_revoked_successfully", "errors.admin.ssl.failed_to_revoke_certificate", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_revoke_certificate"))
+		return
+	}
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.certificate_revoked_successfully", "errors.admin.ssl.failed_to_revoke_certificate", nil)
 		return
 	}
 
@@ -315,18 +466,56 @@ func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 		ChallengeType string   `json:"challengeType" binding:"required"`
 	}
 
-	if !DecodeAndValidate(w, r, &request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.failed_to_check_renewal_status", err)
+			return
+		}
+		request.Domains = splitSSLFormDomains(r.PostForm.Get("domains"))
+		request.ChallengeType = strings.TrimSpace(r.PostForm.Get("challengeType"))
+		if len(request.Domains) == 0 || !isSSLChallengeType(request.ChallengeType) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.invalid_challenge_type", fmt.Errorf("at least one domain and a valid challenge type are required"))
+			return
+		}
+	} else if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		BadRequest(w, r, Translate(r, "errors.admin.ssl.let_s_encrypt_service_not_initialized"))
+		cfg := config.GetGlobalConfig()
+		if cfg == nil || strings.TrimSpace(cfg.Server.SSL.LetsEncrypt.Email) == "" {
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.contact_email_not_configured", fmt.Errorf("let's Encrypt contact email is not configured"))
+				return
+			}
+			BadRequest(w, r, Translate(r, "errors.admin.ssl.contact_email_not_configured"))
+			return
+		}
+		if err := h.InitLetsEncrypt(cfg.Server.SSL.LetsEncrypt.Email, cfg.Server.SSL.LetsEncrypt.Staging); err != nil {
+			if wantsFormSubmission(r) {
+				redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.failed_to_initialize_lets_encrypt_service", err)
+				return
+			}
+			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
+			return
+		}
+	}
+	if err := h.applyDNSSolver(request.ChallengeType); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.dns_provider_check_failed", err)
+			return
+		}
+		failDNSCheck(w, r, err)
 		return
 	}
 
 	// Start auto-renewal in background
 	h.leService.StartAutoRenewal(request.Domains, request.ChallengeType)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/ssl"), "success.admin.ssl.auto_renewal_started", "errors.admin.ssl.failed_to_check_renewal_status", nil)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":            true,
@@ -334,6 +523,26 @@ func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 		"domains":       request.Domains,
 		"checkInterval": "daily at 03:00",
 	})
+}
+
+func splitSSLFormDomains(value string) []string {
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == '\n' || r == '\r' || r == ' ' || r == '\t' })
+	domains := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if domain := strings.TrimSpace(part); domain != "" {
+			domains = append(domains, domain)
+		}
+	}
+	return domains
+}
+
+func isSSLChallengeType(challenge string) bool {
+	switch challenge {
+	case "http-01", "tls-alpn-01", "dns-01":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetDNSRecords returns DNS records needed for DNS-01 challenge
@@ -364,7 +573,7 @@ func (h *SSLHandler) getCertificateInfo() (*CertificateInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no certificate available")
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -56,7 +57,7 @@ func (h *NotificationChannelHandler) ListChannelRows() ([]AdminChannelRow, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var channels []AdminChannelRow
 	for rows.Next() {
@@ -84,7 +85,11 @@ func (h *NotificationChannelHandler) ListChannels(w http.ResponseWriter, r *http
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_channels"))
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification channel rows: %v", err)
+		}
+	}()
 
 	var channels []map[string]interface{}
 	for rows.Next() {
@@ -359,7 +364,9 @@ func (h *NotificationChannelHandler) sendChannelTest(channelType, recipient stri
 		if err := h.SMTP.SendTestEmail(recipient); err != nil {
 			return true, err
 		}
-		h.SMTP.EnableChannel()
+		if err := h.SMTP.EnableChannel(); err != nil {
+			return true, err
+		}
 		return true, nil
 	}
 
@@ -413,7 +420,10 @@ func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *ht
 
 	if found {
 		// Load the detected config
-		h.SMTP.LoadConfig()
+		if err := h.SMTP.LoadConfig(); err != nil {
+			InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_load_smtp_config"))
+			return
+		}
 		config := h.SMTP.GetConfig()
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"message": Translate(r, "success.notifications.channels.smtp_server_detected"),
@@ -476,27 +486,43 @@ func (h *NotificationChannelHandler) GetQueueStats(w http.ResponseWriter, r *htt
 		ByChannel   map[string]int `json:"by_channel"`
 	}
 
-	// Total
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue").Scan(&stats.Total)
-
-	// By state
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')").Scan(&stats.Pending)
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'").Scan(&stats.Sending)
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'").Scan(&stats.Delivered)
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'failed'").Scan(&stats.Failed)
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'dead_letter'").Scan(&stats.DeadLetters)
+	for _, item := range []struct {
+		query string
+		dest  *int
+	}{
+		{"SELECT COUNT(*) FROM notification_queue", &stats.Total},
+		{"SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')", &stats.Pending},
+		{"SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'", &stats.Sending},
+		{"SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'", &stats.Delivered},
+		{"SELECT COUNT(*) FROM notification_queue WHERE state = 'failed'", &stats.Failed},
+		{"SELECT COUNT(*) FROM notification_queue WHERE state = 'dead_letter'", &stats.DeadLetters},
+	} {
+		if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, item.query).Scan(item.dest); err != nil {
+			InternalError(w, r, Translate(r, "errors.common.internal_error"))
+			return
+		}
+	}
 
 	// By channel
 	stats.ByChannel = make(map[string]int)
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutReport, "SELECT channel_type, COUNT(*) as count FROM notification_queue GROUP BY channel_type")
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var channelType string
-			var count int
-			rows.Scan(&channelType, &count)
-			stats.ByChannel[channelType] = count
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var channelType string
+		var count int
+		if err := rows.Scan(&channelType, &count); err != nil {
+			InternalError(w, r, Translate(r, "errors.common.internal_error"))
+			return
 		}
+		stats.ByChannel[channelType] = count
+	}
+	if err := rows.Err(); err != nil {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
 	}
 
 	writeJSON(w, http.StatusOK, stats)
@@ -539,7 +565,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(w http.ResponseWrite
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_history"))
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var history []map[string]interface{}
 	for rows.Next() {
@@ -550,8 +576,11 @@ func (h *NotificationChannelHandler) GetNotificationHistory(w http.ResponseWrite
 		var deliveredAt sql.NullTime
 		var errorMessage sql.NullString
 
-		rows.Scan(&id, &queueID, &userID, &channelType, &status, &subject,
-			&createdAt, &deliveredAt, &errorMessage)
+		if err := rows.Scan(&id, &queueID, &userID, &channelType, &status, &subject,
+			&createdAt, &deliveredAt, &errorMessage); err != nil {
+			InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_history"))
+			return
+		}
 
 		item := map[string]interface{}{
 			"id":           id.Int64,
@@ -577,6 +606,10 @@ func (h *NotificationChannelHandler) GetNotificationHistory(w http.ResponseWrite
 		}
 
 		history = append(history, item)
+	}
+	if err := rows.Err(); err != nil {
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_history"))
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{

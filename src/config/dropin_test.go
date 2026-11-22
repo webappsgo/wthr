@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -152,7 +153,7 @@ func TestLoadLayersInvalidDropinSkippedWhenNotStrict(t *testing.T) {
 	}
 }
 
-func TestListDropinFilesRefusesWritableAndEscapingSymlink(t *testing.T) {
+func TestListDropinFilesRepairsPermissionsAndRejectsEscapingSymlink(t *testing.T) {
 	dir := t.TempDir()
 	dropins := filepath.Join(dir, DropinDirName)
 	writeLayerFile(t, filepath.Join(dropins, "10-ok.yml"), "server:\n  port: 1\n", 0o600)
@@ -175,11 +176,20 @@ func TestListDropinFilesRefusesWritableAndEscapingSymlink(t *testing.T) {
 	for _, f := range files {
 		names = append(names, filepath.Base(f))
 	}
-	if got := strings.Join(names, ","); got != "10-ok.yml,40-inside.yml,real.yml" {
-		t.Errorf("files = %q, want the safe ones only", got)
+	if got := strings.Join(names, ","); got != "10-ok.yml,20-open.yml,40-inside.yml,real.yml" {
+		t.Errorf("files = %q, want writable file repaired and safe files included", got)
 	}
-	if len(warnings) != 2 {
-		t.Errorf("warnings = %v, want 2 (writable file, escaping symlink)", warnings)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "30-escape.yml") {
+		t.Errorf("warnings = %v, want only the escaping symlink warning", warnings)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Join(dropins, "20-open.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Errorf("repaired mode = %04o, want 0600", info.Mode().Perm())
+		}
 	}
 }
 

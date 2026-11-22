@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -79,7 +80,11 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification state metric rows: %v", err)
+		}
+	}()
 
 	for rows.Next() {
 		var state string
@@ -99,7 +104,11 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification channel metric rows: %v", err)
+		}
+	}()
 
 	for rows.Next() {
 		var channel string
@@ -127,7 +136,11 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification priority metric rows: %v", err)
+		}
+	}()
 
 	for rows.Next() {
 		var priority string
@@ -206,7 +219,11 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification delivery metric rows: %v", err)
+		}
+	}()
 
 	for rows.Next() {
 		var state, channelType string
@@ -314,7 +331,11 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 // when no row is usable, matching the 0 the old AVG() query reported when it
 // scanned a NULL result. It takes ownership of rows and closes them.
 func averageDeliverySeconds(rows *sql.Rows) (float64, error) {
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification delivery rows: %v", err)
+		}
+	}()
 
 	var totalSeconds float64
 	var counted int64
@@ -357,7 +378,11 @@ func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close recent notification error rows: %v", err)
+		}
+	}()
 
 	var errors []map[string]interface{}
 	for rows.Next() {
@@ -418,10 +443,13 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 
 	// Check queue depth
 	var queueDepth int64
-	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
+	if err := database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state IN ('queued', 'sending')
-	`).Scan(&queueDepth)
+	`).Scan(&queueDepth); err != nil {
+		status["healthy"] = false
+		status["queue_depth_error"] = err.Error()
+	}
 	status["queue_depth"] = queueDepth
 
 	// Warn if queue is getting large
@@ -445,7 +473,11 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 		WHERE created_at IS NOT NULL
 	`)
 	if err == nil {
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				log.Printf("WARNING: failed to close notification health metric rows: %v", err)
+			}
+		}()
 
 		for rows.Next() {
 			var state string

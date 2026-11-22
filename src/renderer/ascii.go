@@ -510,7 +510,7 @@ func hexToRGB(hex string) (int, int, int) {
 	hex = strings.TrimPrefix(hex, "#")
 
 	var r, g, b int
-	fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	_, _ = fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
 	return r, g, b
 }
 

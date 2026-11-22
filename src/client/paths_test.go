@@ -12,11 +12,8 @@ func TestCLIConfigDir(t *testing.T) {
 		t.Skip("Unix-specific path test")
 	}
 
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	home := t.TempDir()
-	os.Setenv("HOME", home)
+	t.Setenv("HOME", home)
 
 	got := CLIConfigDir()
 	want := filepath.Join(home, ".config", projectOrg, projectName)
@@ -30,11 +27,8 @@ func TestCLIDataCacheLogDirs(t *testing.T) {
 		t.Skip("Unix-specific path test")
 	}
 
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	home := t.TempDir()
-	os.Setenv("HOME", home)
+	t.Setenv("HOME", home)
 
 	tests := []struct {
 		name string
@@ -60,11 +54,8 @@ func TestCLIFilePaths(t *testing.T) {
 		t.Skip("Unix-specific path test")
 	}
 
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	home := t.TempDir()
-	os.Setenv("HOME", home)
+	t.Setenv("HOME", home)
 
 	tests := []struct {
 		name string
@@ -94,11 +85,8 @@ func TestEnsureDirs(t *testing.T) {
 		t.Skip("Unix permission semantics differ on Windows")
 	}
 
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	home := t.TempDir()
-	os.Setenv("HOME", home)
+	t.Setenv("HOME", home)
 
 	if err := EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() failed: %v", err)

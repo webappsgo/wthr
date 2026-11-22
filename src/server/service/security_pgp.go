@@ -501,7 +501,7 @@ func safeHTTPSGet(ctx context.Context, rawURL string, maxBytes int64) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -564,7 +564,7 @@ func publishKey(ctx context.Context, keyserver, armoredPub string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("status %d", resp.StatusCode)

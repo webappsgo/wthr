@@ -4,12 +4,32 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
-{{- $apiPath := "/api/v1/server/administration" -}}
-{{- if .admin_api_path}}{{$apiPath = .admin_api_path}}{{end -}}
   <div class="admin-header">
     <h1>{{t $lang "admin.invite.title"}}</h1>
     <p class="admin-page-intro">{{t $lang "admin.invite.intro"}}</p>
   </div>
+
+  {{template "flash" .}}
+
+  <section class="admin-section" aria-labelledby="invite-form-heading">
+    <div class="section-header">
+      <h2 id="invite-form-heading">{{t $lang "admin.invite.title"}}</h2>
+    </div>
+    <form class="admin-form" method="post" action="{{$ap}}/admins/invite">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <label for="invite-email">{{t $lang "admin.invite.field_email"}}</label>
+      <input id="invite-email" name="email" type="email" autocomplete="email" required>
+      <label for="invite-expires">{{t $lang "admin.invite.field_expires_in"}}</label>
+      <select id="invite-expires" name="expires_in">
+        <option value="24h" selected>24h</option>
+        <option value="1h">1h</option>
+        <option value="6h">6h</option>
+        <option value="48h">48h</option>
+        <option value="7d">7d</option>
+      </select>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.invite.send_action"}}</button>
+    </form>
+  </section>
 
   <section class="admin-section" aria-labelledby="invite-endpoint-heading">
     <div class="section-header">
@@ -17,7 +37,7 @@
     </div>
     <dl class="admin-detail-list">
       <dt class="admin-detail-list__term">{{t $lang "admin.invite.endpoint_label"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/admins/invite</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{.admin_api_path}}/admins/invite</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.invite.field_email"}}</dt>
       <dd class="admin-detail-list__value">{{t $lang "admin.invite.field_email_desc"}}</dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.invite.field_expires_in"}}</dt>
@@ -29,11 +49,23 @@
     <div class="section-header">
       <h2 id="invite-pending-heading">{{t $lang "admin.invite.pending_heading"}}</h2>
     </div>
+    {{if .pending_invites}}
+    <ul class="admin-list">
+      {{range .pending_invites}}
+      <li class="admin-list-item">
+        <strong>{{.email}}</strong>
+        <span>{{t $lang "admin.invite_accept.expires_label"}}: {{.expires_at}}</span>
+        <a href="{{.url}}">{{t $lang "admin.invite.invite_link"}}</a>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
     <div class="empty-state">
       <p class="empty-state__icon" aria-hidden="true">&#9993;</p>
       <h3 class="empty-state__title">{{t $lang "admin.invite.empty_title"}}</h3>
       <p class="empty-state__message">{{t $lang "admin.invite.empty_message"}}</p>
       <a class="btn btn-primary" href="{{$ap}}/admins">{{t $lang "admin.invite.empty_action"}}</a>
     </div>
+    {{end}}
   </section>
 {{template "admin_footer" .}}

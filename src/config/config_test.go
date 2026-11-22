@@ -200,9 +200,7 @@ func TestFindConfigFile(t *testing.T) {
 			t.Fatalf("failed to write test config: %v", err)
 		}
 
-		oldConfigDir := os.Getenv("CONFIG_DIR")
-		os.Setenv("CONFIG_DIR", dir)
-		t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+		t.Setenv("CONFIG_DIR", dir)
 
 		got := findConfigFile()
 		if got != path {
@@ -213,9 +211,7 @@ func TestFindConfigFile(t *testing.T) {
 	t.Run("CONFIG_DIR set but file missing does not use it", func(t *testing.T) {
 		dir := t.TempDir()
 
-		oldConfigDir := os.Getenv("CONFIG_DIR")
-		os.Setenv("CONFIG_DIR", dir)
-		t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+		t.Setenv("CONFIG_DIR", dir)
 
 		got := findConfigFile()
 		missing := filepath.Join(dir, "server.yml")
@@ -239,14 +235,8 @@ func TestFindConfigFile(t *testing.T) {
 			t.Fatalf("failed to write legacy config: %v", err)
 		}
 
-		oldHome := os.Getenv("HOME")
-		oldConfigDir := os.Getenv("CONFIG_DIR")
-		os.Setenv("HOME", dir)
-		os.Unsetenv("CONFIG_DIR")
-		t.Cleanup(func() {
-			os.Setenv("HOME", oldHome)
-			os.Setenv("CONFIG_DIR", oldConfigDir)
-		})
+		t.Setenv("HOME", dir)
+		t.Setenv("CONFIG_DIR", "")
 
 		got := findConfigFile()
 		want := filepath.Join(stdDir, "server.yml")
@@ -279,7 +269,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 		if len(data) == 0 {
 			t.Error("created config file is empty")
 		}
-		if !containsBytes(data, []byte("Weather Configuration")) {
+		if !containsBytes(data, []byte("This node only")) {
 			t.Error("created config file missing header comment")
 		}
 		if !containsBytes(data, []byte("example.com")) {
@@ -339,9 +329,7 @@ users:
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("CONFIG_DIR", dir)
-	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+	t.Setenv("CONFIG_DIR", dir)
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -369,9 +357,7 @@ not_a_real_field: true
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("CONFIG_DIR", dir)
-	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+	t.Setenv("CONFIG_DIR", dir)
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -393,9 +379,7 @@ func TestLoadConfig_MalformedYAMLFallsBackToDefaults(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("CONFIG_DIR", dir)
-	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+	t.Setenv("CONFIG_DIR", dir)
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -415,14 +399,8 @@ func TestLoadConfig_DefaultsWhenNoFileFound(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("HOME", dir)
-	os.Unsetenv("CONFIG_DIR")
-	t.Cleanup(func() {
-		os.Setenv("HOME", oldHome)
-		os.Setenv("CONFIG_DIR", oldConfigDir)
-	})
+	t.Setenv("HOME", dir)
+	t.Setenv("CONFIG_DIR", "")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -448,9 +426,7 @@ func TestSaveConfig(t *testing.T) {
 		t.Fatalf("setup failed: %v", err)
 	}
 
-	oldConfigDir := os.Getenv("CONFIG_DIR")
-	os.Setenv("CONFIG_DIR", dir)
-	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+	t.Setenv("CONFIG_DIR", dir)
 
 	cfg := &AppConfig{Server: ServerConfig{FQDN: "saved.example.com"}}
 	if err := SaveConfig(cfg); err != nil {
@@ -501,9 +477,7 @@ func TestUpdateWebRobots(t *testing.T) {
 		if err := os.WriteFile(path, []byte("server:\n  fqdn: example.com\n"), 0644); err != nil {
 			t.Fatalf("setup failed: %v", err)
 		}
-		oldConfigDir := os.Getenv("CONFIG_DIR")
-		os.Setenv("CONFIG_DIR", dir)
-		t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+		t.Setenv("CONFIG_DIR", dir)
 
 		cfg := &AppConfig{}
 		withGlobalConfig(t, cfg)
@@ -514,12 +488,12 @@ func TestUpdateWebRobots(t *testing.T) {
 		if len(cfg.Web.Robots.Allow) != 2 || len(cfg.Web.Robots.Deny) != 1 || cfg.Web.Robots.Deny[0] != "/private" {
 			t.Errorf("Web.Robots = %+v, not updated", cfg.Web.Robots)
 		}
-		saved, err := os.ReadFile(path)
+		saved, err := os.ReadFile(filepath.Join(DropinDir(path), "web.yml"))
 		if err != nil {
-			t.Fatalf("read saved config: %v", err)
+			t.Fatalf("read saved web area config: %v", err)
 		}
-		if !strings.Contains(string(saved), "/private") {
-			t.Errorf("server.yml does not hold the saved deny path:\n%s", saved)
+		if !strings.Contains(string(saved), "/private") || !strings.Contains(string(saved), "/api") {
+			t.Errorf("yaml.d/web.yml does not hold the saved allow and deny paths:\n%s", saved)
 		}
 	})
 }
@@ -538,9 +512,7 @@ func TestUpdateWebSecurityTxt(t *testing.T) {
 		if err := os.WriteFile(path, []byte("server:\n  fqdn: example.com\n"), 0644); err != nil {
 			t.Fatalf("setup failed: %v", err)
 		}
-		oldConfigDir := os.Getenv("CONFIG_DIR")
-		os.Setenv("CONFIG_DIR", dir)
-		t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
+		t.Setenv("CONFIG_DIR", dir)
 
 		cfg := &AppConfig{}
 		withGlobalConfig(t, cfg)

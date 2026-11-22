@@ -147,7 +147,7 @@ func IsDirWritable(dir string) bool {
 		return false
 	}
 	name := probe.Name()
-	probe.Close()
+	_ = probe.Close()
 	_ = os.Remove(name)
 
 	return true

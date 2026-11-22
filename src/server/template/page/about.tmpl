@@ -113,6 +113,7 @@
             </a>
         </div>
     </div>
+    {{if .operator_about}}<section class="operator-content" aria-label="{{t .server.Lang "about.heading"}}">{{.operator_about}}</section>{{end}}
 </main>
 
 {{template "footer" .}}

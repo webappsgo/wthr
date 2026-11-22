@@ -72,7 +72,7 @@
         <div class="card-body">
             {{if .hasPasskeys}}
                 <div class="alert alert-success margin-y-md">
-                    <strong>✓ {{len .passkeys}} {{if ne (len .passkeys) 1}}{{t .server.Lang "security.passkeys_registered_plural"}}{{else}}{{t .server.Lang "security.passkey_registered_singular"}}{{end}}</strong>
+                    {{$passkeyCount := len .passkeys}}<strong>✓ {{$passkeyCount}} {{tp .server.Lang "security.passkeys_registered" $passkeyCount}}</strong>
                     <p class="text-sm margin-y-sm">{{t .server.Lang "security.passkeys_success_message"}}</p>
                 </div>
             {{else}}

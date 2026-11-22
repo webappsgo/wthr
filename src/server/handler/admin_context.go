@@ -111,6 +111,26 @@ func AdminUsername(r *http.Request) string {
 	return username
 }
 
+// AdminID returns the authenticated Server Admin id from the request context.
+func AdminID(r *http.Request) int64 {
+	value, ok := reqctx.GetValue(r.Context(), "admin_id")
+	if !ok {
+		return 0
+	}
+	switch id := value.(type) {
+	case int:
+		return int64(id)
+	case int64:
+		return id
+	}
+	if admin, ok := reqctx.GetValue(r.Context(), "admin"); ok {
+		if typed, ok := admin.(*model.Admin); ok && typed != nil {
+			return typed.ID
+		}
+	}
+	return 0
+}
+
 // AdminTemplateData enriches the shared template data with the admin's own
 // account paths. AI.md PART 17 puts the admin's profile, preferences and
 // notifications under /{admin_path}/{admin_username}/, so admin chrome needs

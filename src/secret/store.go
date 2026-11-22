@@ -1,7 +1,8 @@
 // Package secret holds the project-level cryptographic secrets of AI.md PART 11
 // "Cryptographic Keys": installation_secret, cookie_signing_key and csrf_token_secret.
 // They live in server.db (table app_secrets), are included in every backup and are
-// never logged or returned by any API.
+// never logged or returned in plaintext by any API; cluster enrollment carries
+// the rows only inside the token-authenticated encrypted bootstrap payload.
 package secret
 
 import (

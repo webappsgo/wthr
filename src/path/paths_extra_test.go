@@ -40,7 +40,7 @@ func TestInitializeAndGetInstance(t *testing.T) {
 func TestGlobalDirGetters(t *testing.T) {
 	resetPathsSingleton(t)
 	setTempDirEnv(t)
-	Initialize("wthr")
+	_ = Initialize("wthr")
 
 	inst := GetInstance()
 
@@ -77,7 +77,7 @@ func TestGlobalDirGetters(t *testing.T) {
 func TestGetConfigFilePath(t *testing.T) {
 	resetPathsSingleton(t)
 	setTempDirEnv(t)
-	Initialize("wthr")
+	_ = Initialize("wthr")
 
 	got := GetConfigFilePath()
 	want := filepath.Join(GetInstance().ConfigDir, "server.yml")
@@ -126,13 +126,13 @@ func TestOverride(t *testing.T) {
 	}
 	for k, v := range envVars {
 		old, had := os.LookupEnv(k)
-		os.Setenv(k, v)
+		_ = os.Setenv(k, v)
 		t.Cleanup(func(k, old string, had bool) func() {
 			return func() {
 				if had {
-					os.Setenv(k, old)
+					_ = os.Setenv(k, old)
 				} else {
-					os.Unsetenv(k)
+					_ = os.Unsetenv(k)
 				}
 			}
 		}(k, old, had))
@@ -141,11 +141,11 @@ func TestOverride(t *testing.T) {
 	// no-override path leaves the original value intact.
 	for _, k := range []string{"LOG_DIR", "CACHE_DIR", "TEMP_DIR"} {
 		old, had := os.LookupEnv(k)
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 		t.Cleanup(func(k, old string, had bool) func() {
 			return func() {
 				if had {
-					os.Setenv(k, old)
+					_ = os.Setenv(k, old)
 				}
 			}
 		}(k, old, had))
@@ -258,7 +258,7 @@ func TestPrintPaths(t *testing.T) {
 	}
 	os.Stdout = w
 	p.PrintPaths()
-	w.Close()
+	_ = w.Close()
 	os.Stdout = stdout
 
 	var buf bytes.Buffer

@@ -171,7 +171,7 @@ func TestBindPrivilegedPortsHandsOverOnce(t *testing.T) {
 	if first == nil {
 		t.Fatal("the pre-bound listener must be handed over")
 	}
-	defer first.Close()
+	defer func() { _ = first.Close() }()
 	if TakeListener(port) != nil {
 		t.Error("the listener must be handed over only once")
 	}
@@ -186,7 +186,7 @@ func TestBindPrivilegedPortsFailureClosesEarlierSockets(t *testing.T) {
 	if err != nil {
 		t.Skipf("port 1018 is not free here: %v", err)
 	}
-	defer blocker.Close()
+	defer func() { _ = blocker.Close() }()
 
 	if err := BindPrivilegedPorts("127.0.0.1", []int{1017, 1018}); err == nil {
 		t.Fatal("binding an occupied port must fail")

@@ -2,25 +2,36 @@ package service
 
 import (
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
-// setupLDAPServerDB opens a fresh in-memory SQLite database with the real
-// production ServerSchema applied (server_config lives there), uniquely
-// named per test via t.Name().
+// setupLDAPServerDB opens a fresh in-memory SQLite database and an isolated
+// config directory for file-backed LDAP settings.
 func setupLDAPServerDB(t *testing.T) *sql.DB {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write test config: %v", err)
+	}
 	db, err := sql.Open("sqlite", "file:"+t.Name()+"_ldap?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
@@ -37,8 +48,8 @@ func wireLDAPGlobalDB(t *testing.T, serverDB *sql.DB) {
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 }
 
-// TestLDAP_Config_Defaults covers the boundary of an empty server_config
-// table: every field must fall back to its documented Go-level default.
+// TestLDAP_Config_Defaults covers the boundary of an empty config file: every
+// field must fall back to its documented Go-level default.
 func TestLDAP_Config_Defaults(t *testing.T) {
 	db := setupLDAPServerDB(t)
 	wireLDAPGlobalDB(t, db)
@@ -69,26 +80,28 @@ func TestLDAP_Config_Defaults(t *testing.T) {
 	}
 }
 
-// TestLDAP_Config_SeededValues covers the happy path: values stored in
-// server_config are read back verbatim, overriding every default.
+// TestLDAP_Config_SeededValues covers the happy path: values in the config
+// files are read back verbatim, overriding every default.
 func TestLDAP_Config_SeededValues(t *testing.T) {
 	db := setupLDAPServerDB(t)
 	wireLDAPGlobalDB(t, db)
 	sm := &models.SettingsModel{DB: db}
 
 	seed := map[string]string{
-		"server.auth.ldap.enabled":       "true",
-		"server.auth.ldap.server":        "ldap.example.com",
-		"server.auth.ldap.port":          "636",
-		"server.auth.ldap.bind_dn":       "cn=admin,dc=example,dc=com",
-		"server.auth.ldap.bind_password": "secret",
-		"server.auth.ldap.base_dn":       "dc=example,dc=com",
-		"server.auth.ldap.user_filter":   "(sAMAccountName=%s)",
+		"server.auth.ldap.enabled":     "true",
+		"server.auth.ldap.server":      "ldap.example.com",
+		"server.auth.ldap.port":        "636",
+		"server.auth.ldap.bind_dn":     "cn=admin,dc=example,dc=com",
+		"server.auth.ldap.base_dn":     "dc=example,dc=com",
+		"server.auth.ldap.user_filter": "(sAMAccountName=%s)",
 	}
 	for k, v := range seed {
 		if err := sm.SetString(k, v); err != nil {
 			t.Fatalf("seed %s: %v", k, err)
 		}
+	}
+	if err := config.WriteSecret("server.auth.ldap.bind_password", "secret-file-value"); err != nil {
+		t.Fatal(err)
 	}
 
 	svc := NewLDAPService()
@@ -106,11 +119,26 @@ func TestLDAP_Config_SeededValues(t *testing.T) {
 	if cfg.BindDN != "cn=admin,dc=example,dc=com" {
 		t.Errorf("BindDN = %q, want %q", cfg.BindDN, "cn=admin,dc=example,dc=com")
 	}
+	if cfg.BindPass != "secret-file-value" {
+		t.Errorf("BindPass = %q, want value from secrets.yml", cfg.BindPass)
+	}
 	if cfg.BaseDN != "dc=example,dc=com" {
 		t.Errorf("BaseDN = %q, want %q", cfg.BaseDN, "dc=example,dc=com")
 	}
 	if cfg.UserFilter != "(sAMAccountName=%s)" {
 		t.Errorf("UserFilter = %q, want %q", cfg.UserFilter, "(sAMAccountName=%s)")
+	}
+}
+
+func TestLDAP_ConfigDoesNotUsePlaintextDatabasePassword(t *testing.T) {
+	db := setupLDAPServerDB(t)
+	wireLDAPGlobalDB(t, db)
+	settings := &models.SettingsModel{DB: db}
+	if err := settings.SetString("server.auth.ldap.bind_password", "legacy-plaintext"); err != nil {
+		t.Fatal(err)
+	}
+	if got := NewLDAPService().Config().BindPass; got != "" {
+		t.Errorf("BindPass = %q, want empty without secrets.yml value", got)
 	}
 }
 

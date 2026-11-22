@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 
@@ -23,11 +26,20 @@ import (
 // how a handler ends up querying a table that does not exist in production.
 func setupOIDCTestDB(t *testing.T) *sql.DB {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write test config file: %v", err)
+	}
 	db, err := sql.Open("sqlite", "file:"+t.Name()+"?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
@@ -39,12 +51,22 @@ func setupOIDCTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+func setOIDCTestSecret(t *testing.T, provider, secret string) {
+	t.Helper()
+	if err := config.WriteSecret("server.auth.oidc.providers."+provider+".client_secret", secret); err != nil {
+		t.Fatalf("write OIDC provider secret: %v", err)
+	}
+}
+
 func setConfig(t *testing.T, db *sql.DB, key, value, typ string) {
 	t.Helper()
-	if _, err := db.Exec(
-		"INSERT INTO server_config (key, value, type) VALUES (?, ?, ?)",
-		key, value, typ,
-	); err != nil {
+	var err error
+	if typ == "json" {
+		err = config.WriteSetting(key, value)
+	} else {
+		err = (&models.SettingsModel{DB: db}).SetSetting(key, value, typ)
+	}
+	if err != nil {
 		t.Fatalf("failed to seed config %q: %v", key, err)
 	}
 }
@@ -60,7 +82,7 @@ func TestOIDC_GenerateState(t *testing.T) {
 		t.Errorf("len(state) = %d, want 32 (16 bytes hex-encoded)", len(s1))
 	}
 	for _, c := range s1 {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Errorf("state contains non-hex char %q", c)
 			break
 		}
@@ -208,6 +230,7 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		raw := `[{"name":"google","display_name":"Google","issuer":"https://accounts.google.com","client_id":"cid","client_secret":"secret","scopes":["openid","email"]}]`
 		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
+		setOIDCTestSecret(t, "google", "secret-file-value")
 		s := NewOIDCService()
 		got := s.GetProviderConfigs()
 		if len(got) != 1 {
@@ -215,6 +238,18 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 		}
 		if got[0].Name != "google" || got[0].Issuer != "https://accounts.google.com" {
 			t.Errorf("provider = %+v, unexpected", got[0])
+		}
+		if got[0].ClientSecret != "secret-file-value" {
+			t.Errorf("ClientSecret = %q, want value from secrets.yml", got[0].ClientSecret)
+		}
+	})
+
+	t.Run("does not use a database-stored client secret", func(t *testing.T) {
+		db := setupOIDCTestDB(t)
+		raw := `[{"name":"google","issuer":"https://accounts.google.com","client_id":"cid","client_secret":"legacy-plaintext"}]`
+		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
+		if got := NewOIDCService().GetProviderConfigs(); len(got) != 0 {
+			t.Errorf("GetProviderConfigs() returned %d providers without secrets.yml secrets, want 0", len(got))
 		}
 	})
 
@@ -244,6 +279,7 @@ func TestOIDC_GetProviderConfig(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		raw := `[{"name":"google","issuer":"https://accounts.google.com"},{"name":"github","issuer":"https://github.com"}]`
 		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
+		setOIDCTestSecret(t, "github", "github-secret")
 		s := NewOIDCService()
 
 		cfg, err := s.GetProviderConfig("github")

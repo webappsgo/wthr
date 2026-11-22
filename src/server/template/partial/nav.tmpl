@@ -139,4 +139,13 @@
         <a href="/server/preferences" class="mobile-menu-item" role="menuitem" title="{{t .lang "preferences.description"}}">{{t .lang "nav.preferences"}}</a>
     </div>
 </nav>
+{{if .admin_impersonation}}
+<aside class="impersonation-banner" role="status">
+    <p>{{t .lang "admin.impersonation.active_notice"}}</p>
+    <form method="post" action="/server/auth/impersonation/stop">
+        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        <button class="btn btn-secondary" type="submit">{{t .lang "admin.impersonation.return_action"}}</button>
+    </form>
+</aside>
+{{end}}
 {{end}}

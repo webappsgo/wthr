@@ -80,7 +80,7 @@ func sqliteColumns(db *sql.DB, table string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("inspect %s: %w", table, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var columns []string
 	for rows.Next() {
@@ -177,7 +177,7 @@ func copyLegacyRows(src, dst *sql.DB, srcTable, dstTable string, columnMap map[s
 	if err != nil {
 		return 0, fmt.Errorf("read %s: %w", srcTable, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	allColumns := append(append([]string{}, insertColumns...), fixedNames...)
 	placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(allColumns)), ", ")
@@ -288,7 +288,7 @@ func copyLegacyAdminTokens(serverDB, usersDB *sql.DB, legacyCredentials string) 
 	if err != nil {
 		return fmt.Errorf("read legacy admin tokens: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var adminID int64

@@ -101,9 +101,10 @@ func (m setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case " ":
-			if m.focusedField == 1 {
+			switch m.focusedField {
+			case 1:
 				m.saveToConfig = !m.saveToConfig
-			} else if m.focusedField == 0 {
+			case 0:
 				m.serverURL += " "
 			}
 
@@ -251,7 +252,7 @@ func testConnection(serverURL string) tea.Cmd {
 				testResult:  fmt.Sprintf("Connection failed: %v", err),
 			}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode == http.StatusOK {
 			return setupMsg{

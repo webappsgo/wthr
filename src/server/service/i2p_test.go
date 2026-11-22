@@ -187,7 +187,7 @@ func TestI2P_SamReachable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to listen: %v", err)
 		}
-		defer ln.Close()
+		defer func() { _ = ln.Close() }()
 
 		if !samReachable(ln.Addr().String()) {
 			t.Errorf("samReachable(%q) = false, want true", ln.Addr().String())
@@ -200,7 +200,7 @@ func TestI2P_SamReachable(t *testing.T) {
 			t.Fatalf("failed to listen: %v", err)
 		}
 		addr := ln.Addr().String()
-		ln.Close()
+		_ = ln.Close()
 
 		if samReachable(addr) {
 			t.Errorf("samReachable(%q) = true, want false for a closed port", addr)
@@ -555,7 +555,7 @@ func TestI2P_ProviderHealthy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to listen: %v", err)
 		}
-		defer ln.Close()
+		defer func() { _ = ln.Close() }()
 
 		accepted := make(chan net.Conn, 1)
 		go func() {
@@ -569,7 +569,7 @@ func TestI2P_ProviderHealthy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to dial: %v", err)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		server := <-accepted
 		svc := &I2PService{provider: I2PProviderSAM, samConn: conn}
@@ -578,7 +578,7 @@ func TestI2P_ProviderHealthy(t *testing.T) {
 		}
 
 		// Once the router side hangs up, the probe must report unhealthy.
-		server.Close()
+		_ = server.Close()
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
 			if !i2pProviderHealthy(svc) {
@@ -758,7 +758,7 @@ func TestI2P_CloseReleasesSAMConn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	conn, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
@@ -1102,15 +1102,15 @@ func TestI2P_LoadOrCreateSAMDestinationGenerates(t *testing.T) {
 	priv := i2pBase64.EncodeToString(dest)
 
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	go func() {
 		reader := bufio.NewReader(server)
 		if _, err := reader.ReadString('\n'); err != nil {
 			return
 		}
-		fmt.Fprintf(server, "DEST REPLY RESULT=OK PUB=ignored PRIV=%s\n", priv)
+		_, _ = fmt.Fprintf(server, "DEST REPLY RESULT=OK PUB=ignored PRIV=%s\n", priv)
 	}()
 
 	keysPath := filepath.Join(t.TempDir(), "site", "site-keys.dat")

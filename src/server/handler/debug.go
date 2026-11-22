@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strings"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/go-chi/chi/v5"
@@ -57,27 +59,26 @@ func (h *DebugHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 
 // ShowConfig shows current configuration
 func (h *DebugHandlers) ShowConfig(w http.ResponseWriter, r *http.Request) {
-	// Query all settings from database
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, category FROM server_config ORDER BY category, key")
+	settings, err := config.ReadAllSettings()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to query settings",
 		})
 		return
 	}
-	defer rows.Close()
-
-	settings := make(map[string]interface{})
 	categories := make(map[string][]map[string]interface{})
-
-	for rows.Next() {
-		var key, value, typ, category string
-		if err := rows.Scan(&key, &value, &typ, &category); err != nil {
-			continue
+	for key, value := range settings {
+		parts := strings.Split(key, ".")
+		category := parts[0]
+		typ := "string"
+		switch value.(type) {
+		case bool:
+			typ = "boolean"
+		case int, int64, float64:
+			typ = "number"
+		case map[string]interface{}, []interface{}:
+			typ = "json"
 		}
-
-		settings[key] = value
-
 		if categories[category] == nil {
 			categories[category] = make([]map[string]interface{}, 0)
 		}
@@ -120,21 +121,32 @@ func (h *DebugHandlers) ShowDatabase(w http.ResponseWriter, r *http.Request) {
 
 	// Count tables
 	var tableCount int
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount); err != nil {
-		log.Printf("ERROR: ShowDatabase: failed to count tables: %v", err)
-	}
-
 	// Get table names and row counts
 	tables := make([]map[string]interface{}, 0)
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+	tableQuery := "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+	if database.IsRemoteDatabase(database.GetServerDB()) {
+		if database.RemoteDatabaseDialect(database.GetServerDB()) == "mysql" || database.RemoteDatabaseDialect(database.GetServerDB()) == "mariadb" {
+			tableQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND (table_name LIKE 'srv!_%' ESCAPE '!' OR table_name LIKE 'usr!_%' ESCAPE '!') ORDER BY table_name`
+		} else {
+			tableQuery = `SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND (tablename LIKE 'srv!_%' ESCAPE '!' OR tablename LIKE 'usr!_%' ESCAPE '!') ORDER BY tablename`
+		}
+	}
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, tableQuery)
 	if err == nil {
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				log.Printf("WARNING: failed to close database table rows: %v", err)
+			}
+		}()
 		for rows.Next() {
 			var tableName string
 			if err := rows.Scan(&tableName); err == nil {
+				tableCount++
 				var rowCount int
-				// Table name is from sqlite_master (safe), but quote for best practice
 				query := fmt.Sprintf("SELECT COUNT(*) FROM \"%s\"", tableName)
+				if database.RemoteDatabaseDialect(database.GetServerDB()) == "mysql" || database.RemoteDatabaseDialect(database.GetServerDB()) == "mariadb" {
+					query = fmt.Sprintf("SELECT COUNT(*) FROM `%s`", tableName)
+				}
 				if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, query).Scan(&rowCount); err != nil {
 					log.Printf("ERROR: ShowDatabase: failed to count rows in table %s: %v", tableName, err)
 				}

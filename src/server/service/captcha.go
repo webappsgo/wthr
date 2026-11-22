@@ -163,7 +163,7 @@ func verifyProviderAt(ctx context.Context, client *http.Client, endpoint, provid
 	if err != nil {
 		return ErrCaptchaUnavailable
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return ErrCaptchaUnavailable
 	}

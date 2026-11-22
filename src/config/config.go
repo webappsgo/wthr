@@ -4,11 +4,13 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -63,7 +65,6 @@ type AppConfig struct {
 
 // ServerConfig represents server-specific configuration per AI.md PART 4
 type ServerConfig struct {
-	MCP    MCPConfig    `yaml:"mcp"`
 	Update UpdateConfig `yaml:"update"`
 	// Port: random 64xxx on first run, then persisted
 	// int or string (for dual port "8090,8443")
@@ -98,12 +99,14 @@ type ServerConfig struct {
 	Scheduler     SchedulerConfig    `yaml:"scheduler"`
 	RateLimit     RateLimitConfig    `yaml:"rate_limit"`
 	Database      DatabaseConfig     `yaml:"database"`
+	Cluster       ClusterConfig      `yaml:"cluster"`
 	Maintenance   MaintenanceConfig  `yaml:"maintenance"`
 	Notifications NotificationConfig `yaml:"notifications"`
 	Tor           TorConfig          `yaml:"tor"`
 	// I2P holds the opt-in I2P eepsite settings per AI.md PART 32.2
 	I2P      I2PConfig     `yaml:"i2p"`
 	Features FeatureConfig `yaml:"features"`
+	GeoIP    GeoIPConfig   `yaml:"geoip"`
 	// Security holds project-level at-rest encryption settings per AI.md PART 11
 	Security SecurityConfig `yaml:"security"`
 	// TrustedProxies gates which peers may set forwarded/real-IP headers per AI.md PART 5/12
@@ -128,10 +131,6 @@ type ServerConfig struct {
 	Cache CacheConfig `yaml:"cache"`
 	// AI.md PART 21: Prometheus metrics exposition settings
 	Metrics MetricsConfig `yaml:"metrics"`
-}
-
-type MCPConfig struct {
-	Enabled bool `yaml:"enabled"`
 }
 
 type UpdateConfig struct {
@@ -242,7 +241,40 @@ type SecurityConfig struct {
 	// once on first run and persisted; never regenerated once present.
 	EncryptionKey string `yaml:"encryption_key"`
 	// EncryptionKeyVersion increments on manual admin-initiated rotation.
-	EncryptionKeyVersion int `yaml:"encryption_key_version"`
+	EncryptionKeyVersion int                `yaml:"encryption_key_version"`
+	Allowlist            []IPAllowlistEntry `yaml:"allowlist"`
+}
+
+type IPAllowlistEntry struct {
+	CIDR        string `yaml:"cidr"`
+	Description string `yaml:"description"`
+}
+
+type GeoIPConfig struct {
+	Enabled        bool                `yaml:"enabled"`
+	DenyCountries  []string            `yaml:"deny_countries"`
+	AllowCountries []string            `yaml:"allow_countries"`
+	Presets        map[string][]string `yaml:"presets"`
+}
+
+func (c GeoIPConfig) BlocksCountry(country string) bool {
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if country == "" {
+		return false
+	}
+	if len(c.AllowCountries) > 0 {
+		return !containsCountry(c.AllowCountries, country)
+	}
+	return containsCountry(c.DenyCountries, country)
+}
+
+func containsCountry(countries []string, country string) bool {
+	for _, candidate := range countries {
+		if strings.EqualFold(strings.TrimSpace(candidate), country) {
+			return true
+		}
+	}
+	return false
 }
 
 // AdminConfig represents admin panel configuration per AI.md PART 4
@@ -282,6 +314,8 @@ type LetsEncryptConfig struct {
 type DatabaseConfig struct {
 	// file, sqlite, postgres, mysql, mariadb, mssql, mongodb
 	Driver string `yaml:"driver"`
+	// URL takes precedence over the discrete connection fields.
+	URL string `yaml:"url"`
 	// For remote databases
 	Host string `yaml:"host"`
 	// For remote databases
@@ -294,6 +328,12 @@ type DatabaseConfig struct {
 	Password string `yaml:"password"`
 	// For PostgreSQL
 	SSLMode string `yaml:"sslmode"`
+}
+
+// ClusterConfig stores this node's cluster membership state in server.yml.
+type ClusterConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	ID      string `yaml:"id,omitempty"`
 }
 
 // MaintenanceConfig represents maintenance mode configuration per AI.md PART 4
@@ -359,9 +399,28 @@ type HealthzRootConfig struct {
 
 // BrandingConfig represents branding configuration per AI.md PART 4
 type BrandingConfig struct {
-	Title       string `yaml:"title"`
-	Tagline     string `yaml:"tagline"`
-	Description string `yaml:"description"`
+	Title       string                `yaml:"title"`
+	Tagline     string                `yaml:"tagline"`
+	Description string                `yaml:"description"`
+	Favicon     string                `yaml:"favicon"`
+	Logo        string                `yaml:"logo"`
+	Content     BrandingContentConfig `yaml:"content"`
+}
+
+// BrandingContentConfig holds operator-authored public-page fragments.
+type BrandingContentConfig struct {
+	Header  OperatorPageContentConfig `yaml:"header"`
+	About   OperatorPageContentConfig `yaml:"about"`
+	Privacy OperatorPageContentConfig `yaml:"privacy"`
+	Footer  OperatorPageContentConfig `yaml:"footer"`
+	Terms   OperatorPageContentConfig `yaml:"terms"`
+}
+
+// OperatorPageContentConfig stores one sanitized operator-authored page entry.
+// Body accepts either one string or a map of language codes to strings.
+type OperatorPageContentConfig struct {
+	Format string      `yaml:"format"`
+	Body   interface{} `yaml:"body"`
 }
 
 // SEOConfig represents SEO configuration per AI.md PART 16
@@ -373,13 +432,33 @@ type SEOConfig struct {
 	// OpenGraph image URL for social sharing
 	OGImage string `yaml:"og_image"`
 	// Twitter @handle for cards
-	TwitterHandle string `yaml:"twitter_handle"`
+	TwitterHandle  string            `yaml:"twitter_handle"`
+	TitleSeparator string            `yaml:"title_separator"`
+	MetaTags       map[string]string `yaml:"meta_tags"`
+	Canonical      string            `yaml:"canonical"`
+	Noindex        bool              `yaml:"noindex"`
+	OpenGraph      OpenGraphConfig   `yaml:"opengraph"`
+	Twitter        TwitterCardConfig `yaml:"twitter"`
 	// Site verification codes per AI.md PART 16
 	Verification VerificationConfig `yaml:"verification"`
 	// Sitemap protocol limits per AI.md PART 16
 	Sitemap SitemapConfig `yaml:"sitemap"`
 	// Syndication feeds (/feed.xml and /rss.xml) per AI.md PART 16
 	Feed FeedConfig `yaml:"feed"`
+}
+
+// OpenGraphConfig controls generated OpenGraph metadata.
+type OpenGraphConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Type     string `yaml:"type"`
+	SiteName string `yaml:"site_name"`
+}
+
+// TwitterCardConfig controls generated Twitter card metadata.
+type TwitterCardConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Card    string `yaml:"card"`
+	Creator string `yaml:"creator"`
 }
 
 // SitemapConfig holds the sitemap.xml limits per AI.md PART 16. The sitemap
@@ -402,12 +481,20 @@ type FeedConfig struct {
 
 // VerificationConfig holds site verification codes per AI.md PART 16
 type VerificationConfig struct {
-	Google    string `yaml:"google"`
-	Bing      string `yaml:"bing"`
-	Yandex    string `yaml:"yandex"`
-	Baidu     string `yaml:"baidu"`
-	Pinterest string `yaml:"pinterest"`
-	Facebook  string `yaml:"facebook"`
+	Google    string                `yaml:"google"`
+	Bing      string                `yaml:"bing"`
+	Yandex    string                `yaml:"yandex"`
+	Baidu     string                `yaml:"baidu"`
+	Pinterest string                `yaml:"pinterest"`
+	Facebook  string                `yaml:"facebook"`
+	Custom    []VerificationMetaTag `yaml:"custom"`
+}
+
+// VerificationMetaTag is a validated custom site-verification meta tag.
+type VerificationMetaTag struct {
+	Name     string `yaml:"name"`
+	Property string `yaml:"property"`
+	Content  string `yaml:"content"`
 }
 
 // NotificationConfig represents notification settings per AI.md PART 4
@@ -443,8 +530,9 @@ type LLMSConfig struct {
 
 // UIConfig represents UI configuration per AI.md PART 4
 type UIConfig struct {
-	// dark, light
-	Theme string `yaml:"theme"`
+	// dark, light, auto
+	Theme  string `yaml:"theme"`
+	Accent string `yaml:"accent"`
 }
 
 // TorConfig represents Tor hidden service configuration per AI.md PART 4
@@ -748,7 +836,7 @@ func LoadConfigStrict() (*AppConfig, error) {
 	return loadConfig(true)
 }
 
-func loadConfig(strict bool) (*AppConfig, error) {
+func DefaultAppConfig() *AppConfig {
 	// Get hostname for defaults
 	hostname := getDefaultFQDN()
 	adminEmail := defaultEmailAddressForHost("admin", hostname)
@@ -775,7 +863,6 @@ func loadConfig(strict bool) (*AppConfig, error) {
 			LocationSearchEnabled: true,
 		},
 		Server: ServerConfig{
-			MCP:    MCPConfig{Enabled: true},
 			Update: UpdateConfig{Branch: "stable", CLIVersions: map[string]UpdateVersion{}, AgentVersions: map[string]UpdateVersion{}},
 			// Random 64xxx on first run
 			Port: randomPort(),
@@ -799,11 +886,17 @@ func loadConfig(strict bool) (*AppConfig, error) {
 				Title:       "wthr",
 				Tagline:     "",
 				Description: "",
+				Favicon:     "",
+				Logo:        "",
 			},
 			SEO: SEOConfig{
-				Keywords: []string{},
-				Sitemap:  SitemapConfig{MaxURLs: DefaultSitemapMaxURLs},
-				Feed:     FeedConfig{MaxItems: DefaultFeedMaxItems},
+				Keywords:       []string{},
+				TitleSeparator: " - ",
+				MetaTags:       map[string]string{},
+				OpenGraph:      OpenGraphConfig{Enabled: true, Type: "website"},
+				Twitter:        TwitterCardConfig{Enabled: true, Card: "summary_large_image"},
+				Sitemap:        SitemapConfig{MaxURLs: DefaultSitemapMaxURLs},
+				Feed:           FeedConfig{MaxItems: DefaultFeedMaxItems},
 			},
 			Admin: AdminConfig{
 				Email: adminEmail,
@@ -876,6 +969,7 @@ func loadConfig(strict bool) (*AppConfig, error) {
 				AuditLog:      true,
 				I2P:           false,
 			},
+			GeoIP: GeoIPConfig{Enabled: true},
 			// AI.md PART 11: left empty here so the load path below can tell
 			// "missing from server.yml" apart from "explicitly present" and
 			// generate-once-and-persist accordingly (see LoadConfig).
@@ -891,8 +985,25 @@ func loadConfig(strict bool) (*AppConfig, error) {
 		},
 	}
 
+	return cfg
+}
+
+func loadConfig(strict bool) (*AppConfig, error) {
+	cfg := DefaultAppConfig()
+
 	// Try to load from server.yml
 	configPath := findConfigFile()
+	if configPath != "" {
+		if err := migrateConfigAreas(configPath); err != nil {
+			if errors.Is(err, errUnsafeSecretMigration) {
+				return cfg, fmt.Errorf("configuration contains credentials that could not be moved to secrets.yml: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "Warning: could not migrate legacy config areas from %s: %v\n", configPath, err)
+		}
+		if err := MigrateBrandingArea(configPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not migrate branding settings from %s: %v\n", configPath, err)
+		}
+	}
 	if configPath == "" {
 		// No config file found - create it on first run per AI.md PART 4
 
@@ -925,6 +1036,9 @@ func loadConfig(strict bool) (*AppConfig, error) {
 		// defaults rather than failing startup.
 		fmt.Fprintf(os.Stderr, "Warning: could not parse %s: %v (using defaults)\n", configPath, err)
 	} else {
+		if err := mergeSecretsIntoConfig(merged); err != nil {
+			return cfg, fmt.Errorf("load secrets config: %w", err)
+		}
 		// decoding targets a copy that is only adopted once the whole merged
 		// document decodes cleanly
 		parsed := *cfg
@@ -1055,21 +1169,8 @@ func createDefaultConfig(cfg *AppConfig, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	// Add header comment
-	header := `# =============================================================================
-# Weather Configuration (AI.md PART 4)
-# =============================================================================
-# This file was auto-generated on first run with sane defaults.
-# Edit as needed and restart the service to apply changes.
-# =============================================================================
-
-`
-	fullData := append([]byte(header), data...)
-
-	// Write to file
-	if err := os.WriteFile(path, fullData, 0600); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
+	if err := saveConfigFiles(path, data); err != nil {
+		return fmt.Errorf("failed to write default config: %w", err)
 	}
 
 	fmt.Printf("Created default configuration: %s\n", path)
@@ -1077,16 +1178,25 @@ func createDefaultConfig(cfg *AppConfig, path string) error {
 }
 
 // Global config instance for handler access
-var globalConfig *AppConfig
+var globalConfig atomic.Pointer[AppConfig]
 
 // SetGlobalConfig sets the global config instance
 func SetGlobalConfig(cfg *AppConfig) {
-	globalConfig = cfg
+	globalConfig.Store(cfg)
 }
 
 // GetGlobalConfig returns the global config instance
 func GetGlobalConfig() *AppConfig {
-	return globalConfig
+	return globalConfig.Load()
+}
+
+// AssetsDir returns the private branding asset directory beside server.yml.
+func AssetsDir() string {
+	path := findConfigFile()
+	if path == "" {
+		path = getConfigPath()
+	}
+	return filepath.Join(filepath.Dir(path), "assets")
 }
 
 // CurrentConfig returns the live configuration: the global config that startup and every
@@ -1100,44 +1210,25 @@ func CurrentConfig() (*AppConfig, error) {
 	return LoadConfig()
 }
 
-// SaveConfig saves the current configuration to server.yml per AI.md PART 4
+// SaveConfig writes each setting to its owning file per AI.md PART 5.
 func SaveConfig(cfg *AppConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("save config: nil config")
+	}
 	configPath := findConfigFile()
 	if configPath == "" {
 		configPath = getConfigPath()
 	}
 
-	// Create directory if it doesn't exist
-	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Marshal config to YAML
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	// AI.md PART 5: server.yml never receives a setting that a yaml.d drop-in
-	// owns, so the panel and generated values leave the drop-in in charge
 	data, err = stripOwnedKeys(data, dropinOwnedKeys(configPath))
 	if err != nil {
-		return fmt.Errorf("failed to prepare config: %w", err)
+		return fmt.Errorf("remove drop-in-owned settings from server config: %w", err)
 	}
-
-	// AI.md PART 11 "Rotation contract": the file is written to a temporary file and atomically
-	// renamed, so a crash never leaves a half written server.yml
-	temporaryPath := configPath + ".tmp"
-	if err := os.WriteFile(temporaryPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-	if err := os.Rename(temporaryPath, configPath); err != nil {
-		_ = os.Remove(temporaryPath)
-		return fmt.Errorf("failed to replace config file: %w", err)
-	}
-
-	return nil
+	return saveConfigFiles(configPath, data)
 }
 
 // UpdateI2PConfig validates and persists the I2P eepsite settings per AI.md PART 32.2.

@@ -33,22 +33,35 @@
 
         <div class="action-row">
             {{if .TorStatus.enabled}}
+            <form method="post" action="{{.admin_path}}/network/tor/disable">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <button class="btn btn-danger mr-md"
-                    data-action="admin-tor-disable"
+                    type="submit"
                     aria-label="{{t $lang "admin.tor.disable_aria"}}">
                 {{t $lang "admin.tor.disable_action"}}
             </button>
+            </form>
+            <form method="post" action="{{.admin_path}}/network/tor/regenerate">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <label class="form-check">
+                    <input type="checkbox" name="confirm_regenerate" value="yes" required>
+                    {{t $lang "admin.tor.regenerate_confirm_notice"}}
+                </label>
             <button class="btn btn-secondary"
-                    data-action="admin-tor-show-regenerate-modal"
+                    type="submit"
                     aria-label="{{t $lang "admin.tor.regenerate_aria"}}">
                 🔄 {{t $lang "admin.tor.regenerate_action"}}
             </button>
+            </form>
             {{else}}
+            <form method="post" action="{{.admin_path}}/network/tor/enable">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <button class="btn btn-primary"
-                    data-action="admin-tor-enable"
+                    type="submit"
                     aria-label="{{t $lang "admin.tor.enable_aria"}}">
                 {{t $lang "admin.tor.enable_action"}}
             </button>
+            </form>
             {{end}}
         </div>
     </section>
@@ -58,6 +71,8 @@
         <h2 id="vanity-heading">{{t $lang "admin.tor.vanity_heading"}}</h2>
         <p>{{t $lang "admin.tor.vanity_intro"}}</p>
 
+        <form method="post" action="{{.admin_path}}/network/tor/vanity/generate">
+        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
         <div class="form-group">
             <label for="vanity-prefix" class="form-label text-purple">
                 {{t $lang "admin.tor.vanity_prefix_label"}}
@@ -65,6 +80,7 @@
             </label>
             <input type="text"
                    id="vanity-prefix"
+                   name="prefix"
                    class="form-input"
                    maxlength="6"
                    pattern="[a-z2-7]+"
@@ -86,11 +102,13 @@
         </div>
 
         <button class="btn btn-primary"
+                type="submit"
                 id="generate-vanity-btn"
                 data-action="admin-tor-generate-vanity"
                 aria-label="{{t $lang "admin.tor.vanity_generate_aria"}}">
             🎲 {{t $lang "admin.tor.vanity_generate_action"}}
         </button>
+        </form>
 
         <!-- Vanity Progress (shown when generating) -->
         <div id="vanity-progress" class="vanity-progress d-none" role="status" aria-live="polite">
@@ -112,11 +130,13 @@
             </div>
 
             <div class="mt-3">
-                <button class="btn btn-danger"
-                        data-action="admin-tor-cancel-vanity"
+                <form method="post" action="{{.admin_path}}/network/tor/vanity/cancel">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <button class="btn btn-danger" type="submit"
                         aria-label="{{t $lang "admin.tor.vanity_cancel_aria"}}">
                     ⏹️ {{t $lang "action.cancel"}}
                 </button>
+                </form>
             </div>
 
             <!-- Success message (shown when complete) -->
@@ -125,21 +145,25 @@
                 <div class="mt-1">
                     <code id="vanity-address-result"></code>
                 </div>
-                <button class="btn btn-primary mt-3"
-                        data-action="admin-tor-apply-vanity"
+                <form method="post" action="{{.admin_path}}/network/tor/vanity/apply">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <button class="btn btn-primary mt-3" type="submit"
                         aria-label="{{t $lang "admin.tor.vanity_apply_aria"}}">
                     {{t $lang "admin.tor.vanity_apply_action"}}
                 </button>
+                </form>
             </div>
         </div>
     </section>
+
+    <p><a href="{{.admin_path}}/network/tor/export">{{t $lang "admin.tor.export_action"}}</a></p>
 
     <!-- Import External Keys -->
     <section class="card mb-4 p-4" role="region" aria-labelledby="import-heading">
         <h2 id="import-heading">{{t $lang "admin.tor.import_heading"}}</h2>
         <p>{{t $lang "admin.tor.import_intro"}}</p>
 
-        <form id="import-form" enctype="multipart/form-data">
+        <form id="import-form" method="post" action="{{.admin_path}}/network/tor/import" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="key-file" class="form-label text-purple">

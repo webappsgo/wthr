@@ -249,6 +249,10 @@ func (b rateLimitBuckets) bucket(name rateLimiterName) (int, time.Duration) {
 func newRateLimitMiddleware(name rateLimiterName) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if reqctx.GetBool(r.Context(), "allowlisted") {
+				next.ServeHTTP(w, r)
+				return
+			}
 			b := resolveRateLimitBuckets()
 			if !b.Enabled {
 				next.ServeHTTP(w, r)

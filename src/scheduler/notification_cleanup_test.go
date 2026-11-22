@@ -63,8 +63,12 @@ func setupNotificationCleanupDBs(t *testing.T) (userDB, serverDB *sql.DB) {
 	}
 
 	t.Cleanup(func() {
-		userDB.Close()
-		serverDB.Close()
+		if err := userDB.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
 	})
 
 	return userDB, serverDB

@@ -27,17 +27,25 @@ func newTestServerDB(t *testing.T) *sql.DB {
 		t.Fatalf("open server db: %v", err)
 	}
 	if _, err := db.Exec(database.ServerSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close server database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
 	// Many tests wire this one connection as both the server and the users
 	// handle (setGlobalTestDualDB(t, db, db)), and Server Admin accounts live in
 	// users.db (AI.md PART 12), so the users tables are applied here as well.
 	if _, err := db.Exec(database.UsersSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close server database after users schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	})
 	return db
 }
 
@@ -51,10 +59,16 @@ func newTestUsersDB(t *testing.T) *sql.DB {
 		t.Fatalf("open users db: %v", err)
 	}
 	if _, err := db.Exec(database.UsersSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close users database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+	})
 	return db
 }
 

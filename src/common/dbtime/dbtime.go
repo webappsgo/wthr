@@ -186,7 +186,7 @@ func SelectRowIDsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColum
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	cutoff = cutoff.UTC()
 

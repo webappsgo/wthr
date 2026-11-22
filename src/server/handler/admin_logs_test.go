@@ -324,7 +324,11 @@ func writeAuditEvent(t *testing.T, path string, ev service.AuditEvent) {
 	if err != nil {
 		t.Fatalf("open audit log: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("close audit fixture: %v", err)
+		}
+	}()
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		t.Fatalf("write audit event: %v", err)
 	}

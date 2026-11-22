@@ -22,4 +22,22 @@
       <a class="btn btn-primary" href="{{$self}}/preferences">{{t $lang "admin.profile.empty_action"}}</a>
     </div>
   </section>
+  <section class="admin-section" aria-labelledby="profile-pgp-heading">
+    <div class="section-header"><h2 id="profile-pgp-heading">{{t $lang "admin.profile.pgp_heading"}}</h2></div>
+    <p>{{t $lang "admin.profile.pgp_description"}}</p>
+    {{if .flash}}{{template "flash" .}}{{end}}
+    {{if .pgp_registered}}<p>{{t $lang "admin.profile.pgp_registered"}}</p>{{end}}
+    <form class="admin-form" method="post" action="{{$self}}/profile/security/pgp">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <label for="admin-pgp-key">{{t $lang "admin.profile.pgp_key_label"}}</label>
+      <textarea id="admin-pgp-key" name="public_key" rows="8" autocomplete="off" spellcheck="false" required></textarea>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.profile.pgp_save"}}</button>
+    </form>
+    {{if .pgp_registered}}
+    <form class="admin-form" method="post" action="{{$self}}/profile/security/pgp/remove">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <button class="btn" type="submit">{{t $lang "admin.profile.pgp_remove"}}</button>
+    </form>
+    {{end}}
+  </section>
 {{template "admin_footer" .}}

@@ -200,7 +200,7 @@ func installCLIUpdate(config *CLIConfig, update cliUpdateInfo) error {
 	if err != nil {
 		return NewConnectionError(fmt.Sprintf("failed to download CLI update: %v", err))
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return NewAPIError(fmt.Sprintf("CLI update download returned status %d", response.StatusCode))
 	}

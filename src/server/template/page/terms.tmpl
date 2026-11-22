@@ -5,6 +5,9 @@
 <div class="weather-container">
     <h1 class="text-purple">{{t .server.Lang "terms.page_title"}}</h1>
 
+    {{if .operator_terms}}
+    <section class="operator-content">{{.operator_terms}}</section>
+    {{else}}
     <div class="card margin-y-lg">
         <h2 class="text-cyan">{{t .server.Lang "terms.acceptance_title"}}</h2>
         <p>{{t .server.Lang "terms.acceptance_text"}}</p>
@@ -63,13 +66,14 @@
         <h2 class="text-cyan">{{t .server.Lang "terms.contact_title"}}</h2>
         <p>{{t .server.Lang "terms.contact_text"}}</p>
         <div class="margin-y-md">
-            <a href="/server/contact" class="btn btn-primary">{{t .server.Lang "terms.contact_form_button"}}</a>
+            <a href="{{path "/server/security"}}" class="btn btn-primary">{{t .server.Lang "terms.contact_form_button"}}</a>
         </div>
     </div>
 
     <div class="card margin-y-lg">
         <p class="text-comment"><small>{{t .server.Lang "terms.last_updated_label"}} {{.server.BuildDate}}</small></p>
     </div>
+    {{end}}
 </div>
 
 {{template "footer" .}}

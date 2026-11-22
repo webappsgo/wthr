@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -208,14 +210,14 @@ func (s *SevereWeatherService) fetchNOAAStorms(url string) ([]Storm, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("NOAA API returned status %d", resp.StatusCode)
 	}
 
 	var noaaData struct {
-		ActiveStorms []struct {
+		ActiveStorms *[]struct {
 			ID               string  `json:"id"`
 			BinNumber        int     `json:"binNumber"`
 			Name             string  `json:"name"`
@@ -233,13 +235,15 @@ func (s *SevereWeatherService) fetchNOAAStorms(url string) ([]Storm, error) {
 		} `json:"activeStorms"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&noaaData); err != nil {
-		// If JSON parsing fails, might be no active storms
-		return []Storm{}, nil
+	if err := decodeRemoteJSON(resp, &noaaData); err != nil {
+		return nil, fmt.Errorf("decode NOAA active storms: %w", err)
+	}
+	if noaaData.ActiveStorms == nil {
+		return nil, fmt.Errorf("NOAA response is missing activeStorms")
 	}
 
-	storms := make([]Storm, 0, len(noaaData.ActiveStorms))
-	for _, st := range noaaData.ActiveStorms {
+	storms := make([]Storm, 0, len(*noaaData.ActiveStorms))
+	for _, st := range *noaaData.ActiveStorms {
 		intensity := st.Classification
 		if st.IntensityMPH > 0 {
 			intensity = fmt.Sprintf("%s (%d mph)", st.Classification, st.IntensityMPH)
@@ -288,14 +292,14 @@ func (s *SevereWeatherService) fetchNWSAlerts() ([]Alert, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("NWS API returned status %d", resp.StatusCode)
 	}
 
 	var nwsData struct {
-		Features []struct {
+		Features *[]struct {
 			ID         string `json:"id"`
 			Properties struct {
 				Event       string                 `json:"event"`
@@ -319,12 +323,15 @@ func (s *SevereWeatherService) fetchNWSAlerts() ([]Alert, error) {
 		} `json:"features"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&nwsData); err != nil {
-		return []Alert{}, nil
+	if err := decodeRemoteJSON(resp, &nwsData); err != nil {
+		return nil, fmt.Errorf("decode NWS active alerts: %w", err)
+	}
+	if nwsData.Features == nil {
+		return nil, fmt.Errorf("NWS response is missing features")
 	}
 
-	alerts := make([]Alert, 0, len(nwsData.Features))
-	for _, feature := range nwsData.Features {
+	alerts := make([]Alert, 0, len(*nwsData.Features))
+	for _, feature := range *nwsData.Features {
 		alert := Alert{
 			ID:          feature.ID,
 			Event:       feature.Properties.Event,
@@ -676,7 +683,7 @@ func (s *SevereWeatherService) fetchEnvironmentCanadaAlerts() ([]Alert, error) {
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
@@ -698,10 +705,10 @@ func (s *SevereWeatherService) fetchEnvironmentCanadaAlerts() ([]Alert, error) {
 		}
 
 		if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		// Convert entries to alerts
 		for _, entry := range feed.Entries {
@@ -775,7 +782,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 		fmt.Printf("%s UK Met Office: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("%s UK Met Office: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
@@ -893,7 +900,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 		fmt.Printf("%s Australia BOM: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("%s Australia BOM: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
@@ -1016,107 +1023,173 @@ func extractAustraliaArea(title string) string {
 
 // fetchJapanAlerts fetches alerts from Japan Meteorological Agency
 func (s *SevereWeatherService) fetchJapanAlerts() ([]Alert, error) {
-	// JMA provides warnings via their API
-	// Using the overview forecast which includes warnings
-	url := "https://www.jma.go.jp/bosai/warning/data/warning.json"
+	const url = "https://www.jma.go.jp/bosai/warning/data/r8/map.json"
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("%s Japan JMA: Request error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-		return []Alert{}, nil
+		return nil, fmt.Errorf("create JMA warning request: %w", err)
 	}
 
 	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("%s Japan JMA: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-		return []Alert{}, nil
+		return nil, fmt.Errorf("request JMA warning data: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("%s Japan JMA: response close failed: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("%s Japan JMA: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
-		return []Alert{}, nil
+		return nil, fmt.Errorf("JMA warning data returned HTTP %d", resp.StatusCode)
 	}
-
-	// JMA warning data structure (simplified)
-	var jmaData map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&jmaData); err != nil {
-		fmt.Printf("%s Japan JMA: Parse error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-		return []Alert{}, nil
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+	if err != nil {
+		return nil, fmt.Errorf("read JMA warning data: %w", err)
 	}
-
-	alerts := []Alert{}
-
-	// Parse the warning data (structure varies by region)
-	for areaCode, areaData := range jmaData {
-		areaMap, ok := areaData.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		// Look for warning information
-		warnings, ok := areaMap["warning"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		for warningType, warningInfo := range warnings {
-			warningMap, ok := warningInfo.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			// Extract warning details
-			status, _ := warningMap["status"].(string)
-			// Skip if cancelled
-			if status == "" || status == "解除" {
-				continue
-			}
-
-			// Map Japanese warning types to English
-			event := mapJapaneseWarningType(warningType)
-			severity := mapJapaneseSeverity(warningType, status)
-			urgency := "Expected"
-			if strings.Contains(strings.ToLower(event), "emergency") || strings.Contains(strings.ToLower(event), "special") {
-				urgency = "Immediate"
-			}
-
-			// Get area name
-			areaName, _ := areaMap["name"].(string)
-			if areaName == "" {
-				areaName = areaCode
-			}
-
-			alert := Alert{
-				ID:          fmt.Sprintf("jma-%s-%s", areaCode, warningType),
-				Event:       event,
-				Headline:    fmt.Sprintf("%s for %s", event, areaName),
-				Description: fmt.Sprintf("Warning status: %s", status),
-				Severity:    severity,
-				Urgency:     urgency,
-				Status:      "Actual",
-				MessageType: "Alert",
-				Category:    "Met",
-				AreaDesc:    areaName,
-				Sent:        time.Now().Format(time.RFC3339),
-				Effective:   time.Now().Format(time.RFC3339),
-				Expires:     "",
-				SenderName:  "Japan Meteorological Agency",
-				Instruction: "",
-			}
-			alerts = append(alerts, alert)
-		}
+	if len(body) > 8<<20 {
+		return nil, fmt.Errorf("JMA warning data exceeds 8 MiB")
+	}
+	alerts, err := parseJMAWarningMap(body)
+	if err != nil {
+		return nil, fmt.Errorf("parse JMA warning data: %w", err)
 	}
 
 	fmt.Printf("%s Japan JMA: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(alerts))
 	return alerts, nil
 }
 
+type jmaWarningReport struct {
+	DataTypeCode     string `json:"dataTypeCode"`
+	ReportDatetime   string `json:"reportDatetime"`
+	ControlDatetime  string `json:"controlDatetime"`
+	PublishingOffice string `json:"publishingOffice"`
+	Warning          struct {
+		Class10Items []struct {
+			AreaCode string `json:"areaCode"`
+			Kinds    []struct {
+				Code   string `json:"code"`
+				Status string `json:"status"`
+			} `json:"kinds"`
+		} `json:"class10Items"`
+	} `json:"warning"`
+}
+
+type jmaWarningState struct {
+	code        string
+	status      string
+	areaCode    string
+	areaName    string
+	reportTime  time.Time
+	controlTime time.Time
+	dataType    string
+}
+
+// parseJMAWarningMap reads the current Reiwa 8 warning feed and selects the
+// latest status for each forecast area and warning code. The map feed includes
+// recent bulletins, so older active records must not override later releases.
+func parseJMAWarningMap(body []byte) ([]Alert, error) {
+	var reports []jmaWarningReport
+	if err := json.Unmarshal(body, &reports); err != nil {
+		return nil, fmt.Errorf("decode JMA warning map: %w", err)
+	}
+	if len(reports) == 0 {
+		return nil, fmt.Errorf("JMA warning map is empty")
+	}
+
+	latest := make(map[string]jmaWarningState)
+	for _, report := range reports {
+		reportTime, err := time.Parse(time.RFC3339, report.ReportDatetime)
+		if err != nil || report.DataTypeCode == "" || report.PublishingOffice == "" {
+			continue
+		}
+		controlTime, err := time.Parse(time.RFC3339, report.ControlDatetime)
+		if err != nil {
+			controlTime = reportTime
+		}
+		for _, area := range report.Warning.Class10Items {
+			if area.AreaCode == "" {
+				continue
+			}
+			for _, kind := range area.Kinds {
+				if !isJMAWarningCode(kind.Code) || kind.Status == "" {
+					continue
+				}
+				key := area.AreaCode + ":" + kind.Code
+				if current, ok := latest[key]; ok && !controlTime.After(current.controlTime) {
+					continue
+				}
+				latest[key] = jmaWarningState{
+					code: kind.Code, status: kind.Status, areaCode: area.AreaCode,
+					areaName: report.PublishingOffice, reportTime: reportTime, controlTime: controlTime,
+					dataType: report.DataTypeCode,
+				}
+			}
+		}
+	}
+
+	alerts := make([]Alert, 0, len(latest))
+	for _, state := range latest {
+		if state.status == "解除" {
+			continue
+		}
+		event := mapJapaneseWarningType(state.code)
+		severity := mapJapaneseSeverity(state.code, state.status)
+		if state.status == "警報から注意報" {
+			severity = "Moderate"
+		}
+		urgency := "Expected"
+		if severity == "Extreme" {
+			urgency = "Immediate"
+		}
+		alerts = append(alerts, Alert{
+			ID:          fmt.Sprintf("jma-%s-%s-%s", state.areaCode, state.code, state.dataType),
+			Event:       event,
+			Headline:    fmt.Sprintf("%s for %s", event, state.areaName),
+			Severity:    severity,
+			Urgency:     urgency,
+			Status:      "Actual",
+			MessageType: "Alert",
+			Category:    "Met",
+			AreaDesc:    fmt.Sprintf("%s (%s)", state.areaName, state.areaCode),
+			Sent:        state.reportTime.Format(time.RFC3339),
+			Effective:   state.reportTime.Format(time.RFC3339),
+			SenderName:  "Japan Meteorological Agency",
+		})
+	}
+	sort.Slice(alerts, func(i, j int) bool { return alerts[i].ID < alerts[j].ID })
+	return alerts, nil
+}
+
+func isJMAWarningCode(code string) bool {
+	_, ok := jmaWarningEvents[code]
+	return ok
+}
+
+var jmaWarningEvents = map[string]string{
+	"02": "Blizzard Warning", "03": "Level 3 Heavy Rain Warning", "05": "Storm Warning",
+	"06": "Heavy Snow Warning", "07": "High Wave Warning", "08": "Level 3 Storm Surge Warning",
+	"09": "Level 3 Landslide Warning", "10": "Level 2 Heavy Rain Advisory", "12": "Heavy Snow Advisory",
+	"13": "Snowstorm Advisory", "14": "Thunderstorm Advisory", "15": "Strong Wind Advisory",
+	"16": "High Wave Advisory", "17": "Snowmelt Advisory", "19": "Level 2 Storm Surge Advisory",
+	"20": "Dense Fog Advisory", "21": "Dry Air Advisory", "22": "Avalanche Advisory",
+	"23": "Low Temperature Advisory", "24": "Frost Advisory", "25": "Icing Advisory",
+	"26": "Snow Accretion Advisory", "27": "Other Advisory", "29": "Level 2 Landslide Advisory",
+	"32": "Blizzard Special Warning", "33": "Level 5 Heavy Rain Special Warning",
+	"35": "Storm Special Warning", "36": "Heavy Snow Special Warning", "37": "High Wave Special Warning",
+	"38": "Level 5 Storm Surge Special Warning", "39": "Level 5 Landslide Special Warning",
+	"43": "Level 4 Heavy Rain Danger Warning", "48": "Level 4 Storm Surge Danger Warning",
+	"49": "Level 4 Landslide Danger Warning",
+}
+
 // mapJapaneseWarningType converts JMA warning types to English
 func mapJapaneseWarningType(warningType string) string {
+	if event, ok := jmaWarningEvents[warningType]; ok {
+		return event
+	}
 	mappings := map[string]string{
 		"大雨":  "Heavy Rain Warning",
 		"洪水":  "Flood Warning",
@@ -1149,6 +1222,14 @@ func mapJapaneseWarningType(warningType string) string {
 
 // mapJapaneseSeverity determines severity from warning type and status
 func mapJapaneseSeverity(warningType, status string) string {
+	switch warningType {
+	case "32", "33", "35", "36", "37", "38", "39", "43", "48", "49":
+		return "Extreme"
+	case "02", "03", "05", "06", "07", "08", "09":
+		return "Severe"
+	case "10", "12", "13", "14", "15", "16", "17", "19", "20", "21", "22", "23", "24", "25", "26", "27", "29":
+		return "Moderate"
+	}
 	// Special warnings (特別警報) are extreme
 	if strings.Contains(status, "特別") {
 		return "Extreme"
@@ -1191,7 +1272,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 		fmt.Printf("%s Mexico CONAGUA: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("%s Mexico CONAGUA: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)

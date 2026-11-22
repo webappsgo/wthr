@@ -492,7 +492,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var users []*User
 	for rows.Next() {
@@ -775,7 +775,7 @@ func twoFactorEncryptionKey() string {
 func encryptTwoFactorSecret(secret string) (string, error) {
 	key := twoFactorEncryptionKey()
 	if key == "" {
-		return secret, nil
+		return "", fmt.Errorf("server.security.encryption_key is required to enable 2FA")
 	}
 	return utils.EncryptAtRest(key, secret)
 }
@@ -1120,7 +1120,7 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	now := time.Now().UTC()
 
@@ -1506,7 +1506,7 @@ func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([
 	if err != nil {
 		return nil, fmt.Errorf("failed to query activities: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var activities []UserActivityLog
 	for rows.Next() {
@@ -1596,32 +1596,13 @@ func (m *UserInviteModel) getDB() *sql.DB {
 }
 
 func (m *UserInviteModel) ensureInviteSchema() error {
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(user_invites)`)
+	hasUsername, err := database.ColumnExists(m.getDB(), "user_invites", "username")
 	if err != nil {
-		return fmt.Errorf("failed to inspect user_invites schema: %w", err)
+		return fmt.Errorf("failed to inspect user_invites.username schema: %w", err)
 	}
-	defer rows.Close()
-
-	hasUsername := false
-	hasRole := false
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var columnType string
-		var notNull int
-		var defaultValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan user_invites schema: %w", err)
-		}
-
-		switch name {
-		case "username":
-			hasUsername = true
-		case "role":
-			hasRole = true
-		}
+	hasRole, err := database.ColumnExists(m.getDB(), "user_invites", "role")
+	if err != nil {
+		return fmt.Errorf("failed to inspect user_invites.role schema: %w", err)
 	}
 
 	if !hasUsername {
@@ -1886,7 +1867,7 @@ func (m *UserInviteModel) ListInvites() ([]UserInvite, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query invites: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var invites []UserInvite
 	for rows.Next() {

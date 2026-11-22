@@ -4,9 +4,13 @@ package cluster
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
 )
 
@@ -20,7 +24,14 @@ func newTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open in-memory sqlite: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("failed to create server schema: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("failed to close test database: %v", err)
+		}
+	})
 	return db
 }
 
@@ -586,15 +597,15 @@ func TestSyncConfig_DisabledIsNoop(t *testing.T) {
 	}
 }
 
-// TestPullConfigFromPrimary_NoPrimary verifies a secondary with no healthy
-// primary in the table reports an explicit error rather than silently
-// succeeding (which would mask a split-brain / no-primary condition).
-func TestPullConfigFromPrimary_NoPrimary(t *testing.T) {
+// TestPullConfigFromSharedDatabase_Empty verifies a newly initialized shared
+// config database can be read before the primary seeds it.
+func TestPullConfigFromSharedDatabase_Empty(t *testing.T) {
 	cm := newReadyManager(t, "node-2", "10.0.0.2:8080")
-	// registerNode() defaults this node to 'secondary' with no primary present.
-
-	if err := cm.pullConfigFromPrimary(); err == nil {
-		t.Error("pullConfigFromPrimary() with no primary = nil, want error")
+	if err := cm.initializeConfigSyncTables(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cm.pullConfigFromSharedDatabase(); err != nil {
+		t.Errorf("pullConfigFromSharedDatabase() on empty config = %v, want nil", err)
 	}
 }
 
@@ -606,8 +617,11 @@ func TestPushConfigToSecondaries_NoSecondaries(t *testing.T) {
 		t.Fatalf("electPrimary() error = %v", err)
 	}
 
-	if err := cm.pushConfigToSecondaries(); err != nil {
-		t.Errorf("pushConfigToSecondaries() error = %v, want nil with no secondaries", err)
+	if err := cm.initializeConfigSyncTables(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cm.SyncConfig(); err != nil {
+		t.Errorf("SyncConfig() error = %v, want nil with no secondaries", err)
 	}
 }
 
@@ -617,20 +631,21 @@ func TestPushConfigToSecondaries_NoSecondaries(t *testing.T) {
 // healthy primary exists).
 func TestSyncConfig_PrimaryPushesSecondaryPulls(t *testing.T) {
 	db := newTestDB(t)
-	// pullConfigFromPrimary/pushConfigToSecondaries read from server_config,
-	// which is owned by the server/database package, not cluster.go — create
-	// it here so this in-memory DB matches the real schema those methods
-	// expect at runtime.
-	if _, err := db.Exec(`CREATE TABLE server_config (key TEXT PRIMARY KEY, value TEXT, type TEXT, description TEXT, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
-		t.Fatalf("setup server_config table error = %v", err)
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO server_config (key, value, type, description) VALUES ('server.mode', 'production', 'string', 'app mode')`); err != nil {
-		t.Fatalf("seed server_config error = %v", err)
+	if err := config.WriteSetting("branding.title", "Weather"); err != nil {
+		t.Fatal(err)
 	}
 
 	cmPrimary := NewClusterManager(db, "node-a", "10.0.0.1:8080", true)
 	if err := cmPrimary.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
+	}
+	if err := cmPrimary.initializeConfigSyncTables(); err != nil {
+		t.Fatalf("config setup error = %v", err)
 	}
 	if err := cmPrimary.registerNode(); err != nil {
 		t.Fatalf("register primary error = %v", err)
@@ -648,11 +663,15 @@ func TestSyncConfig_PrimaryPushesSecondaryPulls(t *testing.T) {
 		t.Fatal("sanity check failed: node-a should be primary (lowest node_id)")
 	}
 
+	config.SetSharedConfigSyncHooks(nil, nil)
 	if err := cmPrimary.SyncConfig(); err != nil {
 		t.Errorf("SyncConfig() on primary error = %v, want nil", err)
 	}
 
 	cmSecondary.currentState = NodeStateSecondary
+	if err := cmSecondary.initializeConfigSyncTables(); err != nil {
+		t.Fatalf("secondary config setup error = %v", err)
+	}
 	if err := cmSecondary.SyncConfig(); err != nil {
 		t.Errorf("SyncConfig() on secondary error = %v, want nil (healthy primary exists)", err)
 	}

@@ -380,7 +380,9 @@ func calculateSunTimesForWeb(lat, lon float64, date time.Time) map[string]interf
 // formatTimeToAMPM converts 24h "HH:MM" to 12h "H:MM AM/PM"
 func formatTimeToAMPM(timeStr string) string {
 	var hour, min int
-	fmt.Sscanf(timeStr, "%d:%d", &hour, &min)
+	if _, err := fmt.Sscanf(timeStr, "%d:%d", &hour, &min); err != nil || hour < 0 || hour > 23 || min < 0 || min > 59 {
+		return ""
+	}
 	return formatHourMinToAMPM(hour, min)
 }
 

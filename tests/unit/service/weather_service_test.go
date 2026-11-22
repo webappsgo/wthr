@@ -7,7 +7,11 @@ import (
 
 func TestWeatherService_GetWeatherDescription(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 	ws := service.NewWeatherService(enhancer, nil)
@@ -41,7 +45,11 @@ func TestWeatherService_GetWeatherDescription(t *testing.T) {
 
 func TestWeatherService_GetWeatherIcon(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 	ws := service.NewWeatherService(enhancer, nil)
@@ -74,7 +82,11 @@ func TestWeatherService_GetWeatherIcon(t *testing.T) {
 
 func TestWeatherService_ParseLocation(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 	ws := service.NewWeatherService(enhancer, nil)
@@ -113,7 +125,11 @@ func TestWeatherService_ParseLocation(t *testing.T) {
 
 func TestWeatherService_IPGeolocation(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 	ws := service.NewWeatherService(enhancer, nil)

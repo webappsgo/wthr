@@ -23,7 +23,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	fn()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = orig
 
 	out, err := io.ReadAll(r)
@@ -37,10 +37,8 @@ func captureStdout(t *testing.T, fn func()) string {
 // matching the pattern used in config_test.go / paths_test.go.
 func withTempHome(t *testing.T) string {
 	t.Helper()
-	orig := os.Getenv("HOME")
-	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	home := t.TempDir()
-	os.Setenv("HOME", home)
+	t.Setenv("HOME", home)
 	return home
 }
 

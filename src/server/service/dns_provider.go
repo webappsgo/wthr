@@ -16,6 +16,7 @@ import (
 	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/providers/dns"
 
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
@@ -75,10 +76,25 @@ type DNSProviderError struct {
 
 // Error names the provider and the variables to check.
 func (e *DNSProviderError) Error() string {
-	if len(e.Variables) == 0 {
-		return fmt.Sprintf("dns provider %s: the credentials were rejected", e.Provider)
+	lang := "en"
+	if translations := i18n.GetGlobalI18n(); translations != nil {
+		lang = translations.GetDefaultLanguage()
 	}
-	return fmt.Sprintf("dns provider %s: check the variables %s", e.Provider, strings.Join(e.Variables, ", "))
+	provider := e.Provider
+	variables := strings.Join(e.Variables, ", ")
+	if translations := i18n.GetGlobalI18n(); translations != nil {
+		if variables == "" {
+			return translations.TranslateFormat(lang, "errors.admin.ssl.dns_provider_rejected", map[string]string{"provider": provider})
+		}
+		return translations.TranslateFormat(lang, "errors.admin.ssl.dns_provider_check_failed", map[string]string{
+			"provider":  provider,
+			"variables": variables,
+		})
+	}
+	if len(e.Variables) == 0 {
+		return fmt.Sprintf("DNS provider %s rejected the credentials", provider)
+	}
+	return fmt.Sprintf("DNS provider %s rejected the credentials; check these variables: %s", provider, variables)
 }
 
 // variablesNamedIn returns the credential variable names lego's message mentions, dropping any

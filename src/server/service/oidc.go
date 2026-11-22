@@ -16,6 +16,7 @@ import (
 	oidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
@@ -55,8 +56,8 @@ type OIDCService struct {
 	cacheExpiry   map[string]time.Time
 }
 
-// NewOIDCService creates a new OIDCService. OIDC settings live in server_config,
-// so the settings model always resolves the server database.
+// NewOIDCService creates an OIDC service backed by the canonical accounts.yml
+// area file and secrets.yml credentials.
 func NewOIDCService() *OIDCService {
 	return &OIDCService{
 		settings:      &models.SettingsModel{DB: database.GetServerDB()},
@@ -70,7 +71,7 @@ func (s *OIDCService) Enabled() bool {
 	return s.settings.GetBool("server.auth.oidc.enabled", false)
 }
 
-// GetProviderConfigs reads all configured OIDC providers from server_config.
+// GetProviderConfigs reads all configured OIDC providers from file-backed settings.
 func (s *OIDCService) GetProviderConfigs() []OIDCProviderConfig {
 	raw := s.settings.GetString("server.auth.oidc.providers", "")
 	if raw == "" {
@@ -80,7 +81,33 @@ func (s *OIDCService) GetProviderConfigs() []OIDCProviderConfig {
 	if err := json.Unmarshal([]byte(raw), &providers); err != nil {
 		return nil
 	}
-	return providers
+	configured := make([]OIDCProviderConfig, 0, len(providers))
+	for _, provider := range providers {
+		if !validOIDCSecretProviderName(provider.Name) {
+			continue
+		}
+		secret, err := config.ReadSecret("server.auth.oidc.providers." + provider.Name + ".client_secret")
+		if err != nil || secret == "" {
+			continue
+		}
+		provider.ClientSecret = secret
+		configured = append(configured, provider)
+	}
+	return configured
+}
+
+func validOIDCSecretProviderName(name string) bool {
+	if len(name) < 1 || len(name) > 48 || name[0] < 'a' || name[0] > 'z' {
+		return false
+	}
+	for _, char := range name {
+		switch {
+		case char >= 'a' && char <= 'z', char >= '0' && char <= '9', char == '-', char == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // GetProviderConfig returns the config for a single named provider.

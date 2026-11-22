@@ -132,17 +132,17 @@ func (c *HTTPClient) setHeaders(req *http.Request) {
 func (c *HTTPClient) handleResponse(resp *http.Response) (*http.Response, error) {
 	// Check for errors
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, NewAuthError("authentication failed - check your token")
 	}
 
 	if resp.StatusCode == 404 {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, NewNotFoundError("resource not found")
 	}
 
 	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
 
 		// Try to parse error response
@@ -171,7 +171,7 @@ func (c *HTTPClient) GetJSON(path string, result interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
 		return NewAPIError(fmt.Sprintf("failed to decode response: %v", err))
@@ -186,7 +186,7 @@ func (c *HTTPClient) PostJSON(path string, body interface{}, result interface{})
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
 		return NewAPIError(fmt.Sprintf("failed to decode response: %v", err))

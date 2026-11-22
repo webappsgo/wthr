@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	"log"
 	"net/http"
+	"sort"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -132,23 +135,27 @@ func adminSearchPageCatalog(r *http.Request, query, adminPath string) []AdminSea
 
 // adminSearchSettings matches stored server configuration keys and descriptions.
 func adminSearchSettings(r *http.Request, query, adminPath string) []AdminSearchResult {
-	db := database.GetServerDB()
-	if db == nil {
-		return nil
-	}
-
-	pattern := adminSearchPattern(query)
-	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect,
-		`SELECT key, COALESCE(description, '') FROM server_config
-		 WHERE key LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'
-		 ORDER BY key LIMIT ?`, pattern, pattern, adminSearchLimit)
+	settings, err := config.ReadAllSettings()
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
-
 	category := AdminTranslate(r, "admin.search.category.settings")
-	return adminSearchScanPairs(rows, category, adminPath+"/settings")
+	needle := strings.ToLower(query)
+	keys := make([]string, 0)
+	for key := range settings {
+		if strings.Contains(strings.ToLower(key), needle) {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) > adminSearchLimit {
+		keys = keys[:adminSearchLimit]
+	}
+	results := make([]AdminSearchResult, 0, len(keys))
+	for _, key := range keys {
+		results = append(results, AdminSearchResult{Category: category, Title: key, Detail: key, URL: adminPath + "/settings"})
+	}
+	return results
 }
 
 // adminSearchTasks matches scheduled task ids and names.
@@ -166,7 +173,11 @@ func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchRes
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close admin task search rows: %v", err)
+		}
+	}()
 
 	category := AdminTranslate(r, "admin.search.category.tasks")
 	return adminSearchScanPairs(rows, category, adminPath+"/scheduler")
@@ -187,7 +198,11 @@ func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearch
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close admin audit search rows: %v", err)
+		}
+	}()
 
 	category := AdminTranslate(r, "admin.search.category.audit")
 	return adminSearchScanPairs(rows, category, adminPath+"/logs/audit")
@@ -210,7 +225,11 @@ func adminSearchUsers(r *http.Request, query, adminPath string) []AdminSearchRes
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close admin user search rows: %v", err)
+		}
+	}()
 
 	category := AdminTranslate(r, "admin.search.category.users")
 	return adminSearchScanPairs(rows, category, adminPath+"/users")

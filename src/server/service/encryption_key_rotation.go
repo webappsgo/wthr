@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -36,8 +37,8 @@ var ErrEncryptionRotationPending = errors.New("rows are still encrypted under th
 var ErrEncryptionKeyUnavailable = errors.New("no encryption key is configured")
 
 // EncryptionKeyRotator rotates server.security.encryption_key and re-encrypts the rows that
-// depend on it: users.two_factor_secret (users.db) and the AES-sealed security report bodies and
-// contacts (server.db).
+// depend on it: users.two_factor_secret (users.db), the AES-sealed security report bodies and
+// contacts, and the unattended backup password (server.db).
 type EncryptionKeyRotator struct {
 	ServerDB *sql.DB
 	UsersDB  *sql.DB
@@ -132,6 +133,12 @@ type twoFactorRow struct {
 	secret string
 }
 
+// adminTOTPRow is one encrypted Server Admin TOTP secret.
+type adminTOTPRow struct {
+	id     int64
+	secret string
+}
+
 // loadTwoFactorRows reads every stored two-factor secret.
 func (r *EncryptionKeyRotator) loadTwoFactorRows() ([]twoFactorRow, error) {
 	if r.UsersDB == nil {
@@ -142,11 +149,42 @@ func (r *EncryptionKeyRotator) loadTwoFactorRows() ([]twoFactorRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close two-factor secret rows during key rotation: %v", err)
+		}
+	}()
 
 	var found []twoFactorRow
 	for rows.Next() {
 		var row twoFactorRow
+		if err := rows.Scan(&row.id, &row.secret); err != nil {
+			return nil, err
+		}
+		found = append(found, row)
+	}
+	return found, rows.Err()
+}
+
+// loadAdminTOTPSecretRows reads encrypted TOTP secrets for Server Admins.
+func (r *EncryptionKeyRotator) loadAdminTOTPSecretRows() ([]adminTOTPRow, error) {
+	if r.UsersDB == nil {
+		return nil, nil
+	}
+	rows, err := database.QueryContext(context.Background(), r.UsersDB, database.TimeoutBulk,
+		`SELECT id, totp_secret FROM admins WHERE totp_secret IS NOT NULL AND totp_secret != ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close admin TOTP secret rows during key rotation: %v", err)
+		}
+	}()
+
+	var found []adminTOTPRow
+	for rows.Next() {
+		var row adminTOTPRow
 		if err := rows.Scan(&row.id, &row.secret); err != nil {
 			return nil, err
 		}
@@ -163,6 +201,10 @@ type reportRow struct {
 	contact    []byte
 }
 
+func (r *EncryptionKeyRotator) loadBackupPassword() (string, error) {
+	return config.ReadSecret("server.backup.encryption_password")
+}
+
 // loadReportRows reads every report that has an AES-sealed body or contact.
 func (r *EncryptionKeyRotator) loadReportRows() ([]reportRow, error) {
 	rows, err := database.QueryContext(context.Background(), r.ServerDB, database.TimeoutBulk,
@@ -170,7 +212,11 @@ func (r *EncryptionKeyRotator) loadReportRows() ([]reportRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close security report rows during key rotation: %v", err)
+		}
+	}()
 
 	var found []reportRow
 	for rows.Next() {
@@ -209,6 +255,15 @@ func (r *EncryptionKeyRotator) PendingRows() (int, error) {
 			pending++
 		}
 	}
+	adminTOTP, err := r.loadAdminTOTPSecretRows()
+	if err != nil {
+		return 0, err
+	}
+	for _, row := range adminTOTP {
+		if !openUnder(current, row.secret) && openUnder(previous, row.secret) {
+			pending++
+		}
+	}
 	reports, err := r.loadReportRows()
 	if err != nil {
 		return 0, err
@@ -220,6 +275,13 @@ func (r *EncryptionKeyRotator) PendingRows() (int, error) {
 		if aesSealedContact(row.contact) && !openUnder(current, string(row.contact)) && openUnder(previous, string(row.contact)) {
 			pending++
 		}
+	}
+	backupPassword, err := r.loadBackupPassword()
+	if err != nil {
+		return 0, err
+	}
+	if backupPassword != "" && !openUnder(current, backupPassword) && openUnder(previous, backupPassword) {
+		pending++
 	}
 	if cfg := config.GetGlobalConfig(); cfg != nil {
 		for _, stored := range cfg.Server.SSL.LetsEncrypt.DNSCredentials {
@@ -259,6 +321,16 @@ func (r *EncryptionKeyRotator) Rebase(oldKey, newKey string) error {
 			return err
 		}
 	}
+	adminTOTP, err := r.loadAdminTOTPSecretRows()
+	if err != nil {
+		return err
+	}
+	for start := 0; start < len(adminTOTP); start += rebaseBatchSize {
+		end := min(start+rebaseBatchSize, len(adminTOTP))
+		if err := r.rebaseAdminTOTPBatch(adminTOTP[start:end], oldKey, newKey); err != nil {
+			return err
+		}
+	}
 
 	reports, err := r.loadReportRows()
 	if err != nil {
@@ -270,10 +342,62 @@ func (r *EncryptionKeyRotator) Rebase(oldKey, newKey string) error {
 			return err
 		}
 	}
-	return rebaseDNSCredentials(oldKey, newKey)
+	if err := rebaseDNSCredentials(oldKey, newKey); err != nil {
+		return err
+	}
+	return r.rebaseBackupPassword(oldKey, newKey)
 }
 
-// rebaseDNSCredentials re-encrypts the dns-01 credentials of server.yml (AI.md PART 15 "Key
+// rebaseAdminTOTPBatch re-encrypts one batch of admin TOTP secrets atomically.
+// Unlike legacy user 2FA data, an admin TOTP value must be an authenticated
+// ciphertext; an unreadable value aborts rotation and emits the required
+// security.decrypt_failed event instead of silently leaving it behind.
+func (r *EncryptionKeyRotator) rebaseAdminTOTPBatch(batch []adminTOTPRow, oldKey, newKey string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutWrite)
+	defer cancel()
+	tx, err := r.UsersDB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	for _, row := range batch {
+		if openUnder(newKey, row.secret) {
+			continue
+		}
+		plaintext, err := util.DecryptAtRest(oldKey, row.secret)
+		if err != nil {
+			_ = tx.Rollback()
+			log.Printf("SECURITY event=security.decrypt_failed resource=admin_totp_secret")
+			return fmt.Errorf("decrypting an admin TOTP secret during key rotation: %w", err)
+		}
+		sealed, err := util.EncryptAtRest(newKey, plaintext)
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE admins SET totp_secret = ? WHERE id = ?`, sealed, row.id); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *EncryptionKeyRotator) rebaseBackupPassword(oldKey, newKey string) error {
+	sealed, err := r.loadBackupPassword()
+	if err != nil || sealed == "" {
+		return err
+	}
+	updated, changed, err := reencrypt(oldKey, newKey, sealed)
+	if err != nil || !changed {
+		return err
+	}
+	if err := config.WriteSecret("server.backup.encryption_password", updated); err != nil {
+		return err
+	}
+	return nil
+}
+
+// rebaseDNSCredentials re-encrypts the dns-01 credentials in secrets.yml (AI.md PART 15 "Key
 // rotation") and rewrites the file atomically when any value changed.
 func rebaseDNSCredentials(oldKey, newKey string) error {
 	cfg := config.GetGlobalConfig()

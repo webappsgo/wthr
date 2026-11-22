@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -113,6 +115,11 @@ func TestMCPHelpAPIContent(t *testing.T) {
 
 func TestSecurityAPIs(t *testing.T) {
 	resetGlobalConfig(t)
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
 	setGlobalTestDualDB(t, newTestServerDB(t), newTestUsersDB(t))
 	cfg := &config.AppConfig{}
 	cfg.Server.Contact.Security.Email = "security@example.com"

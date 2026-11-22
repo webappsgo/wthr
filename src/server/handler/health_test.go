@@ -291,7 +291,9 @@ func TestAPIHealthCheck(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
-		db.DB.Close()
+		if err := db.Close(); err != nil {
+			t.Fatalf("close test database: %v", err)
+		}
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		w := httptest.NewRecorder()
 

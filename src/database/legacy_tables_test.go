@@ -162,10 +162,10 @@ func seedLegacyDatabases(t *testing.T) string {
 			t.Fatalf("open %s: %v", name, err)
 		}
 		if _, err := raw.Exec(ddl); err != nil {
-			raw.Close()
+			_ = raw.Close()
 			t.Fatalf("seed %s: %v", name, err)
 		}
-		raw.Close()
+		_ = raw.Close()
 	}
 	return dataDir
 }
@@ -180,7 +180,7 @@ func TestInitDualDB_UpgradesLegacyLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitDualDB on a legacy layout: %v", err)
 	}
-	t.Cleanup(func() { ddb.Close() })
+	t.Cleanup(func() { _ = ddb.Close() })
 
 	if got := countRows(t, ddb, "users", "SELECT COUNT(*) FROM admins WHERE id = 7 AND username = 'legacyroot' AND password_hash = 'argon-hash'"); got != 1 {
 		t.Errorf("admin legacyroot rows in users.db admins = %d, want 1 (same id, hashes intact)", got)
@@ -234,13 +234,13 @@ func TestInitDualDB_LegacyUpgradeIsIdempotent(t *testing.T) {
 	if _, err := first.Users.Exec("DELETE FROM admins"); err != nil {
 		t.Fatalf("delete admins: %v", err)
 	}
-	first.Close()
+	_ = first.Close()
 
 	second, err := InitDualDB(dataDir)
 	if err != nil {
 		t.Fatalf("second InitDualDB: %v", err)
 	}
-	t.Cleanup(func() { second.Close() })
+	t.Cleanup(func() { _ = second.Close() })
 
 	if got := countRows(t, second, "users", "SELECT COUNT(*) FROM admins"); got != 0 {
 		t.Errorf("admins after a restart with the legacy credentials blanked = %d, want 0 (no resurrection)", got)
@@ -260,7 +260,7 @@ func TestInitDualDB_FreshInstallHasCanonicalLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitDualDB: %v", err)
 	}
-	t.Cleanup(func() { ddb.Close() })
+	t.Cleanup(func() { _ = ddb.Close() })
 
 	serverTables := []string{"admin_sessions", "rate_limits", "audit_log", "scheduler_tasks", "scheduler_history", "backups"}
 	for _, table := range serverTables {

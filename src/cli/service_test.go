@@ -233,14 +233,14 @@ func TestPromptYesNo(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, _ = writer.WriteString(tt.input)
-		writer.Close()
+		_ = writer.Close()
 
 		original := os.Stdin
 		os.Stdin = reader
 		var got bool
 		captureStdout(t, func() { got = promptYesNo("? ", tt.defaultYes) })
 		os.Stdin = original
-		reader.Close()
+		_ = reader.Close()
 
 		if got != tt.want {
 			t.Errorf("promptYesNo(input %q, default %v) = %v, want %v", tt.input, tt.defaultYes, got, tt.want)

@@ -91,7 +91,7 @@ func decodeFormBody(r *http.Request, dst interface{}) error {
 	}
 
 	rv := reflect.ValueOf(dst)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("decode destination must be a non-nil struct pointer")
 	}
 
@@ -181,7 +181,7 @@ func setFormField(values url.Values, name string, dest reflect.Value) error {
 
 	// A pointer field is only allocated when the form actually carried it, or
 	// when it wraps a struct/map that any of its own sub-field supplied.
-	if dest.Kind() == reflect.Ptr {
+	if dest.Kind() == reflect.Pointer {
 		if !formCarries(values, name) {
 			return nil
 		}
@@ -296,7 +296,7 @@ func assignFormScalar(raw string, dest reflect.Value) error {
 		dest.SetFloat(parsed)
 	case reflect.Interface:
 		dest.Set(reflect.ValueOf(raw))
-	case reflect.Slice, reflect.Map, reflect.Struct, reflect.Ptr:
+	case reflect.Slice, reflect.Map, reflect.Struct, reflect.Pointer:
 		return setFormField(url.Values{"value": {raw}}, "value", dest)
 	default:
 		return fmt.Errorf("unsupported form field kind %s", dest.Kind())

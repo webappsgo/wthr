@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,11 +50,13 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	}
 
 	securityTxt := ""
+	securityFields := parseSecurityTxtFields("")
 	robots := config.DefaultRobotsConfig()
 	adminPath := config.DefaultAdminPath
 	feed := config.FeedConfig{MaxItems: config.DefaultFeedMaxItems}
 	if cfg != nil {
 		securityTxt = cfg.Web.SecurityTxt
+		securityFields = parseSecurityTxtFields(securityTxt)
 		robots = cfg.Web.Robots
 		adminPath = cfg.GetAdminPath()
 		feed = cfg.Server.SEO.Feed
@@ -63,30 +66,31 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	appURL := util.BuildURL(r, "")
 
 	serverCtx, _ := middleware.GetServerContext(r.Context())
-	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
-	mcpEnabledDefault := true
 	apiPath := "/api/v1"
 	if cfg != nil {
 		apiPath = cfg.GetAPIPath()
-		mcpEnabledDefault = cfg.Server.MCP.Enabled
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", AdminTemplateData(r, map[string]interface{}{
-		"Title":          Translate(r, "admin.web.title"),
-		"RobotsAllow":    strings.Join(robots.Allow, "\n"),
-		"RobotsDeny":     strings.Join(robots.Deny, "\n"),
-		"RobotsPreview":  robots.RobotsTxt(adminPath, appURL),
-		"FeedMaxItems":   feed.MaxItems,
-		"FeedTitle":      feed.Title,
-		"FeedMaxLimit":   config.MaxFeedMaxItems,
-		"CORS":           currentCORSView(),
-		"flash":          TakeFlash(w, r),
-		"SecurityTxt":    securityTxt,
-		"AppURL":         appURL,
-		"User":           admin,
-		"server":         serverCtx,
-		"MCPEnabled":     settingsModel.GetBool("server.mcp.enabled", mcpEnabledDefault),
-		"MCPEndpointURL": util.BuildURL(r, apiPath+"/server/mcp"),
+		"Title":              Translate(r, "admin.web.title"),
+		"RobotsAllow":        strings.Join(robots.Allow, "\n"),
+		"RobotsDeny":         strings.Join(robots.Deny, "\n"),
+		"RobotsPreview":      robots.RobotsTxt(adminPath, appURL),
+		"FeedMaxItems":       feed.MaxItems,
+		"FeedTitle":          feed.Title,
+		"FeedMaxLimit":       config.MaxFeedMaxItems,
+		"CORS":               currentCORSView(),
+		"flash":              TakeFlash(w, r),
+		"SecurityTxt":        securityTxt,
+		"SecurityContact":    securityFields["Contact"],
+		"SecurityLanguages":  securityFields["Preferred-Languages"],
+		"SecurityPolicy":     securityFields["Policy"],
+		"SecurityEncryption": securityFields["Encryption"],
+		"AppURL":             appURL,
+		"User":               admin,
+		"server":             serverCtx,
+		"MCPEnabled":         true,
+		"MCPEndpointURL":     util.BuildURL(r, apiPath+"/server/mcp"),
 	}))
 }
 
@@ -289,7 +293,18 @@ func (h *AdminWebHandler) UpdateFeedSettings(w http.ResponseWriter, r *http.Requ
 		MaxItems int    `json:"max_items" binding:"min=1,max=200"`
 		Title    string `json:"title" binding:"max=140"`
 	}
-	if !DecodeAndValidate(w, r, &req) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		maxItems, err := strconv.Atoi(r.PostForm.Get("max_items"))
+		req.MaxItems, req.Title = maxItems, r.PostForm.Get("title")
+		if err != nil || maxItems < 1 || maxItems > config.MaxFeedMaxItems || len(req.Title) > 140 {
+			redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", fmt.Errorf("invalid feed settings"))
+			return
+		}
+	} else if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -299,7 +314,8 @@ func (h *AdminWebHandler) UpdateFeedSettings(w http.ResponseWriter, r *http.Requ
 		saveErr = fmt.Errorf("global config not initialized")
 	} else {
 		cfg.Server.SEO.Feed = config.FeedConfig{MaxItems: req.MaxItems, Title: strings.TrimSpace(req.Title)}
-		saveErr = config.SaveConfig(cfg)
+		config.ValidateBrandingConfig(cfg)
+		saveErr = config.SaveBrandingArea(cfg)
 	}
 
 	if wantsFormSubmission(r) {
@@ -335,6 +351,37 @@ func (h *AdminWebHandler) GetSecurityTxt(w http.ResponseWriter, r *http.Request)
 // UpdateSecurityTxt updates security.txt content
 // PATCH /{api_version}/admin/server/web/security
 func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		contact := strings.TrimSpace(r.PostForm.Get("security.contact"))
+		languages := strings.TrimSpace(r.PostForm.Get("security.languages"))
+		policy := strings.TrimSpace(r.PostForm.Get("web.security.report_url"))
+		encryption := strings.TrimSpace(r.PostForm.Get("web.security.keyservers"))
+		if contact == "" || len(contact) > 500 || strings.ContainsAny(contact, "\r\n") || len(languages) > 100 || len(policy) > 2048 || len(encryption) > 2048 || strings.ContainsAny(languages+policy+encryption, "\r\n") {
+			redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", fmt.Errorf("invalid security.txt settings"))
+			return
+		}
+		var fields []string
+		fields = append(fields, "Contact: "+contact)
+		if languages != "" {
+			fields = append(fields, "Preferred-Languages: "+languages)
+		}
+		if policy != "" {
+			fields = append(fields, "Policy: "+policy)
+		}
+		if encryption != "" {
+			fields = append(fields, "Encryption: "+encryption)
+		}
+		if err := config.UpdateWebSecurityTxt(strings.Join(fields, "\n")); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	var req struct {
 		Content string `json:"content" binding:"required"`
 	}
@@ -355,6 +402,21 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+func parseSecurityTxtFields(content string) map[string]string {
+	fields := make(map[string]string)
+	for _, line := range strings.Split(content, "\n") {
+		name, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		if name == "Contact" || name == "Preferred-Languages" || name == "Policy" || name == "Encryption" {
+			fields[name] = strings.TrimSpace(value)
+		}
+	}
+	return fields
+}
+
 // ServeRobotsTxt serves robots.txt generated from web.robots.allow and
 // web.robots.deny, with the absolute sitemap URL for the host the client used.
 // GET /robots.txt
@@ -367,7 +429,9 @@ func (h *AdminWebHandler) ServeRobotsTxt(w http.ResponseWriter, r *http.Request)
 	if r.Method == http.MethodHead {
 		return
 	}
-	fmt.Fprint(w, view.Preview)
+	if _, err := fmt.Fprint(w, view.Preview); err != nil {
+		return
+	}
 }
 
 // ServeSecurityTxt serves security.txt file
@@ -404,7 +468,9 @@ Preferred-Languages: en`,
 	// Cache for 24 hours
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, securityTxt)
+	if _, err := fmt.Fprint(w, securityTxt); err != nil {
+		return
+	}
 }
 
 // ServeFavicon serves the favicon.ico

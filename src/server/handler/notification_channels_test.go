@@ -29,10 +29,16 @@ func newNotificationChannelsTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("open notification channels db: %v", err)
 	}
 	if _, err := db.Exec(database.ServerSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close test database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 	return db
 }
 

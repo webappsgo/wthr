@@ -142,7 +142,7 @@ func survivingSessionNames(t *testing.T, db *sql.DB) map[string]bool {
 	if err != nil {
 		t.Fatalf("select surviving sessions: %v", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	surviving := map[string]bool{}
 	for rows.Next() {
@@ -290,7 +290,7 @@ func TestSessionWritersAgreeOnLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("select expires_at: %v", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var stored []string
 	for rows.Next() {
@@ -333,7 +333,7 @@ func survivingNotificationIDs(t *testing.T, db *sql.DB, table string) map[string
 	if err != nil {
 		t.Fatalf("select surviving %s: %v", table, err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	surviving := map[string]bool{}
 	for rows.Next() {

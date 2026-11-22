@@ -18,6 +18,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -51,6 +52,13 @@ func SaveWebSettings(w http.ResponseWriter, r *http.Request) {
 
 	// Save each setting to database
 	for key, value := range settings {
+		if err := config.WriteSetting(key, value); err != nil {
+			InternalError(w, r, fmt.Sprintf("Failed to save setting %s: %v", key, err))
+			return
+		}
+		if config.CanonicalConfigOwner(key) == "secrets.yml" {
+			continue
+		}
 		var err error
 		switch v := value.(type) {
 		case string:
@@ -291,6 +299,10 @@ func CreateBackup(w http.ResponseWriter, r *http.Request) {
 		Retention:   &retention,
 	})
 	if err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/backup"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		InternalError(w, r, "Failed to create backup: "+err.Error())
 		return
 	}
@@ -299,10 +311,18 @@ func CreateBackup(w http.ResponseWriter, r *http.Request) {
 
 	info, err := os.Stat(backupPath)
 	if err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/backup"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		InternalError(w, r, "Backup created but could not stat file: "+err.Error())
 		return
 	}
 
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/backup"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	RespondSuccess(w, r, "Backup created successfully", map[string]interface{}{
 		"filename":  filepath.Base(backupPath),
 		"size":      info.Size(),
@@ -336,7 +356,7 @@ func RestoreBackup(w http.ResponseWriter, r *http.Request) {
 			BadRequest(w, r, "No backup file provided")
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		if !isBackupArchiveName(filepath.Base(header.Filename)) {
 			BadRequest(w, r, "Uploaded file is not a backup archive")
@@ -362,22 +382,22 @@ func RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		stagedPath := staged.Name()
 		// The staged copy is transient input to the restore, not a backup the
 		// operator asked to keep, so it is removed on every exit path.
-		defer os.Remove(stagedPath)
+		defer func() { _ = os.Remove(stagedPath) }()
 		settings, settingsErr := adminSettingsModel(r)
 		if settingsErr != nil {
-			staged.Close()
+			_ = staged.Close()
 			InternalError(w, r, settingsErr.Error())
 			return
 		}
 		limit, _ := backup.ParseMaxTotalSizeBytes(settings.GetString("restore.max_archive_size", "1G"), 0)
 		written, err := io.Copy(staged, io.LimitReader(file, limit+1))
 		if err != nil {
-			staged.Close()
+			_ = staged.Close()
 			InternalError(w, r, "Failed to store uploaded backup")
 			return
 		}
 		if written > limit {
-			staged.Close()
+			_ = staged.Close()
 			BadRequest(w, r, "Uploaded backup exceeds the configured archive size limit")
 			return
 		}
@@ -461,6 +481,15 @@ func readBackupFiles() ([]BackupFile, error) {
 		return backups[i].Created.After(backups[j].Created)
 	})
 	return backups, nil
+}
+
+// BackupFilesForPage supplies the server-rendered backup history table.
+func BackupFilesForPage() []BackupFile {
+	files, err := readBackupFiles()
+	if err != nil {
+		return []BackupFile{}
+	}
+	return files
 }
 
 // BackupStats reports the backup counters the admin backup page shows: how many
@@ -861,7 +890,10 @@ func SaveDatabaseSettings(w http.ResponseWriter, r *http.Request) {
 			case float64:
 				portNum = int(v)
 			case string:
-				fmt.Sscanf(v, "%d", &portNum)
+				if _, err := fmt.Sscanf(v, "%d", &portNum); err != nil {
+					BadRequest(w, r, "Port must be a number")
+					return
+				}
 			}
 			if portNum < 1 || portNum > 65535 {
 				BadRequest(w, r, "Port must be between 1 and 65535")

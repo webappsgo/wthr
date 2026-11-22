@@ -2,12 +2,15 @@ package service
 
 import (
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
@@ -21,7 +24,11 @@ func setupSecurityTxtServerDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
@@ -42,6 +49,14 @@ func wireSecurityTxtGlobalDB(t *testing.T, serverDB *sql.DB) {
 // applied, global DB wired, and a real SettingsModel/SecurityTxtService.
 func newSecurityTxtService(t *testing.T) (*SecurityTxtService, *sql.DB) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
+	previousConfig := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 	db := setupSecurityTxtServerDB(t)
 	wireSecurityTxtGlobalDB(t, db)
 	sm := &models.SettingsModel{DB: db}

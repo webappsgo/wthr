@@ -9,15 +9,13 @@ import (
 
 	"golang.org/x/term"
 
+	commonformat "github.com/webappsgo/wthr/src/common/format"
 	"github.com/webappsgo/wthr/src/mode"
 )
 
 // bannerInnerWidth is the printable width between the box borders of the
 // full (>=80 column) banner, matching the AI.md PART 11 layout.
 const bannerInnerWidth = 59
-
-// bannerStartedLayout is the user-facing timestamp format required by AI.md PART 11
-const bannerStartedLayout = "January 02, 2006 at 15:04:05 MST"
 
 // getTerminalWidth returns terminal width, defaulting to 80
 func getTerminalWidth() int {
@@ -60,7 +58,7 @@ func BannerListenURL(proto, host string, port int) string {
 
 // bannerStartedAt returns the current time formatted for the banner
 func bannerStartedAt() string {
-	return time.Now().Format(bannerStartedLayout)
+	return commonformat.Timestamp(time.Now())
 }
 
 // bannerModeIcon returns the mode indicator: locked for production, wrench for development

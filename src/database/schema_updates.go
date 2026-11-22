@@ -35,14 +35,36 @@ func configurePool(db *sql.DB) {
 // older database forward without dropping or renaming anything.
 var serverSchemaUpdates = []string{
 	`ALTER TABLE admin_sessions ADD COLUMN token_hash TEXT`,
+	`ALTER TABLE admin_sessions ADD COLUMN last_used_at DATETIME`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON admin_sessions(token_hash)`,
 	`ALTER TABLE audit_log ADD COLUMN source TEXT DEFAULT 'api'`,
+	`ALTER TABLE server_blocklists ADD COLUMN block_type TEXT NOT NULL DEFAULT 'permanent'`,
+	`ALTER TABLE server_blocklists ADD COLUMN offense_count INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE server_blocklists ADD COLUMN auto_blocked BOOLEAN NOT NULL DEFAULT 0`,
+	`ALTER TABLE server_blocklists ADD COLUMN blocked_by TEXT`,
+	`ALTER TABLE server_join_tokens ADD COLUMN token_hash TEXT`,
+	`ALTER TABLE server_join_tokens ADD COLUMN lockout_until DATETIME`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_join_tokens_hash ON server_join_tokens(token_hash)`,
+	`ALTER TABLE server_nodes ADD COLUMN joined_at DATETIME`,
 }
 
 // usersSchemaUpdates holds idempotent schema updates applied to users.db on
 // every startup. Columns added here also exist in the base UsersSchema, so on a
 // fresh database every statement is a no-op that reports "duplicate column".
 var usersSchemaUpdates = []string{
+	`ALTER TABLE admins ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT 0`,
+	`ALTER TABLE admins ADD COLUMN totp_secret TEXT`,
+	`ALTER TABLE admins ADD COLUMN personal_pgp_public_key TEXT`,
+	`CREATE TABLE IF NOT EXISTS admin_recovery_keys (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		admin_id INTEGER NOT NULL,
+		key_hash TEXT NOT NULL,
+		used_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_admin_recovery_admin ON admin_recovery_keys(admin_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_admin_recovery_unused ON admin_recovery_keys(admin_id, used_at)`,
 	// Session 2FA pending-state storage
 	`ALTER TABLE user_sessions ADD COLUMN data TEXT`,
 
@@ -105,13 +127,13 @@ func migrateLegacyAdminSessions(db *sql.DB) error {
 	for rows.Next() {
 		var token string
 		if err := rows.Scan(&token); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return fmt.Errorf("scan legacy admin session: %w", err)
 		}
 		legacyTokens = append(legacyTokens, token)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
+		_ = rows.Close()
 		return fmt.Errorf("iterate legacy admin sessions: %w", err)
 	}
 	if err := rows.Close(); err != nil {

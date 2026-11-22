@@ -91,27 +91,27 @@ func (f *Formatter) formatPlainWeather(data map[string]interface{}) string {
 	var sb strings.Builder
 
 	if location, ok := data["location"].(string); ok {
-		sb.WriteString(fmt.Sprintf("Location: %s\n", location))
+		fmt.Fprintf(&sb, "Location: %s\n", location)
 	}
 
 	if temp, ok := data["temperature"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Temperature: %.1f°F\n", temp))
+		fmt.Fprintf(&sb, "Temperature: %.1f°F\n", temp)
 	}
 
 	if feels, ok := data["feels_like"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Feels Like: %.1f°F\n", feels))
+		fmt.Fprintf(&sb, "Feels Like: %.1f°F\n", feels)
 	}
 
 	if cond, ok := data["condition"].(string); ok {
-		sb.WriteString(fmt.Sprintf("Condition: %s\n", cond))
+		fmt.Fprintf(&sb, "Condition: %s\n", cond)
 	}
 
 	if humid, ok := data["humidity"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Humidity: %.0f%%\n", humid))
+		fmt.Fprintf(&sb, "Humidity: %.0f%%\n", humid)
 	}
 
 	if wind, ok := data["wind_speed"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Wind Speed: %.1f mph\n", wind))
+		fmt.Fprintf(&sb, "Wind Speed: %.1f mph\n", wind)
 	}
 
 	return sb.String()
@@ -124,25 +124,25 @@ func (f *Formatter) formatTableWeather(data map[string]interface{}) string {
 	// Header
 	sb.WriteString("┌────────────────────────────────────────────────────────┐\n")
 	if location, ok := data["location"].(string); ok {
-		sb.WriteString(fmt.Sprintf("│  %-52s│\n", location))
+		fmt.Fprintf(&sb, "│  %-52s│\n", location)
 	}
 	sb.WriteString("├────────────────────────────────────────────────────────┤\n")
 
 	// Data
 	if temp, ok := data["temperature"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Temperature:   %-38s│\n", fmt.Sprintf("%.1f°F", temp)))
+		fmt.Fprintf(&sb, "│  Temperature:   %-38s│\n", fmt.Sprintf("%.1f°F", temp))
 	}
 	if feels, ok := data["feels_like"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Feels Like:    %-38s│\n", fmt.Sprintf("%.1f°F", feels)))
+		fmt.Fprintf(&sb, "│  Feels Like:    %-38s│\n", fmt.Sprintf("%.1f°F", feels))
 	}
 	if cond, ok := data["condition"].(string); ok {
-		sb.WriteString(fmt.Sprintf("│  Condition:     %-38s│\n", cond))
+		fmt.Fprintf(&sb, "│  Condition:     %-38s│\n", cond)
 	}
 	if humid, ok := data["humidity"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Humidity:      %-38s│\n", fmt.Sprintf("%.0f%%", humid)))
+		fmt.Fprintf(&sb, "│  Humidity:      %-38s│\n", fmt.Sprintf("%.0f%%", humid))
 	}
 	if wind, ok := data["wind_speed"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Wind Speed:    %-38s│\n", fmt.Sprintf("%.1f mph", wind)))
+		fmt.Fprintf(&sb, "│  Wind Speed:    %-38s│\n", fmt.Sprintf("%.1f mph", wind))
 	}
 
 	sb.WriteString("└────────────────────────────────────────────────────────┘\n")
@@ -155,23 +155,23 @@ func (f *Formatter) formatPlainForecast(data map[string]interface{}) string {
 	var sb strings.Builder
 
 	if location, ok := data["location"].(string); ok {
-		sb.WriteString(fmt.Sprintf("Location: %s\n\n", location))
+		fmt.Fprintf(&sb, "Location: %s\n\n", location)
 	}
 
 	if forecast, ok := data["forecast"].([]interface{}); ok {
 		for i, day := range forecast {
 			dayData := day.(map[string]interface{})
 			if date, ok := dayData["date"].(string); ok {
-				sb.WriteString(fmt.Sprintf("Day %d - %s\n", i+1, date))
+				fmt.Fprintf(&sb, "Day %d - %s\n", i+1, date)
 			}
 			if high, ok := dayData["high"].(float64); ok {
-				sb.WriteString(fmt.Sprintf("  High: %.1f°F\n", high))
+				fmt.Fprintf(&sb, "  High: %.1f°F\n", high)
 			}
 			if low, ok := dayData["low"].(float64); ok {
-				sb.WriteString(fmt.Sprintf("  Low: %.1f°F\n", low))
+				fmt.Fprintf(&sb, "  Low: %.1f°F\n", low)
 			}
 			if cond, ok := dayData["condition"].(string); ok {
-				sb.WriteString(fmt.Sprintf("  Condition: %s\n", cond))
+				fmt.Fprintf(&sb, "  Condition: %s\n", cond)
 			}
 			sb.WriteString("\n")
 		}
@@ -185,7 +185,7 @@ func (f *Formatter) formatTableForecast(data map[string]interface{}) string {
 	var sb strings.Builder
 
 	if location, ok := data["location"].(string); ok {
-		sb.WriteString(fmt.Sprintf("Forecast for: %s\n\n", location))
+		fmt.Fprintf(&sb, "Forecast for: %s\n\n", location)
 	}
 
 	sb.WriteString("┌──────────────┬────────────┬───────────┬──────────────────────┐\n")
@@ -200,8 +200,8 @@ func (f *Formatter) formatTableForecast(data map[string]interface{}) string {
 			low := getFloatValue(dayData, "low", 0)
 			condition := getStringValue(dayData, "condition", "N/A")
 
-			sb.WriteString(fmt.Sprintf("│  %-10s  │  %6.1f°F  │  %5.1f°F  │  %-18s  │\n",
-				date, high, low, condition))
+			fmt.Fprintf(&sb, "│  %-10s  │  %6.1f°F  │  %5.1f°F  │  %-18s  │\n",
+				date, high, low, condition)
 		}
 	}
 
@@ -221,15 +221,15 @@ func (f *Formatter) formatPlainAlerts(data map[string]interface{}) string {
 
 		for i, alert := range alerts {
 			alertData := alert.(map[string]interface{})
-			sb.WriteString(fmt.Sprintf("Alert %d:\n", i+1))
+			fmt.Fprintf(&sb, "Alert %d:\n", i+1)
 			if event, ok := alertData["event"].(string); ok {
-				sb.WriteString(fmt.Sprintf("  Event: %s\n", event))
+				fmt.Fprintf(&sb, "  Event: %s\n", event)
 			}
 			if severity, ok := alertData["severity"].(string); ok {
-				sb.WriteString(fmt.Sprintf("  Severity: %s\n", severity))
+				fmt.Fprintf(&sb, "  Severity: %s\n", severity)
 			}
 			if desc, ok := alertData["description"].(string); ok {
-				sb.WriteString(fmt.Sprintf("  Description: %s\n", desc))
+				fmt.Fprintf(&sb, "  Description: %s\n", desc)
 			}
 			sb.WriteString("\n")
 		}
@@ -251,19 +251,19 @@ func (f *Formatter) formatTableAlerts(data map[string]interface{}) string {
 
 		for i, alert := range alerts {
 			alertData := alert.(map[string]interface{})
-			sb.WriteString(fmt.Sprintf("┌─ Alert %d ──────────────────────────────────────────────────┐\n", i+1))
+			fmt.Fprintf(&sb, "┌─ Alert %d ──────────────────────────────────────────────────┐\n", i+1)
 
 			if event, ok := alertData["event"].(string); ok {
-				sb.WriteString(fmt.Sprintf("│  Event: %-48s│\n", event))
+				fmt.Fprintf(&sb, "│  Event: %-48s│\n", event)
 			}
 			if severity, ok := alertData["severity"].(string); ok {
-				sb.WriteString(fmt.Sprintf("│  Severity: %-44s│\n", severity))
+				fmt.Fprintf(&sb, "│  Severity: %-44s│\n", severity)
 			}
 			if desc, ok := alertData["description"].(string); ok {
 				// Wrap long descriptions
 				lines := wrapText(desc, 50)
 				for _, line := range lines {
-					sb.WriteString(fmt.Sprintf("│  %-52s│\n", line))
+					fmt.Fprintf(&sb, "│  %-52s│\n", line)
 				}
 			}
 
@@ -279,13 +279,13 @@ func (f *Formatter) formatPlainMoon(data map[string]interface{}) string {
 	var sb strings.Builder
 
 	if phase, ok := data["phase"].(string); ok {
-		sb.WriteString(fmt.Sprintf("Moon Phase: %s\n", phase))
+		fmt.Fprintf(&sb, "Moon Phase: %s\n", phase)
 	}
 	if illumination, ok := data["illumination"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Illumination: %.1f%%\n", illumination*100))
+		fmt.Fprintf(&sb, "Illumination: %.1f%%\n", illumination*100)
 	}
 	if age, ok := data["age"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("Age: %.1f days\n", age))
+		fmt.Fprintf(&sb, "Age: %.1f days\n", age)
 	}
 
 	return sb.String()
@@ -298,13 +298,13 @@ func (f *Formatter) formatTableMoon(data map[string]interface{}) string {
 	sb.WriteString("┌──────────────── Moon Phase ────────────────────┐\n")
 
 	if phase, ok := data["phase"].(string); ok {
-		sb.WriteString(fmt.Sprintf("│  Phase:         %-28s│\n", phase))
+		fmt.Fprintf(&sb, "│  Phase:         %-28s│\n", phase)
 	}
 	if illumination, ok := data["illumination"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Illumination:  %-26.1f%%│\n", illumination*100))
+		fmt.Fprintf(&sb, "│  Illumination:  %-26.1f%%│\n", illumination*100)
 	}
 	if age, ok := data["age"].(float64); ok {
-		sb.WriteString(fmt.Sprintf("│  Age:           %-23.1f days│\n", age))
+		fmt.Fprintf(&sb, "│  Age:           %-23.1f days│\n", age)
 	}
 
 	sb.WriteString("└────────────────────────────────────────────────┘\n")

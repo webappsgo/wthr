@@ -5,11 +5,14 @@ import (
 	"strings"
 
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"github.com/webappsgo/wthr/src/swagger"
 )
 
-// NOTE: Manual OpenAPI spec handlers removed per AI.md PART 14
-// AI.md PART 14 rule: never manually edit generated OpenAPI JSON - it is
-// build-time generated from swag annotations and embedded in the binary
+// GetOpenAPIJSON serves the OpenAPI document generated before the application
+// build and embedded in the binary.
+func GetOpenAPIJSON() http.HandlerFunc {
+	return swagger.GetOpenAPIJSON()
+}
 
 // GetSwaggerUIAuto returns the auto-generated Swagger UI using swaggo/http-swagger
 // Serves Swagger UI at /openapi per AI.md PART 14

@@ -601,8 +601,8 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 
 		resetURL := fmt.Sprintf("%s/auth/password/reset?token=%s", baseURL, token)
 
-		// The SMTP service reads server_config and server_notification_channels,
-		// both declared in database.ServerSchema, so it must be given the SERVER
+		// The SMTP service reads file-backed configuration and server_notification_channels,
+		// the latter declared in database.ServerSchema, so it must be given the SERVER
 		// handle. The `db` in scope here is the users handle - every caller passes
 		// one, and it is what the password_resets insert above writes to -
 		// so passing it made the service look for its configuration in the wrong

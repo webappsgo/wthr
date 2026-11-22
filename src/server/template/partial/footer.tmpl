@@ -1,5 +1,6 @@
 {{define "footer"}}
 <footer class="page-footer">
+    {{if .operator_footer}}<div class="page-footer__branding">{{.operator_footer}}</div>{{end}}
     <p class="page-footer__text">{{t .lang "app.name"}} · {{t .lang "app.tagline"}}</p>
     <p class="page-footer__links">
         <a href="https://github.com/webappsgo/wthr" target="_blank">GitHub</a>

@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -210,7 +211,7 @@ func (s *BackupService) CreateBackupArchive(opts BackupOptions) (string, []strin
 	// "Every backup is verified immediately after creation"
 	if err := s.Verify(opts.OutputPath, opts.Password); err != nil {
 		// Delete failed backup per AI.md PART 22 (Verification)
-		os.Remove(opts.OutputPath)
+		_ = os.Remove(opts.OutputPath)
 		return "", nil, fmt.Errorf("backup verification failed: %w", err)
 	}
 
@@ -240,6 +241,12 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 		files = append(files, "server.yml")
 	}
 
+	// Secrets are required to restore credentials and encrypted backup settings.
+	secretsYML := filepath.Join(opts.ConfigDir, "secrets.yml")
+	if _, err := os.Stat(secretsYML); err == nil {
+		files = append(files, "secrets.yml")
+	}
+
 	// server.db - Always included per AI.md PART 22 (Backup Contents)
 	serverDB := filepath.Join(opts.DataDir, "db", "server.db")
 	if _, err := os.Stat(serverDB); err == nil {
@@ -256,6 +263,11 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 	dropinDir := filepath.Join(opts.ConfigDir, "yaml.d")
 	if info, err := os.Stat(dropinDir); err == nil && info.IsDir() {
 		files = append(files, "yaml.d/")
+	}
+
+	assetsDir := filepath.Join(opts.ConfigDir, "assets")
+	if info, err := os.Stat(assetsDir); err == nil && info.IsDir() {
+		files = append(files, "assets/")
 	}
 
 	// Security keypair files (PART 11 "Backup Integration"): without them the encrypted
@@ -302,11 +314,9 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 
 	// Create gzip writer
 	gzWriter := gzip.NewWriter(writer)
-	defer gzWriter.Close()
 
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
 
 	// Hash every archived member as it is written so the manifest can carry a
 	// checksum that Verify recomputes from the archive itself
@@ -315,7 +325,7 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 	// Add each file/directory
 	for _, file := range files {
 		var sourcePath string
-		if file == "server.yml" || strings.HasPrefix(file, "yaml.d/") || strings.HasPrefix(file, "template/") ||
+		if file == "server.yml" || file == "secrets.yml" || strings.HasPrefix(file, "yaml.d/") || strings.HasPrefix(file, "assets/") || strings.HasPrefix(file, "template/") ||
 			strings.HasPrefix(file, "theme/") || strings.HasPrefix(file, "ssl/") || strings.HasPrefix(file, "security/") {
 			sourcePath = filepath.Join(configDir, file)
 		} else {
@@ -410,11 +420,13 @@ func (s *BackupService) addToArchive(tw *tar.Writer, hasher hash.Hash, sourcePat
 			if err != nil {
 				return err
 			}
-			defer file.Close()
-
 			hashArchiveMember(hasher, tarPath)
-			_, err = io.Copy(io.MultiWriter(tw, hasher), file)
-			return err
+			_, copyErr := io.Copy(io.MultiWriter(tw, hasher), file)
+			closeErr := file.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			return closeErr
 		})
 	}
 
@@ -423,8 +435,6 @@ func (s *BackupService) addToArchive(tw *tar.Writer, hasher hash.Hash, sourcePat
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
 	header := &tar.Header{
 		Name:    archivePath,
 		Size:    info.Size(),
@@ -433,12 +443,17 @@ func (s *BackupService) addToArchive(tw *tar.Writer, hasher hash.Hash, sourcePat
 	}
 
 	if err := tw.WriteHeader(header); err != nil {
+		_ = file.Close()
 		return err
 	}
 
 	hashArchiveMember(hasher, archivePath)
-	_, err = io.Copy(io.MultiWriter(tw, hasher), file)
-	return err
+	_, copyErr := io.Copy(io.MultiWriter(tw, hasher), file)
+	closeErr := file.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
 }
 
 // hashArchiveMember mixes a member path into the running content hash so a
@@ -554,7 +569,7 @@ func (s *BackupService) verifyDataWithLimits(backupPath, password string, data [
 	if err != nil {
 		return fmt.Errorf("failed to create verification directory: %w", err)
 	}
-	defer os.RemoveAll(extractDir)
+	defer func() { _ = os.RemoveAll(extractDir) }()
 
 	manifest, contentChecksum, err := extractArchiveWithLimits(data, extractDir, limits)
 	if err != nil {
@@ -592,7 +607,7 @@ func extractArchiveWithLimits(data []byte, destDir string, limits RestoreLimits)
 	if err != nil {
 		return nil, "", fmt.Errorf("backup is not a valid gzip archive: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
 	contentHasher := sha256.New()
@@ -652,10 +667,12 @@ func extractArchiveWithLimits(data []byte, destDir string, limits RestoreLimits)
 			}
 
 			if _, copyErr := io.Copy(writer, tarReader); copyErr != nil {
-				out.Close()
+				_ = out.Close()
 				return nil, "", fmt.Errorf("failed to extract %s: %w", header.Name, copyErr)
 			}
-			out.Close()
+			if closeErr := out.Close(); closeErr != nil {
+				return nil, "", fmt.Errorf("failed to close extracted file %s: %w", header.Name, closeErr)
+			}
 
 			if header.Name == manifestEntryName {
 				manifestData, readManifestErr := os.ReadFile(target)
@@ -707,7 +724,11 @@ func verifyDatabases(root string) error {
 		if openErr != nil {
 			return fmt.Errorf("failed to open %s: %w", filepath.Base(path), openErr)
 		}
-		defer db.Close()
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to close %s: %w", filepath.Base(path), closeErr))
+			}
+		}()
 
 		var result string
 		if queryErr := db.QueryRow("PRAGMA integrity_check").Scan(&result); queryErr != nil {

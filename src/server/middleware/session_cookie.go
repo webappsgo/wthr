@@ -125,7 +125,7 @@ func (w *sessionCookieSigningWriter) Unwrap() http.ResponseWriter { return w.Res
 // signSessionCookies replaces the value of every Set-Cookie for a session cookie that sets a
 // value. A cookie that clears the session (empty value, or a negative MaxAge) is left alone.
 func (w *sessionCookieSigningWriter) signSessionCookies() {
-	header := w.ResponseWriter.Header()
+	header := w.Header()
 	values := header.Values("Set-Cookie")
 	if len(values) == 0 {
 		return

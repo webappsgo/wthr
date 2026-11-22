@@ -9,9 +9,7 @@ import (
 )
 
 // TestGenerateServerYML covers a normal write (file created, contains the
-// expected top-level sections and default values), preservation of an
-// existing file, and the error path when the target directory does not
-// exist.
+// expected typed default values), and preservation of an existing file.
 func TestGenerateServerYML(t *testing.T) {
 	t.Run("writes_default_config", func(t *testing.T) {
 		dir := t.TempDir()
@@ -27,14 +25,17 @@ func TestGenerateServerYML(t *testing.T) {
 		content := string(data)
 
 		for _, want := range []string{
-			"server:", "admin:", "database:", "ssl:", "auth:", "rate_limit:",
-			"log:", "backup:", "smtp:", "notifications:", "weather:",
-			"alerts:", "geoip:", "schedule:", "cors:", "security:",
-			"features:", "metrics:",
-			`driver: sqlite`, "port: 64123", "mode: production",
+			"server:", "database:", "cache:", "ssl:",
+			"port: 64123", "mode: production", "address: \"[::]\"",
+			"# This node only", "credentials are in secrets.yml.",
 		} {
 			if !strings.Contains(content, want) {
 				t.Errorf("server.yml missing %q", want)
+			}
+		}
+		for _, stale := range []string{"auth:", "smtp:", "branding:", "notifications:", "rate_limit:", "# Set via DOMAIN", "driver: sqlite"} {
+			if strings.Contains(content, stale) {
+				t.Errorf("server.yml contains stale or shared setting %q", stale)
 			}
 		}
 	})
@@ -77,10 +78,13 @@ func TestGenerateServerYML(t *testing.T) {
 		}
 	})
 
-	t.Run("missing_directory_errors", func(t *testing.T) {
+	t.Run("creates_private_config_directory", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "does", "not", "exist")
-		if err := GenerateServerYML(dir, "64123"); err == nil {
-			t.Error("GenerateServerYML() with missing directory = nil, want error")
+		if err := GenerateServerYML(dir, "64123"); err != nil {
+			t.Fatalf("GenerateServerYML() with missing directory: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "server.yml")); err != nil {
+			t.Errorf("server.yml not created: %v", err)
 		}
 	})
 }

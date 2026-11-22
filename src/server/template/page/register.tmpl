@@ -32,9 +32,9 @@
                        name="username"
                        required
                        autofocus
-                       minlength="3"
-                       maxlength="32"
-                       pattern="[a-z][a-z0-9_-]{2,31}"
+                       minlength="2"
+                       maxlength="39"
+                       pattern="[a-z0-9](?:[a-z0-9]|-[a-z0-9])*"
                        aria-label="{{t .server.Lang "register.username_label"}}"
                        aria-required="true"
                        aria-describedby="username-requirements"
@@ -120,4 +120,3 @@
     </script>
 </main>
 {{template "footer" .}}
-

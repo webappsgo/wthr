@@ -369,7 +369,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 	default:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, "Invalid alert type. Use: hurricanes, tornadoes, floods, winter, or storms")
+		_, _ = fmt.Fprint(w, "Invalid alert type. Use: hurricanes, tornadoes, floods, winter, or storms")
 		return
 	}
 
@@ -461,7 +461,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 		output := h.renderConsoleOutput(filteredData, locationName)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	}
 }
 

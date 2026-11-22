@@ -72,13 +72,23 @@ func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request
 
 	// Get system statistics
 	userModel := &model.UserModel{DB: h.DB}
-
-	totalUsers, _ := userModel.Count()
-	adminCount, _ := userModel.CountByRole("admin")
+	totalUsers, err := userModel.Count()
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_users"))
+		return
+	}
+	adminCount, err := (&model.AdminModel{DB: database.GetUsersDB()}).GetCount()
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_count_admins"))
+		return
+	}
 
 	// Count total locations across all users
 	var totalLocations int
-	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
+	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin.tmpl", AdminTemplateData(r, map[string]interface{}{
 		"title":          "Admin Panel - Weather",

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,6 +26,11 @@ import (
 // the current security_id.
 func securityTestEnv(t *testing.T) (*config.AppConfig, string) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, newTestUsersDB(t))
 	cfg := &config.AppConfig{}

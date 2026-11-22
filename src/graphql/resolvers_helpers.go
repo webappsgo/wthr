@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -406,7 +407,7 @@ func loadGraphQLOnlineAdminUsernames(ctx context.Context, sessionDB, accountsDB 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query online admins: %w", err)
 	}
-	defer sessionRows.Close()
+	defer func() { _ = sessionRows.Close() }()
 
 	now := time.Now().UTC()
 	onlineAdminIDs := make(map[int64]struct{})
@@ -436,7 +437,7 @@ func loadGraphQLOnlineAdminUsernames(ctx context.Context, sessionDB, accountsDB 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query online admin usernames: %w", err)
 	}
-	defer adminRows.Close()
+	defer func() { _ = adminRows.Close() }()
 
 	var usernames []string
 	for adminRows.Next() {
@@ -525,10 +526,7 @@ func scanGraphQLNotificationChannel(scan func(dest ...any) error) (*Notification
 	return &channel, nil
 }
 func loadGraphQLSetting(ctx context.Context, db *sql.DB, key string) (*models.Setting, error) {
-	return scanGraphQLSetting(database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config WHERE key = ?",
-		key,
-	).Scan)
+	return (&models.SettingsModel{}).GetSetting(key)
 }
 func scanGraphQLSetting(scan func(dest ...any) error) (*models.Setting, error) {
 	var setting models.Setting
@@ -611,7 +609,11 @@ func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestSta
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close GraphQL audit metric rows: %v", err)
+		}
+	}()
 
 	var totalToday int
 	var errorsToday int
@@ -685,6 +687,20 @@ func loadGraphQLDatabaseStats(ctx context.Context, serverDB, usersDB *sql.DB) (*
 func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, error) {
 	if db == nil {
 		return 0, 0, nil
+	}
+	if database.IsRemoteDatabase(db) {
+		var size float64
+		var tables int
+		var query string
+		if database.RemoteDatabaseDialect(db) == "mysql" || database.RemoteDatabaseDialect(db) == "mariadb" {
+			query = `SELECT COALESCE(SUM(data_length + index_length), 0), COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()`
+		} else {
+			query = `SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))), 0), COUNT(*) FROM pg_tables WHERE schemaname = current_schema()`
+		}
+		if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, query).Scan(&size, &tables); err != nil {
+			return 0, 0, err
+		}
+		return size, tables, nil
 	}
 
 	var pageCount int64

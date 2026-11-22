@@ -1,24 +1,13 @@
 package config
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 // clearLanguageEnv unsets every environment variable ResolveLanguage consults
 // and restores the previous values when the test finishes.
 func clearLanguageEnv(t *testing.T) {
 	t.Helper()
 	for _, name := range []string{"CLI_LANG", "LC_ALL", "LANG"} {
-		previous, existed := os.LookupEnv(name)
-		os.Unsetenv(name)
-		t.Cleanup(func() {
-			if existed {
-				os.Setenv(name, previous)
-				return
-			}
-			os.Unsetenv(name)
-		})
+		t.Setenv(name, "")
 	}
 }
 
@@ -34,7 +23,7 @@ func TestResolveLanguage(t *testing.T) {
 
 	t.Run("config value beats the environment", func(t *testing.T) {
 		clearLanguageEnv(t)
-		os.Setenv("LANG", "fr_FR.UTF-8")
+		t.Setenv("LANG", "fr_FR.UTF-8")
 		cfg := &AppConfig{}
 		cfg.Server.Lang = "de"
 		if got := ResolveLanguage(cfg); got != "de" {
@@ -44,7 +33,7 @@ func TestResolveLanguage(t *testing.T) {
 
 	t.Run("flag beats the config value", func(t *testing.T) {
 		clearLanguageEnv(t)
-		os.Setenv("CLI_LANG", "ja")
+		t.Setenv("CLI_LANG", "ja")
 		cfg := &AppConfig{}
 		cfg.Server.Lang = "de"
 		if got := ResolveLanguage(cfg); got != "ja" {
@@ -54,15 +43,15 @@ func TestResolveLanguage(t *testing.T) {
 
 	t.Run("auto config falls through to LC_ALL then LANG", func(t *testing.T) {
 		clearLanguageEnv(t)
-		os.Setenv("LC_ALL", "es_ES.UTF-8")
-		os.Setenv("LANG", "fr_FR.UTF-8")
+		t.Setenv("LC_ALL", "es_ES.UTF-8")
+		t.Setenv("LANG", "fr_FR.UTF-8")
 		cfg := &AppConfig{}
 		cfg.Server.Lang = "auto"
 		if got := ResolveLanguage(cfg); got != "es" {
 			t.Fatalf("ResolveLanguage() = %q, want %q", got, "es")
 		}
 
-		os.Unsetenv("LC_ALL")
+		t.Setenv("LC_ALL", "")
 		if got := ResolveLanguage(cfg); got != "fr" {
 			t.Fatalf("ResolveLanguage() = %q, want %q", got, "fr")
 		}
@@ -70,7 +59,7 @@ func TestResolveLanguage(t *testing.T) {
 
 	t.Run("posix locales carry no language preference", func(t *testing.T) {
 		clearLanguageEnv(t)
-		os.Setenv("LANG", "C.UTF-8")
+		t.Setenv("LANG", "C.UTF-8")
 		if got := ResolveLanguage(nil); got != "en" {
 			t.Fatalf("ResolveLanguage() = %q, want %q", got, "en")
 		}

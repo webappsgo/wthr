@@ -33,7 +33,11 @@ func openAuditTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(database.ServerSchema); err != nil {
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close audit database: %v", err)
+		}
+	})
 	return db
 }
 
@@ -82,7 +86,7 @@ func TestIsAdminRoute_ConfiguredAdminPathNotDefault(t *testing.T) {
 	if err := os.WriteFile(configFile, []byte("server:\n  admin_path: backoffice\n"), 0o600); err != nil {
 		t.Fatalf("write server.yml fixture: %v", err)
 	}
-	t.Cleanup(func() { os.Remove(configFile) })
+	t.Cleanup(func() { _ = os.Remove(configFile) })
 
 	if got := isAdminRoute(customAdminPath + "/users"); !got {
 		t.Errorf("isAdminRoute(%q) = false, want true - audit.go should derive "+
@@ -155,7 +159,7 @@ func TestGetResourceFromPath_ConfiguredAdminPathNotDefault(t *testing.T) {
 	if err := os.WriteFile(configFile, []byte("server:\n  admin_path: backoffice\n"), 0o600); err != nil {
 		t.Fatalf("write server.yml fixture: %v", err)
 	}
-	t.Cleanup(func() { os.Remove(configFile) })
+	t.Cleanup(func() { _ = os.Remove(configFile) })
 
 	tests := []struct {
 		path string
@@ -263,7 +267,11 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close audit database: %v", err)
+		}
+	})
 
 	var logged bytes.Buffer
 	previousOutput := log.Writer()

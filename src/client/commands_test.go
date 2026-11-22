@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 )
@@ -12,15 +11,7 @@ import (
 func clearLocationEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{"MYLOCATION_NAME", "MYLOCATION_ZIP", "MYLOCATION_CITY_ID"} {
-		orig, had := os.LookupEnv(key)
-		os.Unsetenv(key)
-		t.Cleanup(func() {
-			if had {
-				os.Setenv(key, orig)
-			} else {
-				os.Unsetenv(key)
-			}
-		})
+		t.Setenv(key, "")
 	}
 }
 
@@ -100,8 +91,7 @@ func TestBuildWeatherPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for k, v := range tt.env {
-				os.Setenv(k, v)
-				defer os.Unsetenv(k)
+				t.Setenv(k, v)
 			}
 			got := buildWeatherPath("/api/v1", "/weather", tt.lat, tt.lon, tt.zip, tt.location, tt.config)
 			if got != tt.want {
@@ -113,15 +103,14 @@ func TestBuildWeatherPath(t *testing.T) {
 
 func TestGetEnv(t *testing.T) {
 	t.Run("returns trimmed value", func(t *testing.T) {
-		os.Setenv("WTHR_TEST_GETENV", "  value  ")
-		defer os.Unsetenv("WTHR_TEST_GETENV")
+		t.Setenv("WTHR_TEST_GETENV", "  value  ")
 		if got := getEnv("WTHR_TEST_GETENV"); got != "value" {
 			t.Errorf("getEnv() = %q, want %q", got, "value")
 		}
 	})
 
 	t.Run("returns empty for unset", func(t *testing.T) {
-		os.Unsetenv("WTHR_TEST_GETENV_UNSET")
+		t.Setenv("WTHR_TEST_GETENV_UNSET", "")
 		if got := getEnv("WTHR_TEST_GETENV_UNSET"); got != "" {
 			t.Errorf("getEnv() = %q, want empty", got)
 		}
@@ -143,7 +132,7 @@ func TestHandleCurrentCommand(t *testing.T) {
 			if !strings.Contains(r.URL.String(), "/api/v1/weather") {
 				t.Errorf("unexpected path: %s", r.URL.String())
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"temperature": 70.0})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"temperature": 70.0})
 		}))
 		defer server.Close()
 
@@ -175,7 +164,7 @@ func TestHandleCurrentCommand(t *testing.T) {
 	t.Run("server error propagates", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"boom"}`))
+			_, _ = w.Write([]byte(`{"error":"boom"}`))
 		}))
 		defer server.Close()
 
@@ -194,7 +183,7 @@ func TestHandleForecastCommand(t *testing.T) {
 		if !strings.Contains(r.URL.RawQuery, "days=5") {
 			t.Errorf("expected days=5 in query, got %s", r.URL.RawQuery)
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"forecast": []interface{}{}})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"forecast": []interface{}{}})
 	}))
 	defer server.Close()
 
@@ -209,7 +198,7 @@ func TestHandleAlertsCommand(t *testing.T) {
 	clearLocationEnv(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{"alerts": []interface{}{}})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"alerts": []interface{}{}})
 	}))
 	defer server.Close()
 
@@ -233,7 +222,7 @@ func TestHandleMoonCommand(t *testing.T) {
 			if r.URL.RawQuery != "" {
 				t.Errorf("expected no query params, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"phase": "full"})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"phase": "full"})
 		}))
 		defer server.Close()
 
@@ -248,7 +237,7 @@ func TestHandleMoonCommand(t *testing.T) {
 			if r.URL.RawQuery != "date=2024-01-15" {
 				t.Errorf("expected date query, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"phase": "new"})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"phase": "new"})
 		}))
 		defer server.Close()
 
@@ -285,7 +274,7 @@ func TestHandleHistoryCommand(t *testing.T) {
 			if !strings.Contains(r.URL.RawQuery, "date=2024-01-01") {
 				t.Errorf("expected date in query, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"temperature": 55.0})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"temperature": 55.0})
 		}))
 		defer server.Close()
 
@@ -301,7 +290,7 @@ func TestHandleEarthquakesCommand(t *testing.T) {
 		if !strings.Contains(r.URL.RawQuery, "min_magnitude=") || !strings.Contains(r.URL.RawQuery, "limit=") {
 			t.Errorf("unexpected query: %s", r.URL.RawQuery)
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"quakes": []interface{}{}})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"quakes": []interface{}{}})
 	}))
 	defer server.Close()
 
@@ -325,7 +314,7 @@ func TestHandleHurricanesCommand(t *testing.T) {
 			if !strings.Contains(r.URL.RawQuery, "active=true") {
 				t.Errorf("expected active=true, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"storms": []interface{}{}})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"storms": []interface{}{}})
 		}))
 		defer server.Close()
 
@@ -340,7 +329,7 @@ func TestHandleHurricanesCommand(t *testing.T) {
 			if r.URL.RawQuery != "" {
 				t.Errorf("expected no query params, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"storms": []interface{}{}})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"storms": []interface{}{}})
 		}))
 		defer server.Close()
 

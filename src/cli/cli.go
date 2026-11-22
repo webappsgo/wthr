@@ -60,9 +60,10 @@ func (c *CLI) Parse(args []string) error {
 	copy(preprocessedArgs, args)
 	preprocessedArgs = normalizeUpdateFlagArgs(preprocessedArgs)
 	for i, arg := range preprocessedArgs {
-		if arg == "-h" {
+		switch arg {
+		case "-h":
 			preprocessedArgs[i] = "--help"
-		} else if arg == "-v" {
+		case "-v":
 			preprocessedArgs[i] = "--version"
 		}
 	}
@@ -102,6 +103,12 @@ func (c *CLI) Parse(args []string) error {
 	if err := c.flags.Parse(preprocessedArgs); err != nil {
 		return err
 	}
+	setEnv := func(key, value string) error {
+		if err := os.Setenv(key, value); err != nil {
+			return fmt.Errorf("failed to set %s: %w", key, err)
+		}
+		return nil
+	}
 	// AI.md PART 5: directory overrides are real filesystem paths, validated with SafeDirPath
 	// (absolute paths preserved; control characters and ".." segments rejected)
 	for _, dir := range []struct {
@@ -120,7 +127,9 @@ func (c *CLI) Parse(args []string) error {
 	}
 
 	if *configDir != "" {
-		os.Setenv("CONFIG_DIR", *configDir)
+		if err := setEnv("CONFIG_DIR", *configDir); err != nil {
+			return err
+		}
 	}
 
 	// Handle help flag
@@ -137,7 +146,9 @@ func (c *CLI) Parse(args []string) error {
 
 	// Handle status flag - store for main.go to check
 	if *showStatus {
-		os.Setenv("CLI_STATUS_FLAG", "1")
+		if err := setEnv("CLI_STATUS_FLAG", "1"); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -148,7 +159,9 @@ func (c *CLI) Parse(args []string) error {
 		if err := c.handleShellCommand(*shellCmd, c.flags.Args()); err != nil {
 			return err
 		}
-		_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+		if err := setEnv("CLI_COMMAND_HANDLED", "1"); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -158,7 +171,9 @@ func (c *CLI) Parse(args []string) error {
 			if err := cmd.Handler([]string{*serviceCmd}); err != nil {
 				return err
 			}
-			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			if err := setEnv("CLI_COMMAND_HANDLED", "1"); err != nil {
+				return err
+			}
 			return nil
 		}
 		return fmt.Errorf("service command not registered")
@@ -170,7 +185,9 @@ func (c *CLI) Parse(args []string) error {
 			if err := cmd.Handler(commandWithArgs(*maintenanceCmd, c.flags.Args())); err != nil {
 				return err
 			}
-			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			if err := setEnv("CLI_COMMAND_HANDLED", "1"); err != nil {
+				return err
+			}
 			return nil
 		}
 		return fmt.Errorf("maintenance command not registered")
@@ -182,7 +199,9 @@ func (c *CLI) Parse(args []string) error {
 			if err := cmd.Handler(commandWithArgs(*updateCmd, c.flags.Args())); err != nil {
 				return err
 			}
-			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			if err := setEnv("CLI_COMMAND_HANDLED", "1"); err != nil {
+				return err
+			}
 			return nil
 		}
 		return fmt.Errorf("update command not registered")
@@ -190,52 +209,82 @@ func (c *CLI) Parse(args []string) error {
 
 	// Store flags for later access (AI.md PART 5: Environment Variables)
 	if *mode != "" {
-		os.Setenv("MODE", *mode)
+		if err := setEnv("MODE", *mode); err != nil {
+			return err
+		}
 	}
 	if *debug {
-		os.Setenv("DEBUG", "true")
+		if err := setEnv("DEBUG", "true"); err != nil {
+			return err
+		}
 	}
 	// AI.md PART 8: --port falls back to the PORT env var, so precedence is flag > PORT
 	if *port != "" {
-		os.Setenv("PORT", *port)
+		if err := setEnv("PORT", *port); err != nil {
+			return err
+		}
 	}
 	if *i2p {
-		os.Setenv("I2P_ENABLED", "true")
+		if err := setEnv("I2P_ENABLED", "true"); err != nil {
+			return err
+		}
 	}
 	if *address != "" {
-		os.Setenv("LISTEN", *address)
+		if err := setEnv("LISTEN", *address); err != nil {
+			return err
+		}
 	}
 	if *configDir != "" {
-		os.Setenv("CONFIG_DIR", *configDir)
+		if err := setEnv("CONFIG_DIR", *configDir); err != nil {
+			return err
+		}
 	}
 	if *dataDir != "" {
-		os.Setenv("DATA_DIR", *dataDir)
+		if err := setEnv("DATA_DIR", *dataDir); err != nil {
+			return err
+		}
 	}
 	if *cacheDir != "" {
-		os.Setenv("CACHE_DIR", *cacheDir)
+		if err := setEnv("CACHE_DIR", *cacheDir); err != nil {
+			return err
+		}
 	}
 	if *logDir != "" {
-		os.Setenv("LOG_DIR", *logDir)
+		if err := setEnv("LOG_DIR", *logDir); err != nil {
+			return err
+		}
 	}
 	if *backupDir != "" {
-		os.Setenv("BACKUP_DIR", *backupDir)
+		if err := setEnv("BACKUP_DIR", *backupDir); err != nil {
+			return err
+		}
 	}
 	if *pidFile != "" {
-		os.Setenv("PID_FILE", *pidFile)
+		if err := setEnv("PID_FILE", *pidFile); err != nil {
+			return err
+		}
 	}
 	if *daemon {
-		os.Setenv("DAEMON", "true")
+		if err := setEnv("DAEMON", "true"); err != nil {
+			return err
+		}
 	}
 	if *baseURL != "" {
-		os.Setenv("BASE_URL", *baseURL)
+		if err := setEnv("BASE_URL", *baseURL); err != nil {
+			return err
+		}
 	}
 	// Handle --color flag (AI.md PART 8: NO_COLOR support)
 	if *colorMode != "" {
-		os.Setenv("CLI_COLOR_MODE", *colorMode)
+		if err := setEnv("CLI_COLOR_MODE", *colorMode); err != nil {
+			return err
+		}
 	}
 	// Handle --lang flag (AI.md PART 31: highest priority language source)
 	if *lang != "" {
-		os.Setenv("CLI_LANG", *lang)
+		if err := setEnv("CLI_LANG", *lang); err != nil {
+			return err
+		}
 	}
 
 	return nil

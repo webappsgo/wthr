@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // DeliveryState represents the state of a notification in the delivery pipeline
@@ -73,10 +75,8 @@ func NewDeliverySystem(db *sql.DB, cm *ChannelManager, te *TemplateEngine) *Deli
 }
 
 // serverDB returns the server.db handle this delivery system was constructed
-// with. Every table the delivery system owns (server_config,
-// notification_queue, notification_history) is declared in
-// database.ServerSchema, so the injected handle is the correct database for
-// all of them.
+// with. Its notification_queue and notification_history tables are declared
+// in database.ServerSchema; settings are read from their owning config files.
 // Fallback: when the injected handle is nil (unit tests constructing the
 // service with nil, or construction before the global dual DB is wired) the
 // process-global server handle is used instead, so a nil handle degrades to
@@ -88,7 +88,7 @@ func (ds *DeliverySystem) serverDB() *sql.DB {
 	return database.GetServerDB()
 }
 
-// LoadSettings loads delivery system settings from database
+// LoadSettings loads delivery system settings from configuration files.
 func (ds *DeliverySystem) LoadSettings() error {
 	settings := map[string]*int{
 		"notifications.retry_max":          &ds.maxRetries,
@@ -98,20 +98,19 @@ func (ds *DeliverySystem) LoadSettings() error {
 	}
 
 	for key, ptr := range settings {
-		var value string
-		err := database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
-		if err == nil {
+		value, exists, err := config.ReadSetting(key)
+		if err == nil && exists {
 			var intVal int
-			fmt.Sscanf(value, "%d", &intVal)
-			*ptr = intVal
+			if _, scanErr := fmt.Sscanf(fmt.Sprint(value), "%d", &intVal); scanErr == nil {
+				*ptr = intVal
+			}
 		}
 	}
 
 	// Get backoff strategy
-	var backoff string
-	err := database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "notifications.retry_backoff").Scan(&backoff)
-	if err == nil {
-		ds.retryBackoff = backoff
+	backoff, exists, err := config.ReadSetting("notifications.retry_backoff")
+	if err == nil && exists {
+		ds.retryBackoff = fmt.Sprint(backoff)
 	}
 
 	return nil
@@ -155,7 +154,7 @@ func (ds *DeliverySystem) ProcessQueue() error {
 	if err != nil {
 		return fmt.Errorf("failed to query queue: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	processed := 0
 	for rows.Next() {
@@ -168,16 +167,21 @@ func (ds *DeliverySystem) ProcessQueue() error {
 			&nq.MaxRetries, &nq.NextRetryAt, &nq.CreatedAt, &nq.UpdatedAt,
 		)
 		if err != nil {
-			continue
+			return fmt.Errorf("scan notification queue row: %w", err)
 		}
 
 		if variablesJSON.Valid {
-			json.Unmarshal([]byte(variablesJSON.String), &nq.Variables)
+			if err := json.Unmarshal([]byte(variablesJSON.String), &nq.Variables); err != nil {
+				return fmt.Errorf("decode variables for notification %d: %w", nq.ID, err)
+			}
 		}
 
 		// Process notification
 		go ds.processNotification(&nq)
 		processed++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate notification queue: %w", err)
 	}
 
 	return nil
@@ -186,7 +190,10 @@ func (ds *DeliverySystem) ProcessQueue() error {
 // processNotification processes a single notification
 func (ds *DeliverySystem) processNotification(nq *NotificationQueue) {
 	// Update state to sending
-	ds.updateState(nq.ID, StateSending)
+	if err := ds.updateState(nq.ID, StateSending); err != nil {
+		util.LogError("Unable to mark notification %d as sending: %v", nq.ID, err)
+		return
+	}
 
 	// Get channel
 	channel, err := ds.channelManager.GetChannel(nq.ChannelType)
@@ -225,14 +232,19 @@ func (ds *DeliverySystem) handleSuccess(nq *NotificationQueue) {
 	`, StateDelivered, now, now, nq.ID)
 
 	if err != nil {
+		util.LogError("Unable to mark notification %d as delivered: %v", nq.ID, err)
 		return
 	}
 
 	// Record in history
-	ds.recordHistory(nq, "delivered", "")
+	if err := ds.recordHistory(nq, "delivered", ""); err != nil {
+		util.LogError("Unable to record delivery history for notification %d: %v", nq.ID, err)
+	}
 
 	// Update channel stats
-	ds.channelManager.RecordSuccess(nq.ChannelType)
+	if err := ds.channelManager.RecordSuccess(nq.ChannelType); err != nil {
+		util.LogError("Unable to record channel success for %s: %v", nq.ChannelType, err)
+	}
 }
 
 // handleFailure handles delivery failure with retry logic
@@ -251,10 +263,16 @@ func (ds *DeliverySystem) handleFailure(nq *NotificationQueue, err error) {
 		`, StateDeadLetter, now, errorMsg, nq.RetryCount, now, nq.ID)
 
 		if dbErr == nil {
-			ds.recordHistory(nq, "dead_letter", errorMsg)
+			if err := ds.recordHistory(nq, "dead_letter", errorMsg); err != nil {
+				util.LogError("Unable to record dead-letter history for notification %d: %v", nq.ID, err)
+			}
+		} else {
+			util.LogError("Unable to dead-letter notification %d: %v", nq.ID, dbErr)
 		}
 
-		ds.channelManager.RecordFailure(nq.ChannelType, errorMsg)
+		if err := ds.channelManager.RecordFailure(nq.ChannelType, errorMsg); err != nil {
+			util.LogError("Unable to record channel failure for %s: %v", nq.ChannelType, err)
+		}
 		return
 	}
 
@@ -269,10 +287,16 @@ func (ds *DeliverySystem) handleFailure(nq *NotificationQueue, err error) {
 	`, StateFailed, nq.RetryCount, nextRetry, errorMsg, time.Now(), nq.ID)
 
 	if dbErr == nil {
-		ds.recordHistory(nq, "failed", errorMsg)
+		if err := ds.recordHistory(nq, "failed", errorMsg); err != nil {
+			util.LogError("Unable to record failed-delivery history for notification %d: %v", nq.ID, err)
+		}
+	} else {
+		util.LogError("Unable to schedule retry for notification %d: %v", nq.ID, dbErr)
 	}
 
-	ds.channelManager.RecordFailure(nq.ChannelType, errorMsg)
+	if err := ds.channelManager.RecordFailure(nq.ChannelType, errorMsg); err != nil {
+		util.LogError("Unable to record channel failure for %s: %v", nq.ChannelType, err)
+	}
 }
 
 // calculateNextRetry calculates the next retry time based on retry count
@@ -316,9 +340,12 @@ func (ds *DeliverySystem) recordHistory(nq *NotificationQueue, status, errorMsg 
 		"retry_count": nq.RetryCount,
 		"priority":    nq.Priority,
 	}
-	metadataJSON, _ := json.Marshal(metadata)
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("encode notification history metadata: %w", err)
+	}
 
-	_, err := database.ExecContext(context.Background(), ds.serverDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), ds.serverDB(), database.TimeoutWrite, `
 		INSERT INTO notification_history
 		(queue_id, user_id, channel_type, status, subject, body, delivered_at, error_message, metadata)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -345,9 +372,10 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 
 		if err == nil && recipient != "" {
 			var config map[string]interface{}
-			json.Unmarshal([]byte(recipient), &config)
-			if addr, ok := config["address"]; ok {
-				return fmt.Sprintf("%v", addr)
+			if err := json.Unmarshal([]byte(recipient), &config); err == nil {
+				if addr, ok := config["address"]; ok {
+					return fmt.Sprintf("%v", addr)
+				}
 			}
 		}
 
@@ -357,8 +385,11 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 			// Reads users.db: users is declared in
 			// database.UsersSchema, not ServerSchema, so the injected server
 			// handle is not the right database for this fallback lookup.
-			database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM users WHERE id = ?", nq.UserID.Int64).Scan(&email)
-			return email
+			if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM users WHERE id = ?", nq.UserID.Int64).Scan(&email); err == nil {
+				return email
+			} else {
+				util.LogWarn("Unable to find email recipient for notification %d: %v", nq.ID, err)
+			}
 		}
 	}
 
@@ -385,35 +416,44 @@ func (ds *DeliverySystem) GetQueueStats() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	stateCounts := make(map[string]int)
 	for rows.Next() {
 		var state string
 		var count int
-		rows.Scan(&state, &count)
+		if err := rows.Scan(&state, &count); err != nil {
+			return nil, fmt.Errorf("scan notification state count: %w", err)
+		}
 		stateCounts[state] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate notification state counts: %w", err)
 	}
 
 	stats["by_state"] = stateCounts
 
 	// Total pending (created + queued + failed with retry)
 	var pending int
-	database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, `
+	if err := database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*)
 		FROM notification_queue
 		WHERE state IN (?, ?, ?)
 		  AND (next_retry_at IS NULL OR next_retry_at <= ?)
-	`, StateCreated, StateQueued, StateFailed, time.Now()).Scan(&pending)
+	`, StateCreated, StateQueued, StateFailed, time.Now()).Scan(&pending); err != nil {
+		return nil, fmt.Errorf("count pending notifications: %w", err)
+	}
 	stats["pending"] = pending
 
 	// Dead letters
 	var deadLetters int
-	database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, `
+	if err := database.QueryRowContext(context.Background(), ds.serverDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*)
 		FROM notification_queue
 		WHERE state = ?
-	`, StateDeadLetter).Scan(&deadLetters)
+	`, StateDeadLetter).Scan(&deadLetters); err != nil {
+		return nil, fmt.Errorf("count dead-letter notifications: %w", err)
+	}
 	stats["dead_letters"] = deadLetters
 
 	return stats, nil

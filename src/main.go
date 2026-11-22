@@ -34,11 +34,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/webappsgo/wthr/src/cli"
+	"github.com/webappsgo/wthr/src/cluster"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/display"
+	commonformat "github.com/webappsgo/wthr/src/common/format"
 	"github.com/webappsgo/wthr/src/common/httputil"
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
@@ -74,7 +77,9 @@ func getDefaultListenAddress() string {
 	// Try to listen on dual-stack IPv6
 	listener, err := net.Listen("tcp", "[::]:0")
 	if err == nil {
-		listener.Close()
+		if closeErr := listener.Close(); closeErr != nil {
+			log.Printf("WARNING: failed to close IPv6 probe listener: %v", closeErr)
+		}
 		// IPv6 dual-stack supported (includes IPv4)
 		return "::"
 	}
@@ -97,7 +102,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 func writeText(w http.ResponseWriter, status int, format string, args ...interface{}) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-	fmt.Fprintf(w, format, args...)
+	_, _ = fmt.Fprintf(w, format, args...)
 }
 
 func validCLIBinaryName(name, projectName string) bool {
@@ -373,7 +378,9 @@ func runServer() {
 			}
 
 			// Release the child and exit parent
-			proc.Release()
+			if err := proc.Release(); err != nil {
+				log.Printf("WARNING: failed to release daemon process handle: %v", err)
+			}
 			fmt.Printf("Started daemon with PID %d\n", proc.Pid)
 			os.Exit(0)
 		}
@@ -463,6 +470,10 @@ func runServer() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(2)
 	}
+	if err := cluster.JoinFromEnvironment(dirPaths.Config, dirPaths.Log); err != nil {
+		log.Printf("Cluster enrollment failed: %v", err)
+		os.Exit(3)
+	}
 
 	// AI.md PART 8 step 8e: PORT, then server.port from server.yml, then a random 64xxx port
 	startupPorts, err := util.ResolveStartupPorts(dirPaths.Config)
@@ -493,10 +504,13 @@ func runServer() {
 	// Print startup timestamp
 	startTime := time.Now()
 	appLogger.Printf("%s", startTime.Format("2006-01-02 at 15:04:05"))
-	fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), startTime.Format("2006-01-02 at 15:04:05"))
+	fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), commonformat.Timestamp(startTime))
 
 	// TEMPLATE.md PART 1: First Run Detection and Auto-Configuration
 	isFirstRun := util.DetectFirstRun(dirPaths.Data)
+	if database.RemoteDatabaseConfigured() {
+		isFirstRun = false
+	}
 	var setupToken string
 
 	if isFirstRun {
@@ -545,10 +559,18 @@ func runServer() {
 		appLogger.Error("Failed to initialize dual database system: %v", err)
 		os.Exit(3)
 	}
-	defer dualDB.Close()
+	defer func() {
+		if err := dualDB.Close(); err != nil {
+			appLogger.Error("Failed to close database system: %v", err)
+		}
+	}()
 
 	// Set global instance for handler access
 	database.SetGlobalDualDB(dualDB)
+	if err := (&model.SettingsModel{DB: dualDB.Server}).MigrateLegacyDatabaseSettings(); err != nil {
+		appLogger.Error("Failed to migrate legacy settings into YAML config files: %v", err)
+		os.Exit(3)
+	}
 
 	// AI.md PART 11 "Cryptographic Keys": installation_secret, cookie_signing_key and csrf_token_secret
 	// are generated on first start, before the setup token is shown
@@ -565,10 +587,8 @@ func runServer() {
 	db := &database.DB{DB: dualDB.Users}
 
 	// Check if setup is complete
-	var setupComplete bool
-	var setupValue string
-	err = dualDB.QueryRowServer("SELECT value FROM server_config WHERE key = 'setup.completed'").Scan(&setupValue)
-	setupComplete = (err == nil && setupValue == "true")
+	setupValue, setupExists, setupConfigErr := config.ReadSetting("setup.completed")
+	setupComplete := setupConfigErr == nil && setupExists && config.IsTruthy(fmt.Sprint(setupValue))
 
 	// If first run, store setup token hash in file
 	// AI.md: Setup token stored as SHA-256 hash in {config_dir}/setup_token.txt
@@ -600,6 +620,47 @@ func runServer() {
 
 	// Set global config for handler access
 	config.SetGlobalConfig(cfg)
+
+	clusterEnabledSetting, _, clusterConfigErr := config.ReadSetting("server.cluster.enabled")
+	if clusterConfigErr != nil {
+		appLogger.Printf("WARNING: Could not read cluster mode setting: %v", clusterConfigErr)
+	}
+	remoteClusterMode := database.IsRemoteDatabase(database.GetServerDB())
+	if config.IsTruthy(fmt.Sprint(clusterEnabledSetting)) && !remoteClusterMode {
+		appLogger.Error("Cluster mode requires a configured PostgreSQL or MySQL database")
+		os.Exit(3)
+	}
+	if remoteClusterMode {
+		nodeID, err := os.Hostname()
+		if err != nil || strings.TrimSpace(nodeID) == "" {
+			nodeID = uuid.NewString()
+		}
+		nodeHost := "localhost"
+		if cfg != nil {
+			if strings.TrimSpace(cfg.Server.FQDN) != "" {
+				nodeHost = strings.TrimSpace(cfg.Server.FQDN)
+			} else if strings.TrimSpace(cfg.Server.Address) != "" {
+				nodeHost = strings.TrimSpace(cfg.Server.Address)
+			}
+		}
+		nodePort := "0"
+		if cfg != nil && cfg.Server.Port != nil {
+			nodePort = strings.TrimSpace(fmt.Sprint(cfg.Server.Port))
+		}
+		manager := cluster.NewClusterManager(database.GetServerDB(), nodeID, net.JoinHostPort(nodeHost, nodePort), true)
+		if err := manager.StartClusterManager(); err != nil {
+			appLogger.Error("Failed to start cluster manager: %v", err)
+			os.Exit(3)
+		}
+		defer manager.StopClusterManager()
+		if syncedConfig, syncErr := config.CurrentConfig(); syncErr == nil {
+			cfg = syncedConfig
+			config.SetGlobalConfig(cfg)
+		} else {
+			appLogger.Error("Failed to load synchronized cluster configuration: %v", syncErr)
+			os.Exit(3)
+		}
+	}
 
 	// AI.md PART 11 "Rotation contract": during the 30 day grace period at-rest reads fall back to the
 	// previous encryption key, and a re-encryption that a crash interrupted is finished at start
@@ -654,22 +715,15 @@ func runServer() {
 
 	// Note: Version and BuildDate are embedded in binary via LDFLAGS, not in config file
 
-	// Initialize default settings with proper backup path
 	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-	backupPath := util.GetBackupPath(dirPaths)
-	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
-		appLogger.Error("Warning: Could not initialize default settings: %v", err)
-		fmt.Printf("%s Warning: Could not initialize default settings: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-	}
 
 	// Cluster and remote-database deployments require a shared Valkey/Redis
 	// backend. Do not report a local memory cache as healthy in those modes.
-	var clusterEnabled string
-	clusterStateErr := database.QueryRowContext(context.Background(), dualDB.Server, database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled)
-	if clusterStateErr != nil && clusterStateErr != sql.ErrNoRows {
+	clusterEnabledValue, _, clusterStateErr := config.ReadSetting("server.cluster.enabled")
+	if clusterStateErr != nil {
 		appLogger.Printf("WARNING: Could not determine cluster mode for cache validation: %v", clusterStateErr)
 	}
-	runtimeCacheConfig, sharedCacheMisconfigured := runtimeCacheConfigForMode(cfg, strings.EqualFold(strings.TrimSpace(clusterEnabled), "true"))
+	runtimeCacheConfig, sharedCacheMisconfigured := runtimeCacheConfigForMode(cfg, config.IsTruthy(fmt.Sprint(clusterEnabledValue)))
 	if sharedCacheMisconfigured {
 		appLogger.Printf("WARNING: Cluster or remote database mode requires Redis/Valkey; the configured cache backend will be reported unavailable")
 	}
@@ -688,18 +742,26 @@ func runServer() {
 
 	oidcService := service.NewOIDCService()
 	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db.DB, OIDCService: oidcService}
+	samlService := service.NewSAMLService()
+	samlAuthHandler := &handler.SAMLAuthHandler{DB: db.DB, Service: samlService, OIDC: oidcAuthHandler}
 
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
-	// SMTPService reads server_config and server_notification_channels, both of which live in server.db
+	// SMTP settings are loaded from canonical YAML config and secrets files.
 	smtpService := service.SharedSMTPService(dualDB.Server)
 	if err := smtpService.LoadConfig(); err == nil {
 		// Check if SMTP is not already configured
 		smtpHost := settingsModel.GetString("smtp.host", "")
 		if smtpHost == "" {
 			// Try auto-detect
-			if detected, _ := smtpService.AutoDetect(); detected {
+			detected, detectErr := smtpService.AutoDetect()
+			if detectErr != nil {
+				appLogger.Printf("WARNING: SMTP auto-detection failed: %v", detectErr)
+			}
+			if detected {
 				// SMTP detected, enable it
-				settingsModel.SetBool("smtp.enabled", true)
+				if err := settingsModel.SetBool("smtp.enabled", true); err != nil {
+					appLogger.Error("Failed to persist SMTP enabled setting: %v", err)
+				}
 				detectedMsg := startupTranslate("startup.smtp.detected", "SMTP server auto-detected and enabled")
 				appLogger.Printf("%s", detectedMsg)
 				fmt.Printf("%s %s\n", display.Emoji("✉️", "*"), detectedMsg)
@@ -714,14 +776,18 @@ func runServer() {
 				hostname = "localhost"
 			}
 			defaultFromAddr := fmt.Sprintf("no-reply@%s", hostname)
-			settingsModel.SetString("smtp.from_address", defaultFromAddr)
+			if err := settingsModel.SetString("smtp.from_address", defaultFromAddr); err != nil {
+				appLogger.Error("Failed to persist SMTP from address: %v", err)
+			}
 		}
 
 		// Set default from_name to server.title if not set
 		fromName := settingsModel.GetString("smtp.from_name", "")
 		if fromName == "" {
 			serverTitle := settingsModel.GetString("server.title", "Weather")
-			settingsModel.SetString("smtp.from_name", serverTitle)
+			if err := settingsModel.SetString("smtp.from_name", serverTitle); err != nil {
+				appLogger.Error("Failed to persist SMTP from name: %v", err)
+			}
 		}
 
 		// Reload so the defaults just persisted are part of the tested config
@@ -732,7 +798,9 @@ func runServer() {
 			// attempt the SMTP handshake. Success enables email; failure disables
 			// it, logs a warning, keeps the server running, and retries next startup.
 			if err := smtpService.VerifyConfiguredConnection(); err != nil {
-				settingsModel.SetBool("smtp.enabled", false)
+				if err := settingsModel.SetBool("smtp.enabled", false); err != nil {
+					appLogger.Error("Failed to disable SMTP after connection check failed: %v", err)
+				}
 				unreachableMsg := startupTranslate("startup.smtp.unreachable", "SMTP server unreachable - email features disabled")
 				appLogger.Printf("Warning: %s: %v", unreachableMsg, err)
 				fmt.Printf("%s %s\n", display.Emoji("⚠️", "WARNING:"), unreachableMsg)
@@ -900,6 +968,10 @@ func runServer() {
 
 	// AI.md PART 12: valid Bearer tokens are limited per token, not per IP
 	middleware.SetRateLimitTokenDBs(database.GetServerDB(), database.GetUsersDB())
+	// AI.md PART 12: allowlisted IPs bypass network blocklists and rate limits,
+	// but continue through GeoIP's deny-only layer and every authentication check.
+	r.Use(middleware.AllowlistMiddleware())
+	r.Use(middleware.BlocklistMiddleware(database.GetServerDB()))
 
 	// Global rate limiting middleware (100 req/s)
 	r.Use(middleware.GlobalRateLimitMiddleware())
@@ -912,11 +984,23 @@ func runServer() {
 	// requests on routes that are not otherwise covered by a narrower bucket.
 	r.Use(middleware.ReadRateLimitMiddleware())
 
+	var geoipService *service.GeoIPService
+	r.Use(middleware.GeoIPCountryBlocker(func(ip string) (string, error) {
+		if geoipService == nil {
+			return "", fmt.Errorf("GeoIP service is not initialized")
+		}
+		location, err := geoipService.LookupIP(ip)
+		if err != nil {
+			return "", err
+		}
+		return location.CountryCode, nil
+	}))
+
 	// AI.md PART 14: /api/** honors Accept: text/plain and .txt by re-serializing JSON
 	r.Use(middleware.ContentNegotiation)
 
 	// Server context middleware - injects server title/tagline/description
-	r.Use(middleware.InjectServerContext(db.DB, Version))
+	r.Use(middleware.InjectServerContext(db.DB, Version, BuildDate))
 
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
 	// AdminSetupRequired middleware applied to admin routes only (see admin route group below)
@@ -980,6 +1064,8 @@ func runServer() {
 		os.Exit(1)
 	}
 	staticFileServer := pwa.StaticCache(http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS))))
+	r.Get("/static/css/accent.css", handler.ServeAccentCSS)
+	r.Get("/assets/{name}", handler.ServeBrandingAsset)
 	r.Handle("/static/*", staticFileServer)
 	r.Get("/sw.js", pwa.ServiceWorker)
 	r.Get("/manifest.json", pwa.Manifest)
@@ -999,7 +1085,7 @@ func runServer() {
 
 	// Walk the filesystem and collect all .tmpl files
 	var templatePaths []string
-	fs.WalkDir(templatesSubFS, ".", func(path string, d fs.DirEntry, err error) error {
+	if err := fs.WalkDir(templatesSubFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1007,7 +1093,10 @@ func runServer() {
 			templatePaths = append(templatePaths, path)
 		}
 		return nil
-	})
+	}); err != nil {
+		log.Printf("Failed to enumerate embedded templates: %v", err)
+		os.Exit(1)
+	}
 
 	// Debug: Print loaded templates
 	if mode.IsDebugEnabled() {
@@ -1037,6 +1126,9 @@ func runServer() {
 		// i18n translation function - expects lang to be set in template data
 		"t": func(lang, key string) string {
 			return i18nService.T(lang, key)
+		},
+		"tp": func(lang, key string, count int) string {
+			return i18nService.TPlural(lang, key, count)
 		},
 		// i18n translation function with {variable} interpolation - pairs are
 		// varname/value pairs substituted into the translated text
@@ -1139,7 +1231,7 @@ func runServer() {
 	})
 
 	// Initialize GeoIP service (downloads database on first run, updates weekly)
-	geoipService := service.NewGeoIPService(dirPaths.Data)
+	geoipService = service.NewGeoIPService(dirPaths.Data)
 
 	// AI.md PART 13: dataset checks are re-run at most every 60 seconds; requests read cached results
 	healthCtx, stopHealth := context.WithCancel(context.Background())
@@ -1199,6 +1291,13 @@ func runServer() {
 
 	// Set Tor status provider for health checks (AI.md PART 32)
 	handler.SetTorStatusProvider(torService)
+	util.SetTorAddressProvider(func() (string, bool) {
+		if torService == nil || !torService.IsRunning() {
+			return "", false
+		}
+		address := torService.GetOnionAddress()
+		return address, address != ""
+	})
 
 	// Initialize the I2P eepsite manager (AI.md PART 32.2 - OPTIONAL, opt-in).
 	// Construction is always safe; the manager is inert while the feature is off.
@@ -1227,50 +1326,41 @@ func runServer() {
 		log.Printf("Configuration reloaded from %s", configPath)
 		fmt.Printf("%s Configuration reloaded from %s\n", display.Emoji("🔄", "->"), configPath)
 
-		// Update all configuration sections that can be changed at runtime
-		cfg.Server.Mode = newCfg.Server.Mode
-		cfg.Server.Branding = newCfg.Server.Branding
-		cfg.Server.SEO = newCfg.Server.SEO
-		cfg.Web = newCfg.Web
-		cfg.Server.Notifications = newCfg.Server.Notifications
-		cfg.Server.Update = newCfg.Server.Update
-		cfg.Server.RateLimit = newCfg.Server.RateLimit
+		// Apply subsystem changes against the fully validated replacement
+		// snapshot. Publish the new immutable config only after these succeed.
 		// Cache backend changes are persisted and exposed as pending restart;
 		// the shared manager captured by middleware is intentionally unchanged.
-		cfg.Server.Cache = newCfg.Server.Cache
-		cfg.Server.Tor = newCfg.Server.Tor
-		cfg.Server.Features = newCfg.Server.Features
 
 		// AI.md PART 32.2: apply I2P changes live through the manager
-		cfg.Server.I2P = newCfg.Server.I2P
 		if i2pManager != nil {
-			if err := i2pManager.UpdateConfig(&cfg.Server.I2P); err != nil {
+			if err := i2pManager.UpdateConfig(&newCfg.Server.I2P); err != nil {
 				log.Printf("Failed to apply I2P configuration: %v", err)
 			}
 		}
 
 		// AI.md PART 11: a server.token edited in server.yml (or synced in a cluster) takes effect at once
-		if newCfg.Server.Token != cfg.Server.Token {
-			cfg.Server.Token = newCfg.Server.Token
-			middleware.SetOperatorToken(cfg.Server.Token)
+		if currentCfg := config.GetGlobalConfig(); currentCfg == nil || newCfg.Server.Token != currentCfg.Server.Token {
+			middleware.SetOperatorToken(newCfg.Server.Token)
 		}
 
 		// AI.md PART 19: apply scheduler timezone, catch-up window and per-task schedules live
-		cfg.Server.Scheduler = newCfg.Server.Scheduler
 		if taskScheduler != nil {
-			taskScheduler.Configure(cfg.Server.Scheduler)
+			taskScheduler.Configure(newCfg.Server.Scheduler)
 		}
 
 		// AI.md PART 15: apply the Let's Encrypt settings live and seal any plaintext dns-01 credential
-		cfg.Server.SSL.LetsEncrypt = newCfg.Server.SSL.LetsEncrypt
-		if err := util.SealConfigDNSCredentials(cfg); err != nil {
+		if err := util.SealConfigDNSCredentials(newCfg); err != nil {
 			log.Printf("ERROR: could not encrypt the dns-01 credentials: %v", err)
 		}
 
-		// Update global config for handlers
-		config.SetGlobalConfig(cfg)
+		// Atomic publication ensures each request observes either the old
+		// complete snapshot or the new complete snapshot.
+		config.SetGlobalConfig(newCfg)
 
 		// Port changes require a manual restart to take effect.
+		if err := config.SyncSharedConfigFromFiles(); err != nil {
+			log.Printf("WARNING: configuration file changes will be retried when the shared database is available: %v", err)
+		}
 		log.Println("OK: All configuration sections reloaded (branding, SEO, theme, email, notifications, rate limiting, web, Tor, features)")
 		fmt.Printf("%s All configuration sections reloaded successfully\n", display.Emoji("✅", "[OK]"))
 
@@ -1285,6 +1375,7 @@ func runServer() {
 	// AI.md PART 19: task state persists in server.db, so the scheduler must hold
 	// the server handle - the users handle created above has no server_* tables.
 	taskScheduler = scheduler.NewScheduler(dualDB.Server)
+	scheduler.SetAppVersion(Version)
 	// AI.md PART 19: timezone, catch-up window and every task's schedule and enabled state come from server.scheduler
 	taskScheduler.Configure(cfg.Server.Scheduler)
 	var notificationService *service.NotificationService
@@ -1429,7 +1520,11 @@ func runServer() {
 		if err != nil {
 			return fmt.Errorf("failed to list saved locations for the weather refresh: %w", err)
 		}
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				log.Printf("WARNING: failed to close weather cache refresh rows: %v", err)
+			}
+		}()
 		count := 0
 		for rows.Next() {
 			var lat, lon float64
@@ -1558,7 +1653,7 @@ func runServer() {
 	historyHandler := handler.NewHistoryHandler(weatherService, settingsModel)
 
 	// Create auth handlers
-	authHandler := &handler.AuthHandler{DB: db.DB}
+	authHandler := &handler.AuthHandler{DB: db.DB, SAML: samlAuthHandler}
 	authAPIHandler := handler.NewAuthAPIHandler(db.DB)
 	twoFAHandler := &handler.TwoFactorHandler{DB: db.DB}
 	passkeyHandler := handler.NewPasskeyHandler(db.DB)
@@ -1569,6 +1664,7 @@ func runServer() {
 	// Server Admin accounts, preferences, invites and passkeys live in users.db (AI.md PART 12)
 	adminAccountsDB := database.GetUsersDB()
 	adminPasskeyHandler := handler.NewAdminPasskeyHandler(adminAccountsDB)
+	adminTOTPHandler := handler.NewAdminTOTPHandler(adminAccountsDB)
 	adminInviteService := service.NewAdminInviteService(adminAccountsDB, "", smtpService)
 	userInviteModel := &model.UserInviteModel{DB: database.GetUsersDB()}
 	locationHandler := &handler.LocationHandler{
@@ -1641,8 +1737,8 @@ func runServer() {
 	adminUsersHandler := &handler.AdminUsersHandler{ConfigPath: configPath}
 	adminAuthHandler := &handler.AdminAuthSettingsHandler{ConfigPath: configPath}
 	adminWeatherHandler := &handler.AdminWeatherHandler{ConfigPath: configPath}
-	adminNotificationsHandler := &handler.AdminNotificationsHandler{ConfigPath: configPath}
-	adminGeoIPHandler := &handler.AdminGeoIPHandler{ConfigPath: configPath}
+	adminNotificationsHandler := &handler.AdminNotificationsHandler{ConfigPath: configPath, UsersDB: database.GetUsersDB()}
+	adminGeoIPHandler := &handler.AdminGeoIPHandler{DataDir: dirPaths.Data, Scheduler: taskScheduler}
 
 	// Create user settings handler (AI.md PART 34: Multi-user support)
 	userSettingsHandler := handler.NewUserSettingsHandler(db.DB)
@@ -1744,6 +1840,7 @@ func runServer() {
 
 	// Create admin web handler (robots.txt, security.txt)
 	adminWebHandler := handler.NewAdminWebHandler(db)
+	adminBrandingHandler := handler.NewAdminBrandingHandler()
 	operatorTokenHandler := handler.NewAdminOperatorTokenHandler()
 	encryptionKeyHandler := handler.NewAdminEncryptionKeyHandler()
 
@@ -1944,6 +2041,7 @@ func runServer() {
 	r.Post("/server/auth/register", authHandler.HandleRegister)
 	r.Get("/server/auth/logout", authHandler.HandleLogout)
 	r.Post("/server/auth/logout", authHandler.HandleLogout)
+	r.Post("/server/auth/impersonation/stop", handler.StopUserImpersonation)
 
 	// Password reset routes (public)
 	r.Get("/server/auth/password/forgot", func(w http.ResponseWriter, r *http.Request) {
@@ -2304,6 +2402,15 @@ func runServer() {
 	// OIDC authentication routes (public) — per AI.md PART 34
 	r.Get("/server/auth/oidc/{provider}", oidcAuthHandler.StartLogin)
 	r.Get("/server/auth/oidc/{provider}/callback", oidcAuthHandler.Callback)
+	r.Get("/server/auth/saml/{provider}", samlAuthHandler.StartLogin)
+	r.Get("/server/auth/saml/{provider}/metadata", samlAuthHandler.Metadata)
+	r.Post("/server/auth/saml/{provider}/acs", samlAuthHandler.ACS)
+	r.Get("/server/auth/saml/{provider}/slo", samlAuthHandler.SAMLLogout)
+	r.Post("/server/auth/saml/{provider}/slo", samlAuthHandler.SAMLLogout)
+	r.Get("/server/auth/saml/{provider}/slo/callback", samlAuthHandler.SAMLLogout)
+	r.Post("/server/auth/saml/{provider}/slo/callback", samlAuthHandler.SAMLLogout)
+	r.Get("/server/auth/external/username", samlAuthHandler.ShowExternalUsername)
+	r.Post("/server/auth/external/username", samlAuthHandler.CompleteExternalUsername)
 
 	// LDAP authentication route (public)
 	r.Post("/server/auth/ldap", ldapAuthHandler.Login)
@@ -2393,6 +2500,7 @@ func runServer() {
 		adminRoutes.Post("/web/robots", adminWebHandler.UpdateRobotsTxt)
 		adminRoutes.Post("/web/feeds", adminWebHandler.UpdateFeedSettings)
 		adminRoutes.Post("/web/cors", adminWebHandler.UpdateCORSSettings)
+		adminRoutes.Post("/web/security", adminWebHandler.UpdateSecurityTxt)
 
 		adminRoutes.Get("/users", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
@@ -2403,30 +2511,109 @@ func runServer() {
 		})
 
 		adminRoutes.Get("/email", func(w http.ResponseWriter, r *http.Request) {
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			adminEmail := ""
+			if adminValue, ok := reqctx.GetValue(r.Context(), "admin"); ok {
+				if admin, ok := adminValue.(*model.Admin); ok {
+					adminEmail = admin.Email
+				}
+			}
+			fromEmail := settingsModel.GetString("from.email", settingsModel.GetString("smtp.from_address", ""))
+			fromName := settingsModel.GetString("from.name", settingsModel.GetString("smtp.from_name", ""))
+			smtpTLS := settingsModel.GetString("smtp.tls", "")
+			if smtpTLS == "" {
+				smtpTLS = settingsModel.GetString("smtp.encryption", "")
+			}
+			if smtpTLS == "" {
+				if settingsModel.GetBool("smtp.use_tls", true) {
+					smtpTLS = "starttls"
+				} else {
+					smtpTLS = "none"
+				}
+			}
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_email.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Email Settings - Admin",
-				"page":       "email",
-				"breadcrumb": "Email",
+				"title":             "Email Settings - Admin",
+				"page":              "email",
+				"breadcrumb":        "Email",
+				"flash":             handler.TakeFlash(w, r),
+				"smtp_enabled":      settingsModel.GetString("smtp.host", "") != "",
+				"smtp_host":         settingsModel.GetString("smtp.host", ""),
+				"smtp_port":         settingsModel.GetInt("smtp.port", 587),
+				"smtp_username":     settingsModel.GetString("smtp.username", ""),
+				"smtp_from_address": fromEmail,
+				"smtp_from_name":    fromName,
+				"smtp_tls":          smtpTLS,
+				"admin_email":       adminEmail,
 			}))
 		})
+		adminRoutes.Post("/email", handler.SaveEmailForm)
+		adminRoutes.Post("/email/test", handler.TestSMTPEmailForm)
+		adminRoutes.Post("/email/autodetect", handler.AutoDetectSMTPForm)
 
 		adminRoutes.Get("/database", func(w http.ResponseWriter, r *http.Request) {
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			databaseStatus := "Unavailable"
+			if db := database.GetServerDB(); db != nil {
+				if err := db.Ping(); err == nil {
+					databaseStatus = "Connected"
+				} else {
+					databaseStatus = "Connection failed"
+				}
+			}
+			cacheStatus := "Disabled"
+			cacheType := "none"
+			if cacheManager != nil {
+				cacheType = cacheManager.BackendType()
+				if cacheManager.IsEnabled() {
+					cacheStatus = "Connected"
+					if err := cacheManager.Ping(); err != nil {
+						cacheStatus = "Connection failed"
+					}
+				}
+			}
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_database.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Database & Cache - Admin",
-				"page":       "database",
-				"breadcrumb": "Database",
+				"title":                  "Database & Cache - Admin",
+				"page":                   "database",
+				"breadcrumb":             "Database",
+				"flash":                  handler.TakeFlash(w, r),
+				"database_driver":        settingsModel.GetString("database.driver", "file"),
+				"database_host":          settingsModel.GetString("database.host", ""),
+				"database_port":          settingsModel.GetString("database.port", ""),
+				"database_name":          settingsModel.GetString("database.name", ""),
+				"database_username":      settingsModel.GetString("database.username", ""),
+				"database_sslmode":       settingsModel.GetString("database.sslmode", "disable"),
+				"database_pool_size":     settingsModel.GetString("database.pool_size", "25"),
+				"database_timeout":       settingsModel.GetString("database.timeout", "30"),
+				"database_auto_optimize": settingsModel.GetBool("database.auto_optimize", false),
+				"database_status":        databaseStatus,
+				"cache_status":           cacheStatus,
+				"cache_type":             cacheType,
 			}))
 		})
+		adminRoutes.Post("/database", handler.SaveDatabaseForm)
+		adminRoutes.Post("/database/action", handler.DatabaseActionForm)
+		adminRoutes.Post("/database/test-config", handler.TestDatabaseConfigForm)
 
-		adminRoutes.Get("/info", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_system.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Server Information - Admin",
-				"page":       "info",
-				"breadcrumb": "Server Info",
-			}))
+		adminRoutes.Get("/info", handler.ShowAdminSystemInfo)
+		adminRoutes.Post("/info/gc", handler.RunAdminGarbageCollection)
+		adminRoutes.Post("/info/reload", handler.ReloadAdminConfigurationForm)
+		adminRoutes.Get("/info/export", handler.ExportAdminSystemInfo)
+		adminRoutes.Get("/info/routes", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			for _, route := range adminRoutes.Routes() {
+				if route.Pattern == "" || strings.HasPrefix(route.Pattern, "/info/routes") {
+					continue
+				}
+				for method := range route.Handlers {
+					if _, err := fmt.Fprintf(w, "%s %s\n", method, route.Pattern); err != nil {
+						return
+					}
+				}
+			}
 		})
 
 		adminRoutes.Get("/security", operatorTokenHandler.ShowSecurityPage)
+		adminRoutes.Post("/security/settings", handler.SaveSecuritySettingsForm)
 		adminRoutes.Post("/security/operator-token", operatorTokenHandler.RegenerateOperatorToken)
 		adminRoutes.Get("/security/encryption", encryptionKeyHandler.ShowEncryptionPage)
 		adminRoutes.Post("/security/encryption", encryptionKeyHandler.RotateEncryptionKey)
@@ -2443,21 +2630,13 @@ func runServer() {
 		adminRoutes.Get("/security/keypair/public", handler.DownloadSecurityPublicKey)
 		adminRoutes.Post("/security/keypair", handler.SecurityKeypairAction)
 
-		adminRoutes.Get("/security/tokens", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "API Tokens - Admin",
-				"page":       "tokens",
-				"breadcrumb": "API Tokens",
-			}))
-		})
+		adminRoutes.Get("/security/tokens", handler.ShowAdminTokensPage)
+		adminRoutes.Post("/security/tokens", handler.GenerateAdminTokenForm)
+		adminRoutes.Post("/security/tokens/{id}/revoke", handler.RevokeAdminTokenForm)
 
-		adminRoutes.Get("/logs", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "System Logs - Admin",
-				"page":       "logs",
-				"breadcrumb": "System Logs",
-			}))
-		})
+		adminRoutes.Get("/logs", logsHandler.ShowLogsPage)
+		adminRoutes.Get("/logs/download", logsHandler.DownloadLogs)
+		adminRoutes.Post("/logs/clear", logsHandler.ClearLogsForm)
 
 		adminRoutes.Get("/logs/audit", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
@@ -2472,36 +2651,80 @@ func runServer() {
 		adminRoutes.Get("/scheduler/{name}", schedulerHandler.ShowTaskPage)
 
 		adminRoutes.Get("/ssl", func(w http.ResponseWriter, r *http.Request) {
+			sslConfig := config.GetGlobalConfig().Server.SSL.LetsEncrypt
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "SSL/TLS Management - Admin",
-				"page":       "ssl",
-				"breadcrumb": "SSL/TLS",
+				"title":                "SSL/TLS Management - Admin",
+				"page":                 "ssl",
+				"breadcrumb":           "SSL/TLS",
+				"flash":                handler.TakeFlash(w, r),
+				"dns_provider":         sslConfig.DNSProvider,
+				"dns_providers":        service.DNSProviderNames(),
+				"dns_credentials_form": handler.DNSCredentialFormValue(),
 			}))
 		})
+		adminRoutes.Post("/ssl/revoke", sslHandler.RevokeCertificate)
+		adminRoutes.Post("/ssl/renew", sslHandler.RenewCertificate)
+		adminRoutes.Post("/ssl/auto-renew", sslHandler.StartAutoRenewal)
+		adminRoutes.Post("/ssl/obtain", sslHandler.ObtainCertificate)
+		adminRoutes.Post("/ssl/dns", sslHandler.SaveDNSSettings)
 
 		adminRoutes.Get("/backup", func(w http.ResponseWriter, r *http.Request) {
+			backupPassword, _ := config.ReadSecret("server.backup.encryption_password")
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Backup Management - Admin",
-				"page":       "backup",
-				"breadcrumb": "Backup",
+				"title":                        "Backup Management - Admin",
+				"page":                         "backup",
+				"breadcrumb":                   "Backup",
+				"flash":                        handler.TakeFlash(w, r),
+				"backup_encryption_configured": backupPassword != "",
+				"backup_files":                 handler.BackupFilesForPage(),
 			}))
 		})
+		adminRoutes.Post("/backup/encryption", handler.SaveBackupEncryptionPassword)
+		adminRoutes.Post("/backup/create", handler.CreateBackup)
+		adminRoutes.Post("/backup/schedule", handler.SaveBackupScheduleForm)
+		adminRoutes.Post("/backup/restore", handler.RestoreBackupForm)
+		adminRoutes.Get("/backup/{filename}/download", handler.DownloadBackup)
 
 		adminRoutes.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			metrics := config.DefaultMetricsConfig()
+			if cfg := config.GetGlobalConfig(); cfg != nil {
+				metrics = cfg.Server.Metrics
+			}
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_metrics.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Metrics Configuration - Admin",
-				"page":       "metrics",
-				"breadcrumb": "Metrics",
+				"title":                         "Metrics Configuration - Admin",
+				"page":                          "metrics",
+				"breadcrumb":                    "Metrics",
+				"flash":                         handler.TakeFlash(w, r),
+				"metrics_enabled":               metrics.Enabled,
+				"metrics_root_alias_enabled":    metrics.Root.Enabled,
+				"metrics_allow_unauthenticated": metrics.Auth.AllowUnauthenticated,
+				"metrics_include_system":        metrics.IncludeSystem,
+				"metrics_include_runtime":       metrics.IncludeRuntime,
+				"metrics_loki_max_entries":      metrics.Loki.MaxEntries,
+				"metrics_loki_max_age":          metrics.Loki.MaxAge,
 			}))
 		})
+		adminRoutes.Get("/metrics/list", metricsConfigHandler.ListRegisteredMetrics)
+		adminRoutes.Get("/metrics/export", metricsConfigHandler.ExportMetrics)
+		adminRoutes.Post("/metrics", handler.SaveMetricsForm)
 
 		adminRoutes.Get("/network/tor", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Tor Hidden Service - Admin",
 				"page":       "tor",
 				"breadcrumb": "Tor Hidden Service",
+				"TorStatus":  torAdminHandler.GetServiceStatus(),
+				"flash":      handler.TakeFlash(w, r),
 			}))
 		})
+		adminRoutes.Post("/network/tor/enable", torAdminHandler.Enable)
+		adminRoutes.Post("/network/tor/disable", torAdminHandler.Disable)
+		adminRoutes.Post("/network/tor/regenerate", torAdminHandler.Regenerate)
+		adminRoutes.Post("/network/tor/vanity/generate", torAdminHandler.GenerateVanity)
+		adminRoutes.Post("/network/tor/vanity/cancel", torAdminHandler.CancelVanity)
+		adminRoutes.Post("/network/tor/vanity/apply", torAdminHandler.ApplyVanity)
+		adminRoutes.Post("/network/tor/import", torAdminHandler.ImportKeys)
+		adminRoutes.Get("/network/tor/export", torAdminHandler.ExportKeys)
 
 		// AI.md PART 32.2: I2P eepsite settings, opt-in and disabled by default
 		adminRoutes.Get("/network/i2p", i2pAdminHandler.ShowI2PSettings)
@@ -2584,18 +2807,38 @@ func runServer() {
 
 		// Admin settings sub-panels (already under /server/)
 		adminRoutes.Get("/users/settings", adminUsersHandler.ShowUserSettings)
+		adminRoutes.Post("/users/settings", adminUsersHandler.UpdateUserSettingsForm)
 		adminRoutes.Get("/settings/weather", adminWeatherHandler.ShowWeatherSettings)
+		adminRoutes.Post("/settings/weather", adminWeatherHandler.UpdateWeatherSettingsForm)
 		adminRoutes.Get("/notifications", adminNotificationsHandler.ShowNotificationSettings)
+		adminRoutes.Post("/notifications", adminNotificationsHandler.UpdateNotificationSettingsForm)
 		adminRoutes.Get("/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
+		adminRoutes.Post("/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
 
 		// AI.md PART 17: the admin's own account pages
 		// /{admin_path}/{admin_username}/profile - Admin's own profile
 		adminSelfRoutes.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+			var registered bool
+			var publicKey sql.NullString
+			if err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect,
+				"SELECT personal_pgp_public_key FROM admins WHERE id = ?", handler.AdminID(r)).Scan(&publicKey); err == nil {
+				registered = publicKey.Valid && strings.TrimSpace(publicKey.String) != ""
+			}
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_profile.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Admin Profile",
-				"page":  "profile",
+				"title":          "Admin Profile",
+				"page":           "profile",
+				"pgp_registered": registered,
+				"flash":          handler.TakeFlash(w, r),
 			}))
 		})
+		adminPGPFormHandler := handler.AdminPGPKeyHandler{DB: database.GetUsersDB()}
+		adminSelfRoutes.Post("/profile/security/pgp", adminPGPFormHandler.SaveForm)
+		adminSelfRoutes.Post("/profile/security/pgp/remove", adminPGPFormHandler.RemoveForm)
+		adminSelfRoutes.Get("/profile/security", adminTOTPHandler.ShowSecurityPage)
+		adminSelfRoutes.Post("/profile/security/totp/setup", adminTOTPHandler.SetupTOTP)
+		adminSelfRoutes.Post("/profile/security/totp/enable", adminTOTPHandler.EnableTOTP)
+		adminSelfRoutes.Post("/profile/security/totp/recovery/regenerate", adminTOTPHandler.RegenerateRecoveryKeys)
+		adminSelfRoutes.Post("/profile/security/totp/disable", adminTOTPHandler.DisableTOTP)
 
 		// /{admin_path}/{admin_username}/preferences - Admin preferences
 		adminSelfRoutes.Get("/preferences", func(w http.ResponseWriter, r *http.Request) {
@@ -2606,21 +2849,13 @@ func runServer() {
 		})
 
 		// /{admin_path}/{admin_username}/notifications - Admin notifications page
-		adminSelfRoutes.Get("/notifications", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_notifications.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Notifications",
-				"page":  "notifications",
-			}))
-		})
+		adminSelfRoutes.Get("/notifications", adminNotificationsHandler.ShowNotificationSettings)
+		adminSelfRoutes.Post("/notifications/preferences", adminNotificationsHandler.SaveAdminPreferencesForm)
 
 		// Additional management pages per spec
 		// /{admin_path}/branding - Branding & SEO
-		adminRoutes.Get("/branding", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_branding.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Branding & SEO - Admin",
-				"page":  "server-branding",
-			}))
-		})
+		adminRoutes.Get("/branding", adminBrandingHandler.Show)
+		adminRoutes.Post("/branding", adminBrandingHandler.Update)
 
 		// /{admin_path}/pages - Standard pages (about, privacy, contact)
 		adminRoutes.Get("/pages", func(w http.ResponseWriter, r *http.Request) {
@@ -2631,40 +2866,64 @@ func runServer() {
 		})
 
 		// /{admin_path}/roles - Role definitions
-		adminRoutes.Get("/roles", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_roles.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Role Definitions - Admin",
-				"page":  "server-roles",
-			}))
-		})
+		adminRoutes.Get("/roles", handler.ShowAdminRolesPage)
+		adminRoutes.Post("/roles", handler.CreateAdminRoleForm)
+		adminRoutes.Post("/roles/default", handler.SetDefaultAdminRoleForm)
+		adminRoutes.Post("/roles/{name}/permissions", handler.UpdateAdminRolePermissionsForm)
+		adminRoutes.Post("/roles/{name}/delete", handler.DeleteAdminRoleForm)
 
 		// /{admin_path}/security/auth - Authentication config
 		adminRoutes.Get("/security/auth", adminAuthHandler.ShowAuthSettings)
+		adminRoutes.Get("/security/auth/saml", adminAuthHandler.ShowAuthSettings)
+		adminRoutes.Get("/security/auth/saml/new", adminAuthHandler.ShowAuthSettings)
+		adminRoutes.Get("/security/auth/saml/{provider}", adminAuthHandler.ShowAuthSettings)
+		adminRoutes.Post("/security/auth", adminAuthHandler.UpdateAuthSettings)
+		adminRoutes.Post("/security/auth/saml/{provider}/delete", adminAuthHandler.DeleteSAMLProvider)
+		adminRoutes.Post("/security/auth/saml/{provider}/test", adminAuthHandler.TestSAMLProvider)
+		adminRoutes.Post("/security/auth/saml/{provider}/certificate/regenerate", adminAuthHandler.RegenerateSAMLSPCertificate)
 
-		// /{admin_path}/admins - Server admin accounts list
-		adminRoutes.Get("/admins", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_admins.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Server Admins - Admin",
-				"page":  "server-admins",
-			}))
-		})
+		// /{admin_path}/admins - Only the current admin's account and aggregate count.
+		adminRoutes.Get("/admins", handler.ShowServerAdminsPage)
 
 		// /{admin_path}/admins/invite - Invite new admin
 		adminRoutes.Get("/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+			pendingInvites, err := adminInviteService.GetPendingInvites()
+			if err != nil {
+				pendingInvites = nil
+				appLogger.Error("Failed to load pending admin invites: %v", err)
+			}
+			items := make([]map[string]interface{}, 0, len(pendingInvites))
+			for _, invite := range pendingInvites {
+				items = append(items, map[string]interface{}{
+					"email":      invite.InvitedEmail,
+					"expires_at": invite.ExpiresAt,
+					"url":        util.BuildURL(r, "/server/auth/invite/server/"+invite.Token),
+				})
+			}
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_invite.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Invite Admin - Admin",
-				"page":  "server-admins-invite",
+				"title":           "Invite Admin - Admin",
+				"page":            "server-admins-invite",
+				"pending_invites": items,
+				"flash":           handler.TakeFlash(w, r),
 			}))
+		})
+		adminRoutes.Post("/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+			if err := r.ParseForm(); err != nil {
+				handler.SetFlash(w, r, "error", "flash.admin_invite_create_failed")
+				http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
+				return
+			}
+			_, _, err := adminInviteService.CreateInviteWithBaseURL(r.PostFormValue("email"), int(handler.AdminID(r)), r.PostFormValue("expires_in"), util.BuildURL(r, ""))
+			if err != nil {
+				handler.SetFlash(w, r, "error", "flash.admin_invite_create_failed")
+			} else {
+				handler.SetFlash(w, r, "success", "flash.admin_invite_created")
+			}
+			http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
 		})
 
-		// /{admin_path}/admins/:id - Admin detail
-		adminRoutes.Get("/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":   "Admin Detail - Admin",
-				"page":    "server-admins",
-				"adminID": chi.URLParam(r, "id"),
-			}))
-		})
+		// Numeric admin IDs never expose other administrators' details.
+		adminRoutes.Get("/admins/{id}", handler.ShowAdminDetailPage)
 
 		renderAdminUserInvitesPage := func(w http.ResponseWriter, r *http.Request, status int, data map[string]interface{}) {
 			invites, err := userInviteModel.ListInvites()
@@ -2808,22 +3067,11 @@ func runServer() {
 			})
 		})
 
-		// /{admin_path}/moderation/users - User moderation
-		adminRoutes.Get("/moderation/users", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_moderation.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "User Moderation - Admin",
-				"page":  "moderation-users",
-			}))
-		})
-
-		// /{admin_path}/moderation/users/:id - User detail
-		adminRoutes.Get("/moderation/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_user_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":  "User Detail - Admin",
-				"page":   "moderation-users",
-				"userID": chi.URLParam(r, "id"),
-			}))
-		})
+		// /{admin_path}/moderation/users - User moderation, including audited impersonation.
+		adminRoutes.Get("/moderation/users", handler.ShowAdminModerationPage)
+		adminRoutes.Get("/moderation/users/{id}", handler.ShowAdminModerationUserPage)
+		adminRoutes.Post("/moderation/users/{id}", handler.AdminModerationUserAction)
+		adminRoutes.Post("/moderation/users/{id}/impersonate", handler.AdminModerationImpersonateUser)
 
 		// /{admin_path}/security/ratelimit - Rate limiting config
 		adminRoutes.Get("/security/ratelimit", func(w http.ResponseWriter, r *http.Request) {
@@ -2834,20 +3082,15 @@ func runServer() {
 		})
 
 		// /{admin_path}/security/firewall - IP allow/block lists
-		adminRoutes.Get("/security/firewall", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_firewall.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Firewall - Admin",
-				"page":  "security-firewall",
-			}))
-		})
+		adminRoutes.Get("/security/firewall", handler.ShowFirewall)
+		adminRoutes.Get("/security/blocked-ips", handler.ShowFirewall)
+		adminRoutes.Post("/security/firewall/blocks", handler.CreateIPBlock)
+		adminRoutes.Post("/security/firewall/blocks/{id}/delete", handler.DeleteIPBlock)
+		adminRoutes.Post("/security/firewall/allowlist", handler.AddAllowlist)
+		adminRoutes.Post("/security/firewall/allowlist/{id}/delete", handler.RemoveAllowlist)
 
 		// /{admin_path}/network/blocklists - IP/domain blocklists
-		adminRoutes.Get("/network/blocklists", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_blocklists.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Blocklists - Admin",
-				"page":  "network-blocklists",
-			}))
-		})
+		adminRoutes.Get("/network/blocklists", handler.ShowFirewall)
 
 		// /{admin_path}/maintenance - Maintenance mode
 		adminRoutes.Get("/maintenance", func(w http.ResponseWriter, r *http.Request) {
@@ -2870,12 +3113,14 @@ func runServer() {
 		})
 
 		// /{admin_path}/cluster/add - Add cluster node
-		adminRoutes.Get("/cluster/add", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_cluster_add.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title": "Add Cluster Node - Admin",
-				"page":  "server-cluster-add",
-			}))
-		})
+		adminRoutes.Get("/cluster/add", handler.ShowClusterAddPage)
+		adminRoutes.Get("/nodes/add", handler.ShowClusterAddPage)
+		adminRoutes.Post("/cluster/add/enable", handler.EnableClusterMode)
+		adminRoutes.Post("/cluster/add/token", handler.GenerateClusterJoinTokenForm)
+		adminRoutes.Get("/cluster/remove", handler.ShowClusterRemovePage)
+		adminRoutes.Post("/cluster/remove", handler.LeaveClusterForm)
+		adminRoutes.Get("/nodes/remove", handler.ShowClusterRemovePage)
+		adminRoutes.Post("/nodes/remove", handler.LeaveClusterForm)
 
 		// /{admin_path}/pages/help - Admin help & documentation.
 		// AI.md PART 17: everything except the admin's own account lives under
@@ -2931,6 +3176,8 @@ func runServer() {
 	apiV1.Post("/server/preferences", themePrefsHandler.SavePreferences)
 	apiV1.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
 	apiV1.Get("/server/preferences/import", themePrefsHandler.ImportPreferences)
+	apiV1.Get("/server/preferences/sync", themePrefsHandler.ExportPreferences)
+	apiV1.Get("/server/preferences/sync/import", themePrefsHandler.ImportPreferences)
 
 	// Weather API routes (optional auth + API rate limiting)
 	weatherAPI := chi.NewRouter()
@@ -3026,6 +3273,10 @@ func runServer() {
 	apiV1.Mount("/server/auth", authAPI)
 	{
 		// Public auth endpoints (no auth required)
+		authAPI.Get("/saml", samlAuthHandler.ListAPIProviders)
+		authAPI.Get("/saml/{provider}", samlAuthHandler.StartAPILogin)
+		authAPI.Post("/saml/{provider}/exchange", samlAuthHandler.ExchangeAPILogin)
+		authAPI.With(samlAuthHandler.APIAuthMiddleware).Post("/saml/{provider}/slo", samlAuthHandler.StartAPISAMLLogout)
 		authAPI.Get("/check", handler.HandleAuthCheck(database.GetServerDB(), database.GetUsersDB(), cfg))
 		authAPI.Post("/register", authAPIHandler.HandleAPIRegister)
 		authAPI.Post("/login", authAPIHandler.HandleAPILogin)
@@ -3158,6 +3409,7 @@ func runServer() {
 
 	// Admin API routes (require admin role + stricter rate limiting)
 	// AI.md: Admin API at /api/{api_version}/server/{admin_path}/
+	apiV1.Post("/server/"+cfg.GetAdminPath()+"/nodes/join", cluster.JoinHandler(database.GetServerDB()))
 	adminAPI := chi.NewRouter()
 	apiV1.Mount("/server/"+cfg.GetAdminPath(), adminAPI)
 	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerDB(), db.DB))
@@ -3168,6 +3420,8 @@ func runServer() {
 	// Log all admin API actions
 	adminAPI.Use(middleware.AuditLogger(db.DB))
 	{
+		adminAPI.Post("/nodes/token", handler.GenerateClusterJoinTokenAPI)
+		adminAPI.Post("/nodes/leave", handler.LeaveClusterAPI)
 		adminModel := &model.AdminModel{DB: adminAccountsDB}
 
 		// AI.md PART 17: the admin's own account API lives under
@@ -3175,7 +3429,6 @@ func runServer() {
 		adminSelfAPI := chi.NewRouter()
 		adminAPI.Mount("/{admin_username}", adminSelfAPI)
 		adminSelfAPI.Use(handler.RequireAdminSelfAPI())
-
 		getCurrentAdmin := func(w http.ResponseWriter, req *http.Request) (*model.Admin, bool) {
 			adminValue, exists := reqctx.GetValue(req.Context(), "admin")
 			if !exists {
@@ -3213,7 +3466,11 @@ func runServer() {
 			if err != nil {
 				return nil, fmt.Errorf("failed to query online admins: %w", err)
 			}
-			defer sessionRows.Close()
+			defer func() {
+				if err := sessionRows.Close(); err != nil {
+					log.Printf("WARNING: failed to close online admin session rows: %v", err)
+				}
+			}()
 
 			sessionCutoff := time.Now().UTC()
 
@@ -3244,7 +3501,11 @@ func runServer() {
 			if err != nil {
 				return nil, fmt.Errorf("failed to query online admin usernames: %w", err)
 			}
-			defer adminRows.Close()
+			defer func() {
+				if err := adminRows.Close(); err != nil {
+					log.Printf("WARNING: failed to close online admin rows: %v", err)
+				}
+			}()
 
 			var usernames []string
 			for adminRows.Next() {
@@ -3484,9 +3745,26 @@ func runServer() {
 		adminAPI.Put("/settings/cache", handler.UpdateCacheConfig)
 		adminAPI.Put("/settings/rate-limit", handler.UpdateRateLimitConfig)
 		adminAPI.Post("/security/auth", adminAuthHandler.UpdateAuthSettings)
+		adminAPI.Get("/security/auth/saml/providers", adminAuthHandler.ListSAMLProvidersAPI)
+		adminAPI.Post("/security/auth/saml/providers", adminAuthHandler.CreateSAMLProviderAPI)
+		adminAPI.Get("/security/auth/saml/providers/{provider}", adminAuthHandler.GetSAMLProviderAPI)
+		adminAPI.Patch("/security/auth/saml/providers/{provider}", adminAuthHandler.UpdateSAMLProviderAPI)
+		adminAPI.Delete("/security/auth/saml/providers/{provider}", adminAuthHandler.DeleteSAMLProvider)
+		adminAPI.Post("/security/auth/saml/providers/{provider}/test", adminAuthHandler.TestSAMLProvider)
+		adminAPI.Get("/security/auth/saml/providers/{provider}/metadata", adminAuthHandler.SAMLProviderMetadataAPI)
+		adminAPI.Post("/security/auth/saml/providers/{provider}/certificate", adminAuthHandler.RegenerateSAMLSPCertificate)
 		adminAPI.Post("/settings/weather", adminWeatherHandler.UpdateWeatherSettings)
 		adminAPI.Post("/notifications", adminNotificationsHandler.UpdateNotificationSettings)
 		adminAPI.Post("/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
+		adminAPI.Get("/security/allowlist", handler.ListAllowlist)
+		adminAPI.Get("/security/blocked-ips", handler.ListIPBlocks)
+		adminAPI.Post("/security/blocked-ips", handler.CreateIPBlock)
+		adminAPI.Delete("/security/blocked-ips/expired", handler.PurgeExpiredIPBlocks)
+		adminAPI.Get("/security/blocked-ips/{ip}", handler.GetIPBlock)
+		adminAPI.Delete("/security/blocked-ips/{ip}", handler.DeleteIPBlock)
+		adminAPI.Post("/security/allowlist", handler.AddAllowlist)
+		adminAPI.Delete("/security/allowlist/{id}", handler.RemoveAllowlist)
+		adminAPI.Get("/security/allowlist/check/{ip}", handler.CheckAllowlist)
 
 		// API token management under /server/security/
 		adminAPI.Get("/security/tokens", adminHandler.ListTokens)
@@ -3534,31 +3812,8 @@ func runServer() {
 		})
 
 		// Branding per spec: /api/{api_version}/{admin_path}/branding/
-		adminAPI.Get("/branding", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
-				"description": settingsModel.GetString("branding.description", cfg.Server.Branding.Description),
-				"logo_url":    settingsModel.GetString("branding.logo_url", ""),
-				"favicon_url": settingsModel.GetString("branding.favicon_url", ""),
-				"theme_color": settingsModel.GetString("branding.theme_color", ""),
-			})
-		})
-		adminAPI.Patch("/branding", func(w http.ResponseWriter, r *http.Request) {
-			var settings map[string]interface{}
-			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
-				return
-			}
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			for key, value := range settings {
-				if err := settingsModel.SetSetting("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
-					return
-				}
-			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.branding_settings_updated")})
-		})
+		adminAPI.Get("/branding", adminBrandingHandler.Get)
+		adminAPI.Patch("/branding", adminBrandingHandler.Update)
 
 		// Pages per spec: /api/{api_version}/{admin_path}/pages/
 		adminAPI.Get("/pages", func(w http.ResponseWriter, r *http.Request) {
@@ -3600,11 +3855,9 @@ func runServer() {
 		// Web settings per spec: /api/{api_version}/{admin_path}/web/
 		adminAPI.Get("/web", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			mcpDefault := cfg.Server.MCP.Enabled
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
-				"mcp_enabled":  settingsModel.GetBool("server.mcp.enabled", mcpDefault),
 			})
 		})
 		adminAPI.Patch("/web", func(w http.ResponseWriter, r *http.Request) {
@@ -3614,28 +3867,6 @@ func runServer() {
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			if value, exists := settings["mcp_enabled"]; exists {
-				var enabled bool
-				switch typed := value.(type) {
-				case bool:
-					enabled = typed
-				case string:
-					parsed, err := config.ParseBool(typed, false)
-					if err != nil {
-						handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", "mcp_enabled must be a boolean")
-						return
-					}
-					enabled = parsed
-				default:
-					handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", "mcp_enabled must be a boolean")
-					return
-				}
-				if err := settingsModel.SetBool("server.mcp.enabled", enabled); err != nil {
-					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update MCP setting")
-					return
-				}
-				delete(settings, "mcp_enabled")
-			}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
@@ -3990,6 +4221,11 @@ func runServer() {
 		adminSelfAPI.Get("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
 		adminSelfAPI.Post("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
 		adminSelfAPI.Delete("/profile/security/passkeys/{passkey_id}", adminPasskeyHandler.DeletePasskey)
+		adminSelfAPI.Get("/profile/security/totp", adminTOTPHandler.Status)
+		adminSelfAPI.Post("/profile/security/totp/setup", adminTOTPHandler.SetupTOTP)
+		adminSelfAPI.Post("/profile/security/totp/enable", adminTOTPHandler.EnableTOTP)
+		adminSelfAPI.Post("/profile/security/totp/recovery/regenerate", adminTOTPHandler.RegenerateRecoveryKeys)
+		adminSelfAPI.Post("/profile/security/totp/disable", adminTOTPHandler.DisableTOTP)
 
 		// Server admins per spec: /api/{api_version}/{admin_path}/admins/
 		adminAPI.Get("/admins", func(w http.ResponseWriter, r *http.Request) {
@@ -4486,7 +4722,7 @@ func runServer() {
 	})
 
 	// OpenAPI/Swagger documentation (AI.md PART 14)
-	registerSwaggerRoutes(r, cfg.GetAPIPath(), mcpServer.OpenAPI, handler.GetSwaggerUIAuto(cfg.GetAPIPath()))
+	registerSwaggerRoutes(r, cfg.GetAPIPath(), handler.GetOpenAPIJSON(), handler.GetSwaggerUIAuto(cfg.GetAPIPath()))
 	r.Get("/.well-known/llms.txt", mcpServer.LLMS)
 	r.Get("/llms.txt", mcpServer.LLMS)
 
@@ -4550,6 +4786,9 @@ func runServer() {
 	r.With(middleware.OptionalAuth(db.DB)).Post("/server/preferences", themePrefsHandler.SavePreferences)
 	r.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
 	r.Get("/server/preferences/import", themePrefsHandler.ImportPreferences)
+	r.Get("/server/preferences/sync", themePrefsHandler.ExportPreferences)
+	r.Get("/server/preferences/sync/import", themePrefsHandler.ImportPreferences)
+	r.Post("/server/preferences/sync", themePrefsHandler.ImportPreferences)
 	r.Post("/server/consent", themePrefsHandler.SaveConsent)
 	r.Post("/server/ccpa", themePrefsHandler.SaveCCPA)
 
@@ -4994,7 +5233,9 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 		if rowsErr := tokenRows.Err(); rowsErr != nil {
 			log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", rowsErr)
 		}
-		tokenRows.Close()
+		if err := tokenRows.Close(); err != nil {
+			log.Printf("WARNING: showServerStatus: failed to close token rows: %v", err)
+		}
 	}
 
 	// Display status

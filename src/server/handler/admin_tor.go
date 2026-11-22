@@ -2,12 +2,14 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -148,6 +150,10 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", true); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: settings_update_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", Translate(r, "errors.tor.settings_update_failed"))
 		return
@@ -155,11 +161,19 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 
 	// Start Tor service
 	if err := h.torService.StartTorService(httpPort); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: start_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "TOR_START_FAILED", Translate(r, "errors.tor.start_failed"))
 		return
 	}
 
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": Translate(r, "success.tor.service_started"),
@@ -172,6 +186,10 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", false); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: settings_update_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", Translate(r, "errors.tor.settings_update_failed"))
 		return
@@ -179,11 +197,19 @@ func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 
 	// Stop Tor service
 	if err := h.torService.StopTorService(); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: stop_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "TOR_STOP_FAILED", Translate(r, "errors.tor.stop_failed"))
 		return
 	}
 
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": Translate(r, "success.tor.service_stopped"),
@@ -216,15 +242,29 @@ func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 // Regenerate regenerates the .onion address
 // POST /{api_version}/admin/server/tor/regenerate
 func (h *TorAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil || r.PostForm.Get("confirm_regenerate") != "yes" {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", fmt.Errorf("address regeneration requires confirmation"))
+			return
+		}
+	}
 	// Should be retrieved from actual server config
 	httpPort := 8080
 
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: regenerate_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "REGENERATE_FAILED", Translate(r, "errors.tor.regenerate_failed"))
 		return
 	}
 
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": Translate(r, "success.tor.address_regenerated"),
@@ -238,19 +278,32 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Prefix string `json:"prefix"`
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		req.Prefix = strings.TrimSpace(r.PostForm.Get("prefix"))
+	} else if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.tor.invalid_prefix"))
 		return
 	}
 
 	// binding:"required" equivalent
 	if req.Prefix == "" {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", fmt.Errorf("prefix is required"))
+			return
+		}
 		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.tor.invalid_prefix"))
 		return
 	}
 
 	if err := h.vanityGenerator.StartVanityGeneration(req.Prefix); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: generation_failed: %v", err)
 		RespondError(w, r, http.StatusBadRequest, "GENERATION_FAILED", Translate(r, "errors.tor.generation_failed"))
 		return
@@ -258,6 +311,10 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 
 	// Start monitoring for completion in background
 	go h.monitorVanityGeneration()
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
@@ -301,8 +358,16 @@ func (h *TorAdminHandler) GetVanityStatus(w http.ResponseWriter, r *http.Request
 // POST /{api_version}/admin/server/tor/vanity/cancel
 func (h *TorAdminHandler) CancelVanity(w http.ResponseWriter, r *http.Request) {
 	if err := h.vanityGenerator.Cancel(); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: cancel_failed: %v", err)
 		RespondError(w, r, http.StatusBadRequest, "CANCEL_FAILED", Translate(r, "errors.tor.cancel_failed"))
+		return
+	}
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
 		return
 	}
 
@@ -318,6 +383,10 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 	// Get generated keys
 	publicKey, privateKey, err := h.vanityGenerator.GetKeys()
 	if err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: no_keys: %v", err)
 		RespondError(w, r, http.StatusBadRequest, "NO_KEYS", Translate(r, "errors.tor.no_keys"))
 		return
@@ -325,6 +394,10 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 
 	// Import keys
 	if err := h.keyManager.ImportKeys(publicKey, privateKey); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: import_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "IMPORT_FAILED", Translate(r, "errors.tor.import_failed"))
 		return
@@ -333,8 +406,16 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 	// Restart Tor with new keys
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		log.Printf("tor admin: restart_failed: %v", err)
 		RespondError(w, r, http.StatusInternalServerError, "RESTART_FAILED", Translate(r, "errors.tor.restart_failed"))
+		return
+	}
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
 		return
 	}
 
@@ -350,20 +431,56 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("key_file")
 	if err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		RespondError(w, r, http.StatusBadRequest, "NO_FILE", Translate(r, "errors.tor.no_key_file"))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Save uploaded file temporarily
-	tempPath := "/tmp/tor_key_upload"
-	dest, err := os.Create(tempPath)
-	if err == nil {
-		_, err = io.Copy(dest, file)
-		dest.Close()
-	}
+	tempRoot, err := os.MkdirTemp(os.TempDir(), "webappsgo-wthr-tor-")
 	if err != nil {
 		log.Printf("tor admin: save_failed: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		RespondError(w, r, http.StatusInternalServerError, "SAVE_FAILED", Translate(r, "errors.tor.save_failed"))
+		return
+	}
+	defer func() {
+		if err := os.Remove(tempRoot); err != nil && !os.IsNotExist(err) {
+			log.Printf("WARNING: tor admin: failed to remove temporary key directory: %v", err)
+		}
+	}()
+	dest, err := os.CreateTemp(tempRoot, "tor-key-upload-*")
+	if err != nil {
+		log.Printf("tor admin: save_failed: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
+		RespondError(w, r, http.StatusInternalServerError, "SAVE_FAILED", Translate(r, "errors.tor.save_failed"))
+		return
+	}
+	tempPath := dest.Name()
+	defer func() {
+		if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("WARNING: tor admin: failed to remove temporary key file: %v", err)
+		}
+	}()
+	_, copyErr := io.Copy(dest, file)
+	closeErr := dest.Close()
+	err = errors.Join(copyErr, closeErr)
+	if err != nil {
+		log.Printf("tor admin: save_failed: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		RespondError(w, r, http.StatusInternalServerError, "SAVE_FAILED", Translate(r, "errors.tor.save_failed"))
 		return
 	}
@@ -371,6 +488,10 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 	// Import from file
 	if err := h.keyManager.ImportFromFile(tempPath); err != nil {
 		log.Printf("tor admin: import_failed: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		RespondError(w, r, http.StatusBadRequest, "IMPORT_FAILED", Translate(r, "errors.tor.import_failed"))
 		return
 	}
@@ -379,10 +500,18 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
 		log.Printf("tor admin: restart_failed: %v", err)
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", err)
+			return
+		}
 		RespondError(w, r, http.StatusInternalServerError, "RESTART_FAILED", Translate(r, "errors.tor.restart_failed"))
 		return
 	}
 
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/network/tor"), "flash.settings_saved", "flash.settings_save_failed", nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": Translate(r, "success.tor.keys_imported"),
@@ -408,9 +537,12 @@ func (h *TorAdminHandler) ExportKeys(w http.ResponseWriter, r *http.Request) {
 	// Write key in Tor format (32-byte header + 32-byte key)
 	header := []byte("== ed25519v1-secret: type0 ==")
 	padding := make([]byte, 32-len(header))
-	w.Write(header)
-	w.Write(padding)
-	w.Write(privateKey)
+	for _, part := range [][]byte{header, padding, privateKey} {
+		if _, err := w.Write(part); err != nil {
+			log.Printf("tor admin: export_write_failed: %v", err)
+			return
+		}
+	}
 
 	// Public key can be derived from private
 	_ = publicKey

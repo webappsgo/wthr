@@ -48,7 +48,11 @@ func setupWeatherNotificationsTestDB(t *testing.T) (usersDB, serverDB *sql.DB) {
 	if err != nil {
 		t.Fatalf("failed to open users db: %v", err)
 	}
-	t.Cleanup(func() { usersDB.Close() })
+	t.Cleanup(func() {
+		if err := usersDB.Close(); err != nil {
+			t.Errorf("close users database: %v", err)
+		}
+	})
 	// MaxOpenConns is intentionally left unbounded (matches convention used
 	// elsewhere in this package): CheckWeatherAlerts/sendDailyForecast hold
 	// an open *sql.Rows on usersDB while calling other methods (sendWeatherAlert,
@@ -59,7 +63,11 @@ func setupWeatherNotificationsTestDB(t *testing.T) (usersDB, serverDB *sql.DB) {
 	if err != nil {
 		t.Fatalf("failed to open server db: %v", err)
 	}
-	t.Cleanup(func() { serverDB.Close() })
+	t.Cleanup(func() {
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	})
 
 	if _, err := usersDB.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("apply UsersSchema: %v", err)
@@ -119,6 +127,7 @@ func newTestWeatherServiceForNotifications(t *testing.T, body string) *WeatherSe
 
 const sampleWeatherJSON = `{
 	"current": {
+		"time": "2026-11-21T12:00",
 		"temperature_2m": 105,
 		"relative_humidity_2m": 20,
 		"apparent_temperature": 110,
@@ -455,8 +464,12 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		seedWeatherUser(t, usersDB, 1, "user")
-		usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`)
-		usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'weather_alerts', 'severe', 1)`)
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`); err != nil {
+			t.Fatalf("seed channel preference: %v", err)
+		}
+		if _, err := usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'weather_alerts', 'severe', 1)`); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
 
 		cm := NewChannelManager(serverDB)
 		te := NewTemplateEngine(serverDB)
@@ -507,8 +520,12 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		seedWeatherUser(t, usersDB, 5, "user")
-		usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (5, 'email', 1)`)
-		usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (5, 'weather_alerts', 'severe', 0)`)
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (5, 'email', 1)`); err != nil {
+			t.Fatalf("seed channel preference: %v", err)
+		}
+		if _, err := usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (5, 'weather_alerts', 'severe', 0)`); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
 
 		cm := NewChannelManager(serverDB)
 		te := NewTemplateEngine(serverDB)
@@ -521,7 +538,9 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 		}
 
 		var count int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count); err != nil {
+			t.Fatalf("count queued notifications: %v", err)
+		}
 		if count != 0 {
 			t.Errorf("expected 0 enqueued rows when subscription disabled, got %d", count)
 		}
@@ -539,8 +558,12 @@ func TestWeatherNotifications_CheckWeatherAlerts_EndToEnd(t *testing.T) {
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 	seedWeatherLocation(t, usersDB, 1, 1, 1)
-	usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`)
-	usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'weather_alerts', 'severe', 1)`)
+	if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`); err != nil {
+		t.Fatalf("seed channel preference: %v", err)
+	}
+	if _, err := usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'weather_alerts', 'severe', 1)`); err != nil {
+		t.Fatalf("seed subscription: %v", err)
+	}
 
 	ws := newTestWeatherServiceForNotifications(t, sampleWeatherJSON)
 	cm := NewChannelManager(serverDB)
@@ -599,7 +622,9 @@ func TestWeatherNotifications_CheckWeatherAlerts_NoLocations(t *testing.T) {
 	}
 
 	var count int
-	serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count)
+	if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count); err != nil {
+		t.Fatalf("count queued notifications: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("expected 0 enqueued rows with no locations, got %d", count)
 	}
@@ -614,7 +639,9 @@ func TestWeatherNotifications_sendDailyForecast(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		seedWeatherUser(t, usersDB, 1, "user")
-		usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`)
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`); err != nil {
+			t.Fatalf("seed channel preference: %v", err)
+		}
 
 		ws := newTestWeatherService()
 		cm := NewChannelManager(serverDB)
@@ -628,7 +655,9 @@ func TestWeatherNotifications_sendDailyForecast(t *testing.T) {
 		}
 
 		var count int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE user_id = 1`).Scan(&count)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE user_id = 1`).Scan(&count); err != nil {
+			t.Fatalf("count forecast notifications: %v", err)
+		}
 		if count != 1 {
 			t.Errorf("expected 1 enqueued forecast, got %d", count)
 		}
@@ -651,7 +680,9 @@ func TestWeatherNotifications_sendDailyForecast(t *testing.T) {
 		}
 
 		var count int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE user_id = 2`).Scan(&count)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue WHERE user_id = 2`).Scan(&count); err != nil {
+			t.Fatalf("count queued notifications: %v", err)
+		}
 		if count != 0 {
 			t.Errorf("expected 0 enqueued rows, got %d", count)
 		}
@@ -667,8 +698,12 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		seedWeatherUser(t, usersDB, 1, "admin")
-		usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'system_notifications', 'health', 1)`)
-		usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`)
+		if _, err := usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (1, 'system_notifications', 'health', 1)`); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (1, 'email', 1)`); err != nil {
+			t.Fatalf("seed channel preference: %v", err)
+		}
 
 		cm := NewChannelManager(serverDB)
 		te := NewTemplateEngine(serverDB)
@@ -694,8 +729,12 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		seedWeatherUser(t, usersDB, 2, "user")
-		usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (2, 'system_notifications', 'health', 1)`)
-		usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (2, 'email', 1)`)
+		if _, err := usersDB.Exec(`INSERT INTO notification_subscriptions (user_id, subscription_type, subscription_category, enabled) VALUES (2, 'system_notifications', 'health', 1)`); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled) VALUES (2, 'email', 1)`); err != nil {
+			t.Fatalf("seed channel preference: %v", err)
+		}
 
 		cm := NewChannelManager(serverDB)
 		te := NewTemplateEngine(serverDB)
@@ -707,7 +746,9 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 		}
 
 		var count int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count)
+		if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count); err != nil {
+			t.Fatalf("count queued notifications: %v", err)
+		}
 		if count != 0 {
 			t.Errorf("expected 0 enqueued rows for non-admin user, got %d", count)
 		}
@@ -739,7 +780,11 @@ func openDecoyUsersDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open decoy users db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close decoy users database: %v", err)
+		}
+	})
 	if _, err := db.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("apply UsersSchema to decoy: %v", err)
 	}

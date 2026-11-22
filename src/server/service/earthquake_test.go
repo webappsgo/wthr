@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -207,12 +206,20 @@ func TestEarthquake_GetEarthquakes_Errors(t *testing.T) {
 			defer server.Close()
 
 			es := newTestEarthquakeService(server.URL)
-			// Use a unique feed type per subtest so the shared cache never masks a real request.
-			_, err := es.GetEarthquakes(fmt.Sprintf("feed_%s", tt.name))
+			_, err := es.GetEarthquakes("all_day")
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
+	}
+}
+
+func TestEarthquake_GetEarthquakes_RejectsUnsupportedFeedType(t *testing.T) {
+	es := newTestEarthquakeService("https://example.invalid")
+	for _, feedType := range []string{"unknown_day", "all_year", "../all_day", "all_day/../../users"} {
+		if _, err := es.GetEarthquakes(feedType); err == nil {
+			t.Errorf("GetEarthquakes(%q) unexpectedly accepted an unsupported feed", feedType)
+		}
 	}
 }
 
@@ -255,12 +262,12 @@ func TestEarthquake_GetEarthquakesByLocation(t *testing.T) {
 	}{
 		// Origin far from both fixture quakes (roughly the South Pole),
 		// so a zero radius must exclude everything.
-		{"zero radius excludes all", -90, 0, 0, "loc_zero", 0},
+		{"zero radius excludes all", -90, 0, 0, "all_day", 0},
 		// Origin exactly at the first fixture quake (37.0, -122.0): a zero
 		// radius still includes an earthquake at distance exactly zero.
-		{"zero radius includes exact match", 37.0, -122.0, 0, "loc_exact", 1},
-		{"huge radius includes all", 37.0, -122.0, 20000, "loc_huge", 2},
-		{"tight radius includes only near quake", 37.0, -122.0, 60, "loc_tight", 1},
+		{"zero radius includes exact match", 37.0, -122.0, 0, "all_day", 1},
+		{"huge radius includes all", 37.0, -122.0, 20000, "all_day", 2},
+		{"tight radius includes only near quake", 37.0, -122.0, 60, "all_day", 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -290,7 +297,7 @@ func TestEarthquake_GetEarthquakesByLocation_PropagatesFetchError(t *testing.T) 
 	defer server.Close()
 
 	es := newTestEarthquakeService(server.URL)
-	if _, err := es.GetEarthquakesByLocation(0, 0, 100, "loc_error"); err == nil {
+	if _, err := es.GetEarthquakesByLocation(0, 0, 100, "all_day"); err == nil {
 		t.Fatal("expected error to propagate from GetEarthquakes")
 	}
 }

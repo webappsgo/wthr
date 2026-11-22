@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 	_ "modernc.org/sqlite"
@@ -34,6 +35,14 @@ const testUserID = 1
 // and registers cleanup to close the DBs and clear the global state.
 func newSchedulerTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("failed to write isolated config: %v", err)
+	}
+	previousConfig := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 
 	counter := atomic.AddInt64(&dbCounter, 1)
 	name := fmt.Sprintf("file:%s_%d", t.Name(), counter)
@@ -72,8 +81,12 @@ func newSchedulerTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 
 	t.Cleanup(func() {
 		database.SetGlobalDualDB(nil)
-		serverDB.Close()
-		usersDB.Close()
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("failed to close server database: %v", err)
+		}
+		if err := usersDB.Close(); err != nil {
+			t.Errorf("failed to close users database: %v", err)
+		}
 	})
 
 	return serverDB, usersDB
@@ -787,7 +800,11 @@ func TestCheckAndCreateAlerts_RowShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read notifications: %v", err)
 	}
-	defer rows.Close()
+	t.Cleanup(func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close notification rows: %v", err)
+		}
+	})
 
 	allowedTypes := map[string]bool{"success": true, "info": true, "warning": true, "error": true, "security": true}
 
@@ -899,7 +916,11 @@ func assertSurvivors(t *testing.T, db *sql.DB, table string, fixtures []expiryFi
 	if err != nil {
 		t.Fatalf("read %s: %v", table, err)
 	}
-	defer rows.Close()
+	t.Cleanup(func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close survivor rows: %v", err)
+		}
+	})
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
@@ -989,9 +1010,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 		// though it is well inside the 90-day default, proving the function
 		// actually reads 'scheduler.cleanup_audit_logs_days' (the key the
 		// admin panel writes) rather than silently falling back to 90.
-		if _, err := serverDB.Exec(
-			"INSERT INTO server_config (key, value) VALUES ('scheduler.cleanup_audit_logs_days','5')",
-		); err != nil {
+		if err := config.WriteSetting("scheduler.cleanup_audit_logs_days", 5); err != nil {
 			t.Fatalf("failed to seed retention config: %v", err)
 		}
 
@@ -1172,7 +1191,7 @@ func TestClusterHeartbeat(t *testing.T) {
 
 	t.Run("enabled records/updates the node heartbeat", func(t *testing.T) {
 		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('cluster.enabled','true')"); err != nil {
+		if err := config.WriteSetting("server.cluster.enabled", true); err != nil {
 			t.Fatalf("seed config: %v", err)
 		}
 
@@ -1258,44 +1277,8 @@ func TestUpdateCVEDatabase_DisabledSkipsNetworkCall(t *testing.T) {
 // --- logTaskExecution ------------------------------------------------------------------
 
 func TestSchedulerLogTaskExecution(t *testing.T) {
-	t.Run("audit disabled by default: no row written", func(t *testing.T) {
+	t.Run("successful run is recorded", func(t *testing.T) {
 		serverDB, _ := newSchedulerTestDBs(t)
-		s := NewScheduler(nil)
-
-		s.logTaskExecution("task-a", 10*time.Millisecond, nil)
-
-		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
-			t.Fatalf("count audit log: %v", err)
-		}
-		if count != 0 {
-			t.Errorf("audit log rows = %d, want 0 when audit.enabled is unset", count)
-		}
-	})
-
-	t.Run("audit.enabled=false explicitly still skips logging", func(t *testing.T) {
-		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','false')"); err != nil {
-			t.Fatalf("seed config: %v", err)
-		}
-		s := NewScheduler(nil)
-
-		s.logTaskExecution("task-a2", 10*time.Millisecond, nil)
-
-		var count int
-		if err := serverDB.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
-			t.Fatalf("count audit log: %v", err)
-		}
-		if count != 0 {
-			t.Errorf("audit log rows = %d, want 0 when audit.enabled=false", count)
-		}
-	})
-
-	t.Run("audit enabled records a successful run", func(t *testing.T) {
-		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','true')"); err != nil {
-			t.Fatalf("seed config: %v", err)
-		}
 		s := NewScheduler(nil)
 
 		s.logTaskExecution("task-b", 25*time.Millisecond, nil)
@@ -1337,11 +1320,8 @@ func TestSchedulerLogTaskExecution(t *testing.T) {
 		}
 	})
 
-	t.Run("audit enabled records a failed run with the error message", func(t *testing.T) {
+	t.Run("failed run is recorded with the error message", func(t *testing.T) {
 		serverDB, _ := newSchedulerTestDBs(t)
-		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','true')"); err != nil {
-			t.Fatalf("seed config: %v", err)
-		}
 		s := NewScheduler(nil)
 
 		s.logTaskExecution("task-c", 5*time.Millisecond, fmt.Errorf("boom"))

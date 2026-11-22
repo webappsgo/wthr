@@ -8,6 +8,7 @@
                 <h1>📧 {{t $lang "admin.email.title"}}</h1>
                 <p class="subtitle">{{t $lang "admin.email.intro"}}</p>
             </div>
+            {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 
             <!-- SMTP Configuration Section -->
             <section class="admin-card" aria-labelledby="smtp-heading">
@@ -16,8 +17,9 @@
                     <p class="card-description">{{t $lang "admin.email.smtp_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="smtp-form" class="settings-form">
+                    <form id="smtp-form" class="settings-form" method="post" action="{{.admin_path}}/email">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+    <input type="hidden" name="recipient" value="{{.admin_email}}">
                         <div class="form-group">
                             <label class="toggle-label">
                                 <input
@@ -25,6 +27,8 @@
                                     id="smtp_enabled"
                                     name="smtp.enabled"
                                     class="toggle-input"
+                                    value="true"
+                                    {{if .smtp_enabled}}checked{{end}}
                                     aria-describedby="smtp_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
@@ -47,6 +51,7 @@
                                         id="smtp_host"
                                         name="smtp.host"
                                         class="form-control"
+                                        value="{{.smtp_host}}"
                                         placeholder="smtp.gmail.com"
                                         required
                                         aria-required="true"
@@ -67,6 +72,7 @@
                                         id="smtp_port"
                                         name="smtp.port"
                                         class="form-control"
+                                        value="{{.smtp_port}}"
                                         placeholder="587"
                                         min="1"
                                         max="65535"
@@ -87,6 +93,7 @@
                                     id="smtp_username"
                                     name="smtp.username"
                                     class="form-control"
+                                    value="{{.smtp_username}}"
                                     placeholder="your-email@example.com"
                                     autocomplete="username"
                                     aria-describedby="smtp_username_help"
@@ -119,6 +126,7 @@
                                     id="smtp_from"
                                     name="smtp.from_address"
                                     class="form-control"
+                                    value="{{.smtp_from_address}}"
                                     placeholder="no-reply@example.com"
                                     aria-describedby="smtp_from_help"
                                 >
@@ -134,6 +142,7 @@
                                     id="smtp_from_name"
                                     name="smtp.from_name"
                                     class="form-control"
+                                    value="{{.smtp_from_name}}"
                                     placeholder="Weather App"
                                     aria-describedby="smtp_from_name_help"
                                 >
@@ -144,10 +153,11 @@
 
                             <div class="form-group">
                                 <label for="smtp_encryption">{{t $lang "admin.email.encryption_label"}}</label>
-                                <select id="smtp_encryption" name="smtp.encryption" class="form-control" aria-describedby="smtp_encryption_help">
-                                    <option value="tls">{{t $lang "admin.email.encryption_tls"}}</option>
-                                    <option value="ssl">{{t $lang "admin.email.encryption_ssl"}}</option>
-                                    <option value="none">{{t $lang "admin.email.encryption_none"}}</option>
+                                <select id="smtp_encryption" name="smtp.tls" class="form-control" aria-describedby="smtp_encryption_help">
+                                    <option value="starttls" {{if eq .smtp_tls "starttls"}}selected{{end}}>{{t $lang "admin.email.encryption_tls"}}</option>
+                                    <option value="tls" {{if eq .smtp_tls "tls"}}selected{{end}}>{{t $lang "admin.email.encryption_ssl"}}</option>
+                                    <option value="none" {{if eq .smtp_tls "none"}}selected{{end}}>{{t $lang "admin.email.encryption_none"}}</option>
+                                    <option value="auto" {{if eq .smtp_tls "auto"}}selected{{end}}>Auto</option>
                                 </select>
                                 <small id="smtp_encryption_help" class="form-text">
                                     {{t $lang "admin.email.encryption_help"}}
@@ -167,10 +177,10 @@
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.email.save_aria"}}">
                                 💾 {{t $lang "admin.email.save_action"}}
                             </button>
-                            <button type="button" class="btn btn-success" id="test-email-btn" aria-label="{{t $lang "admin.email.send_test_aria"}}">
+                            <button type="submit" formaction="{{.admin_path}}/email/test" class="btn btn-success" id="test-email-btn" aria-label="{{t $lang "admin.email.send_test_aria"}}">
                                 📨 {{t $lang "admin.email.send_test_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" id="autodetect-btn" aria-label="{{t $lang "admin.email.autodetect_aria"}}">
+                            <button type="submit" formaction="{{.admin_path}}/email/autodetect" class="btn btn-secondary" id="autodetect-btn" aria-label="{{t $lang "admin.email.autodetect_aria"}}">
                                 🔍 {{t $lang "admin.email.autodetect_action"}}
                             </button>
                         </div>

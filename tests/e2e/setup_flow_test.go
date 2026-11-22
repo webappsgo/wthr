@@ -56,8 +56,12 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 
 	cleanup := func() {
 		database.SetGlobalDualDB(nil)
-		serverDB.Close()
-		usersDB.Close()
+		if err := serverDB.Close(); err != nil {
+			t.Errorf("close server test database: %v", err)
+		}
+		if err := usersDB.Close(); err != nil {
+			t.Errorf("close users test database: %v", err)
+		}
 	}
 
 	return dualDB, cleanup
@@ -69,6 +73,9 @@ func signedSetupProof(t *testing.T) string {
 	if err != nil || cfg == nil || cfg.Server.Security.EncryptionKey == "" {
 		t.Fatalf("load config for setup proof: %v", err)
 	}
+	previous := config.GetGlobalConfig()
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 	return util.SignSetupProof(cfg.Server.Security.EncryptionKey, time.Now())
 }
 

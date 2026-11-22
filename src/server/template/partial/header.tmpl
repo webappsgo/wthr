@@ -3,7 +3,8 @@
 <header class="site-header">
     <div class="container">
         <div class="header-content">
-            <p class="site-logo">{{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</p>
+            <p class="site-logo">{{if .server.Logo}}<img src="{{.server.Logo200}}" srcset="{{.server.Logo50}} 50w, {{.server.Logo200}} 200w" sizes="(max-width: 767px) 50px, 200px" width="200" alt="{{.server.Title}}">{{else}}{{if .server.Title}}{{.server.Title}}{{else}}wthr{{end}}{{end}}</p>
+            {{if .operator_header}}{{.operator_header}}{{end}}
         </div>
     </div>
 </header>

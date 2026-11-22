@@ -72,7 +72,7 @@ func (s *Service) validateSMTP() error {
 	if err != nil {
 		return fmt.Errorf("SMTP connection failed: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// If using TLS, verify TLS connection
 	if s.config.TLS {

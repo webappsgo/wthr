@@ -39,11 +39,36 @@ func securityPageData(r *http.Request, extra map[string]interface{}) map[string]
 		"page":                "security",
 		"breadcrumb":          Translate(r, "admin.security.title"),
 		"OperatorTokenMasked": middleware.MaskOperatorToken(token),
+		"Settings":            securitySettingsValues(),
 	}
 	for key, value := range extra {
 		data[key] = value
 	}
 	return data
+}
+
+func securitySettingsValues() map[string]string {
+	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	keys := []string{
+		"security.csp", "security.hsts", "security.x_frame_options", "security.x_content_type", "security.referrer_policy", "security.permissions_policy",
+		"security.cors_enabled", "security.cors_origins", "security.cors_methods", "security.cors_headers", "security.cors_credentials", "security.cors_max_age",
+		"rate_limit.enabled", "rate_limit.global", "rate_limit.per_ip", "rate_limit.api", "rate_limit.admin",
+		"security.session_timeout", "security.max_login_attempts", "security.lockout_duration", "security.password_min_length",
+	}
+	values := map[string]string{
+		"security.csp":  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
+		"security.hsts": "max-age=31536000; includeSubDomains", "security.x_frame_options": "DENY", "security.x_content_type": "nosniff",
+		"security.referrer_policy": "strict-origin-when-cross-origin", "security.permissions_policy": "geolocation=(), microphone=(), camera=()",
+		"security.cors_enabled": "false", "security.cors_origins": "*", "security.cors_methods": "GET, POST, PUT, DELETE, OPTIONS", "security.cors_headers": "Content-Type, Authorization, X-Requested-With", "security.cors_credentials": "false", "security.cors_max_age": "3600",
+		"rate_limit.enabled": "true", "rate_limit.global": "100", "rate_limit.per_ip": "60", "rate_limit.api": "120", "rate_limit.admin": "300",
+		"security.session_timeout": "2592000", "security.max_login_attempts": "5", "security.lockout_duration": "30", "security.password_min_length": "8",
+	}
+	for _, key := range keys {
+		if value, err := settings.GetSetting(key); err == nil && value != nil {
+			values[key] = value.Value
+		}
+	}
+	return values
 }
 
 // ShowSecurityPage renders the admin security page with the masked operator token.

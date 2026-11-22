@@ -8,7 +8,11 @@ import (
 // filter, dismiss ownership check, delete ownership check, and MarkAllAsRead.
 func TestUserNotificationModel_GetUnreadDismissDelete(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close notification test database: %v", err)
+		}
+	})
 	model := &UserNotificationModel{DB: db}
 
 	a, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "A", "msg a", nil)
@@ -92,7 +96,11 @@ func TestUserNotificationModel_GetUnreadDismissDelete(t *testing.T) {
 // implementations are separate code paths that could silently diverge.
 func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close notification test database: %v", err)
+		}
+	})
 	model := &AdminNotificationModel{DB: db}
 
 	created, err := model.CreateAdminNotification(5, NotificationTypeError, NotificationDisplayCenter, "Admin Alert", "msg", &NotificationAction{Label: "View", URL: "/x"})
@@ -266,9 +274,9 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 // user-preferences coverage for the admin-scoped preference storage.
 func TestNotificationPreferencesModel_AdminPreferences(t *testing.T) {
 	userDB := setupTestDB(t)
-	defer userDB.Close()
+	defer func() { _ = userDB.Close() }()
 	serverDB := setupTestDB(t)
-	defer serverDB.Close()
+	defer func() { _ = serverDB.Close() }()
 	model := &NotificationPreferencesModel{UserDB: userDB}
 
 	t.Run("defaults when no record exists", func(t *testing.T) {

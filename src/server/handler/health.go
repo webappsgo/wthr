@@ -696,8 +696,8 @@ func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster 
 		Nodes:   []string{},
 	}
 
-	var clusterEnabled string
-	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled); err != nil || clusterEnabled != "true" {
+	clusterEnabled, exists, err := config.ReadSetting("server.cluster.enabled")
+	if err != nil || !exists || !config.IsTruthy(fmt.Sprint(clusterEnabled)) {
 		return cluster
 	}
 

@@ -24,7 +24,12 @@ import (
 // fight go:embed rooting rules (embed directives in this package can only
 // reach ./locales, not the "common/i18n/locales" prefix NewI18n expects).
 // The locale files themselves are never modified — read-only fixtures.
-func loadRealLocales(t *testing.T) map[string]map[string]string {
+type localeFixture struct {
+	Messages map[string]string            `json:"-"`
+	Plurals  map[string]map[string]string `json:"plurals"`
+}
+
+func loadRealLocales(t *testing.T) map[string]localeFixture {
 	t.Helper()
 
 	entries, err := os.ReadDir("locales")
@@ -32,7 +37,7 @@ func loadRealLocales(t *testing.T) map[string]map[string]string {
 		t.Fatalf("failed to read locales dir: %v", err)
 	}
 
-	out := make(map[string]map[string]string)
+	out := make(map[string]localeFixture)
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
@@ -42,11 +47,25 @@ func loadRealLocales(t *testing.T) map[string]map[string]string {
 		if err != nil {
 			t.Fatalf("failed to read %s: %v", entry.Name(), err)
 		}
-		var translations map[string]string
-		if err := json.Unmarshal(data, &translations); err != nil {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(data, &raw); err != nil {
 			t.Fatalf("failed to parse %s: %v", entry.Name(), err)
 		}
-		out[lang] = translations
+		fixture := localeFixture{Messages: make(map[string]string), Plurals: make(map[string]map[string]string)}
+		for key, value := range raw {
+			if key == "plurals" {
+				if err := json.Unmarshal(value, &fixture.Plurals); err != nil {
+					t.Fatalf("failed to parse plurals in %s: %v", entry.Name(), err)
+				}
+				continue
+			}
+			var message string
+			if err := json.Unmarshal(value, &message); err != nil {
+				t.Fatalf("failed to parse message %s in %s: %v", key, entry.Name(), err)
+			}
+			fixture.Messages[key] = message
+		}
+		out[lang] = fixture
 	}
 	return out
 }
@@ -58,15 +77,20 @@ func loadRealLocales(t *testing.T) map[string]map[string]string {
 func newRealI18n(t *testing.T, defaultLang string) *I18n {
 	t.Helper()
 
-	translations := loadRealLocales(t)
-	supported := make([]string, 0, len(translations))
-	for lang := range translations {
+	locales := loadRealLocales(t)
+	translations := make(map[string]map[string]string, len(locales))
+	plurals := make(map[string]map[string]map[string]string, len(locales))
+	supported := make([]string, 0, len(locales))
+	for lang, locale := range locales {
+		translations[lang] = locale.Messages
+		plurals[lang] = locale.Plurals
 		supported = append(supported, lang)
 	}
 	sort.Strings(supported)
 
 	return &I18n{
 		translations:  translations,
+		plurals:       plurals,
 		defaultLang:   defaultLang,
 		supportedLang: supported,
 	}
@@ -498,13 +522,36 @@ func TestTranslateFormat(t *testing.T) {
 	}
 }
 
+func languageSpec(code string) LanguageSpec {
+	for _, spec := range Registry {
+		if spec.Code == code {
+			return spec
+		}
+	}
+	return LanguageSpec{Code: code, Plurals: []string{"other"}}
+}
+
+func uniqueSorted(values []string) []string {
+	seen := map[string]bool{}
+	for _, value := range values {
+		seen[value] = true
+	}
+	out := make([]string, 0, len(seen))
+	for value := range seen {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func TestLocaleKeyParity(t *testing.T) {
 	locales := loadRealLocales(t)
 
-	en, ok := locales["en"]
+	enLocale, ok := locales["en"]
 	if !ok {
 		t.Fatal("en.json not found among locale fixtures")
 	}
+	en := enLocale.Messages
 
 	langs := make([]string, 0, len(locales))
 	for lang := range locales {
@@ -513,7 +560,59 @@ func TestLocaleKeyParity(t *testing.T) {
 	sort.Strings(langs)
 
 	for _, lang := range langs {
-		translations := locales[lang]
+		locale := locales[lang]
+		translations := locale.Messages
+		registry := languageSpec(lang)
+		if len(locale.Plurals) != len(enLocale.Plurals) {
+			t.Errorf("locale %q: plural message count %d, want %d", lang, len(locale.Plurals), len(enLocale.Plurals))
+		}
+		for key, enCategories := range enLocale.Plurals {
+			forms, exists := locale.Plurals[key]
+			if !exists {
+				t.Errorf("locale %q: missing plural message %q", lang, key)
+				continue
+			}
+			wantCategories := map[string]bool{}
+			for _, category := range registry.Plurals {
+				wantCategories[category] = true
+			}
+			if _, optionalZero := forms["zero"]; optionalZero {
+				wantCategories["zero"] = true
+			}
+			for category := range wantCategories {
+				if strings.TrimSpace(forms[category]) == "" {
+					t.Errorf("locale %q: plural %q missing category %q", lang, key, category)
+				}
+			}
+			for category := range forms {
+				if !wantCategories[category] {
+					t.Errorf("locale %q: plural %q has orphan category %q", lang, key, category)
+				}
+			}
+			var expectedVars []string
+			for _, form := range enCategories {
+				expectedVars = append(expectedVars, interpolationVars(form)...)
+			}
+			expectedVars = uniqueSorted(expectedVars)
+			for category, form := range forms {
+				gotVars := interpolationVars(form)
+				filtered := make([]string, 0, len(gotVars))
+				for _, v := range gotVars {
+					if v != "count" {
+						filtered = append(filtered, v)
+					}
+				}
+				expectedOther := make([]string, 0, len(expectedVars))
+				for _, v := range expectedVars {
+					if v != "count" {
+						expectedOther = append(expectedOther, v)
+					}
+				}
+				if !reflect.DeepEqual(filtered, expectedOther) {
+					t.Errorf("locale %q: plural %q category %q placeholders %v, want %v", lang, key, category, filtered, expectedOther)
+				}
+			}
+		}
 
 		for key, enValue := range en {
 			value, exists := translations[key]
@@ -540,6 +639,11 @@ func TestLocaleKeyParity(t *testing.T) {
 				t.Errorf("locale %q: orphaned key %q (not present in en.json)", lang, key)
 			}
 		}
+		for key := range locale.Plurals {
+			if _, exists := enLocale.Plurals[key]; !exists {
+				t.Errorf("locale %q: orphaned plural key %q", lang, key)
+			}
+		}
 	}
 }
 
@@ -549,7 +653,8 @@ func TestRegistryMatchesLocaleFiles(t *testing.T) {
 	registered := map[string]bool{}
 	for _, spec := range Registry {
 		registered[spec.Code] = true
-		translations, ok := locales[spec.Code]
+		locale, ok := locales[spec.Code]
+		translations := locale.Messages
 		if !ok {
 			t.Errorf("registry language %q has no locale file", spec.Code)
 			continue
@@ -591,8 +696,9 @@ func TestEmbeddedLanguagesMatchRegistry(t *testing.T) {
 // translation key that no locale defines, which would render the raw key.
 func TestTemplateKeysExist(t *testing.T) {
 	locales := loadRealLocales(t)
-	en := locales["en"]
-	keyRef := regexp.MustCompile(`\{\{-?\s*tf?\s+[^"}]*"([^"]+)"`)
+	en := locales["en"].Messages
+	pluralKeys := locales["en"].Plurals
+	keyRef := regexp.MustCompile(`\{\{-?\s*t(?:f|p)?\s+[^"}]*"([^"]+)"`)
 
 	root := filepath.Join("..", "..", "server", "template")
 	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
@@ -609,12 +715,45 @@ func TestTemplateKeysExist(t *testing.T) {
 				continue
 			}
 			if _, ok := en[key]; !ok {
-				t.Errorf("%s: translation key %q is not defined in en.json", path, key)
+				if _, pluralOK := pluralKeys[key]; !pluralOK {
+					t.Errorf("%s: translation key %q is not defined in en.json", path, key)
+				}
 			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk templates: %v", err)
+	}
+}
+
+func TestEmbeddedPluralLocaleLoad(t *testing.T) {
+	i, err := loadI18nFromFS(defaultLocalesFS, "locales", "en")
+	if err != nil {
+		t.Fatalf("load embedded locales: %v", err)
+	}
+	if got := i.TPlural("en", "severe.weather_active_alert", 1); got != "active alert" {
+		t.Fatalf("embedded singular = %q", got)
+	}
+	if got := i.TPlural("en", "severe.weather_active_alert", 4); got != "active alerts" {
+		t.Fatalf("embedded plural = %q", got)
+	}
+}
+
+func TestTPluralUsesCLDRCategoriesAndFallback(t *testing.T) {
+	i := newRealI18n(t, "en")
+	tests := []struct {
+		lang      string
+		count     int
+		key, want string
+	}{
+		{"en", 1, "severe.weather_active_alert", "active alert"}, {"en", 2, "severe.weather_active_alert", "active alerts"},
+		{"zh", 1, "severe.weather_active_alert", "条活跃警报"}, {"ar", 0, "severe.weather_active_alert", "لا توجد تنبيهات نشطة"},
+		{"ar", 2, "severe.weather_active_alert", "تنبيهان نشطان"}, {"unknown", 2, "severe.weather_active_alert", "active alerts"},
+	}
+	for _, tt := range tests {
+		if got := i.TPlural(tt.lang, tt.key, tt.count); got != tt.want {
+			t.Errorf("TPlural(%q,%q,%d)=%q, want %q", tt.lang, tt.key, tt.count, got, tt.want)
+		}
 	}
 }

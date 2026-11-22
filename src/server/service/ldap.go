@@ -8,11 +8,12 @@ import (
 
 	ldap "github.com/go-ldap/ldap/v3"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
-// LDAPConfig holds LDAP connection settings read from server_config.
+// LDAPConfig holds LDAP connection settings read from the accounts.yml area file.
 type LDAPConfig struct {
 	Enabled    bool
 	Server     string
@@ -28,20 +29,20 @@ type LDAPService struct {
 	settings *models.SettingsModel
 }
 
-// NewLDAPService creates a new LDAPService. LDAP settings live in server_config,
-// so the settings model always resolves the server database.
+// NewLDAPService creates an LDAP service backed by file-based settings.
 func NewLDAPService() *LDAPService {
 	return &LDAPService{settings: &models.SettingsModel{DB: database.GetServerDB()}}
 }
 
-// Config reads LDAP settings from server_config.
+// Config reads LDAP settings from accounts.yml and bind credentials from secrets.yml.
 func (s *LDAPService) Config() LDAPConfig {
+	bindPass, _ := config.ReadSecret("server.auth.ldap.bind_password")
 	return LDAPConfig{
 		Enabled:    s.settings.GetBool("server.auth.ldap.enabled", false),
 		Server:     s.settings.GetString("server.auth.ldap.server", ""),
 		Port:       s.settings.GetInt("server.auth.ldap.port", 389),
 		BindDN:     s.settings.GetString("server.auth.ldap.bind_dn", ""),
-		BindPass:   s.settings.GetString("server.auth.ldap.bind_password", ""),
+		BindPass:   bindPass,
 		BaseDN:     s.settings.GetString("server.auth.ldap.base_dn", ""),
 		UserFilter: s.settings.GetString("server.auth.ldap.user_filter", "(uid=%s)"),
 	}
@@ -78,7 +79,7 @@ func (s *LDAPService) Authenticate(username, password string) (email, displayNam
 	if err != nil {
 		return "", "", fmt.Errorf("failed to connect to LDAP server: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	conn.SetTimeout(10e9)
 

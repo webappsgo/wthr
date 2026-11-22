@@ -78,7 +78,9 @@ ignoreregex = ^.* \[INFO\] \[auth\] Successful login from <HOST>`
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Disposition", "attachment; filename=weather.conf")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, config)
+	if _, err := fmt.Fprint(w, config); err != nil {
+		return
+	}
 }
 
 // GetSyslogConfig provides syslog configuration

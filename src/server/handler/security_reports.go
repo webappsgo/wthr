@@ -236,15 +236,48 @@ func notifySecurityReport(r *http.Request, cfg *config.AppConfig, tracking, toke
 	if smtp == nil {
 		return
 	}
-	if cfg != nil {
-		if to := strings.TrimSpace(cfg.Server.Contact.ResolveContactEmail("security")); to != "" {
-			body := fmt.Sprintf("%s\n\n%s: %s\n%s: %s\n%s: %s\n\n%s",
-				Translate(r, "email.security_report.maintainer_intro"),
-				Translate(r, "email.security_report.label_tracking"), tracking,
-				Translate(r, "email.security_report.label_severity"), report.Severity,
-				Translate(r, "email.security_report.label_component"), sanitizeLogToken(report.Component),
-				Translate(r, "email.security_report.maintainer_warning"))
-			_ = smtp.SendEmail(to, Translate(r, "email.security_report.maintainer_subject")+" "+tracking, body)
+	if cfg != nil && database.GetUsersDB() != nil {
+		rows, err := database.GetUsersDB().Query(`SELECT email, COALESCE(personal_pgp_public_key, '') FROM admins WHERE is_active = 1`)
+		if err == nil {
+			defer func() { _ = rows.Close() }()
+			content, _ := json.Marshal(struct {
+				Tracking string                 `json:"tracking_id"`
+				Report   service.SecurityReport `json:"report"`
+			}{tracking, report})
+			var recipients []struct{ email, key string }
+			for rows.Next() {
+				var rec struct{ email, key string }
+				if rows.Scan(&rec.email, &rec.key) == nil {
+					recipients = append(recipients, rec)
+				}
+			}
+			for _, rec := range recipients {
+				if rec.email == "" || strings.TrimSpace(rec.key) == "" {
+					continue
+				}
+				sealed, sealErr := service.EncryptToArmoredKey(rec.key, content)
+				if sealErr == nil {
+					_ = smtp.SendEmail(rec.email, Translate(r, "email.security_report.maintainer_subject")+" "+tracking, string(sealed))
+				}
+			}
+			noAdminKeys := true
+			for _, rec := range recipients {
+				if strings.TrimSpace(rec.key) != "" {
+					noAdminKeys = false
+					break
+				}
+			}
+			if noAdminKeys {
+				sealed, sealErr := util.EncryptAtRest(cfg.Server.Security.EncryptionKey, string(content))
+				if sealErr == nil {
+					fallback := Translate(r, "email.security_report.maintainer_warning")
+					for _, rec := range recipients {
+						if rec.email != "" {
+							_ = smtp.SendEmailAttachment(rec.email, Translate(r, "email.security_report.maintainer_subject")+" "+tracking, fallback, tracking+".enc", "application/octet-stream", []byte(sealed))
+						}
+					}
+				}
+			}
 		}
 	}
 	link := util.BuildURL(r, "/server/security/report/"+tracking) + "?token=" + url.QueryEscape(token)

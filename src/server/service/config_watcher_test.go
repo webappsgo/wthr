@@ -87,7 +87,7 @@ func TestConfigWatcher_Start_MissingDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfigWatcher() unexpected error: %v", err)
 	}
-	defer cw.StopConfigWatcher()
+	defer func() { _ = cw.StopConfigWatcher() }()
 
 	if err := cw.StartConfigWatcher(); err == nil {
 		t.Fatal("expected Start() to fail for a nonexistent config directory, got nil")
@@ -116,7 +116,7 @@ func TestConfigWatcher_UnrelatedFileWrite_NoTrigger(t *testing.T) {
 	if err := cw.StartConfigWatcher(); err != nil {
 		t.Fatalf("Start() unexpected error: %v", err)
 	}
-	defer cw.StopConfigWatcher()
+	defer func() { _ = cw.StopConfigWatcher() }()
 
 	if err := os.WriteFile(otherPath, []byte("noise"), 0o644); err != nil {
 		t.Fatalf("write unrelated file: %v", err)

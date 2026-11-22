@@ -50,7 +50,7 @@ func TestHTTPClientGet(t *testing.T) {
 
 		// Send response
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 	defer server.Close()
 
@@ -70,7 +70,7 @@ func TestHTTPClientGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -84,7 +84,7 @@ func TestHTTPClientGetJSON(t *testing.T) {
 			"temperature": 72.5,
 			"location":    "New York",
 		}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -222,7 +222,7 @@ func TestHTTPClientServerError(t *testing.T) {
 	// Create test server that returns 500
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		_, _ = w.Write([]byte("Internal Server Error"))
 	}))
 	defer server.Close()
 
@@ -321,7 +321,7 @@ func TestHTTPClientInvalidJSON(t *testing.T) {
 	// Create test server that returns invalid JSON
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("not valid json"))
+		_, _ = w.Write([]byte("not valid json"))
 	}))
 	defer server.Close()
 
@@ -362,7 +362,7 @@ func TestHTTPClientNoToken(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 	defer server.Close()
 
@@ -383,7 +383,7 @@ func TestHTTPClientNoToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -394,7 +394,7 @@ func TestCheckServerVersion(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/version" {
-			json.NewEncoder(w).Encode(map[string]string{"version": "1.0.0"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"version": "1.0.0"})
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}

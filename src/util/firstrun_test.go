@@ -145,8 +145,7 @@ func TestSelectRandomPort(t *testing.T) {
 	}
 }
 
-// TestCreateDefaultServerYML verifies a valid server.yml is written with
-// the SMTP host/port and default sections present.
+// TestCreateDefaultServerYML verifies that only typed node-local defaults are written.
 func TestCreateDefaultServerYML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config", "server.yml")
@@ -162,22 +161,34 @@ func TestCreateDefaultServerYML(t *testing.T) {
 	content := string(data)
 
 	for _, want := range []string{
-		"smtp.example.com",
-		"587",
+		"port:",
 		"mode: production",
-		"earthquakes: true",
-		"# SMTP auto-detected: smtp.example.com:587",
-		"email_enabled: true",
+		"database:",
+		"cache:",
+		"ssl:",
+		"# This node only",
+		"credentials are in secrets.yml.",
 	} {
 		if !findSubstring(content, want) {
 			t.Errorf("server.yml missing expected content %q", want)
 		}
 	}
+	for _, stale := range []string{"smtp.example.com", "branding:", "notifications:", "rate_limit:", "email_enabled:"} {
+		if findSubstring(content, stale) {
+			t.Errorf("server.yml contains stale or shared setting %q", stale)
+		}
+	}
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("server.yml mode = %o, want 600", info.Mode().Perm())
+	}
 }
 
-// TestCreateDefaultServerYML_NoSMTPDetected covers the AI.md PART 18 rule that
-// a failed auto-detection is not an error: the generated config must carry no
-// host, must not claim email is enabled, and must say so in the header.
+// TestCreateDefaultServerYML_NoSMTPDetected verifies that email settings are
+// not written into the node-local server.yml regardless of SMTP detection.
 func TestCreateDefaultServerYML_NoSMTPDetected(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config", "server.yml")
@@ -192,14 +203,10 @@ func TestCreateDefaultServerYML_NoSMTPDetected(t *testing.T) {
 	}
 	content := string(data)
 
-	if !findSubstring(content, "# No SMTP server detected - email features disabled") {
-		t.Errorf("server.yml missing no-SMTP header line, got:\n%s", content)
-	}
-	if !findSubstring(content, "email_enabled: false") {
-		t.Errorf("server.yml must set email_enabled false when no SMTP was detected, got:\n%s", content)
-	}
-	if !findSubstring(content, "host: \"\"") {
-		t.Errorf("server.yml must leave the email host blank when no SMTP was detected, got:\n%s", content)
+	for _, stale := range []string{"smtp:", "notifications:", "email_enabled:", "# No SMTP server detected"} {
+		if findSubstring(content, stale) {
+			t.Errorf("server.yml contains SMTP-related setting/comment %q", stale)
+		}
 	}
 }
 

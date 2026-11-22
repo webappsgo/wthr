@@ -1,10 +1,13 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +30,7 @@ func validateConfig(cfg *AppConfig) bool {
 	validateServerTracking(cfg)
 	validateServerCache(cfg)
 	validateServerUpdate(cfg)
+	validateServerBranding(cfg)
 	validateServerSEO(cfg)
 	validateWebRobots(cfg)
 	return portReplaced
@@ -36,6 +40,34 @@ func validateConfig(cfg *AppConfig) bool {
 // out-of-range value is replaced by its default.
 func validateServerSEO(cfg *AppConfig) {
 	seo := &cfg.Server.SEO
+	if utf8StringLength(seo.TitleSeparator) > 8 {
+		warnConfig("invalid seo.title_separator (max 8 characters), using default")
+		seo.TitleSeparator = " - "
+	}
+	if seo.Canonical != "" && !validCanonicalBase(seo.Canonical) {
+		warnConfig("invalid seo.canonical %q, using default", seo.Canonical)
+		seo.Canonical = ""
+	}
+	seo.MetaTags = validateExtraMetaTags(seo.MetaTags)
+	seo.Verification = validateVerification(seo.Verification)
+	if seo.OpenGraph.Type == "" {
+		seo.OpenGraph.Type = "website"
+	}
+	if seo.Twitter.Card != "summary" && seo.Twitter.Card != "summary_large_image" {
+		if seo.Twitter.Card != "" {
+			warnConfig("invalid seo.twitter.card %q, using default summary_large_image", seo.Twitter.Card)
+		}
+		seo.Twitter.Card = "summary_large_image"
+	}
+	if seo.TwitterHandle != "" && !validSocialHandle(seo.TwitterHandle) {
+		warnConfig("invalid seo.twitter_handle %q, using default", seo.TwitterHandle)
+		seo.TwitterHandle = ""
+	}
+	if seo.Twitter.Creator != "" && !validSocialHandle(seo.Twitter.Creator) {
+		warnConfig("invalid seo.twitter.creator %q, using default", seo.Twitter.Creator)
+		seo.Twitter.Creator = ""
+	}
+	seo.Author = strings.TrimSpace(seo.Author)
 	if seo.Sitemap.MaxURLs < 1 || seo.Sitemap.MaxURLs > DefaultSitemapMaxURLs {
 		if seo.Sitemap.MaxURLs != 0 {
 			warnConfig("invalid seo.sitemap.max_urls %d, using default %d", seo.Sitemap.MaxURLs, DefaultSitemapMaxURLs)
@@ -49,6 +81,237 @@ func validateServerSEO(cfg *AppConfig) {
 		seo.Feed.MaxItems = DefaultFeedMaxItems
 	}
 	seo.Feed.Title = strings.TrimSpace(seo.Feed.Title)
+}
+
+var (
+	seoMetaNamePattern      = regexp.MustCompile(`^[a-z0-9:_.-]+$`)
+	socialHandlePattern     = regexp.MustCompile(`^@[A-Za-z0-9_]{1,15}$`)
+	verificationNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	accentColorPattern      = regexp.MustCompile(`^#[A-Fa-f0-9]{6}$`)
+	verificationFormats     = map[string]struct {
+		pattern *regexp.Regexp
+		max     int
+	}{
+		"google":    {regexp.MustCompile(`^[A-Za-z0-9_-]+$`), 43},
+		"bing":      {regexp.MustCompile(`^[A-F0-9]+$`), 32},
+		"yandex":    {regexp.MustCompile(`^[a-f0-9]+$`), 32},
+		"baidu":     {regexp.MustCompile(`^[A-Za-z0-9]+$`), 32},
+		"pinterest": {regexp.MustCompile(`^[a-f0-9]+$`), 32},
+		"facebook":  {regexp.MustCompile(`^[a-z0-9]+$`), 64},
+	}
+)
+
+func validateServerBranding(cfg *AppConfig) {
+	branding := &cfg.Server.Branding
+	branding.Title = strings.TrimSpace(branding.Title)
+	if branding.Title == "" {
+		warnConfig("invalid server.branding.title, using default wthr")
+		branding.Title = "wthr"
+	}
+	branding.Tagline = strings.TrimSpace(branding.Tagline)
+	branding.Description = strings.TrimSpace(branding.Description)
+	if !validBrandingImageValue(branding.Favicon) {
+		warnConfig("invalid server.branding.favicon, using embedded default")
+		branding.Favicon = ""
+	}
+	if !validBrandingImageValue(branding.Logo) {
+		warnConfig("invalid server.branding.logo, using embedded default")
+		branding.Logo = ""
+	}
+	if !validBrandingImageValue(cfg.Server.SEO.OGImage) {
+		warnConfig("invalid server.seo.og_image, using embedded default")
+		cfg.Server.SEO.OGImage = ""
+	}
+	content := &branding.Content
+	for name, page := range map[string]*OperatorPageContentConfig{
+		"header": &content.Header, "about": &content.About, "privacy": &content.Privacy,
+		"footer": &content.Footer, "terms": &content.Terms,
+	} {
+		if validateOperatorPageContent(name, page) {
+			warnConfig("invalid server.branding.content.%s, using built-in content", name)
+		}
+	}
+	if cfg.Web.UI.Accent != "" && !accentColorPattern.MatchString(cfg.Web.UI.Accent) {
+		warnConfig("invalid web.ui.accent %q, using built-in color", cfg.Web.UI.Accent)
+		cfg.Web.UI.Accent = ""
+	}
+}
+
+func validateOperatorPageContent(name string, page *OperatorPageContentConfig) bool {
+	page.Format = strings.ToLower(strings.TrimSpace(page.Format))
+	if name == "header" || name == "footer" {
+		if page.Format == "" {
+			page.Format = "html"
+		}
+		if page.Format != "html" {
+			*page = OperatorPageContentConfig{}
+			return true
+		}
+	} else {
+		if page.Format == "" {
+			page.Format = "md"
+		}
+		if page.Format != "md" && page.Format != "html" && page.Format != "txt" {
+			*page = OperatorPageContentConfig{}
+			return true
+		}
+	}
+	if page.Body == nil {
+		return false
+	}
+	valid := true
+	switch body := page.Body.(type) {
+	case string:
+		valid = len(body) <= 256*1024
+	case map[string]string:
+		for _, text := range body {
+			if len(text) > 256*1024 {
+				valid = false
+				break
+			}
+		}
+	case map[string]interface{}:
+		for language, value := range body {
+			text, ok := value.(string)
+			if !ok || len(text) > 256*1024 || strings.TrimSpace(language) == "" {
+				valid = false
+				break
+			}
+		}
+	default:
+		valid = false
+	}
+	if !valid {
+		*page = OperatorPageContentConfig{}
+		return true
+	}
+	return false
+}
+
+func validBrandingImageValue(value string) bool {
+	if value == "" {
+		return true
+	}
+	if strings.TrimSpace(value) != value {
+		return false
+	}
+	if strings.HasPrefix(value, "https://") {
+		parsed, err := url.Parse(value)
+		return err == nil && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil
+	}
+	if strings.HasPrefix(value, "data:") {
+		return validImageDataURI(value)
+	}
+	if filepath.Base(value) != value || strings.ContainsAny(value, `/\\`) {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(value)) {
+	case ".svg", ".png", ".ico", ".webp", ".jpg":
+		return true
+	default:
+		return false
+	}
+}
+
+func validImageDataURI(value string) bool {
+	header, data, found := strings.Cut(value, ",")
+	if !found {
+		return false
+	}
+	mime := strings.TrimPrefix(header, "data:")
+	base64Encoded := strings.HasSuffix(mime, ";base64")
+	if base64Encoded {
+		mime = strings.TrimSuffix(mime, ";base64")
+	}
+	switch mime {
+	case "image/png", "image/jpeg", "image/webp", "image/x-icon", "image/svg+xml":
+	default:
+		return false
+	}
+	var decoded []byte
+	var err error
+	if base64Encoded {
+		decoded, err = base64.StdEncoding.DecodeString(data)
+	} else {
+		var unescaped string
+		unescaped, err = url.PathUnescape(data)
+		decoded = []byte(unescaped)
+	}
+	return err == nil && len(decoded) > 0 && len(decoded) <= 256*1024
+}
+
+func validCanonicalBase(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && parsed.IsAbs() && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil && parsed.RawQuery == "" && parsed.Fragment == ""
+}
+
+func validateExtraMetaTags(tags map[string]string) map[string]string {
+	if len(tags) > 20 {
+		warnConfig("invalid seo.meta_tags: more than 20 entries, using default")
+		return map[string]string{}
+	}
+	reserved := map[string]struct{}{"description": {}, "keywords": {}, "author": {}, "robots": {}, "viewport": {}}
+	validated := make(map[string]string, len(tags))
+	for name, content := range tags {
+		if !seoMetaNamePattern.MatchString(name) {
+			warnConfig("invalid seo.meta_tags name %q, ignoring", name)
+			continue
+		}
+		if _, exists := reserved[name]; exists {
+			continue
+		}
+		validated[name] = content
+	}
+	return validated
+}
+
+func validateVerification(verification VerificationConfig) VerificationConfig {
+	values := map[string]*string{
+		"google": &verification.Google, "bing": &verification.Bing, "yandex": &verification.Yandex,
+		"baidu": &verification.Baidu, "pinterest": &verification.Pinterest, "facebook": &verification.Facebook,
+	}
+	for name, value := range values {
+		if *value == "" {
+			continue
+		}
+		format := verificationFormats[name]
+		if len(*value) > format.max || !format.pattern.MatchString(*value) {
+			warnConfig("invalid seo.verification.%s, ignoring", name)
+			*value = ""
+		}
+	}
+	custom := verification.Custom[:0]
+	for _, tag := range verification.Custom {
+		nameCount := 0
+		if tag.Name != "" {
+			nameCount++
+		}
+		if tag.Property != "" {
+			nameCount++
+		}
+		valid := nameCount == 1 && len(tag.Content) > 0 && len(tag.Content) <= 256
+		if tag.Name != "" {
+			valid = valid && verificationNamePattern.MatchString(tag.Name)
+		}
+		if tag.Property != "" {
+			valid = valid && verificationNamePattern.MatchString(tag.Property)
+		}
+		if valid {
+			custom = append(custom, tag)
+		} else {
+			warnConfig("invalid seo.verification.custom tag, ignoring")
+		}
+	}
+	verification.Custom = custom
+	return verification
+}
+
+func validSocialHandle(handle string) bool {
+	return socialHandlePattern.MatchString(handle)
+}
+
+func utf8StringLength(value string) int {
+	return len([]rune(value))
 }
 
 // validateWebRobots drops invalid robots paths with a warning and restores the
@@ -452,7 +715,7 @@ func IsValidAdminPath(v string) bool {
 		return false
 	}
 	for _, r := range v {
-		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return false
 		}
 	}

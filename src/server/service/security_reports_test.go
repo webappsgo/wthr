@@ -18,7 +18,7 @@ func newSecurityTestStore(t *testing.T) *SecurityReportStore {
 	if err != nil {
 		t.Fatalf("InitDualDB: %v", err)
 	}
-	t.Cleanup(func() { ddb.Close() })
+	t.Cleanup(func() { _ = ddb.Close() })
 	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
 	return &SecurityReportStore{DB: ddb.Server, EncryptionKey: key, PGP: NewPGPKeyManager(ddb.Server, t.TempDir())}
 }

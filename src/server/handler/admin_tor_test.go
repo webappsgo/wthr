@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/webappsgo/wthr/src/database"
@@ -17,6 +19,11 @@ import (
 // their error branches rather than a real Tor process.
 func newTorTestHandler(t *testing.T) *TorAdminHandler {
 	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	serverDB := newTestServerDB(t)
 	// SettingsModel reads/writes through the package-level
 	// database.GetServerDB() accessor rather than its injected DB field, so
@@ -80,12 +87,8 @@ func TestTorAdminHandler_Enable(t *testing.T) {
 	}
 }
 
-func TestTorAdminHandler_Enable_SettingsFailure(t *testing.T) {
+func TestTorAdminHandler_Enable_UsesFileBackedSettings(t *testing.T) {
 	h := newTorTestHandler(t)
-	// Drop the settings table so SetBool fails before Start() is reached.
-	if _, err := h.settingsModel.DB.Exec("DROP TABLE server_config"); err != nil {
-		t.Fatalf("drop table: %v", err)
-	}
 	c, w := newTestContext(http.MethodPost, "/admin/tor/enable")
 	h.Enable(w, c)
 	if w.Code != http.StatusInternalServerError {
@@ -95,7 +98,7 @@ func TestTorAdminHandler_Enable_SettingsFailure(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if resp["ok"] != false || resp["error"] != "DATABASE_ERROR" {
+	if resp["ok"] != false || resp["error"] != "TOR_START_FAILED" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }
@@ -110,15 +113,12 @@ func TestTorAdminHandler_Disable(t *testing.T) {
 	}
 }
 
-func TestTorAdminHandler_Disable_SettingsFailure(t *testing.T) {
+func TestTorAdminHandler_Disable_UsesFileBackedSettings(t *testing.T) {
 	h := newTorTestHandler(t)
-	if _, err := h.settingsModel.DB.Exec("DROP TABLE server_config"); err != nil {
-		t.Fatalf("drop table: %v", err)
-	}
 	c, w := newTestContext(http.MethodPost, "/admin/tor/disable")
 	h.Disable(w, c)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
 }
 
@@ -223,7 +223,11 @@ func TestTorAdminHandler_GetVanityStatus(t *testing.T) {
 		if err := h.vanityGenerator.StartVanityGeneration("ab"); err != nil {
 			t.Fatalf("start: %v", err)
 		}
-		defer h.vanityGenerator.Cancel()
+		defer func() {
+			if err := h.vanityGenerator.Cancel(); err != nil {
+				t.Errorf("cancel vanity generation: %v", err)
+			}
+		}()
 
 		c, w := newTestContext(http.MethodGet, "/admin/tor/vanity/status")
 		h.GetVanityStatus(w, c)

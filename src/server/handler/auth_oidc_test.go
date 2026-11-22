@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -79,7 +80,7 @@ func TestDeriveUsernameFromClaims(t *testing.T) {
 			name:     "preferred username wins",
 			claims:   &service.OIDCClaims{PreferredUsername: "Alice.B", Email: "bob@example.com", Name: "Bob"},
 			provider: "okta",
-			want:     "alice.b",
+			want:     "aliceb",
 		},
 		{
 			name:     "falls back to email local part",
@@ -132,6 +133,47 @@ func TestSanitizeUsername(t *testing.T) {
 				t.Errorf("sanitizeUsername(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeOIDCUsernameCandidate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "leading at sign", input: "@Alice", want: "alice"},
+		{name: "email localpart", input: "Alice.B@example.com", want: "aliceb"},
+		{name: "claim fallback cleanup", input: " Alice Smith! ", want: "alicesmith"},
+		{name: "short candidate fallback", input: "x", want: "user"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeOIDCUsernameCandidate(tt.input); got != tt.want {
+				t.Errorf("normalizeOIDCUsernameCandidate(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOIDCPendingIdentityExpiresAndIsConsumed(t *testing.T) {
+	h := &OIDCAuthHandler{pending: map[string]pendingOIDCIdentity{
+		"active":  {provider: "example", expires: time.Now().Add(time.Minute)},
+		"expired": {provider: "example", expires: time.Now().Add(-time.Minute)},
+	}}
+	active := httptest.NewRequest(http.MethodGet, "/server/auth/external/username", nil)
+	active.AddCookie(&http.Cookie{Name: oidcPendingCookie, Value: "active"})
+	if _, ok := h.getPendingIdentity(active); !ok {
+		t.Fatal("active pending identity was not found")
+	}
+	h.consumePendingIdentity(active)
+	if _, ok := h.getPendingIdentity(active); ok {
+		t.Fatal("consumed pending identity remained usable")
+	}
+	expired := httptest.NewRequest(http.MethodGet, "/server/auth/external/username", nil)
+	expired.AddCookie(&http.Cookie{Name: oidcPendingCookie, Value: "expired"})
+	if _, ok := h.getPendingIdentity(expired); ok {
+		t.Fatal("expired pending identity was accepted")
 	}
 }
 

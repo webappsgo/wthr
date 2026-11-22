@@ -32,7 +32,7 @@ func TestHurricane_FetchNOAAStorms_HappyPath(t *testing.T) {
 	}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
 
@@ -64,7 +64,7 @@ func TestHurricane_FetchNOAAStorms_ZeroIntensity(t *testing.T) {
 	body := `{"activeStorms": [{"id":"AL022026","name":"Beta","classification":"TS","intensityMPH":0}]}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
 
@@ -86,7 +86,7 @@ func TestHurricane_FetchNOAAStorms_ZeroIntensity(t *testing.T) {
 func TestHurricane_FetchNOAAStorms_EmptyList(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"activeStorms": []}`))
+		_, _ = w.Write([]byte(`{"activeStorms": []}`))
 	}))
 	defer srv.Close()
 
@@ -100,27 +100,18 @@ func TestHurricane_FetchNOAAStorms_EmptyList(t *testing.T) {
 	}
 }
 
-// TestHurricane_FetchNOAAStorms_MalformedJSON documents and locks in the
-// quirky production behavior: a JSON decode failure returns an EMPTY slice
-// and a NIL error, not an error. This is a real behavioral contract of the
-// code (regression test for that specific quirk), not a bug fix.
+// TestHurricane_FetchNOAAStorms_MalformedJSON ensures malformed source data
+// is reported as a failed refresh rather than mistaken for no active storms.
 func TestHurricane_FetchNOAAStorms_MalformedJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{not valid json`))
+		_, _ = w.Write([]byte(`{not valid json`))
 	}))
 	defer srv.Close()
 
 	hs := NewHurricaneService()
-	storms, err := hs.fetchNOAAStorms(srv.URL)
-	if err != nil {
-		t.Fatalf("expected nil error for malformed JSON (documented quirk), got: %v", err)
-	}
-	if storms == nil {
-		t.Fatal("expected non-nil empty slice for malformed JSON")
-	}
-	if len(storms) != 0 {
-		t.Errorf("expected empty slice, got %d storms", len(storms))
+	if _, err := hs.fetchNOAAStorms(srv.URL); err == nil {
+		t.Fatal("expected error for malformed JSON")
 	}
 }
 

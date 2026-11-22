@@ -8,6 +8,7 @@
                 <h1>🗄️ {{t $lang "admin.database.title"}}</h1>
                 <p class="subtitle">{{t $lang "admin.database.subtitle"}}</p>
             </div>
+            {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 
             <!-- Database Status Section -->
             <section class="admin-card" aria-labelledby="db-status-heading">
@@ -20,12 +21,12 @@
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.connection_status"}}</div>
                             <div class="stat-value" id="db-status">
-                                <span class="loading">{{t $lang "admin.database.loading"}}</span>
+                                {{.database_status}}
                             </div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.database_type"}}</div>
-                            <div class="stat-value" id="db-type">-</div>
+                            <div class="stat-value" id="db-type">{{.database_driver}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.database_size"}}</div>
@@ -37,9 +38,11 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" data-action="db-refresh-stats" aria-label="{{t $lang "admin.database.refresh_stats_label"}}">
-                        🔄 {{t $lang "admin.database.refresh_stats"}}
-                    </button>
+                    <form method="get" action="{{.admin_path}}/database">
+                        <button type="submit" class="btn btn-secondary" data-action="db-refresh-stats" aria-label="{{t $lang "admin.database.refresh_stats_label"}}">
+                            🔄 {{t $lang "admin.database.refresh_stats"}}
+                        </button>
+                    </form>
                 </div>
             </section>
 
@@ -65,9 +68,13 @@
                                     <li>{{t $lang "admin.database.optimize_benefit_stats"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="optimize-btn" data-action="db-optimize" aria-label="{{t $lang "admin.database.optimize_button_label"}}">
-                                ⚡ {{t $lang "admin.database.optimize_button"}}
-                            </button>
+                            <form method="post" action="{{.admin_path}}/database/action">
+                                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                                <input type="hidden" name="operation" value="optimize">
+                                <button type="submit" class="btn btn-primary" id="optimize-btn" data-action="db-optimize" aria-label="{{t $lang "admin.database.optimize_button_label"}}">
+                                    ⚡ {{t $lang "admin.database.optimize_button"}}
+                                </button>
+                            </form>
                         </div>
 
                         <div class="action-card">
@@ -80,9 +87,13 @@
                                     <li>{{t $lang "admin.database.vacuum_benefit_clean"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="vacuum-btn" data-action="db-vacuum" aria-label="{{t $lang "admin.database.vacuum_button_label"}}">
-                                🧹 {{t $lang "admin.database.vacuum_button"}}
-                            </button>
+                            <form method="post" action="{{.admin_path}}/database/action">
+                                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                                <input type="hidden" name="operation" value="vacuum">
+                                <button type="submit" class="btn btn-primary" id="vacuum-btn" data-action="db-vacuum" aria-label="{{t $lang "admin.database.vacuum_button_label"}}">
+                                    🧹 {{t $lang "admin.database.vacuum_button"}}
+                                </button>
+                            </form>
                         </div>
 
                         <div class="action-card">
@@ -95,9 +106,13 @@
                                     <li>{{t $lang "admin.database.test_benefit_config"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-secondary" id="test-btn" data-action="db-test-connection" aria-label="{{t $lang "admin.database.test_button_label"}}">
-                                🔍 {{t $lang "admin.database.test_button"}}
-                            </button>
+                            <form method="post" action="{{.admin_path}}/database/action">
+                                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                                <input type="hidden" name="operation" value="test">
+                                <button type="submit" class="btn btn-secondary" id="test-btn" data-action="db-test-connection" aria-label="{{t $lang "admin.database.test_button_label"}}">
+                                    🔍 {{t $lang "admin.database.test_button"}}
+                                </button>
+                            </form>
                         </div>
                     </div>
 
@@ -116,12 +131,12 @@
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.cache_status_label"}}</div>
                             <div class="stat-value" id="cache-status">
-                                <span class="loading">{{t $lang "admin.database.loading"}}</span>
+                                {{.cache_status}}
                             </div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.cache_type_label"}}</div>
-                            <div class="stat-value" id="cache-type">-</div>
+                            <div class="stat-value" id="cache-type">{{.cache_type}}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">{{t $lang "admin.database.cache_hit_rate_label"}}</div>
@@ -135,12 +150,18 @@
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-warning" id="clear-cache-btn" data-action="db-clear-cache" aria-label="{{t $lang "admin.database.clear_cache_label"}}">
-                            🗑️ {{t $lang "admin.database.clear_cache_button"}}
-                        </button>
-                        <button class="btn btn-secondary" data-action="db-refresh-cache-stats" aria-label="{{t $lang "admin.database.refresh_cache_label"}}">
-                            🔄 {{t $lang "admin.database.refresh_cache_button"}}
-                        </button>
+                        <form method="post" action="{{.admin_path}}/database/action">
+                            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                            <input type="hidden" name="operation" value="clear-cache">
+                            <button type="submit" class="btn btn-warning" id="clear-cache-btn" data-action="db-clear-cache" aria-label="{{t $lang "admin.database.clear_cache_label"}}">
+                                🗑️ {{t $lang "admin.database.clear_cache_button"}}
+                            </button>
+                        </form>
+                        <form method="get" action="{{.admin_path}}/database">
+                            <button type="submit" class="btn btn-secondary" data-action="db-refresh-cache-stats" aria-label="{{t $lang "admin.database.refresh_cache_label"}}">
+                                🔄 {{t $lang "admin.database.refresh_cache_button"}}
+                            </button>
+                        </form>
                     </div>
 
                     <div id="cache-result" class="alert alert-result hidden" role="status" aria-live="polite"></div>
@@ -154,7 +175,7 @@
                     <p class="card-description">{{t $lang "admin.database.config_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="db-config-form" class="settings-form">
+                    <form id="db-config-form" class="settings-form" method="post" action="{{.admin_path}}/database">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label for="db_driver">{{t $lang "admin.database.driver_label"}}</label>
@@ -164,13 +185,13 @@
                                 class="form-control"
                                 aria-describedby="db_driver_help"
                             >
-                                <option value="file">{{t $lang "admin.database.driver_sqlite_file"}}</option>
-                                <option value="sqlite">{{t $lang "admin.database.driver_sqlite"}}</option>
-                                <option value="postgres">{{t $lang "admin.database.driver_postgres"}}</option>
-                                <option value="mysql">{{t $lang "admin.database.driver_mysql"}}</option>
-                                <option value="mariadb">{{t $lang "admin.database.driver_mariadb"}}</option>
-                                <option value="mssql">{{t $lang "admin.database.driver_mssql"}}</option>
-                                <option value="mongodb">{{t $lang "admin.database.driver_mongodb"}}</option>
+                                <option value="file" {{if eq .database_driver "file"}}selected{{end}}>{{t $lang "admin.database.driver_sqlite_file"}}</option>
+                                <option value="sqlite" {{if eq .database_driver "sqlite"}}selected{{end}}>{{t $lang "admin.database.driver_sqlite"}}</option>
+                                <option value="postgres" {{if eq .database_driver "postgres"}}selected{{end}}>{{t $lang "admin.database.driver_postgres"}}</option>
+                                <option value="mysql" {{if eq .database_driver "mysql"}}selected{{end}}>{{t $lang "admin.database.driver_mysql"}}</option>
+                                <option value="mariadb" {{if eq .database_driver "mariadb"}}selected{{end}}>{{t $lang "admin.database.driver_mariadb"}}</option>
+                                <option value="mssql" {{if eq .database_driver "mssql"}}selected{{end}}>{{t $lang "admin.database.driver_mssql"}}</option>
+                                <option value="mongodb" {{if eq .database_driver "mongodb"}}selected{{end}}>{{t $lang "admin.database.driver_mongodb"}}</option>
                             </select>
                             <small id="db_driver_help" class="form-text">
                                 {{t $lang "admin.database.driver_help"}}
@@ -185,6 +206,7 @@
                                     id="db_host"
                                     name="database.host"
                                     class="form-control"
+                                    value="{{.database_host}}"
                                     placeholder="localhost"
                                     aria-describedby="db_host_help"
                                 >
@@ -200,6 +222,7 @@
                                     id="db_port"
                                     name="database.port"
                                     class="form-control"
+                                    value="{{.database_port}}"
                                     min="1"
                                     max="65535"
                                     placeholder="5432"
@@ -217,6 +240,7 @@
                                     id="db_name"
                                     name="database.name"
                                     class="form-control"
+                                    value="{{.database_name}}"
                                     placeholder="wthr"
                                     aria-describedby="db_name_help"
                                 >
@@ -232,6 +256,7 @@
                                     id="db_username"
                                     name="database.username"
                                     class="form-control"
+                                    value="{{.database_username}}"
                                     placeholder="admin"
                                     aria-describedby="db_username_help"
                                 >
@@ -275,10 +300,10 @@
                                         class="form-control"
                                         aria-describedby="db_sslmode_help"
                                     >
-                                        <option value="disable">{{t $lang "admin.database.sslmode_disable"}}</option>
-                                        <option value="require">{{t $lang "admin.database.sslmode_require"}}</option>
-                                        <option value="verify-ca">{{t $lang "admin.database.sslmode_verify_ca"}}</option>
-                                        <option value="verify-full">{{t $lang "admin.database.sslmode_verify_full"}}</option>
+                                        <option value="disable" {{if eq .database_sslmode "disable"}}selected{{end}}>{{t $lang "admin.database.sslmode_disable"}}</option>
+                                        <option value="require" {{if eq .database_sslmode "require"}}selected{{end}}>{{t $lang "admin.database.sslmode_require"}}</option>
+                                        <option value="verify-ca" {{if eq .database_sslmode "verify-ca"}}selected{{end}}>{{t $lang "admin.database.sslmode_verify_ca"}}</option>
+                                        <option value="verify-full" {{if eq .database_sslmode "verify-full"}}selected{{end}}>{{t $lang "admin.database.sslmode_verify_full"}}</option>
                                     </select>
                                     <small id="db_sslmode_help" class="form-text">
                                         {{t $lang "admin.database.sslmode_help"}}
@@ -288,7 +313,7 @@
                         </div>
 
                         <div class="button-group mt-3">
-                            <button type="button" class="btn btn-secondary" id="test-db-connection-btn" data-action="db-test-connection-config">
+                            <button type="submit" formaction="{{.admin_path}}/database/test-config" class="btn btn-secondary" id="test-db-connection-btn" data-action="db-test-connection-config">
                                 🔍 {{t $lang "admin.database.test_button"}}
                             </button>
                         </div>
@@ -318,7 +343,7 @@
                     <p class="card-description">{{t $lang "admin.database.settings_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <form id="db-settings-form" class="settings-form">
+                    <form id="db-settings-form" class="settings-form" method="post" action="{{.admin_path}}/database">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label for="db_connection_pool">{{t $lang "admin.database.pool_size_label"}}</label>
@@ -327,6 +352,7 @@
                                 id="db_connection_pool"
                                 name="database.pool_size"
                                 class="form-control"
+                                value="{{.database_pool_size}}"
                                 min="1"
                                 max="100"
                                 placeholder="25"
@@ -344,6 +370,7 @@
                                 id="db_timeout"
                                 name="database.timeout"
                                 class="form-control"
+                                value="{{.database_timeout}}"
                                 min="1"
                                 max="300"
                                 placeholder="30"
@@ -361,6 +388,8 @@
                                     id="db_auto_optimize"
                                     name="database.auto_optimize"
                                     class="toggle-input"
+                                    value="true"
+                                    {{if .database_auto_optimize}}checked{{end}}
                                     aria-describedby="db_auto_optimize_help"
                                 >
                                 <span class="toggle-slider"></span>

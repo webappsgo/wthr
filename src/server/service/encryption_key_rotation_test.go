@@ -19,7 +19,7 @@ func encryptionRotationFixture(t *testing.T) (*EncryptionKeyRotator, *SecurityRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { ddb.Close() })
+	t.Cleanup(func() { _ = ddb.Close() })
 
 	key, err := newEncryptionKey()
 	if err != nil {
@@ -43,12 +43,26 @@ func encryptionRotationFixture(t *testing.T) (*EncryptionKeyRotator, *SecurityRe
 
 func TestRotateEncryptionKeyReencryptsEveryDependentRow(t *testing.T) {
 	rotator, reports, oldKey := encryptionRotationFixture(t)
+	backupPassword, err := util.EncryptAtRest(oldKey, "backup-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.WriteSecret("server.backup.encryption_password", backupPassword); err != nil {
+		t.Fatal(err)
+	}
 
 	sealedSecret, err := util.EncryptAtRest(oldKey, "JBSWY3DPEHPK3PXP")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := rotator.UsersDB.Exec(`INSERT INTO users (username, email, password_hash, two_factor_enabled, two_factor_secret) VALUES ('alice', 'alice@example.com', 'x', 1, ?)`, sealedSecret); err != nil {
+		t.Fatal(err)
+	}
+	adminTOTPSecret, err := util.EncryptAtRest(oldKey, "JBSWY3DPEHPK3PXP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rotator.UsersDB.Exec(`INSERT INTO admins (username, email, password_hash, totp_enabled, totp_secret) VALUES ('admin', 'admin@example.com', 'x', 1, ?)`, adminTOTPSecret); err != nil {
 		t.Fatal(err)
 	}
 	trackingID, _, err := reports.Create("a1b2c3d4e5f60718", sampleReport(), ReportContact{Name: "Ada", Email: "ada@example.com"})
@@ -76,6 +90,16 @@ func TestRotateEncryptionKeyReencryptsEveryDependentRow(t *testing.T) {
 	if _, err := util.DecryptAtRest(oldKey, storedSecret); err == nil {
 		t.Error("the 2FA secret must no longer open under the old key")
 	}
+	var storedAdminTOTPSecret string
+	if err := rotator.UsersDB.QueryRow(`SELECT totp_secret FROM admins WHERE username = 'admin'`).Scan(&storedAdminTOTPSecret); err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := util.DecryptAtRest(newKey, storedAdminTOTPSecret); err != nil || plain != "JBSWY3DPEHPK3PXP" {
+		t.Errorf("the admin TOTP secret must now open under the new key, got %q, %v", plain, err)
+	}
+	if _, err := util.DecryptAtRest(oldKey, storedAdminTOTPSecret); err == nil {
+		t.Error("the admin TOTP secret must no longer open under the old key")
+	}
 
 	reports.EncryptionKey = newKey
 	report, contact, err := reports.Body(trackingID)
@@ -88,6 +112,13 @@ func TestRotateEncryptionKeyReencryptsEveryDependentRow(t *testing.T) {
 	}
 	if rotator.PreviousKey() != oldKey {
 		t.Error("the previous key must stay readable during the grace period")
+	}
+	storedBackupPassword, err := config.ReadSecret("server.backup.encryption_password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := util.DecryptAtRest(newKey, storedBackupPassword); err != nil || plain != "backup-password" {
+		t.Errorf("the scheduled-backup password must be re-encrypted under the new key, got %q, %v", plain, err)
 	}
 }
 
@@ -116,6 +147,16 @@ func TestSecondRotationIsRefusedWhileRowsAreStillOnThePreviousKey(t *testing.T) 
 	if _, err := rotator.UsersDB.Exec(`INSERT INTO users (username, email, password_hash, two_factor_enabled, two_factor_secret) VALUES ('bob', 'bob@example.com', 'x', 1, ?)`, stale); err != nil {
 		t.Fatal(err)
 	}
+	staleAdminTOTP, err := util.EncryptAtRest(oldKey, "JBSWY3DPEHPK3PXP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rotator.UsersDB.Exec(`INSERT INTO admins (username, email, password_hash, totp_enabled, totp_secret) VALUES ('stale-admin', 'stale-admin@example.com', 'x', 1, ?)`, staleAdminTOTP); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := rotator.PendingRows(); err != nil || pending != 2 {
+		t.Fatalf("pending user and admin secrets = %d, %v; want 2", pending, err)
+	}
 	if err := rotator.Rotate(); err != ErrEncryptionRotationPending {
 		t.Fatalf("err = %v, want ErrEncryptionRotationPending", err)
 	}
@@ -125,6 +166,27 @@ func TestSecondRotationIsRefusedWhileRowsAreStillOnThePreviousKey(t *testing.T) 
 	}
 	if err := rotator.Rotate(); err != nil {
 		t.Errorf("once every row is on the current key a rotation must work, got %v", err)
+	}
+}
+
+func TestRebaseAdminTOTPRejectsUndecryptableSecret(t *testing.T) {
+	rotator, _, oldKey := encryptionRotationFixture(t)
+	newKey, err := newEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rotator.UsersDB.Exec(`INSERT INTO admins (username, email, password_hash, totp_enabled, totp_secret) VALUES ('broken-admin', 'broken-admin@example.com', 'x', 1, 'not-an-encrypted-secret')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := rotator.Rebase(oldKey, newKey); err == nil {
+		t.Fatal("Rebase accepted an admin TOTP secret that neither key can decrypt")
+	}
+	var stored string
+	if err := rotator.UsersDB.QueryRow(`SELECT totp_secret FROM admins WHERE username = 'broken-admin'`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != "not-an-encrypted-secret" {
+		t.Fatalf("failed rebase changed stored admin TOTP secret to %q", stored)
 	}
 }
 
@@ -186,9 +248,9 @@ func TestRotateEncryptionKeyReencryptsDNSCredentials(t *testing.T) {
 	if _, _, err := util.OpenDNSCredential(oldKey, stored); err == nil {
 		t.Error("the credential must no longer open under the old key")
 	}
-	file, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "server.yml"))
+	file, err := os.ReadFile(filepath.Join(os.Getenv("CONFIG_DIR"), "secrets.yml"))
 	if err != nil || !strings.Contains(string(file), stored) {
-		t.Errorf("server.yml must carry the re-encrypted value: %v", err)
+		t.Errorf("secrets.yml must carry the re-encrypted value: %v", err)
 	}
 	if pending, err := rotator.PendingRows(); err != nil || pending != 0 {
 		t.Errorf("nothing may be left to re-encrypt, got %d, %v", pending, err)

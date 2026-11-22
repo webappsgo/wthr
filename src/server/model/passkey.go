@@ -166,7 +166,7 @@ func (m *UserPasskeyModel) ListByUserID(userID int64) ([]*UserPasskey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query passkeys: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	passkeys := make([]*UserPasskey, 0)
 	for rows.Next() {

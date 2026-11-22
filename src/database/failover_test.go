@@ -29,7 +29,7 @@ func TestNewFailoverManager_HealthyPrimary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query on healthy primary: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var found bool
 	for rows.Next() {
 		var v string
@@ -62,7 +62,7 @@ func TestFailoverManager_ExecFailureTripsReadOnly(t *testing.T) {
 	primary := openMemDB(t, "fo_exec_primary")
 	cache := openMemDB(t, "fo_exec_cache")
 	// force every primary op to fail
-	primary.Close()
+	_ = primary.Close()
 
 	fm := NewFailoverManager(primary, cache)
 	defer fm.Close()
@@ -125,7 +125,7 @@ func TestFailoverManager_QueryFallsBackToCache(t *testing.T) {
 	if _, err := cache.Exec("INSERT INTO t (id, val) VALUES (1, 'cached')"); err != nil {
 		t.Fatalf("seed cache: %v", err)
 	}
-	primary.Close()
+	_ = primary.Close()
 
 	fm := NewFailoverManager(primary, cache)
 	defer fm.Close()
@@ -134,7 +134,7 @@ func TestFailoverManager_QueryFallsBackToCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query with dead primary should fall back to cache, got error: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var got string
 	for rows.Next() {
 		if err := rows.Scan(&got); err != nil {
@@ -168,7 +168,7 @@ func TestFailoverManager_QueryReadOnlyUsesCacheDirectly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query in read-only mode: %v", err)
 	}
-	rows.Close()
+	_ = rows.Close()
 }
 
 // TestFailoverManager_HandlePrimaryFailure_OnlyTripsOnFirstFailure verifies
@@ -240,7 +240,7 @@ func TestFailoverManager_AttemptRecovery_NoOpWhenHealthy(t *testing.T) {
 func TestFailoverManager_AttemptRecovery_RestoresPrimaryAndReplaysWrites(t *testing.T) {
 	deadPrimary := openMemDB(t, "fo_rec_deadprimary")
 	cache := openMemDB(t, "fo_rec_cache")
-	deadPrimary.Close()
+	_ = deadPrimary.Close()
 
 	fm := NewFailoverManager(deadPrimary, cache)
 	defer fm.Close()
@@ -291,7 +291,7 @@ func TestFailoverManager_AttemptRecovery_RestoresPrimaryAndReplaysWrites(t *test
 func TestFailoverManager_AttemptRecovery_StaysReadOnlyIfStillDown(t *testing.T) {
 	deadPrimary := openMemDB(t, "fo_stilldown_primary")
 	cache := openMemDB(t, "fo_stilldown_cache")
-	deadPrimary.Close()
+	_ = deadPrimary.Close()
 
 	fm := NewFailoverManager(deadPrimary, cache)
 	defer fm.Close()

@@ -10,6 +10,7 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // TokenType represents the type of API token per AI.md PART 11
@@ -130,7 +131,11 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 				}
 
 				// Update last used timestamp
-				go tokenModelV2.UpdateLastUsed(validatedToken.ID)
+				go func(tokenID int64) {
+					if err := tokenModelV2.UpdateLastUsed(tokenID); err != nil {
+						util.LogError("Unable to update API token last-used time: %v", err)
+					}
+				}(validatedToken.ID)
 
 				ctx = reqctx.SetValue(ctx, UserContextKey, user)
 				// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert

@@ -27,10 +27,16 @@ func newModelUsersDB(t *testing.T) *sql.DB {
 		t.Fatalf("open users db: %v", err)
 	}
 	if _, err := db.Exec(database.UsersSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close users database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close users test database: %v", err)
+		}
+	})
 	return db
 }
 
@@ -45,10 +51,16 @@ func newModelServerDB(t *testing.T) *sql.DB {
 		t.Fatalf("open server db: %v", err)
 	}
 	if _, err := db.Exec(database.ServerSchema); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("close server database after schema failure: %v", closeErr)
+		}
 		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close server test database: %v", err)
+		}
+	})
 	return db
 }
 

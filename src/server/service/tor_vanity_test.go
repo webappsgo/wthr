@@ -32,7 +32,7 @@ func TestTorVanity_Start_ValidatesPrefixLength(t *testing.T) {
 			}
 			if err == nil {
 				// Stop the background goroutine promptly.
-				vg.Cancel()
+				_ = vg.Cancel()
 				vg.Wait()
 			}
 		})
@@ -67,7 +67,7 @@ func TestTorVanity_Start_ValidatesPrefixCharacters(t *testing.T) {
 				t.Errorf("Start(%q) error = %v, wantErr %v", tt.prefix, err, tt.wantErr)
 			}
 			if err == nil {
-				vg.Cancel()
+				_ = vg.Cancel()
 				vg.Wait()
 			}
 		})
@@ -85,7 +85,7 @@ func TestTorVanity_Start_RejectsConcurrentRun(t *testing.T) {
 		t.Fatalf("first Start unexpected error: %v", err)
 	}
 	defer func() {
-		vg.Cancel()
+		_ = vg.Cancel()
 		vg.Wait()
 	}()
 
@@ -174,7 +174,7 @@ func TestTorVanity_GetStatus_ReturnsCopy(t *testing.T) {
 		t.Fatalf("Start unexpected error: %v", err)
 	}
 	defer func() {
-		vg.Cancel()
+		_ = vg.Cancel()
 		vg.Wait()
 	}()
 
@@ -218,7 +218,7 @@ func TestTorVanity_GetKeys_ErrorPaths(t *testing.T) {
 			t.Fatalf("Start unexpected error: %v", err)
 		}
 		defer func() {
-			vg.Cancel()
+			_ = vg.Cancel()
 			vg.Wait()
 		}()
 
@@ -233,7 +233,7 @@ func TestTorVanity_GetKeys_ErrorPaths(t *testing.T) {
 		if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 			t.Fatalf("Start unexpected error: %v", err)
 		}
-		vg.Cancel()
+		_ = vg.Cancel()
 		vg.Wait()
 
 		// status.Address will be "" since cancellation happened before a match.

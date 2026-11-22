@@ -17,6 +17,7 @@ RUN go mod download
 
 # Copy source code
 COPY src/ ./src/
+RUN go generate ./src/swagger
 
 # Build static binary (CGO_ENABLED=0)
 ARG VERSION=dev

@@ -3,12 +3,18 @@ package cluster
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -32,6 +38,8 @@ const heartbeatDegradedThreshold = 90 * time.Second
 // updateChunkSize caps how many node IDs one UPDATE statement binds, keeping the
 // statement well inside every driver's bind-parameter limit.
 const updateChunkSize = 500
+const deletedConfigSentinel = `"__wthr_config_deleted__"`
+const clusterAssetPrefix = "__wthr_asset_v1__:"
 
 // parseStoredTimestamp converts a value scanned from a TIMESTAMP column into a
 // UTC time.Time, reporting false for NULL and for layouts the project never
@@ -65,12 +73,15 @@ type ClusterManager struct {
 	db     *sql.DB
 	nodeID string
 	// Runtime-detected node address (host:port)
-	nodeAddress   string
-	currentState  NodeState
-	nodes         map[string]*Node
-	heartbeatTick *time.Ticker
-	stopChan      chan struct{}
-	enabled       bool
+	nodeAddress       string
+	currentState      NodeState
+	nodes             map[string]*Node
+	heartbeatTick     *time.Ticker
+	stopChan          chan struct{}
+	enabled           bool
+	lastConfigVersion int64
+	pendingFileSync   bool
+	newNode           bool
 }
 
 // NewClusterManager creates a new cluster manager
@@ -102,6 +113,15 @@ func (cm *ClusterManager) StartClusterManager() error {
 	if err := cm.initializeClusterTables(); err != nil {
 		return fmt.Errorf("failed to initialize cluster tables: %w", err)
 	}
+	if err := cm.initializeConfigSyncTables(); err != nil {
+		return fmt.Errorf("failed to initialize cluster config tables: %w", err)
+	}
+	config.SetSharedConfigSyncHooks(cm.writeSharedSetting, cm.deleteSharedSetting, cm.writeConfigToSharedDatabase)
+	var registered int
+	if err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM cluster_nodes WHERE node_id = ?`, cm.nodeID).Scan(&registered); err != nil {
+		return fmt.Errorf("check prior cluster registration: %w", err)
+	}
+	cm.newNode = registered == 0
 
 	// Register this node
 	if err := cm.registerNode(); err != nil {
@@ -116,6 +136,10 @@ func (cm *ClusterManager) StartClusterManager() error {
 	if err := cm.electPrimary(); err != nil {
 		util.LogWarn("Initial election failed: %v", err)
 	}
+	if err := cm.SyncConfig(); err != nil {
+		util.LogWarn("Initial cluster config sync failed: %v", err)
+	}
+	go cm.configSyncLoop()
 
 	util.LogInfo("Cluster manager started (Node ID: %s, State: %s)", cm.nodeID, cm.currentState)
 	return nil
@@ -133,6 +157,7 @@ func (cm *ClusterManager) StopClusterManager() {
 	if cm.heartbeatTick != nil {
 		cm.heartbeatTick.Stop()
 	}
+	config.SetSharedConfigSyncHooks(nil, nil)
 
 	// Mark node as offline
 	_ = cm.unregisterNode()
@@ -179,11 +204,15 @@ func (cm *ClusterManager) heartbeatLoop() {
 // String() form, which no longer compares correctly against timestamps written
 // by CURRENT_TIMESTAMP or by another node in a different zone.
 func (cm *ClusterManager) sendHeartbeat() error {
+	now := dbtime.FormatSQLTimestamp(time.Now())
 	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET last_heartbeat = ?, state = ?
 		WHERE node_id = ?
-	`, dbtime.FormatSQLTimestamp(time.Now()), cm.currentState, cm.nodeID)
+	`, now, cm.currentState, cm.nodeID)
+	if err == nil {
+		_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `UPDATE server_nodes SET last_heartbeat = ?, status = 'online' WHERE node_id = ?`, now, cm.nodeID)
+	}
 
 	return err
 }
@@ -236,7 +265,7 @@ func (cm *ClusterManager) staleNodeIDs(cutoff time.Time) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var staleIDs []string
 	for rows.Next() {
@@ -305,7 +334,7 @@ func (cm *ClusterManager) electPrimary() error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var candidates []string
 	for rows.Next() {
@@ -360,120 +389,501 @@ func (cm *ClusterManager) SyncConfig() error {
 	}
 
 	if !cm.IsPrimary() {
-		// Secondary nodes pull config from primary
-		return cm.pullConfigFromPrimary()
+		if !cm.newNode {
+			if err := cm.writeConfigToSharedDatabase(); err != nil {
+				return err
+			}
+		}
+		return cm.pullConfigFromSharedDatabase()
 	}
-
-	// Primary node pushes config to secondaries
-	return cm.pushConfigToSecondaries()
+	return cm.writeConfigToSharedDatabase()
 }
 
-// pullConfigFromPrimary pulls configuration from the primary node
-func (cm *ClusterManager) pullConfigFromPrimary() error {
-	// Get primary node address
-	var primaryAddress string
-	err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
-		SELECT address
-		FROM cluster_nodes
-		WHERE state = 'primary' AND is_healthy = 1
-		LIMIT 1
-	`).Scan(&primaryAddress)
-
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("no healthy primary node found")
-	}
+func (cm *ClusterManager) initializeConfigSyncTables() error {
+	_, release, err := cm.acquireConfigSyncLock()
 	if err != nil {
-		return fmt.Errorf("failed to get primary address: %w", err)
+		return err
 	}
-
-	// Get all server_config settings from local database
-	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
-		SELECT key, value, type, description
-		FROM server_config
-		ORDER BY updated_at DESC
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to query config: %w", err)
+	defer release()
+	configValueType := "TEXT"
+	if database.RemoteDatabaseDialect(cm.db) == "mysql" || database.RemoteDatabaseDialect(cm.db) == "mariadb" {
+		configValueType = "MEDIUMTEXT"
 	}
-	defer rows.Close()
-
-	syncCount := 0
-	for rows.Next() {
-		var key, value, typ, description string
-		if err := rows.Scan(&key, &value, &typ, &description); err != nil {
-			continue
+	statements := []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS srv_config (key VARCHAR(255) PRIMARY KEY, value %s NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by VARCHAR(255) NOT NULL)`, configValueType),
+		`CREATE TABLE IF NOT EXISTS srv_config_meta (id INTEGER PRIMARY KEY, version BIGINT NOT NULL DEFAULT 0, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, cluster_id VARCHAR(64) NOT NULL DEFAULT '')`,
+	}
+	for _, statement := range statements {
+		if _, err := database.ExecContext(context.Background(), cm.db, database.TimeoutMigration, statement); err != nil {
+			return err
 		}
-
-		// In a real implementation, this would fetch from primary via HTTP
-		// For now, we sync from shared database which works for database-backed clusters
-		syncCount++
 	}
-
-	if syncCount > 0 {
-		util.LogInfo("Config sync: Synced %d settings from primary %s", syncCount, primaryAddress)
+	if _, err := database.ExecContext(context.Background(), cm.db, database.TimeoutMigration, `ALTER TABLE srv_config_meta ADD COLUMN cluster_id VARCHAR(64) NOT NULL DEFAULT ''`); err != nil {
+		message := strings.ToLower(err.Error())
+		if !strings.Contains(message, "duplicate column") && !strings.Contains(message, "already exists") && !strings.Contains(message, "duplicate column name") {
+			return err
+		}
 	}
-
+	if configValueType == "MEDIUMTEXT" {
+		if _, err := database.ExecContext(context.Background(), cm.db, database.TimeoutMigration, `ALTER TABLE srv_config MODIFY value MEDIUMTEXT NOT NULL`); err != nil {
+			return err
+		}
+	}
+	var exists int
+	if err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM srv_config_meta WHERE id = 1`).Scan(&exists); err != nil {
+		return err
+	}
+	if exists == 0 {
+		if _, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `INSERT INTO srv_config_meta (id, version) VALUES (1, 0)`); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-// pushConfigToSecondaries pushes configuration to secondary nodes
-func (cm *ClusterManager) pushConfigToSecondaries() error {
-	// Get all healthy secondary nodes
-	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
-		SELECT node_id, address
-		FROM cluster_nodes
-		WHERE state = 'secondary' AND is_healthy = 1
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to query secondary nodes: %w", err)
-	}
-	defer rows.Close()
-
-	var secondaries []struct {
-		NodeID  string
-		Address string
-	}
-
-	for rows.Next() {
-		var s struct {
-			NodeID  string
-			Address string
+func (cm *ClusterManager) configSyncLoop() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	fileSyncTicker := time.NewTicker(5 * time.Minute)
+	defer fileSyncTicker.Stop()
+	for {
+		select {
+		case <-fileSyncTicker.C:
+			if err := config.SyncSharedConfigFromFiles(); err != nil {
+				util.LogWarn("Cluster file config sync failed: %v", err)
+			}
+			if err := cm.pullConfigFromSharedDatabase(); err != nil {
+				util.LogWarn("Cluster config refresh failed: %v", err)
+			}
+		case <-ticker.C:
+			cm.mu.RLock()
+			pending := cm.pendingFileSync
+			cm.mu.RUnlock()
+			var err error
+			if pending {
+				err = cm.writeConfigToSharedDatabase()
+				if err == nil {
+					cm.mu.Lock()
+					cm.pendingFileSync = false
+					cm.mu.Unlock()
+				}
+			}
+			if err == nil {
+				err = cm.pullConfigFromSharedDatabase()
+			}
+			if err != nil {
+				util.LogWarn("Cluster config sync failed: %v", err)
+			}
+		case <-cm.stopChan:
+			return
 		}
-		if err := rows.Scan(&s.NodeID, &s.Address); err != nil {
+	}
+}
+
+func (cm *ClusterManager) writeConfigToSharedDatabase() (returnErr error) {
+	defer func() {
+		if returnErr != nil {
+			cm.markPendingConfigSync()
+		}
+	}()
+	settings, err := config.ReadAllSettings()
+	if err != nil {
+		return err
+	}
+	assets, err := config.ReadBrandingAssets()
+	if err != nil {
+		return fmt.Errorf("read branding assets for cluster sync: %w", err)
+	}
+	for name, data := range assets {
+		settings["assets."+name] = clusterAssetPrefix + base64.StdEncoding.EncodeToString(data)
+	}
+	keys := sortedSharedConfigKeys(settings)
+	conn, release, lockErr := cm.acquireConfigSyncLock()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer release()
+	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	changed := false
+	conflicted := false
+	sharedKeys := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		sharedKeys[key] = struct{}{}
+		value, err := json.Marshal(settings[key])
+		if err != nil {
+			return fmt.Errorf("encode cluster setting %s: %w", key, err)
+		}
+		var existing, updatedBy string
+		var storedUpdatedAt any
+		err = tx.QueryRowContext(context.Background(), `SELECT value, updated_at, updated_by FROM srv_config WHERE key = ?`, key).Scan(&existing, &storedUpdatedAt, &updatedBy)
+		if err == nil && existing == string(value) {
 			continue
 		}
-		secondaries = append(secondaries, s)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		updatedAtTime := time.Now().UTC()
+		if fileTime, ok := config.SettingFileModTime(key); ok {
+			updatedAtTime = fileTime.UTC()
+		}
+		if err == nil && !configUpdateWins(storedUpdatedAt, updatedBy, updatedAtTime, cm.nodeID) {
+			conflicted = true
+			continue
+		}
+		updatedAt := dbtime.FormatSQLTimestamp(updatedAtTime)
+		if err == sql.ErrNoRows {
+			if _, err := tx.ExecContext(context.Background(), `INSERT INTO srv_config (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)`, key, string(value), updatedAt, "node:"+cm.nodeID); err != nil {
+				return err
+			}
+		} else {
+			if _, err := tx.ExecContext(context.Background(), `UPDATE srv_config SET value = ?, updated_at = ?, updated_by = ? WHERE key = ?`, string(value), updatedAt, "node:"+cm.nodeID, key); err != nil {
+				return err
+			}
+		}
+		changed = true
 	}
+	rows, err := tx.QueryContext(context.Background(), `SELECT key, updated_at, updated_by, value FROM srv_config`)
+	if err != nil {
+		return err
+	}
+	var staleKeys []struct {
+		key              string
+		updatedAt        any
+		updatedBy, value string
+	}
+	for rows.Next() {
+		var item struct {
+			key              string
+			updatedAt        any
+			updatedBy, value string
+		}
+		if err := rows.Scan(&item.key, &item.updatedAt, &item.updatedBy, &item.value); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if _, exists := sharedKeys[item.key]; !exists && item.value != deletedConfigSentinel {
+			staleKeys = append(staleKeys, item)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, item := range staleKeys {
+		fileTime := time.Now().UTC()
+		if modTime, ok := config.SettingFileModTime(item.key); ok {
+			fileTime = modTime.UTC()
+		}
+		if !configUpdateWins(item.updatedAt, item.updatedBy, fileTime, cm.nodeID) {
+			continue
+		}
+		if _, err := tx.ExecContext(context.Background(), `UPDATE srv_config SET value = ?, updated_at = ?, updated_by = ? WHERE key = ?`, deletedConfigSentinel, dbtime.FormatSQLTimestamp(fileTime), "node:"+cm.nodeID, item.key); err != nil {
+			return err
+		}
+		changed = true
+	}
+	if changed {
+		if _, err := tx.ExecContext(context.Background(), `UPDATE srv_config_meta SET version = version + 1, updated_at = ? WHERE id = 1`, dbtime.FormatSQLTimestamp(time.Now())); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	var version int64
+	if err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `SELECT version FROM srv_config_meta WHERE id = 1`).Scan(&version); err != nil {
+		return err
+	}
+	cm.mu.Lock()
+	cm.lastConfigVersion = version
+	cm.mu.Unlock()
+	if conflicted {
+		cm.mu.Lock()
+		cm.lastConfigVersion = -1
+		cm.mu.Unlock()
+	}
+	return nil
+}
 
-	if len(secondaries) == 0 {
-		// No secondaries to sync to
+func (cm *ClusterManager) writeSharedSetting(key string, value any) (returnErr error) {
+	defer func() {
+		if returnErr != nil {
+			cm.markPendingConfigSync()
+		}
+	}()
+	if cm.db == nil || !cm.enabled {
 		return nil
 	}
-
-	// Get all config settings to push
-	configRows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
-		SELECT key, value, type, description, updated_at
-		FROM server_config
-		ORDER BY key
-	`)
+	encoded, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("failed to query config: %w", err)
+		return err
 	}
-	defer configRows.Close()
-
-	configCount := 0
-	for configRows.Next() {
-		configCount++
+	conn, release, lockErr := cm.acquireConfigSyncLock()
+	if lockErr != nil {
+		cm.markPendingConfigSync()
+		return lockErr
 	}
-
-	if configCount > 0 {
-		util.LogInfo("Config sync: Broadcasting %d settings to %d secondary node(s)", configCount, len(secondaries))
+	defer release()
+	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		cm.markPendingConfigSync()
+		return err
 	}
+	defer func() { _ = tx.Rollback() }()
+	updatedAtTime := time.Now().UTC()
+	updatedAt := dbtime.FormatSQLTimestamp(updatedAtTime)
+	var existing string
+	var storedUpdatedAt any
+	var updatedBy string
+	queryErr := tx.QueryRowContext(context.Background(), `SELECT value, updated_at, updated_by FROM srv_config WHERE key = ?`, key).Scan(&existing, &storedUpdatedAt, &updatedBy)
+	if queryErr == nil && existing == string(encoded) {
+		return tx.Commit()
+	}
+	if queryErr != nil && queryErr != sql.ErrNoRows {
+		cm.markPendingConfigSync()
+		return queryErr
+	}
+	if queryErr == nil && !configUpdateWins(storedUpdatedAt, updatedBy, updatedAtTime, cm.nodeID) {
+		cm.mu.Lock()
+		cm.lastConfigVersion = -1
+		cm.mu.Unlock()
+		return tx.Commit()
+	}
+	result, err := tx.ExecContext(context.Background(), `UPDATE srv_config SET value = ?, updated_at = ?, updated_by = ? WHERE key = ?`, string(encoded), updatedAt, "node:"+cm.nodeID, key)
+	if err != nil {
+		cm.markPendingConfigSync()
+		return err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		if _, err := tx.ExecContext(context.Background(), `INSERT INTO srv_config (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)`, key, string(encoded), updatedAt, "node:"+cm.nodeID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(context.Background(), `UPDATE srv_config_meta SET version = version + 1, updated_at = ? WHERE id = 1`, updatedAt); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
-	// In a real HTTP-based cluster, we would POST to each secondary's /cluster/config endpoint
-	// For database-backed clusters, the shared database already provides consistency
+func configUpdateWins(storedValue any, storedBy string, candidate time.Time, candidateNode string) bool {
+	storedTime, ok := dbtime.ParseStoredTimestamp(storedValue)
+	if !ok {
+		return true
+	}
+	candidate = candidate.UTC().Truncate(time.Second)
+	storedTime = storedTime.UTC().Truncate(time.Second)
+	if candidate.After(storedTime) {
+		return true
+	}
+	if candidate.Before(storedTime) {
+		return false
+	}
+	return candidateNode > strings.TrimPrefix(storedBy, "node:")
+}
 
+func (cm *ClusterManager) markPendingConfigSync() {
+	cm.mu.Lock()
+	cm.pendingFileSync = true
+	cm.mu.Unlock()
+}
+
+func (cm *ClusterManager) acquireConfigSyncLock() (*sql.Conn, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	conn, err := cm.db.Conn(ctx)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	dialect := database.RemoteDatabaseDialect(cm.db)
+	switch dialect {
+	case "postgres":
+		for {
+			var acquired bool
+			if err := conn.QueryRowContext(ctx, `SELECT pg_try_advisory_lock(?)`, int64(731942817)).Scan(&acquired); err != nil {
+				_ = conn.Close()
+				cancel()
+				return nil, nil, err
+			}
+			if acquired {
+				release := func() {
+					var released bool
+					_ = conn.QueryRowContext(context.Background(), `SELECT pg_advisory_unlock(?)`, int64(731942817)).Scan(&released)
+					_ = conn.Close()
+					cancel()
+				}
+				return conn, release, nil
+			}
+			select {
+			case <-ctx.Done():
+				_ = conn.Close()
+				cancel()
+				return nil, nil, ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	case "mysql":
+		var acquired sql.NullInt64
+		if err := conn.QueryRowContext(ctx, `SELECT GET_LOCK(?, 30)`, "wthr:srv_config:init").Scan(&acquired); err != nil || !acquired.Valid || acquired.Int64 != 1 {
+			_ = conn.Close()
+			cancel()
+			if err != nil {
+				return nil, nil, err
+			}
+			return nil, nil, fmt.Errorf("timed out waiting for cluster config lock")
+		}
+		release := func() {
+			var released sql.NullInt64
+			_ = conn.QueryRowContext(context.Background(), `SELECT RELEASE_LOCK(?)`, "wthr:srv_config:init").Scan(&released)
+			_ = conn.Close()
+			cancel()
+		}
+		return conn, release, nil
+	default:
+		return conn, func() { _ = conn.Close(); cancel() }, nil
+	}
+}
+
+func (cm *ClusterManager) deleteSharedSetting(key string) error {
+	if cm.db == nil || !cm.enabled {
+		return nil
+	}
+	conn, release, lockErr := cm.acquireConfigSyncLock()
+	if lockErr != nil {
+		cm.markPendingConfigSync()
+		return lockErr
+	}
+	defer release()
+	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	updatedAt := dbtime.FormatSQLTimestamp(time.Now())
+	result, err := tx.ExecContext(context.Background(), `UPDATE srv_config SET value = ?, updated_at = ?, updated_by = ? WHERE key = ?`, deletedConfigSentinel, updatedAt, "node:"+cm.nodeID, key)
+	if err != nil {
+		cm.markPendingConfigSync()
+		return err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		cm.markPendingConfigSync()
+		return err
+	}
+	if updated == 0 {
+		if _, err := tx.ExecContext(context.Background(), `INSERT INTO srv_config (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)`, key, deletedConfigSentinel, updatedAt, "node:"+cm.nodeID); err != nil {
+			cm.markPendingConfigSync()
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(context.Background(), `UPDATE srv_config_meta SET version = version + 1, updated_at = ? WHERE id = 1`, updatedAt); err != nil {
+		cm.markPendingConfigSync()
+		return err
+	}
+	return tx.Commit()
+}
+
+func (cm *ClusterManager) pullConfigFromSharedDatabase() (returnErr error) {
+	var version int64
+	if err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `SELECT version FROM srv_config_meta WHERE id = 1`).Scan(&version); err != nil {
+		cm.mu.Lock()
+		cm.lastConfigVersion = -1
+		cm.mu.Unlock()
+		return err
+	}
+	cm.mu.RLock()
+	lastVersion := cm.lastConfigVersion
+	cm.mu.RUnlock()
+	if version == lastVersion {
+		return nil
+	}
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutComplexSelect, `SELECT key, value FROM srv_config ORDER BY key`)
+	if err != nil {
+		return err
+	}
+	type entry struct{ key, raw string }
+	var entries []entry
+	for rows.Next() {
+		var item entry
+		if err := rows.Scan(&item.key, &item.raw); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		entries = append(entries, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, item := range entries {
+		if item.raw == deletedConfigSentinel {
+			if strings.HasPrefix(item.key, "assets.") {
+				if err := config.DeleteBrandingAsset(strings.TrimPrefix(item.key, "assets.")); err != nil {
+					return fmt.Errorf("remove synced asset %s: %w", item.key, err)
+				}
+				continue
+			}
+			if err := config.DeleteSyncedSetting(item.key); err != nil {
+				return fmt.Errorf("remove synced setting %s: %w", item.key, err)
+			}
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(item.raw), &value); err != nil {
+			return fmt.Errorf("decode cluster setting %s: %w", item.key, err)
+		}
+		if strings.HasPrefix(item.key, "assets.") {
+			encoded, ok := value.(string)
+			if !ok || !strings.HasPrefix(encoded, clusterAssetPrefix) {
+				return fmt.Errorf("decode synced asset %s: invalid payload", item.key)
+			}
+			data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(encoded, clusterAssetPrefix))
+			if err != nil {
+				return fmt.Errorf("decode synced asset %s: %w", item.key, err)
+			}
+			if err := config.SaveBrandingAsset(strings.TrimPrefix(item.key, "assets."), data); err != nil {
+				return fmt.Errorf("write synced asset %s: %w", item.key, err)
+			}
+			continue
+		}
+		if err := config.WriteSyncedSetting(item.key, value); err != nil {
+			return fmt.Errorf("write synced setting %s: %w", item.key, err)
+		}
+	}
+	cm.mu.Lock()
+	cm.lastConfigVersion = version
+	cm.mu.Unlock()
 	return nil
+}
+
+func sortedSharedConfigKeys(settings map[string]any) []string {
+	keys := make([]string, 0, len(settings))
+	for key := range settings {
+		if strings.HasPrefix(key, "assets.") {
+			keys = append(keys, key)
+			continue
+		}
+		owner := config.CanonicalConfigOwner(key)
+		if owner == "server.yml" || owner == "secrets.yml" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // initializeClusterTables creates cluster-related database tables
@@ -501,11 +911,33 @@ func (cm *ClusterManager) registerNode() error {
 	now := dbtime.FormatSQLTimestamp(time.Now())
 
 	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
-		INSERT OR REPLACE INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy, created_at, updated_at)
+		INSERT INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 1, ?, ?)
+		ON CONFLICT(node_id) DO UPDATE SET address = excluded.address, state = excluded.state,
+		last_heartbeat = excluded.last_heartbeat, is_healthy = excluded.is_healthy, updated_at = excluded.updated_at
 	`, cm.nodeID, cm.nodeAddress, NodeStateSecondary, now, now, now)
 
+	if err != nil {
+		return err
+	}
+	host, portText, splitErr := net.SplitHostPort(cm.nodeAddress)
+	if splitErr != nil {
+		host = cm.nodeID
+		portText = ""
+	}
+	port, _ := strconv.Atoi(portText)
+	if address := net.ParseIP(host); address != nil {
+		host = canonicalIP(address)
+	}
+	_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `INSERT INTO server_nodes (node_id, hostname, ip_address, port, status, last_heartbeat, created_at, joined_at) VALUES (?, ?, ?, ?, 'online', ?, ?, ?) ON CONFLICT(node_id) DO UPDATE SET hostname = excluded.hostname, ip_address = excluded.ip_address, port = excluded.port, status = 'online', last_heartbeat = excluded.last_heartbeat`, cm.nodeID, cm.nodeID, host, port, now, now, now)
 	return err
+}
+
+func canonicalIP(address net.IP) string {
+	if ipv4 := address.To4(); ipv4 != nil {
+		return ipv4.String()
+	}
+	return address.String()
 }
 
 // unregisterNode marks this node as offline
@@ -515,6 +947,9 @@ func (cm *ClusterManager) unregisterNode() error {
 		SET is_healthy = 0, state = 'unknown'
 		WHERE node_id = ?
 	`, cm.nodeID)
+	if err == nil {
+		_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `UPDATE server_nodes SET status = 'offline' WHERE node_id = ?`, cm.nodeID)
+	}
 
 	return err
 }
@@ -529,7 +964,7 @@ func (cm *ClusterManager) GetClusterInfo() ([]Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var nodes []Node
 	for rows.Next() {

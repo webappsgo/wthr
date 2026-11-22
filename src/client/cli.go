@@ -191,9 +191,13 @@ func Execute() error {
 	// single canonical gate in src/common/display, which every binary shares;
 	// the flag and the config value reach it through display.ColorModeEnvVar.
 	if *colorFlag != "" {
-		os.Setenv(display.ColorModeEnvVar, *colorFlag)
+		if err := os.Setenv(display.ColorModeEnvVar, *colorFlag); err != nil {
+			return fmt.Errorf("set color mode: %w", err)
+		}
 	} else if config.Output.Color == display.ColorModeYes || config.Output.Color == display.ColorModeNo {
-		os.Setenv(display.ColorModeEnvVar, config.Output.Color)
+		if err := os.Setenv(display.ColorModeEnvVar, config.Output.Color); err != nil {
+			return fmt.Errorf("set color mode: %w", err)
+		}
 	}
 
 	// Collapse the tri-state preference into the resolved answer so every

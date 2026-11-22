@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/sha3"
 	"encoding/base32"
 	"fmt"
+	"hash"
 	"log"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/crypto/sha3"
 )
 
 // VanityGenerationStatus tracks the status of vanity address generation
@@ -58,7 +58,7 @@ func (vg *VanityGenerator) StartVanityGeneration(prefix string) error {
 
 	// Validate characters (base32: a-z, 2-7)
 	for _, c := range prefix {
-		if !((c >= 'a' && c <= 'z') || (c >= '2' && c <= '7')) {
+		if (c < 'a' || c > 'z') && (c < '2' || c > '7') {
 			return fmt.Errorf("invalid character in prefix: %c (use only a-z, 2-7)", c)
 		}
 	}
@@ -169,7 +169,7 @@ func publicKeyToOnionAddress(publicKey ed25519.PublicKey) string {
 	checksumConst := []byte(".onion checksum")
 
 	// Calculate checksum
-	h := sha3.New256()
+	h := hash.Hash(sha3.New256())
 	h.Write(checksumConst)
 	h.Write(publicKey)
 	h.Write([]byte{version})

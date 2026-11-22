@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 )
 
@@ -57,8 +56,8 @@ func TestDirectoryPaths(t *testing.T) {
 		SetDirectoryPaths("", "")
 		defer SetDirectoryPaths("", "")
 
-		os.Unsetenv("DATA_DIR")
-		os.Unsetenv("LOG_DIR")
+		t.Setenv("DATA_DIR", "")
+		t.Setenv("LOG_DIR", "")
 
 		if got := getDataDir(); got != "./data" {
 			t.Errorf("getDataDir() = %q, want %q", got, "./data")

@@ -11,7 +11,8 @@
         {{t $lang "admin.notifications.your_prefs_intro"}}
     </p>
 
-    <form id="adminNotificationPreferencesForm">
+    {{template "flash" .}}
+    <form id="adminNotificationPreferencesForm" method="post" action="{{.admin_self_path}}/notifications/preferences">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
         <!-- Display Mode Toggles -->
         <div class="mb-4">
@@ -19,7 +20,7 @@
 
             <div class="mb-2">
                 <label class="checkbox-row">
-                    <input type="checkbox" id="adminEnableToast" checked>
+                    <input type="checkbox" id="adminEnableToast" name="enable_toast" value="true" {{if .admin_prefs.EnableToast}}checked{{end}}>
                     <span>{{t $lang "admin.notifications.enable_toast_label"}}</span>
                 </label>
                 <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_toast_hint"}}</small>
@@ -27,7 +28,7 @@
 
             <div class="mb-2">
                 <label class="checkbox-row">
-                    <input type="checkbox" id="adminEnableBanner" checked>
+                    <input type="checkbox" id="adminEnableBanner" name="enable_banner" value="true" {{if .admin_prefs.EnableBanner}}checked{{end}}>
                     <span>{{t $lang "admin.notifications.enable_banner_label"}}</span>
                 </label>
                 <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_banner_hint"}}</small>
@@ -35,7 +36,7 @@
 
             <div class="mb-2">
                 <label class="checkbox-row">
-                    <input type="checkbox" id="adminEnableCenter" checked>
+                    <input type="checkbox" id="adminEnableCenter" name="enable_center" value="true" {{if .admin_prefs.EnableCenter}}checked{{end}}>
                     <span>{{t $lang "admin.notifications.enable_center_label"}}</span>
                 </label>
                 <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_center_hint"}}</small>
@@ -43,7 +44,7 @@
 
             <div class="mb-2">
                 <label class="checkbox-row">
-                    <input type="checkbox" id="adminEnableSound">
+                    <input type="checkbox" id="adminEnableSound" name="enable_sound" value="true" {{if .admin_prefs.EnableSound}}checked{{end}}>
                     <span>{{t $lang "admin.notifications.enable_sound_label"}}</span>
                 </label>
                 <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_sound_hint"}}</small>
@@ -58,7 +59,7 @@
                 <div>
                     <label for="adminToastDurationSuccess" class="settings-label">{{t $lang "admin.notifications.duration_success_label"}}</label>
                     <div class="slider-row">
-                        <input type="range" id="adminToastDurationSuccess" min="1" max="60" value="5"
+                        <input type="number" id="adminToastDurationSuccess" name="toast_duration_success" min="1" max="60" value="{{.admin_prefs.ToastDurationSuccess}}"
                                class="flex-grow" data-duration-type="success">
                         <span id="adminDurationLabelSuccess" class="slider-label slider-label-success">5s</span>
                     </div>
@@ -68,7 +69,7 @@
                 <div>
                     <label for="adminToastDurationInfo" class="settings-label">{{t $lang "admin.notifications.duration_info_label"}}</label>
                     <div class="slider-row">
-                        <input type="range" id="adminToastDurationInfo" min="1" max="60" value="5"
+                        <input type="number" id="adminToastDurationInfo" name="toast_duration_info" min="1" max="60" value="{{.admin_prefs.ToastDurationInfo}}"
                                class="flex-grow" data-duration-type="info">
                         <span id="adminDurationLabelInfo" class="slider-label slider-label-info">5s</span>
                     </div>
@@ -78,7 +79,7 @@
                 <div>
                     <label for="adminToastDurationWarning" class="settings-label">{{t $lang "admin.notifications.duration_warning_label"}}</label>
                     <div class="slider-row">
-                        <input type="range" id="adminToastDurationWarning" min="1" max="60" value="10"
+                        <input type="number" id="adminToastDurationWarning" name="toast_duration_warning" min="1" max="60" value="{{.admin_prefs.ToastDurationWarning}}"
                                class="flex-grow" data-duration-type="warning">
                         <span id="adminDurationLabelWarning" class="slider-label slider-label-warning">10s</span>
                     </div>
@@ -94,38 +95,40 @@
         </div>
 
         <button type="submit" class="btn btn-primary mr-md">💾 {{t $lang "admin.notifications.save_prefs_action"}}</button>
-        <button type="button" class="btn btn-secondary" data-action="reset-admin-notification-prefs">↻ {{t $lang "admin.notifications.reset_action"}}</button>
+        <button type="submit" name="reset" value="true" class="btn btn-secondary">↻ {{t $lang "admin.notifications.reset_action"}}</button>
     </form>
 </section>
 
 <!-- System-wide Notification Settings -->
-<form id="notificationSettingsForm">
+<form id="notificationSettingsForm" method="post" action="{{.admin_path}}/notifications">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 <section class="card mb-4"><h2>📧 {{t $lang "admin.notifications.email_events_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.email_events_intro"}}</p>
-<label><input type="checkbox" name="email_startup"> {{t $lang "admin.notifications.event_startup"}}</label>
-<label><input type="checkbox" name="email_shutdown"> {{t $lang "admin.notifications.event_shutdown"}}</label>
-<label><input type="checkbox" name="email_backup_complete"> {{t $lang "admin.email_editor.tpl_backup_complete_name"}}</label>
-<label><input type="checkbox" name="email_backup_failed"> {{t $lang "admin.email_editor.tpl_backup_failed_name"}}</label>
-<label><input type="checkbox" name="email_cert_renewal"> {{t $lang "admin.notifications.event_cert_renewal"}}</label>
+<label><input type="checkbox" name="email_startup" value="true" {{if .settings.email_startup}}checked{{end}}> {{t $lang "admin.notifications.event_startup"}}</label>
+<label><input type="checkbox" name="email_shutdown" value="true" {{if .settings.email_shutdown}}checked{{end}}> {{t $lang "admin.notifications.event_shutdown"}}</label>
+<label><input type="checkbox" name="email_backup_complete" value="true" {{if .settings.email_backup_complete}}checked{{end}}> {{t $lang "admin.email_editor.tpl_backup_complete_name"}}</label>
+<label><input type="checkbox" name="email_backup_failed" value="true" {{if .settings.email_backup_failed}}checked{{end}}> {{t $lang "admin.email_editor.tpl_backup_failed_name"}}</label>
+<label><input type="checkbox" name="email_cert_renewal" value="true" {{if .settings.email_cert_renewal}}checked{{end}}> {{t $lang "admin.notifications.event_cert_renewal"}}</label>
 </section>
 <section class="card mb-4"><h2>🪝 {{t $lang "admin.notifications.webhook_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.webhook_intro"}}</p>
-<label><input type="checkbox" name="webhook_enabled"> {{t $lang "admin.notifications.webhook_enable_label"}}</label>
-<label>{{t $lang "admin.notifications.webhook_url_label"}} <input type="url" name="webhook_url"></label>
-<label>{{t $lang "admin.notifications.webhook_events_label"}} <input type="text" name="webhook_events" placeholder="startup,shutdown,backup"></label>
+<label><input type="checkbox" name="webhook_enabled" value="true" {{if .settings.webhook_enabled}}checked{{end}}> {{t $lang "admin.notifications.webhook_enable_label"}}</label>
+<label>{{t $lang "admin.notifications.webhook_url_label"}} <input type="url" name="webhook_url" value="{{.settings.webhook_url}}"></label>
+<label>{{t $lang "admin.notifications.webhook_events_label"}} <input type="text" name="webhook_events" value="{{.settings.webhook_events}}" placeholder="startup,shutdown,backup"></label>
 </section>
 <section class="card mb-4"><h2>⚙️ {{t $lang "admin.notifications.system_settings_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.system_settings_intro"}}</p>
-<label>{{t $lang "admin.notifications.max_stored_label"}} <input type="number" name="webui_max_stored" value="100" min="10" max="1000"></label>
+<label>{{t $lang "admin.notifications.position_label"}} <select name="webui_position"><option value="top-right" {{if eq .settings.webui_position "top-right"}}selected{{end}}>Top right</option><option value="top-left" {{if eq .settings.webui_position "top-left"}}selected{{end}}>Top left</option><option value="bottom-right" {{if eq .settings.webui_position "bottom-right"}}selected{{end}}>Bottom right</option><option value="bottom-left" {{if eq .settings.webui_position "bottom-left"}}selected{{end}}>Bottom left</option></select></label>
+<label>{{t $lang "admin.notifications.duration_label"}} <input type="number" name="webui_duration" value="{{.settings.webui_duration}}" min="1" max="60"></label>
+<label>{{t $lang "admin.notifications.max_stored_label"}} <input type="number" name="webui_max_stored" value="{{.settings.webui_max_stored}}" min="10" max="1000"></label>
 <small class="text-comment">{{t $lang "admin.notifications.max_stored_hint"}}</small>
-<label>{{t $lang "admin.notifications.retention_label"}} <input type="number" name="webui_retention_days" value="30" min="1" max="365"></label>
+<label>{{t $lang "admin.notifications.retention_label"}} <input type="number" name="webui_retention_days" value="{{.settings.webui_retention_days}}" min="1" max="365"></label>
 <small class="text-comment">{{t $lang "admin.notifications.retention_hint"}}</small>
 </section>
 <button type="submit" class="btn btn-primary">💾 {{t $lang "admin.notifications.save_system_action"}}</button>
 </form>
 
 <script type="application/json" id="admin-notifications-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
-<script src="{{asset "/static/js/app.js"}}"></script>
+<script src="{{asset "/static/js/app.js"}}" defer></script>
 
 {{template "admin_footer" .}}

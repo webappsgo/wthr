@@ -307,7 +307,9 @@ func newGraphQLTimestampTestDB(t *testing.T) *database.DualDB {
 	database.SetGlobalDualDB(ddb)
 	t.Cleanup(func() {
 		database.SetGlobalDualDB(nil)
-		ddb.Close()
+		if err := ddb.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
 	})
 	return ddb
 }

@@ -28,13 +28,13 @@ func replaceClientBinary(currentPath, newPath string) error {
 	if err != nil {
 		return err
 	}
-	defer newFile.Close()
+	defer func() { _ = newFile.Close() }()
 	staged, err := os.CreateTemp(filepath.Dir(currentPath), ".wthr-update-*")
 	if err != nil {
 		return err
 	}
 	stagedPath := staged.Name()
-	defer os.Remove(stagedPath)
+	defer func() { _ = os.Remove(stagedPath) }()
 	if _, err := io.Copy(staged, newFile); err != nil {
 		_ = staged.Close()
 		return err

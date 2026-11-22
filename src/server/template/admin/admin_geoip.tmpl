@@ -2,24 +2,78 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
+<main class="admin-page">
 <div class="admin-header"><h1>🌍 {{t $lang "admin.geoip.title"}}</h1></div>
-<form id="geoipSettingsForm">
+{{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</p>{{end}}
+<form method="post" action="/server/{{.admin_path}}/network/geoip">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>{{t $lang "admin.geoip.config_heading"}}</h2>
-<label><input type="checkbox" name="enabled"> {{t $lang "admin.geoip.enable_label"}}</label>
-<label>{{t $lang "admin.geoip.dir_label"}} <input type="text" name="dir" value="/var/lib/weather/geoip"></label>
-<label>{{t $lang "admin.geoip.update_frequency_label"}} <input type="number" name="update_frequency" value="168"></label>
-<p class="note">{{t $lang "admin.geoip.data_source_label"}} <a href="https://github.com/sapics/ip-location-db" target="_blank">sapics/ip-location-db</a></p>
-</section>
-<section class="card"><h2>{{t $lang "admin.geoip.databases_heading"}}</h2>
-<label><input type="checkbox" name="database_asn" checked> {{t $lang "admin.geoip.database_asn_label"}}</label>
-<label><input type="checkbox" name="database_country" checked> {{t $lang "admin.geoip.database_country_label"}}</label>
-<label><input type="checkbox" name="database_city"> {{t $lang "admin.geoip.database_city_label"}}</label>
-</section>
-<section class="card"><h2>{{t $lang "admin.geoip.country_blocking_heading"}}</h2>
-<label>{{t $lang "admin.geoip.deny_countries_label"}} <input type="text" name="deny_countries" placeholder="CN,RU"></label>
-<p class="note">{{t $lang "admin.geoip.iso_codes_note"}}</p>
-</section>
-<button type="submit">{{t $lang "admin.common.save_settings"}}</button>
+    <section class="card">
+        <h2>{{t $lang "admin.geoip.config_heading"}}</h2>
+        <label><input type="checkbox" name="enabled" {{if .GeoIPEnabled}}checked{{end}}> {{t $lang "admin.geoip.enable_label"}}</label>
+        <p>{{t $lang "admin.geoip.failure_note"}}</p>
+        <p class="note">{{t $lang "admin.geoip.data_source_label"}} <a href="https://github.com/sapics/ip-location-db">sapics/ip-location-db</a></p>
+    </section>
+    <section class="card">
+        <h2>{{t $lang "admin.geoip.country_blocking_heading"}}</h2>
+        <label for="deny-countries">{{t $lang "admin.geoip.deny_countries_label"}}</label>
+        <textarea id="deny-countries" name="deny_countries" rows="4" aria-describedby="country-code-note">{{.DenyCountries}}</textarea>
+        <label for="allow-countries">{{t $lang "admin.geoip.allow_countries_label"}}</label>
+        <textarea id="allow-countries" name="allow_countries" rows="4" aria-describedby="country-code-note">{{.AllowCountries}}</textarea>
+        <p id="country-code-note" class="note">{{t $lang "admin.geoip.iso_codes_note"}}</p>
+        <p>{{t $lang "admin.geoip.allow_precedence_note"}}</p>
+    </section>
+    <button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>
+<section class="card" aria-labelledby="geoip-status-heading">
+    <h2 id="geoip-status-heading">{{t $lang "admin.geoip.database_status_heading"}}</h2>
+    <dl>
+        <dt>{{t $lang "admin.geoip.update_schedule"}}</dt>
+        <dd>{{if .GeoIPUpdateSchedule}}{{.GeoIPUpdateSchedule}}{{else}}{{t $lang "admin.geoip.no_update_schedule"}}{{end}}</dd>
+        <dt>{{t $lang "admin.geoip.last_update"}}</dt>
+        <dd>{{if .GeoIPLastUpdate}}{{.GeoIPLastUpdate}}{{else}}{{t $lang "admin.geoip.not_available"}}{{end}}</dd>
+        <dt>{{t $lang "admin.geoip.database_size"}}</dt>
+        <dd>{{.GeoIPDatabaseSize}} {{t $lang "admin.geoip.bytes"}}</dd>
+        <dt>{{t $lang "admin.geoip.database_files"}}</dt>
+        <dd>{{.GeoIPDatabasesPresent}} / 4</dd>
+    </dl>
+</section>
+<section class="card">
+    <h2>{{t $lang "admin.geoip.presets_heading"}}</h2>
+    {{if .PresetNames}}
+    <ul>
+    {{range .PresetNames}}
+        <li>{{.}} —
+            <a href="?preset={{urlquery .}}&amp;mode=deny">{{t $lang "admin.geoip.apply_to_deny"}}</a> ·
+            <a href="?preset={{urlquery .}}&amp;mode=allow">{{t $lang "admin.geoip.apply_to_allow"}}</a>
+            <form method="post" action="/server/{{$.admin_path}}/network/geoip">
+                <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+                {{if $.GeoIPEnabled}}<input type="hidden" name="enabled" value="on">{{end}}
+                <input type="hidden" name="deny_countries" value="{{$.DenyCountries}}">
+                <input type="hidden" name="allow_countries" value="{{$.AllowCountries}}">
+                <input type="hidden" name="preset_name" value="{{.}}">
+                <input type="hidden" name="remove_preset" value="1">
+                <button type="submit">{{t $lang "admin.geoip.remove_preset"}}</button>
+            </form>
+        </li>
+    {{end}}
+    </ul>
+    {{else}}
+    <p>{{t $lang "admin.geoip.no_presets"}}</p>
+    {{end}}
+    <form method="post" action="/server/{{.admin_path}}/network/geoip">
+        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        {{if .GeoIPEnabled}}<input type="hidden" name="enabled" value="on">{{end}}
+        <label for="preset-name">{{t $lang "admin.geoip.preset_name_label"}}</label>
+        <input id="preset-name" name="preset_name" required maxlength="64">
+        <label for="preset-mode">{{t $lang "admin.geoip.preset_mode_label"}}</label>
+        <select id="preset-mode" name="preset_mode">
+            <option value="deny">{{t $lang "admin.geoip.deny_list_option"}}</option>
+            <option value="allow">{{t $lang "admin.geoip.allow_list_option"}}</option>
+        </select>
+        <input type="hidden" name="deny_countries" value="{{.DenyCountries}}">
+        <input type="hidden" name="allow_countries" value="{{.AllowCountries}}">
+        <button type="submit">{{t $lang "admin.geoip.save_preset"}}</button>
+    </form>
+</section>
+</main>
 {{template "admin_footer" .}}

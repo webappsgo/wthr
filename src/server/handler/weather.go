@@ -184,7 +184,7 @@ func (h *WeatherHandler) HandleLocation(w http.ResponseWriter, r *http.Request) 
 	// Filter invalid paths (but not GPS coordinates)
 	if !isGPS && h.isInvalidPath(locationInput) {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, "404 Not Found\n")
+		_, _ = fmt.Fprint(w, "404 Not Found\n")
 		return
 	}
 
@@ -483,7 +483,7 @@ func (h *WeatherHandler) serveASCIIWeather(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, output)
+	_, _ = fmt.Fprint(w, output)
 }
 
 // handleSpecialEndpoints handles :help and :bash.function endpoints
@@ -552,7 +552,7 @@ More info: %s/api/v1/docs
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, helpText)
+	_, _ = fmt.Fprint(w, helpText)
 }
 
 // handleBashFunction serves the bash integration function
@@ -608,7 +608,7 @@ w() { wttr "$@"; }
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, bashFunction)
+	_, _ = fmt.Fprint(w, bashFunction)
 }
 
 // handleMoonRequest handles moon phase requests
@@ -673,7 +673,7 @@ Visit %s%s/moon%s for the full moon phase interface.
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, output)
+	_, _ = fmt.Fprint(w, output)
 }
 
 // isInvalidPath filters out invalid paths that should return 404
@@ -767,7 +767,7 @@ Try these options:
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(statusCode)
-	fmt.Fprint(w, errorMessage+"\n")
+	_, _ = fmt.Fprint(w, errorMessage+"\n")
 }
 
 // formatPopulation formats population with thousands separators

@@ -65,14 +65,7 @@ func NewServer(router chi.Router, cfg *config.AppConfig, db *sql.DB, version str
 }
 
 func (s *Server) Enabled() bool {
-	defaultValue := true
-	if s.Config != nil {
-		defaultValue = s.Config.Server.MCP.Enabled
-	}
-	if s.DB == nil {
-		return defaultValue
-	}
-	return (&model.SettingsModel{DB: s.DB}).GetBool("server.mcp.enabled", defaultValue)
+	return true
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

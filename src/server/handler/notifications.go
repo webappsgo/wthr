@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -169,7 +170,11 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_fetch_notifications"))
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close notification listing rows: %v", err)
+		}
+	}()
 
 	notifications := []Notification{}
 	for rows.Next() {

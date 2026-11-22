@@ -129,6 +129,28 @@ func TestGetPrivacyAPI(t *testing.T) {
 	}
 }
 
+func TestGetPrivacyAPIUsesConfiguredPolicy(t *testing.T) {
+	db := newServerPagesTestDB(t)
+	cfg := newServerPagesTestConfig()
+	cfg.Server.Privacy = config.DefaultPrivacyConfig()
+	cfg.Server.Privacy.Data.Sold = true
+	cfg.Server.Privacy.Content.DataUsageIfSold = "Configured sold-data policy"
+	cfg.Server.Privacy.ThirdParty.Services = []config.PrivacyThirdPartyService{{Name: "Example", Purpose: "weather", Data: "city query", URL: "https://example.test/privacy"}}
+	cfg.Server.Tracking.Type = "plausible"
+	r, w := newJSONNegotiatedContext("/api/v1/server/privacy")
+	r.AddCookie(&http.Cookie{Name: "ccpa_opt_out", Value: "true"})
+	GetPrivacyAPI(db, cfg)(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	body := w.Body.String()
+	for _, expected := range []string{`"data_sold": true`, `"type": "plausible"`, `"data_usage": "Configured sold-data policy"`, `"name": "Example"`, `"user_opted_out": true`} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("privacy response is missing %s: %s", expected, body)
+		}
+	}
+}
+
 func TestGetHelpAPI(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
@@ -203,7 +225,11 @@ func TestSaveContactToDBMissingSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open raw db: %v", err)
 	}
-	t.Cleanup(func() { raw.Close() })
+	t.Cleanup(func() {
+		if err := raw.Close(); err != nil {
+			t.Errorf("close raw test database: %v", err)
+		}
+	})
 
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/server/contact", nil)
 	r = r.WithContext(reqctx.SetValue(r.Context(), "db", &database.DB{DB: raw}))

@@ -20,10 +20,16 @@ func applySchema(t *testing.T, dbPath, schema string) {
 	if err != nil {
 		t.Fatalf("applySchema: sql.Open error = %v", err)
 	}
-	defer db.Close()
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF"); err != nil {
+		t.Fatalf("applySchema: configure disposable database error = %v", err)
+	}
 
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("applySchema: exec error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("applySchema: close error = %v", err)
 	}
 }
 
@@ -36,7 +42,11 @@ func execFixture(t *testing.T, dbPath, query string, args ...interface{}) {
 	if err != nil {
 		t.Fatalf("execFixture: sql.Open error = %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close fixture database: %v", err)
+		}
+	})
 
 	if _, err := db.Exec(query, args...); err != nil {
 		t.Fatalf("execFixture: exec error = %v", err)

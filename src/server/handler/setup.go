@@ -551,7 +551,7 @@ func (h *SetupHandler) ProcessServerConfig(w http.ResponseWriter, r *http.Reques
 		Timezone: r.FormValue("timezone"),
 	}
 
-	// Save settings to database
+	// Save settings to the canonical YAML configuration files.
 	settings := map[string]string{
 		"server.branding.title": input.AppName,
 		"server.domain":         input.Domain,
@@ -559,18 +559,9 @@ func (h *SetupHandler) ProcessServerConfig(w http.ResponseWriter, r *http.Reques
 		"server.timezone":       input.Timezone,
 	}
 
-	// updated_at is bound as canonical UTC text rather than produced by SQLite's
-	// datetime('now'), which does not exist on PostgreSQL or MySQL.
-	now := dbtime.FormatSQLTimestamp(time.Now())
-
 	for key, value := range settings {
 		if value != "" {
-			_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-				INSERT INTO server_config (key, value, updated_at)
-				VALUES (?, ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-			`, key, value, now, value, now)
-			if err != nil {
+			if err := (&model.SettingsModel{}).SetString(key, value); err != nil {
 				log.Printf("WARNING: ProcessServerConfig: failed to save setting %s: %v", key, err)
 			}
 		}
@@ -633,17 +624,25 @@ func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
 
 	// Save backup encryption password if provided
 	if input.BackupPassword != "" {
-		// Hash the backup password
-		hashedPassword, err := util.HashPassword(input.BackupPassword)
-		if err == nil {
-			// updated_at is bound as canonical UTC text rather than produced by
-			// SQLite's datetime('now'), which does not exist on PostgreSQL or MySQL.
-			now := dbtime.FormatSQLTimestamp(time.Now())
-			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('backup.encryption_hash', ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-			`, hashedPassword, now, hashedPassword, now)
+		cfg := config.GetGlobalConfig()
+		if cfg == nil || cfg.Server.Security.EncryptionKey == "" {
+			InternalError(w, r, Translate(r, "errors.setup.database_error"))
+			return
+		}
+		sealedPassword, err := util.EncryptAtRest(cfg.Server.Security.EncryptionKey, input.BackupPassword)
+		if err != nil {
+			InternalError(w, r, Translate(r, "errors.setup.database_error"))
+			return
+		}
+		if err := config.WriteSecret("server.backup.encryption_password", sealedPassword); err != nil {
+			InternalError(w, r, Translate(r, "errors.setup.database_error"))
+			return
+		}
+		_ = (&model.SettingsModel{}).DeleteSetting("backup.encryption_password")
+		cfg.Server.Maintenance.Backup.Encryption.Enabled = true
+		if err := config.SaveConfig(cfg); err != nil {
+			InternalError(w, r, Translate(r, "errors.setup.database_error"))
+			return
 		}
 	}
 
@@ -676,7 +675,10 @@ func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
 
 	// Get admin email for SSL contact
 	var adminEmail string
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM admins LIMIT 1").Scan(&adminEmail)
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM admins LIMIT 1").Scan(&adminEmail); err != nil && err != sql.ErrNoRows {
+		InternalError(w, r, Translate(r, "errors.common.internal_error"))
+		return
+	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_services.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":        Translate(r, "setup.optional_services") + " - " + title,
@@ -707,46 +709,26 @@ func (h *SetupHandler) ProcessServices(w http.ResponseWriter, r *http.Request) {
 		RegistrationMode: r.FormValue("registration_mode"),
 	}
 
-	// updated_at is bound as canonical UTC text rather than produced by SQLite's
-	// datetime('now'), which does not exist on PostgreSQL or MySQL.
-	now := dbtime.FormatSQLTimestamp(time.Now())
-
-	// Save SSL settings
+	settings := make(map[string]string)
 	if input.EnableSSL {
-		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-			INSERT INTO server_config (key, value, updated_at)
-			VALUES ('ssl.enabled', 'true', ?)
-			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
-		`, now, now)
+		settings["ssl.enabled"] = "true"
 		if input.SSLDomain != "" {
-			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('ssl.domain', ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-			`, input.SSLDomain, now, input.SSLDomain, now)
+			settings["ssl.domain"] = input.SSLDomain
 		}
 		if input.SSLEmail != "" {
-			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('ssl.email', ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-			`, input.SSLEmail, now, input.SSLEmail, now)
+			settings["ssl.email"] = input.SSLEmail
 		}
 	}
-
-	// Save multi-user settings
 	if input.EnableMultiUser {
-		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-			INSERT INTO server_config (key, value, updated_at)
-			VALUES ('features.multiuser', 'true', ?)
-			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
-		`, now, now)
+		settings["features.multiuser"] = "true"
 		if input.RegistrationMode != "" {
-			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('users.registration_mode', ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-			`, input.RegistrationMode, now, input.RegistrationMode, now)
+			settings["users.registration_mode"] = input.RegistrationMode
+		}
+	}
+	for key, value := range settings {
+		if err := (&model.SettingsModel{}).SetString(key, value); err != nil {
+			InternalError(w, r, Translate(r, "errors.common.internal_error"))
+			return
 		}
 	}
 
@@ -758,16 +740,8 @@ func (h *SetupHandler) ProcessServices(w http.ResponseWriter, r *http.Request) {
 // CompleteSetup shows the setup completion page
 // AI.md: Setup is complete when Primary Admin is created
 func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
-	// Mark setup as complete in database. updated_at is bound as canonical UTC
-	// text rather than produced by SQLite's datetime('now'), which does not
-	// exist on PostgreSQL or MySQL.
-	now := dbtime.FormatSQLTimestamp(time.Now())
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_config (key, value, type, description, updated_at)
-		VALUES ('setup.completed', 'true', 'bool', 'Server setup completed', ?)
-		ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
-	`, now, now)
-	if err != nil {
+	// Mark setup as complete in server.yml.
+	if err := (&model.SettingsModel{}).SetBool("setup.completed", true); err != nil {
 		log.Printf("WARNING: CompleteSetup: failed to mark setup complete: %v", err)
 	}
 
@@ -820,11 +794,10 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if setup is completed
-	var setupComplete string
-	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'setup.completed'").Scan(&setupComplete)
+	setupComplete, _, setupConfigErr := config.ReadSetting("setup.completed")
 
 	// If setup.completed doesn't exist or is not "true", continue the setup wizard
-	if err != nil || setupComplete != "true" {
+	if setupConfigErr != nil || !config.IsTruthy(fmt.Sprint(setupComplete)) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status":      "admin_created",
 			"step":        1,

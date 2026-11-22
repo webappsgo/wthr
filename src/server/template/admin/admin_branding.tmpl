@@ -9,15 +9,121 @@
     <p class="admin-page-intro">{{t $lang "admin.branding.intro"}}</p>
   </div>
 
-  <section class="admin-section" aria-labelledby="branding-identity-heading">
-    <div class="section-header">
-      <h2 id="branding-identity-heading">{{t $lang "admin.branding.identity_heading"}}</h2>
-    </div>
-    <div class="empty-state">
-      <p class="empty-state__icon" aria-hidden="true">&#127912;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.branding.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.branding.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/settings">{{t $lang "admin.branding.empty_action"}}</a>
-    </div>
-  </section>
+  <form class="admin-form" method="post" enctype="multipart/form-data" action="{{$ap}}/branding">
+    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+    <section class="admin-section" aria-labelledby="branding-identity-heading">
+      <div class="section-header">
+        <h2 id="branding-identity-heading">{{t $lang "admin.branding.identity_heading"}}</h2>
+      </div>
+      <div class="form-group">
+        <label for="branding-title">{{t $lang "admin.web.app_name_label"}}</label>
+        <input id="branding-title" name="title" type="text" class="form-control" value="{{.Branding.Title}}" maxlength="140" required>
+      </div>
+      <div class="form-group">
+        <label for="branding-tagline">{{t $lang "admin.web.app_tagline_label"}}</label>
+        <input id="branding-tagline" name="tagline" type="text" class="form-control" value="{{.Branding.Tagline}}" maxlength="300">
+      </div>
+      <div class="form-group">
+        <label for="branding-description">{{t $lang "admin.web.app_description_label"}}</label>
+        <textarea id="branding-description" name="description" class="form-control" rows="3" maxlength="1000">{{.Branding.Description}}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="branding-logo">{{t $lang "admin.branding.logo_label"}}</label>
+        <input id="branding-logo" name="logo" type="text" class="form-control" value="{{.Branding.Logo}}" maxlength="2048" aria-describedby="branding-image-help">
+        <label for="branding-logo-upload">{{t $lang "admin.branding.logo_upload_label"}}</label>
+        <input id="branding-logo-upload" name="logo_upload" type="file" class="form-control" accept=".svg,.png,.ico,.webp,.jpg">
+      </div>
+      <div class="form-group">
+        <label for="branding-favicon">{{t $lang "admin.branding.favicon_label"}}</label>
+        <input id="branding-favicon" name="favicon" type="text" class="form-control" value="{{.Branding.Favicon}}" maxlength="2048" aria-describedby="branding-image-help">
+        <label for="branding-favicon-upload">{{t $lang "admin.branding.favicon_upload_label"}}</label>
+        <input id="branding-favicon-upload" name="favicon_upload" type="file" class="form-control" accept=".svg,.png,.ico,.webp,.jpg">
+        <small id="branding-image-help" class="form-text">{{t $lang "admin.branding.image_help"}}</small>
+      </div>
+      <div class="form-group">
+        <label for="branding-accent">{{t $lang "admin.branding.accent_label"}}</label>
+        <input id="branding-accent" name="accent" type="text" class="form-control" value="{{.Accent}}" maxlength="7" pattern="#[A-Fa-f0-9]{6}" aria-describedby="branding-accent-help">
+        <small id="branding-accent-help" class="form-text">{{t $lang "admin.branding.accent_help"}}</small>
+      </div>
+    </section>
+
+    <section class="admin-section" aria-labelledby="branding-content-heading">
+      <div class="section-header">
+        <h2 id="branding-content-heading">{{t $lang "admin.branding.content_heading"}}</h2>
+      </div>
+      <div class="form-group"><label for="branding-header-content">{{t $lang "admin.branding.header_content_label"}}</label><textarea id="branding-header-content" name="header_content" class="form-control" rows="3">{{.HeaderContent}}</textarea></div>
+      <div class="form-group"><label for="branding-about-content">{{t $lang "admin.branding.about_content_label"}}</label><textarea id="branding-about-content" name="about_content" class="form-control" rows="5">{{.AboutContent}}</textarea></div>
+      <div class="form-group"><label for="branding-privacy-content">{{t $lang "admin.branding.privacy_content_label"}}</label><textarea id="branding-privacy-content" name="privacy_content" class="form-control" rows="5">{{.PrivacyContent}}</textarea></div>
+      <div class="form-group"><label for="branding-footer-content">{{t $lang "admin.branding.footer_content_label"}}</label><textarea id="branding-footer-content" name="footer_content" class="form-control" rows="3">{{.FooterContent}}</textarea></div>
+      <div class="form-group"><label for="branding-terms-content">{{t $lang "admin.branding.terms_content_label"}}</label><textarea id="branding-terms-content" name="terms_content" class="form-control" rows="5">{{.TermsContent}}</textarea></div>
+    </section>
+
+    <section class="admin-section" aria-labelledby="branding-seo-heading">
+      <div class="section-header">
+        <h2 id="branding-seo-heading">{{t $lang "admin.web.seo_heading"}}</h2>
+        <p class="section-description">{{t $lang "admin.web.seo_desc"}}</p>
+      </div>
+      <div class="form-group">
+        <label for="seo-keywords">{{t $lang "admin.web.seo_keywords_label"}}</label>
+        <input id="seo-keywords" name="keywords" type="text" class="form-control" value="{{range $index, $keyword := .SEO.Keywords}}{{if $index}}, {{end}}{{$keyword}}{{end}}" maxlength="500">
+      </div>
+      <div class="form-group">
+        <label for="seo-author">{{t $lang "admin.web.seo_author_label"}}</label>
+        <input id="seo-author" name="author" type="text" class="form-control" value="{{.SEO.Author}}" maxlength="200">
+      </div>
+      <div class="form-group">
+        <label for="seo-og-image">{{t $lang "admin.web.seo_og_image_label"}}</label>
+        <input id="seo-og-image" name="og_image" type="text" class="form-control" value="{{.SEO.OGImage}}" maxlength="2048" aria-describedby="branding-image-help">
+        <label for="seo-og-image-upload">{{t $lang "admin.branding.og_image_upload_label"}}</label>
+        <input id="seo-og-image-upload" name="og_image_upload" type="file" class="form-control" accept=".svg,.png,.ico,.webp,.jpg">
+      </div>
+      <div class="form-group">
+        <label for="seo-twitter-handle">{{t $lang "admin.branding.twitter_handle_label"}}</label>
+        <input id="seo-twitter-handle" name="twitter_handle" type="text" class="form-control" value="{{.SEO.TwitterHandle}}" maxlength="16">
+      </div>
+      <div class="form-group">
+        <label for="seo-title-separator">{{t $lang "admin.branding.title_separator_label"}}</label>
+        <input id="seo-title-separator" name="title_separator" type="text" class="form-control" value="{{.SEO.TitleSeparator}}" maxlength="8">
+      </div>
+      <div class="form-group">
+        <label for="seo-canonical">{{t $lang "admin.branding.canonical_label"}}</label>
+        <input id="seo-canonical" name="canonical" type="url" class="form-control" value="{{.SEO.Canonical}}" maxlength="2048" aria-describedby="seo-canonical-help">
+        <small id="seo-canonical-help" class="form-text">{{t $lang "admin.branding.canonical_help"}}</small>
+      </div>
+      <div class="form-group">
+        <label for="seo-meta-tags">{{t $lang "admin.branding.meta_tags_label"}}</label>
+        <textarea id="seo-meta-tags" name="meta_tags" class="form-control" rows="4" spellcheck="false" aria-describedby="seo-meta-tags-help">{{.MetaTagsText}}</textarea>
+        <small id="seo-meta-tags-help" class="form-text">{{t $lang "admin.branding.meta_tags_help"}}</small>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="noindex" value="true" {{if .SEO.Noindex}}checked{{end}}> {{t $lang "admin.branding.noindex_label"}}</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="opengraph_enabled" value="true" {{if .SEO.OpenGraph.Enabled}}checked{{end}}> {{t $lang "admin.branding.opengraph_enabled_label"}}</label>
+      </div>
+      <div class="form-group">
+        <label for="opengraph-type">{{t $lang "admin.branding.opengraph_type_label"}}</label>
+        <input id="opengraph-type" name="opengraph_type" type="text" class="form-control" value="{{.SEO.OpenGraph.Type}}" maxlength="40">
+      </div>
+      <div class="form-group">
+        <label for="opengraph-site-name">{{t $lang "admin.branding.opengraph_site_name_label"}}</label>
+        <input id="opengraph-site-name" name="opengraph_site_name" type="text" class="form-control" value="{{.SEO.OpenGraph.SiteName}}" maxlength="140">
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="twitter_enabled" value="true" {{if .SEO.Twitter.Enabled}}checked{{end}}> {{t $lang "admin.branding.twitter_enabled_label"}}</label>
+      </div>
+      <div class="form-group">
+        <label for="twitter-card">{{t $lang "admin.branding.twitter_card_label"}}</label>
+        <select id="twitter-card" name="twitter_card" class="form-control">
+          <option value="summary" {{if eq .SEO.Twitter.Card "summary"}}selected{{end}}>summary</option>
+          <option value="summary_large_image" {{if eq .SEO.Twitter.Card "summary_large_image"}}selected{{end}}>summary_large_image</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="twitter-creator">{{t $lang "admin.branding.twitter_creator_label"}}</label>
+        <input id="twitter-creator" name="twitter_creator" type="text" class="form-control" value="{{.SEO.Twitter.Creator}}" maxlength="16">
+      </div>
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.web.save_branding_action"}}</button>
+    </section>
+  </form>
 {{template "admin_footer" .}}

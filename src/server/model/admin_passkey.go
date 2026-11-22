@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -99,7 +100,7 @@ func (m *AdminPasskeyModel) scanPasskey(rowScanner interface {
 	return &passkey, nil
 }
 
-func (m *AdminPasskeyModel) ListByAdminID(adminID int64) ([]*AdminPasskey, error) {
+func (m *AdminPasskeyModel) ListByAdminID(adminID int64) (passkeys []*AdminPasskey, retErr error) {
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
@@ -111,9 +112,9 @@ func (m *AdminPasskeyModel) ListByAdminID(adminID int64) ([]*AdminPasskey, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query admin passkeys: %w", err)
 	}
-	defer rows.Close()
+	defer func() { retErr = errors.Join(retErr, rows.Close()) }()
 
-	passkeys := make([]*AdminPasskey, 0)
+	passkeys = make([]*AdminPasskey, 0)
 	for rows.Next() {
 		passkey, err := m.scanPasskey(rows)
 		if err != nil {

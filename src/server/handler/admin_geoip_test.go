@@ -1,101 +1,140 @@
 package handler
 
 import (
-	"bytes"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
-// newGeoIPTestConfigFile writes a minimal valid server.yml under Go's
-// per-test temp dir (t.TempDir(), auto-cleaned) and returns its path for
-// AdminGeoIPHandler.ConfigPath, matching the pattern used throughout this
-// package's other handler tests (e.g. admin_web_test.go, admin_api_test.go).
-func newGeoIPTestConfigFile(t *testing.T) string {
+func setGeoIPTestConfig(t *testing.T, cfg *config.AppConfig) {
 	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "server.yml")
-	if err := os.WriteFile(path, []byte("server:\n  geoip:\n    enabled: false\n"), 0644); err != nil {
-		t.Fatalf("failed to write test config: %v", err)
-	}
-	return path
+	previous := config.GetGlobalConfig()
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 }
 
-// TestAdminGeoIPHandler_ShowGeoIPSettings covers the trivial HTML render
-// path. No auth/data gating exists on this handler.
-func TestAdminGeoIPHandler_ShowGeoIPSettings(t *testing.T) {
-	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
-	c, w := newAPITestContext("/server/administration/network/geoip")
+func TestAdminGeoIPHandlerShowSettings(t *testing.T) {
+	setGeoIPTestConfig(t, &config.AppConfig{})
+	request, response := newAPITestContext("/server/administration/network/geoip")
 	defer htmlRenderGuard(t)
-	h.ShowGeoIPSettings(w, c)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", w.Code)
+	(&AdminGeoIPHandler{}).ShowGeoIPSettings(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
 }
 
-// TestAdminGeoIPHandler_UpdateGeoIPSettings_Success verifies a valid JSON
-// body is applied to the on-disk YAML config and a 200 ok response is sent.
-func TestAdminGeoIPHandler_UpdateGeoIPSettings_Success(t *testing.T) {
-	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
-
-	body := `{"enabled":true,"dir":"/data/geoip","update_frequency":7,"deny_countries":["CN","RU"],"database_asn":true,"database_country":true,"database_city":false}`
-
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", body)
-
-	h.UpdateGeoIPSettings(w, c)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+func TestGeoIPDatabaseStatus(t *testing.T) {
+	dataDir := t.TempDir()
+	geoipDir := filepath.Join(dataDir, "security", "geoip")
+	if err := os.MkdirAll(geoipDir, 0700); err != nil {
+		t.Fatal(err)
 	}
-
-	updated, err := os.ReadFile(h.ConfigPath)
-	if err != nil {
-		t.Fatalf("failed to read updated config: %v", err)
+	for name, body := range map[string]string{
+		"dbip-city-ipv4.mmdb":  "city-v4",
+		"dbip-city-ipv6.mmdb":  "city-v6",
+		"iptoasn-country.mmdb": "country",
+	} {
+		if err := os.WriteFile(filepath.Join(geoipDir, name), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if !bytes.Contains(updated, []byte("enabled: true")) {
-		t.Errorf("expected config to contain 'enabled: true', got:\n%s", updated)
+	updated, size, present := geoIPDatabaseStatus(dataDir)
+	if updated == "" || size != int64(len("city-v4city-v6country")) || present != 3 {
+		t.Fatalf("geoIPDatabaseStatus() = (%q, %d, %d), want non-empty time, size 21 and 3 files", updated, size, present)
 	}
-}
-
-// TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON verifies malformed
-// request bodies are rejected with 400 and never reach the config writer.
-func TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON(t *testing.T) {
-	configPath := newGeoIPTestConfigFile(t)
-	before, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("failed to read baseline config: %v", err)
-	}
-
-	h := &AdminGeoIPHandler{ConfigPath: configPath}
-
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", "{not valid json")
-
-	h.UpdateGeoIPSettings(w, c)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", w.Code)
-	}
-
-	after, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("failed to read config after invalid request: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("expected config to be untouched on invalid JSON, before:\n%s\nafter:\n%s", before, after)
+	if updated, size, present := geoIPDatabaseStatus(""); updated != "" || size != 0 || present != 0 {
+		t.Fatalf("empty data directory status = (%q, %d, %d), want empty status", updated, size, present)
 	}
 }
 
-// TestAdminGeoIPHandler_UpdateGeoIPSettings_ConfigWriteError verifies a
-// missing/unreadable config file surfaces as 500, not a panic.
-func TestAdminGeoIPHandler_UpdateGeoIPSettings_ConfigWriteError(t *testing.T) {
-	h := &AdminGeoIPHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
+func TestAdminGeoIPHandlerUpdateSettingsWritesAreaFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONFIG_DIR", dir)
+	cfg := &config.AppConfig{}
+	setGeoIPTestConfig(t, cfg)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/server/administration/network/geoip", strings.NewReader(`{"enabled":true,"deny_countries":["cn","RU"],"allow_countries":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	(&AdminGeoIPHandler{}).UpdateGeoIPSettings(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if got := config.GetGlobalConfig().Server.GeoIP.DenyCountries; !reflect.DeepEqual(got, []string{"CN", "RU"}) {
+		t.Fatalf("deny countries = %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "yaml.d", "security.yml")); err != nil {
+		t.Fatalf("security.yml was not written: %v", err)
+	}
+}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", `{"enabled":true}`)
+func TestAdminGeoIPHandlerRejectsMalformedAndInvalidSettings(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONFIG_DIR", dir)
+	setGeoIPTestConfig(t, &config.AppConfig{})
+	for _, body := range []string{"{invalid", `{"enabled":true,"deny_countries":["USA"]}`} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/server/administration/network/geoip", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		(&AdminGeoIPHandler{}).UpdateGeoIPSettings(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("body %q: status = %d, want %d", body, response.Code, http.StatusBadRequest)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "yaml.d", "security.yml")); !os.IsNotExist(err) {
+		t.Fatalf("invalid request created security.yml: %v", err)
+	}
+}
 
-	h.UpdateGeoIPSettings(w, c)
+func TestAdminGeoIPHandlerReportsAreaWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONFIG_DIR", dir)
+	if err := os.Mkdir(filepath.Join(dir, "yaml.d"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "target.yml")
+	if err := os.WriteFile(target, []byte("server: {}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "yaml.d", "security.yml")); err != nil {
+		t.Fatal(err)
+	}
+	setGeoIPTestConfig(t, &config.AppConfig{})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/server/administration/network/geoip", strings.NewReader(`{"enabled":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	(&AdminGeoIPHandler{}).UpdateGeoIPSettings(response, request)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusInternalServerError)
+	}
+}
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())
+func TestParseCountryCodes(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+		bad   bool
+	}{
+		{name: "empty", input: "", want: []string{}},
+		{name: "split and normalize", input: "us, ca\nUS", want: []string{"US", "CA"}},
+		{name: "reject invalid code", input: "USA", bad: true},
+		{name: "reject punctuation", input: "U!", bad: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseCountryCodes(tt.input)
+			if (err != nil) != tt.bad {
+				t.Fatalf("parseCountryCodes() error = %v, want error %v", err, tt.bad)
+			}
+			if err == nil && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseCountryCodes() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

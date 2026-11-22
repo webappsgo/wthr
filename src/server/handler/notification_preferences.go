@@ -43,7 +43,11 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(w http.ResponseWrite
 		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch preferences")
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close user notification preference rows: %v", err)
+		}
+	}()
 
 	var preferences []map[string]interface{}
 	for rows.Next() {
@@ -253,7 +257,11 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(w http.ResponseWriter,
 		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch subscriptions")
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("WARNING: failed to close user notification subscription rows: %v", err)
+		}
+	}()
 
 	var subscriptions []map[string]interface{}
 	for rows.Next() {

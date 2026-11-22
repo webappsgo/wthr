@@ -48,11 +48,8 @@ func TestConfigPath(t *testing.T) {
 
 func TestLoadConfigNonExistent(t *testing.T) {
 	// Set a custom config path that doesn't exist
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	config, err := LoadConfig()
 	if err != nil {
@@ -67,11 +64,8 @@ func TestLoadConfigNonExistent(t *testing.T) {
 
 func TestSaveAndLoadConfig(t *testing.T) {
 	// Set up temporary directory for config
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	// Create config with nested structure per AI.md PART 33
 	config := &CLIConfig{
@@ -117,11 +111,8 @@ func TestSaveAndLoadConfig(t *testing.T) {
 
 func TestInitConfig(t *testing.T) {
 	// Set up temporary directory for config
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	// Initialize config
 	if err := InitConfig(); err != nil {
@@ -150,11 +141,8 @@ func TestInitConfig(t *testing.T) {
 
 func TestGetConfigValue(t *testing.T) {
 	// Set up temporary directory for config
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	// Save test config with nested structure
 	config := &CLIConfig{
@@ -172,7 +160,7 @@ func TestGetConfigValue(t *testing.T) {
 		},
 		Debug: true,
 	}
-	SaveConfig(config)
+	_ = SaveConfig(config)
 
 	tests := []struct {
 		key      string
@@ -206,14 +194,11 @@ func TestGetConfigValue(t *testing.T) {
 
 func TestSetConfigValue(t *testing.T) {
 	// Set up temporary directory for config
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	// Initialize config
-	InitConfig()
+	_ = InitConfig()
 
 	tests := []struct {
 		key   string
@@ -246,14 +231,11 @@ func TestSetConfigValue(t *testing.T) {
 
 func TestSetConfigValueValidation(t *testing.T) {
 	// Set up temporary directory for config
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
+	t.Setenv("HOME", tempDir)
 
 	// Initialize config
-	InitConfig()
+	_ = InitConfig()
 
 	// Test invalid output format
 	err := SetConfigValue("output.format", "invalid")

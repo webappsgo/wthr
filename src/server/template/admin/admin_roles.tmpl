@@ -8,16 +8,51 @@
     <h1>{{t $lang "admin.roles.title"}}</h1>
     <p class="admin-page-intro">{{t $lang "admin.roles.intro"}}</p>
   </div>
-
+  {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
+  <section class="admin-section" aria-labelledby="roles-default-heading">
+    <div class="section-header"><h2 id="roles-default-heading">{{t $lang "admin.roles.default_heading"}}</h2></div>
+    <form method="post" action="{{$ap}}/roles/default">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <label for="default-role">{{t $lang "admin.roles.default_label"}}</label>
+      <select id="default-role" name="default_role">{{range .available_roles}}<option value="{{.}}" {{if eq . $.default_role}}selected{{end}}>{{.}}</option>{{end}}</select>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.roles.save_default"}}</button>
+    </form>
+  </section>
+  <section class="admin-section" aria-labelledby="roles-create-heading">
+    <div class="section-header"><h2 id="roles-create-heading">{{t $lang "admin.roles.create_heading"}}</h2></div>
+    <form method="post" action="{{$ap}}/roles">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <label for="role-name">{{t $lang "admin.roles.name_label"}}</label>
+      <input id="role-name" name="name" pattern="[a-z][a-z0-9_-]{0,31}" maxlength="32" required>
+      <fieldset><legend>{{t $lang "admin.roles.permissions_heading"}}</legend>
+        {{range .permissions}}<label><input type="checkbox" name="permissions" value="{{.}}"> {{t $lang (printf "admin.roles.permission_%s" .)}}</label>{{end}}
+      </fieldset>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.roles.create_action"}}</button>
+    </form>
+  </section>
   <section class="admin-section" aria-labelledby="roles-list-heading">
-    <div class="section-header">
-      <h2 id="roles-list-heading">{{t $lang "admin.roles.list_heading"}}</h2>
-    </div>
-    <div class="empty-state">
-      <p class="empty-state__icon" aria-hidden="true">&#128101;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.roles.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.roles.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/admins">{{t $lang "admin.roles.empty_action"}}</a>
-    </div>
+    <div class="section-header"><h2 id="roles-list-heading">{{t $lang "admin.roles.list_heading"}}</h2></div>
+    {{if .roles}}<div class="table-responsive"><table class="admin-table">
+      <thead><tr><th>{{t $lang "admin.roles.name_label"}}</th><th>{{t $lang "admin.roles.user_count"}}</th><th>{{t $lang "admin.roles.permissions_heading"}}</th><th>{{t $lang "admin.roles.actions"}}</th></tr></thead>
+      <tbody>{{range .roles}}<tr>
+        <td>{{.Name}}{{if .IsDefault}} <span class="badge">{{t $lang "admin.roles.default_badge"}}</span>{{end}}{{if .BuiltIn}} <span class="text-muted">({{t $lang "admin.roles.builtin"}})</span>{{end}}</td>
+        <td>{{.Count}}</td>
+        <td>
+          {{if .BuiltIn}}{{if .CanRead}}{{t $lang "admin.roles.permission_read"}} {{end}}{{if .CanWrite}}{{t $lang "admin.roles.permission_write"}} {{end}}{{if .CanModerate}}{{t $lang "admin.roles.permission_moderate"}}{{end}}
+          {{else}}<form method="post" action="{{$ap}}/roles/{{.Name}}/permissions">
+            <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+            <label><input type="checkbox" name="permissions" value="read" {{if .CanRead}}checked{{end}}> {{t $lang "admin.roles.permission_read"}}</label>
+            <label><input type="checkbox" name="permissions" value="write" {{if .CanWrite}}checked{{end}}> {{t $lang "admin.roles.permission_write"}}</label>
+            <label><input type="checkbox" name="permissions" value="moderate" {{if .CanModerate}}checked{{end}}> {{t $lang "admin.roles.permission_moderate"}}</label>
+            <button class="btn btn-secondary" type="submit">{{t $lang "admin.roles.save_permissions"}}</button>
+          </form>{{end}}
+        </td>
+        <td>{{if not .BuiltIn}}<form method="post" action="{{$ap}}/roles/{{.Name}}/delete">
+          <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+          <label><input type="checkbox" name="confirm_delete" value="yes" required> {{t $lang "admin.roles.delete_confirm"}}</label>
+          <button class="btn btn-danger" type="submit">{{t $lang "admin.roles.delete_action"}}</button>
+        </form>{{else}}{{t $lang "admin.roles.builtin_locked"}}{{end}}</td>
+      </tr>{{end}}</tbody>
+    </table></div>{{else}}<p>{{t $lang "admin.roles.empty_message"}}</p>{{end}}
   </section>
 {{template "admin_footer" .}}

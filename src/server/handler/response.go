@@ -90,7 +90,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 func writeText(w http.ResponseWriter, status int, format string, args ...interface{}) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-	fmt.Fprintf(w, format, args...)
+	_, _ = fmt.Fprintf(w, format, args...)
 }
 
 // RespondError sends a standardized error response per AI.md PART 14

@@ -91,7 +91,11 @@ func remainingAdminSessionIDs(t *testing.T, db *sql.DB) []string {
 	if err != nil {
 		t.Fatalf("query remaining admin sessions: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close admin session rows: %v", err)
+		}
+	}()
 
 	var ids []string
 	for rows.Next() {
@@ -327,7 +331,11 @@ func remainingAdminInviteTokens(t *testing.T, db *sql.DB) []string {
 	if err != nil {
 		t.Fatalf("query remaining admin invites: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close admin invite rows: %v", err)
+		}
+	}()
 
 	var tokens []string
 	for rows.Next() {

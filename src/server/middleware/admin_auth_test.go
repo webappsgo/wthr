@@ -37,7 +37,11 @@ func openAdminAuthTestServerDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(database.UsersSchema); err != nil {
 		t.Fatalf("apply UsersSchema: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close server database: %v", err)
+		}
+	})
 	return db
 }
 

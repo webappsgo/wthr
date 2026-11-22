@@ -77,7 +77,7 @@ func TestSitemapListsOnlyPublicPagesRobotsAllows(t *testing.T) {
 		t.Errorf("home and weather pages missing: %v", locs)
 	}
 	for loc := range locs {
-		for _, banned := range []string{"/api/", "/server/administration", "/server/auth", "/feed.xml", "/rss.xml", "healthz"} {
+		for _, banned := range []string{"/api/", "/server/administration", "/server/auth", "/server/contact", "/feed.xml", "/rss.xml", "healthz"} {
 			if strings.Contains(loc, banned) {
 				t.Errorf("sitemap lists forbidden URL %q", loc)
 			}

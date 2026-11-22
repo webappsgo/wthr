@@ -19,7 +19,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestLocationEnhancer_FindCityByID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 
@@ -42,7 +46,11 @@ func TestLocationEnhancer_FindCityByID(t *testing.T) {
 
 func TestLocationEnhancer_FindNearestCity(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 
@@ -70,7 +78,11 @@ func TestLocationEnhancer_FindNearestCity(t *testing.T) {
 
 func TestLocationEnhancer_EnhanceLocation(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 
 	enhancer := service.NewLocationEnhancer(db)
 

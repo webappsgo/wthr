@@ -205,7 +205,7 @@ func (t *tlsRuntime) prepareChallenge(client *service.LetsEncryptService) error 
 	}
 	solver, err := service.ConfiguredDNSSolver(t.currentLetsEncryptSettings(), key)
 	if err != nil {
-		log.Printf("ERROR: dns-01 provider check failed: %v", err)
+		log.Printf("ERROR: %v", err)
 		return err
 	}
 	client.SetDNSSolver(solver)
