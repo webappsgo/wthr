@@ -258,6 +258,8 @@ All external API responses are validated before use. Network calls have 30-secon
 
 5. **Tor hidden service** — auto-enabled when `tor` binary is found. The .onion address is shown in admin panel. This is a privacy feature, not a security exception.
 
+6. **SAML assertion parser** — login responses are validated by the maintained [`github.com/supatype/saml`](https://github.com/supatype/saml) fork at v0.7.0. The fork binds assertion identity and attribute fields to the SAML namespace and addresses Go advisory GO-2026-6909. The existing `crewjam/saml` dependency remains for SP metadata and SLO operations; its vulnerable response parser is not called. `govulncheck` verifies the reachable call graph.
+
 ### Weather data rules
 
 - Cache weather data for 15 minutes (reduce external API calls)

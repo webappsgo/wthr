@@ -36,6 +36,7 @@ This software includes the following third-party Go libraries:
 | github.com/charmbracelet/lipgloss | v1.1.0 | MIT | 2021-2023 Charmbracelet, Inc. |
 | github.com/coreos/go-oidc/v3 | v3.11.0 | Apache-2.0 | 2014 CoreOS, Inc. |
 | github.com/cretz/bine | v0.2.0 | MIT | 2018 Chad Retz |
+| github.com/crewjam/saml | v0.6.3 | BSD-2-Clause | 2015 Ross Kinder |
 | github.com/fsnotify/fsnotify | v1.9.0 | BSD-3-Clause | 2012 The Go Authors, 2012-2019 fsnotify Authors |
 | github.com/go-acme/lego/v4 | v4.34.0 | MIT | 2015-2017 Sebastian Erhart |
 | github.com/go-chi/chi/v5 | v5.3.2 | MIT | 2015-present Peter Kieltyka, Google Inc. |
@@ -56,6 +57,7 @@ This software includes the following third-party Go libraries:
 | github.com/prometheus/client_model | v0.6.2 | Apache-2.0 | 2012-2015 The Prometheus Authors |
 | github.com/redis/go-redis/v9 | v9.14.0 | BSD-2-Clause | 2013 The github.com/redis/go-redis Authors |
 | github.com/rs/cors | v1.11.1 | MIT | 2014 Olivier Poitrey |
+| github.com/supatype/saml | v0.7.0 | BSD-2-Clause | 2015 Ross Kinder |
 | github.com/swaggo/http-swagger/v2 | v2.0.2 | MIT | 2017 Swaggo |
 | github.com/vektah/gqlparser/v2 | v2.5.22 | MIT | 2018 Adam Scarr |
 | golang.org/x/crypto | v0.55.0 | BSD-3-Clause | 2009 The Go Authors |

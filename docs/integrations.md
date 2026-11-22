@@ -84,6 +84,8 @@ SAML providers are configured in the server authentication settings. Browser-ini
 encrypted with the configured server encryption key before it is written to the private secrets
 file. Assertions are validated by the SAML protocol library, request IDs are correlated to the
 browser state, and assertion IDs are recorded in the server database for replay rejection.
+Only `NameID` and mapped attributes in the standard SAML assertion namespace are used for identity
+and role mapping; elements with the same local names in another XML namespace are ignored.
 
 New users with `auto_register: true` complete the shared plain POST username confirmation step at
 `/server/auth/external/username`. Existing identities match by provider name and persistent NameID.
