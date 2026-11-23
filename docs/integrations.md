@@ -209,6 +209,10 @@ masked as `xxxxx` in the admin panel and API responses.
 Configure the tokens under `server.metrics.auth.tokens` in `{config_dir}/yaml.d/metrics.yml`, or in the admin panel at
 `/server/{admin_path}/metrics`:
 
+SQLite write contention is exposed through `wthr_db_busy_total` (busy or locked writes retried) and
+`wthr_db_write_wait_seconds` (write wait duration histogram). Writes waiting more than one second
+also emit a `WARN db.busy` log with the wait duration and caller, without SQL parameters.
+
 ```yaml
 server:
   metrics:

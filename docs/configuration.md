@@ -264,9 +264,9 @@ server:
 
 ### Scheduler
 
-Every setting is editable on the **Scheduler** admin page and applies without a restart. A task
-that the file omits uses its built-in default; a critical task is always enabled. Durations accept
-`s`, `m`, `h`, `d` and `w`.
+Editable task settings are available on the **Scheduler** admin page and apply without a restart. A
+task that the file omits uses its built-in default; a critical task is always enabled. Durations
+accept `s`, `m`, `h`, `d` and `w`.
 
 ```yaml
 server:
@@ -291,15 +291,18 @@ server:
       backup_daily:
         enabled: true
         schedule: "0 2 * * *"
-        verify: true
       backup_hourly:
         enabled: false
         schedule: "@hourly"
       tor_health:
         enabled: true
         schedule: "@every 10m"
-        restart_on_fail: true
 ```
+
+Scheduler state is stored in `server.db`. `scheduler_tasks` uses `id` and `name`, with `last_run`,
+`next_run`, and `locked_at` stored as Unix-second integers. `scheduler_history` stores `task_id`,
+`started_at`, and nullable `finished_at` as Unix-second integers; its `duration_ms` is nullable.
+Older scheduler tables are migrated during database initialization.
 
 ### CORS and CSRF
 

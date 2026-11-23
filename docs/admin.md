@@ -352,6 +352,8 @@ shown in the scheduler timezone. It works without JavaScript: every button is a 
 - Enable or disable a task (critical tasks cannot be disabled)
 - Change a task's schedule: a cron expression, `@hourly`, `@daily`, `@weekly`, `@monthly` or
   `@every 15m`
+- Adjust only the settings exposed for that task; backup verification and health-task restart
+  behavior are fixed by the task definition
 - View a task's last 100 runs, with duration and error text
 
 **Scheduler settings:** the timezone that schedules are evaluated in (default `America/New_York`)

@@ -508,7 +508,12 @@ Include:
 
 ## Release Process
 
-Releases are automated via GitHub Actions.
+Versioned releases are automated via GitHub Actions. GitLab CI also publishes a
+rolling `devel` release from scheduled pipelines and manual runs on `main` or
+`master`. Configure the GitLab pipeline schedule for 03:00 UTC. Set the masked
+`GITLAB_TOKEN` CI/CD variable with a project
+access token that can delete and create releases and repository tags; the
+`release:devel` job uses it to replace the previous rolling release.
 
 ### Version Tags
 
