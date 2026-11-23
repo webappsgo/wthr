@@ -492,9 +492,11 @@ View audit logs at **Admin Panel** → **Logs** → **Audit**. Each JSONL entry 
 newline). The first entry starts with 64 zeroes; after rotation, the new file starts
 from the previous file's final line hash. Startup and rotation verify the chain. A
 mismatch produces one critical `security.audit_chain_broken` event with only the file
-name and line number; the server continues running. This detects edits, removals, and
-reordering, but cannot prevent someone with file access from rewriting the entire chain
-and recomputing its hashes.
+name and line number; the server continues running. By default, rotation deletes the
+closed archive after verification and stores its final hash in `audit.log.chain` so the
+next active file remains verifiable. This detects edits, removals, and reordering, but
+cannot prevent someone with file access from rewriting the entire chain and checkpoint
+and recomputing their hashes.
 
 ### Keyboard Shortcuts
 

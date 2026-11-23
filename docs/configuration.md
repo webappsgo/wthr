@@ -333,6 +333,29 @@ Scheduler state is stored in `server.db`. `scheduler_tasks` uses `id` and `name`
 `started_at`, and nullable `finished_at` as Unix-second integers; its `duration_ms` is nullable.
 Older scheduler tables are migrated during database initialization.
 
+### Audit log rotation and retention
+
+Audit settings live in `yaml.d/logs.yml` and take effect on startup or when configuration is
+reloaded. The default policy deletes each rotated audit archive immediately. A small `.chain`
+checkpoint retains only the predecessor hash needed to verify the next active file; it contains
+no audit entries.
+
+```yaml
+server:
+  logs:
+    audit:
+      enabled: true
+      filename: audit.log
+      format: json
+      rotate: daily
+      keep: none
+      compress: false
+```
+
+`format` must be `json`. `keep` accepts `none`, a count (`5`), a duration in days/weeks/months
+(`30d`, `4w`, `12m`), or `forever`. Compression applies to retained archives. The active file
+remains uncompressed and hash chained in every mode.
+
 ### CORS and CSRF
 
 Both are editable on the **Web** admin page (CORS) and apply without a restart.

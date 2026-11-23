@@ -259,12 +259,13 @@ Security-relevant events are written to the audit log:
 Audit logs are append-only and never contain raw credentials or tokens. Every JSONL row
 has a `prev` field containing the lowercase SHA-256 of the preceding exact line without
 its newline. The first row uses 64 zeroes, and rotation anchors the new log to the final
-hash of the archived file. The server verifies the active file at startup and the closed
-file during rotation. It emits one critical `security.audit_chain_broken` event containing
-only the affected filename and line number if verification fails, then continues
-appending. The chain is tamper-evident, not tamper-proof: an actor able to rewrite the
-whole file can recompute the hashes. Forward logs to another host when that threat is in
-scope.
+hash of the preceding file. With the default `keep: none`, the archive is deleted after it
+is verified and its final hash is stored in the small `audit.log.chain` checkpoint. The
+server verifies the active file at startup and the closed file during rotation. It emits
+one critical `security.audit_chain_broken` event containing only the affected filename and
+line number if verification fails, then continues appending. The chain is tamper-evident,
+not tamper-proof: an actor able to rewrite the whole file and checkpoint can recompute the
+hashes. Forward logs to another host when that threat is in scope.
 
 ---
 
