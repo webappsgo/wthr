@@ -128,19 +128,19 @@ The JSON document is served at `/api/{api_version}/server/swagger`. Example usag
 
 ```sh
 # Current weather for a location
-curl https://your-wthr-instance.example.com/api/v1/weather?location=New+York
+curl -q -LSsf https://your-wthr-instance.example.com/api/v1/weather?location=New+York
 
 # Active severe weather alerts (US)
-curl https://your-wthr-instance.example.com/api/v1/severe-weather?country=US
+curl -q -LSsf https://your-wthr-instance.example.com/api/v1/severe-weather?country=US
 
 # Earthquake data
-curl https://your-wthr-instance.example.com/api/v1/earthquakes?minmagnitude=5
+curl -q -LSsf https://your-wthr-instance.example.com/api/v1/earthquakes?minmagnitude=5
 ```
 
 For authenticated endpoints, pass the session token as a Bearer token:
 
 ```sh
-curl -H "Authorization: Bearer your-token-here" \
+curl -q -LSsf -H "Authorization: Bearer YOUR_API_TOKEN" \
   https://your-wthr-instance.example.com/api/v1/users/locations
 ```
 
@@ -157,13 +157,13 @@ Request plain-text output for terminal use:
 
 ```sh
 # ASCII weather for current location
-curl https://your-wthr-instance.example.com/
+curl -q -LSsf https://your-wthr-instance.example.com/
 
 # Weather for a named location
-curl https://your-wthr-instance.example.com/New+York
+curl -q -LSsf https://your-wthr-instance.example.com/New+York
 
 # Shell function (add to .bashrc / .zshrc)
-curl https://your-wthr-instance.example.com/:bash.function
+curl -q -LSsf https://your-wthr-instance.example.com/:bash.function
 ```
 
 ---
@@ -297,11 +297,14 @@ include the submission fields after spam filtering.
 
 ---
 
-## None of the Following Are Enabled
+## Optional and Unsupported Integrations
 
-The following integrations are explicitly **not enabled** for this deployment:
+LDAP, OIDC and SAML identity providers are supported, but a fresh installation has no identity
+provider configured. Configure providers through the server authentication settings before users
+can sign in through them.
 
-- OAuth/OIDC identity provider (no SSO/federated login)
+The following integrations are not implemented or are excluded from this project:
+
 - Native app association files (`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`)
 - Autodiscovery protocols (no CalDAV, CardDAV, Autoconfig)
 - Federation (no ActivityPub or other federated protocols)

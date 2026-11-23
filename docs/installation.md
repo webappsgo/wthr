@@ -15,7 +15,7 @@ This guide covers the supported install paths for Weather.
 ```bash
 docker run -d \
   --name wthr \
-  -p 64580:80 \
+  -p 172.17.0.1:64580:80 \
   -v ./volumes/config:/config:z \
   -v ./volumes/data:/data:z \
   ghcr.io/webappsgo/wthr:latest

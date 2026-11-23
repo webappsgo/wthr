@@ -338,8 +338,6 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `GET` | `/api/{api_version}/forecasts` |
 | `GET` | `/api/{api_version}/forecasts/{location}` |
 | `GET` | `/api/{api_version}/history` |
-| `GET` | `/api/{api_version}/hurricanes` |
-| `GET` | `/api/{api_version}/hurricanes/{id}` |
 | `GET` | `/api/{api_version}/ip` |
 | `GET` | `/api/{api_version}/locations/lookup/coords` |
 | `GET` | `/api/{api_version}/locations/lookup/zip/{code}` |

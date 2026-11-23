@@ -55,7 +55,7 @@ and custom domains (AI.md PART 36). Neither appears in the codebase.
 ```bash
 docker run -d \
   --name wthr \
-  -p 64580:80 \
+  -p 172.17.0.1:64580:80 \
   -v ./volumes/config:/config:z \
   -v ./volumes/data:/data:z \
   ghcr.io/webappsgo/wthr:latest
@@ -194,7 +194,6 @@ Full API documentation is available at `https://wthr.top/server/docs/swagger`, w
 | `GET /api/v1/severe-weather/:id` | Get specific alert by ID |
 | `GET /api/v1/earthquakes` | Recent earthquake data (USGS) |
 | `GET /api/v1/earthquakes/:id` | Get specific earthquake by ID |
-| `GET /api/v1/hurricanes` | Active hurricanes (deprecated) |
 
 ### Astronomical Data
 

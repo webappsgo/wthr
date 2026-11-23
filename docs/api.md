@@ -217,36 +217,6 @@ GET /api/v1/earthquakes
 }
 ```
 
-#### Get Hurricanes
-
-Get active hurricane and tropical storm data.
-
-```http
-GET /api/v1/hurricanes
-```
-
-**Response:**
-
-```json
-{
-  "active_storms": [
-    {
-      "name": "Hurricane Example",
-      "category": 3,
-      "lat": 25.5,
-      "lon": -80.0,
-      "max_wind": 120,
-      "min_pressure": 950,
-      "movement": "NNW at 12 mph",
-      "forecast_track": [
-        {"lat": 25.6, "lon": -80.1, "time": "2025-01-15T18:00:00Z"}
-      ]
-    }
-  ],
-  "count": 2
-}
-```
-
 #### Get Severe Weather Alerts
 
 Get severe weather alerts for a location.
