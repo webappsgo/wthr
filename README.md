@@ -24,6 +24,7 @@ https://wthr.top
 - Moon phase calculations
 - Automatic IP-based location detection
 - WebSocket real-time notifications
+- Signed role-based contact and security webhooks with durable retries
 - Single static binary with all assets embedded
 - Multi-platform (Linux, macOS, Windows, FreeBSD - amd64/arm64)
 - Production grade with rate limiting, caching, health checks

@@ -256,7 +256,15 @@ Security-relevant events are written to the audit log:
 - Backup and restore operations
 - Rate-limit blocks
 
-Audit logs are append-only and never contain raw credentials or tokens.
+Audit logs are append-only and never contain raw credentials or tokens. Every JSONL row
+has a `prev` field containing the lowercase SHA-256 of the preceding exact line without
+its newline. The first row uses 64 zeroes, and rotation anchors the new log to the final
+hash of the archived file. The server verifies the active file at startup and the closed
+file during rotation. It emits one critical `security.audit_chain_broken` event containing
+only the affected filename and line number if verification fails, then continues
+appending. The chain is tamper-evident, not tamper-proof: an actor able to rewrite the
+whole file can recompute the hashes. Forward logs to another host when that threat is in
+scope.
 
 ---
 
@@ -294,7 +302,11 @@ every 48 hours and the current and previous values are accepted. An invalid or e
 falls back to the normal contact form; only the first 8 hex characters of its SHA-256 are logged.
 `GET /api/v1/server/contact?security_id={id}` returns the security field list, including the
 `required_when` and `max_length_when` rules the server enforces, and `POST /api/v1/server/contact`
-with the same `security_id` submits a report.
+with the same `security_id` uses two steps: `step=submit` verifies the signed form token and CAPTCHA
+and returns a review without storing or notifying; `step=confirm` repeats the fields with the
+signed `review_token` and `confirmed: true`, then stores the encrypted report and sends notifications.
+The HTML form follows the same review flow without requiring JavaScript. A honeypot hit receives the
+same review and success responses while storing and sending nothing.
 
 **Storage.** A report body and the researcher's contact are encrypted before they are stored: with
 the project PGP key when one exists, otherwise AES-256-GCM with `server.security.encryption_key`.

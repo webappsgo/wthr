@@ -271,6 +271,30 @@ wthr can send email notifications for:
 Configure SMTP in the admin panel under **Settings → Email**, or in `server.yml` under `smtp.*`.
 TLS and STARTTLS are both supported.
 
+## Outbound Contact Webhooks
+
+The Notify admin page (`/server/{admin_path}/notify`) supports role-specific webhook
+transports for Admin, Security, Abuse, and General contacts. Built-in adapters support
+Telegram, Discord, Slack, Mattermost, Pushover, Gotify, and generic HTTPS JSON endpoints.
+Role fallback follows the same chain as contact email. Webhook URLs are private and are
+never returned by public endpoints or configuration responses.
+
+Each URL receives a separate random 32-byte HMAC key. The key is generated when the URL
+is configured and no key exists, then stored at
+`server.contact.<role>.webhooks.<transport>_secret` in `secrets.yml` (mode `0600`). It is
+never shown in the admin UI or returned by an API. The operator reads it from that file
+to configure a receiver. Requests include `X-Webhook-Signature` (HMAC-SHA256 over the
+exact request body), `X-Webhook-Timestamp`, `X-Webhook-ID` (UUID v7), `X-Webhook-Event`,
+and a project `User-Agent`. Receivers should reject timestamps more than five minutes
+from their current time and compare signatures in constant time.
+
+Failed non-2xx deliveries retry after 1 minute, 5 minutes, 15 minutes, 1 hour, 6 hours,
+and 24 hours, reusing the original webhook ID for deduplication. After the final retry,
+the failure is logged as `notify.webhook_failed` with rate limiting. Security report
+notifications to Admin contain a summary only. Security-role reports contain the full
+report only through its encrypted/PGP-protected path; abuse/general contact submissions
+include the submission fields after spam filtering.
+
 ---
 
 ## None of the Following Are Enabled
@@ -280,7 +304,6 @@ The following integrations are explicitly **not enabled** for this deployment:
 - OAuth/OIDC identity provider (no SSO/federated login)
 - Native app association files (`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`)
 - Autodiscovery protocols (no CalDAV, CardDAV, Autoconfig)
-- Webhooks (outbound HTTP callbacks not implemented)
 - Federation (no ActivityPub or other federated protocols)
 - Custom domain per-user routing (PART 36 not adopted)
 - Organization/multi-tenant features (PART 35 not adopted)

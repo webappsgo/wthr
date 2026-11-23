@@ -52,6 +52,35 @@ A large configuration may be split into files in `{config_dir}/yaml.d/`, next to
 
 The admin panel writes core server settings to `server.yml` and stores the scheduled-backup password encrypted in `secrets.yml`. A setting that a drop-in file sets is owned by that file (`set by yaml.d/20-mail.yml`); edit the drop-in instead. The startup log lists each loaded drop-in in order at info level and, with debug enabled, names the file that won for every overridden key. Secret values are never logged.
 
+Contact webhook endpoints are configured as `server.contact.<role>.webhooks.<transport>`.
+Both each endpoint and its 32-byte signing key are stored in `secrets.yml` under those
+dotted paths, with the key named `<transport>_secret`; the file is mode `0600`. Keys are
+never shown in the admin UI or returned by an API. Webhook endpoints are never public.
+Read each signing key directly from `secrets.yml` to configure the receiver.
+
+### Compliance standards
+
+Compliance standards are configured in `yaml.d/privacy.yml` under `server.compliance`.
+All are disabled by default; enabling any standard activates compliance mode for backup
+encryption. The server blocks unencrypted manual backups and skips scheduled backups with
+an audit warning until an encryption password is set in **Admin Panel → Backup**.
+
+```yaml
+server:
+  compliance:
+    gdpr: false
+    ccpa: false
+    hipaa: false
+    soc2: false
+    pci_dss: false
+    iso27001: false
+    fedramp: false
+    lgpd: false
+    pipeda: false
+    appi: false
+    pdpa: false
+```
+
 ## Branding and SEO
 
 Branding, SEO, accent color, and operator-authored page content are stored in
@@ -430,7 +459,8 @@ server:
 
 - `admin_path` is one segment (`[a-z0-9-]`, 2-32 characters). An invalid value reverts to `administration`.
 - `/server/dpo` shows `contact.dpo.email`, then `contact.general.email`, and never the admin address.
-- The contact form needs a captcha on every submission. `recaptcha` and `hcaptcha` need both keys; without them the built-in challenge is used, and requests through Tor or I2P always use the built-in challenge.
+- Contact reports are configured under `server.pages.contact`: `enabled`, `captcha`, provider keys, `success_message`, and `antispam`. Antispam defaults include a three-second minimum fill time, a 12-hour token lifetime, per-IP/email/global rate limits, same-site links, markup rejection, a three-strike ban, and 24-hour duplicate suppression. Set an individual numeric limit to `0` (or its string setting to empty) to disable that rule. `recaptcha` and `hcaptcha` need both keys; without them the built-in challenge is used, and requests through Tor or I2P always use the built-in challenge.
+- Contact reports use a no-JavaScript two-step review. The first submission verifies the single-use form token and CAPTCHA, then returns a signed review; delivery occurs only after explicit confirmation.
 - Analytics run only after the visitor opts in, never over Tor or I2P, and never inline: the page loads `/server/tracking.js`. Only the configured provider's hosts are added to the Content-Security-Policy.
 - `available_languages` may be narrowed but always keeps `en`, `es`, `fr`, `de`, `it`, `ar`.
 
@@ -454,7 +484,10 @@ Language selection follows AI.md PART 31:
 3. `Accept-Language`
 4. English fallback
 
-Theme and language preferences can be managed without JavaScript and persist through cookies/user settings.
+The language can be changed only from the Language section on `/server/preferences`; the
+footer's active-language link opens `/server/preferences#language`. The header and admin
+preferences page do not contain language selectors. Selection and the `?lang=` query
+parameter work without JavaScript and persist through the `lang` cookie.
 
 ## Validation
 

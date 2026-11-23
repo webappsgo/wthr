@@ -77,6 +77,10 @@ route matrices with every applicable `Accept` header, the `.txt` extension
 endpoints, and CLI commands run against the live server. It counts failures and
 exits non-zero if any check fails.
 
+The user-auth flow enables multi-user open registration and disables email
+verification in its isolated fixture, then fetches the login form as HTML and
+submits its CSRF token for both valid and invalid credentials.
+
 Admin frontend routes must return HTML even for `Accept: text/plain`; the
 shared matrix checks this content negotiation contract alongside the API's
 plain-text responses.

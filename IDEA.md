@@ -24,6 +24,7 @@ A unified weather information platform that aggregates global meteorological dat
 | Terminal Output | ASCII/ANSI colored weather for curl/terminal |
 | Bash Integration | Shell function for terminal weather (`/:bash.function`) |
 | WebSocket Alerts | Real-time push notifications for severe weather |
+| Contact Webhooks | Signed, role-based outbound notifications for contact and security events |
 | User Locations | Save favorite locations for quick access |
 | Alert Subscriptions | Subscribe to alerts for specific regions |
 | API Documentation | Interactive REST and GraphQL documentation |
@@ -64,7 +65,7 @@ All weather data sources are free/public APIs and require no operator API keys o
 - Syndication: `/feed.xml` (Atom) and `/rss.xml` (RSS) list the most recent earthquakes; `/sitemap.xml` lists the public pages
 - User accounts with saved locations and alert subscriptions
 - Tor hidden service (auto-enabled if Tor is present)
-- Backup/restore, scheduler, metrics, email notifications
+- Backup/restore, scheduler, metrics, email notifications, and signed contact webhooks
 
 **Non-goals:**
 - Paid features or premium tiers — all functionality free for all users

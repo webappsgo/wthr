@@ -369,6 +369,8 @@ Create and restore backups.
 - Manual backup creation
 - Automated scheduled backups
 - Optional backup encryption; set or change the password during setup or from the Backup page
+- Enabling any `server.compliance` standard makes encryption mandatory; the Backup page requires
+  a password before creating backups, and scheduled jobs skip with an audit warning until one is saved
 - Backup to local filesystem
 - Download backups
 - View backup history
@@ -405,6 +407,17 @@ set a backup encryption password before creating one.
 ### Notifications
 
 Manage admin panel notifications.
+
+The **Notify** page (`/server/{admin_path}/notify`) configures Admin, Security, Abuse,
+and General contact email and webhook transports. Its test action sends a sample through
+the configured transports. Every webhook request carries an HMAC signature, timestamp,
+UUID v7 delivery ID, event type, and project User-Agent. If delivery fails, it retries at
+1 minute, 5 minutes, 15 minutes, 1 hour, 6 hours, and 24 hours using the same delivery
+ID, then drops the event. Webhook URLs and signing keys are never displayed; read the
+signing key from `{config_dir}/secrets.yml` (mode `0600`).
+
+The admin preferences page links to `/server/preferences#language`; language changes are
+made only in that public preferences page.
 
 **Notification Types:**
 - **Success** - Operation completed successfully
@@ -474,7 +487,14 @@ All admin actions are logged:
 - Domains added/verified/deleted
 - System maintenance performed
 
-View audit logs at **Admin Panel** → **Logs** → **Audit**
+View audit logs at **Admin Panel** → **Logs** → **Audit**. Each JSONL entry includes
+`prev`, the lowercase SHA-256 hash of the preceding exact log line (excluding its
+newline). The first entry starts with 64 zeroes; after rotation, the new file starts
+from the previous file's final line hash. Startup and rotation verify the chain. A
+mismatch produces one critical `security.audit_chain_broken` event with only the file
+name and line number; the server continues running. This detects edits, removals, and
+reordering, but cannot prevent someone with file access from rewriting the entire chain
+and recomputing its hashes.
 
 ### Keyboard Shortcuts
 

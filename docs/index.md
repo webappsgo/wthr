@@ -13,6 +13,7 @@ Weather Service is a production-grade weather API providing global weather forec
 - **Moon Phases** - Detailed lunar information including phases, illumination, rise/set times
 - **GeoIP Location** - Automatic location detection via IP address
 - **Real-Time Notifications** - WebSocket-powered notification system
+- **Signed Contact Webhooks** - Role-based notifications for contact and security events, with durable retries
 - **Mobile Responsive** - Optimized for desktop, tablet, and mobile
 - **Single Static Binary** - No external dependencies, all assets embedded
 
