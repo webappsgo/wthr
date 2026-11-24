@@ -336,6 +336,9 @@ server:
       backup_hourly:
         enabled: false
         schedule: "@hourly"
+      database_vacuum:
+        enabled: false
+        schedule: "@yearly"
       tor_health:
         enabled: true
         schedule: "@every 10m"
@@ -345,6 +348,8 @@ Scheduler state is stored in `server.db`. `scheduler_tasks` uses `id` and `name`
 `next_run`, and `locked_at` stored as Unix-second integers. `scheduler_history` stores `task_id`,
 `started_at`, and nullable `finished_at` as Unix-second integers; its `duration_ms` is nullable.
 Older scheduler tables are migrated during database initialization.
+The Database admin page can enqueue a one-off `database_vacuum` task for local SQLite files; the
+request returns after scheduling, and the task runs `VACUUM` outside a request and transaction.
 
 ### Audit log rotation and retention
 

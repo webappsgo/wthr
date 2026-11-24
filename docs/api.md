@@ -47,6 +47,13 @@ Browser sessions use a cookie; the API never needs or checks a CSRF token.
 | `GET /api/v1/server/auth/check` | Token check: `200` with `{"kind": "operator" \| "owner" \| "user"}` for a valid `Authorization: Bearer` token, `401` otherwise; no side effects, the token is never echoed |
 | `POST /api/v1/server/mcp` | MCP endpoint (Streamable HTTP); aliases `/api/mcp` and `/mcp` |
 
+### Server Admin database maintenance
+
+`POST /api/v1/server/{admin_path}/database/vacuum` enqueues a one-off
+`database_vacuum` maintenance task for local SQLite databases and returns `202 Accepted`.
+The request does not run `VACUUM`; the disabled-by-default scheduler task performs it in the
+background outside a transaction. The route is unavailable for remote databases.
+
 The contact form checks the signed, single-use `form_token` and CAPTCHA on the first call only.
 The built-in challenge is the default (`captcha_id` plus `captcha_answer`); with `recaptcha` or
 `hcaptcha` configured, send the provider token as `captcha_response`. The second call does not
