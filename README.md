@@ -168,6 +168,7 @@ migrated automatically to `yaml.d/branding.yml`.
 ## API
 
 Full API documentation is available at `https://wthr.top/server/docs/swagger`, with OpenAPI JSON at `https://wthr.top/api/v1/server/swagger`. GraphQL (queries only) is at `https://wthr.top/api/v1/server/graphql`, with an interactive playground at `https://wthr.top/server/docs/graphql`.
+The versioned API root, `https://wthr.top/api/v1/`, returns the current API version and links to its documentation.
 
 ### Health Endpoints
 

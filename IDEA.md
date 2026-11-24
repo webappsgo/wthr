@@ -327,7 +327,6 @@ This inventory is checked against the generated OpenAPI document and router regi
 
 | Method | Route |
 |--------|-------|
-| `GET` | `/api` |
 | `GET` | `/api/autodiscover` |
 | `POST` | `/api/graphql` |
 | `GET` | `/api/healthz` |
@@ -335,7 +334,7 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `GET` | `/api/metrics` |
 | `GET` | `/api/metrics/{service}` |
 | `GET` | `/api/swagger` |
-| `GET` | `/api/{api_version}` |
+| `GET` | `/api/{api_version}/` |
 | `GET` | `/api/{api_version}/blocklist` |
 | `GET` | `/api/{api_version}/docs` |
 | `GET` | `/api/{api_version}/earthquakes` |

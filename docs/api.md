@@ -8,6 +8,9 @@ Weather Service provides a RESTful JSON API for accessing weather data, managing
 https://wthr.top/api/v1
 ```
 
+The versioned API root is `GET /api/v1/`. It returns the service and current API
+version plus links to the API documentation and server endpoints.
+
 ## Authentication
 
 Most endpoints are public and don't require authentication.
