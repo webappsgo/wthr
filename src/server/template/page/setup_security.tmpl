@@ -11,10 +11,15 @@
     <script src="{{asset "/static/js/app.js"}}" defer></script>
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-sm">
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">{{t .server.Lang "setup.security_title"}}</h1>
+                <header class="page-header"><h1 class="page-title">{{t .server.Lang "setup.security_title"}}</h1></header>
                 <p class="login-subtitle">{{t .server.Lang "setup.security_step_subtitle"}}</p>
             </div>
 
@@ -49,6 +54,7 @@
                            id="backup_password"
                            name="backup_password"
                            class="form-input"
+                           {{if .backup_password_required}}required{{end}}
                            placeholder="{{t .server.Lang "setup.security_backup_password_placeholder"}}">
                     <small class="form-hint">{{t .server.Lang "setup.security_backup_password_hint"}}</small>
                 </div>
@@ -59,6 +65,7 @@
                            id="backup_password_confirm"
                            name="backup_password_confirm"
                            class="form-input"
+                           {{if .backup_password_required}}required{{end}}
                            data-match-with="#backup_password"
                            data-mismatch-message="{{t .server.Lang "setup.security_password_mismatch_alert"}}"
                            aria-describedby="backup_password_confirm-error"
@@ -115,5 +122,6 @@
         {{ end }}
     </div>
 
-</body>
-</html>
+  </div>
+</main>
+{{template "footer" .}}

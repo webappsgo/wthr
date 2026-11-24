@@ -12,19 +12,20 @@
     <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h1 class="login-title">{{ .branding.Title }}</h1>
-                <p class="login-subtitle">{{t $lang "admin.login.page_title"}}</p>
-            </div>
+    <a href="#main-content" class="skip-link">{{t $lang "aria.skip_to_main"}}</a>
+    <a href="#admin-login-form" class="skip-link">{{t $lang "admin.skip.nav"}}</a>
+    <main id="main-content">
+      <div class="container container-sm">
+        <header class="page-header"><h1 class="page-title">{{ .branding.Title }}</h1></header>
+        <section class="section-card" aria-labelledby="admin-login-heading">
+            <h2 class="sr-only" id="admin-login-heading">{{t $lang "admin.login.page_title"}}</h2>
 
             {{/* Error message if login failed */}}
             {{ if .error }}
             <div class="error-message" role="alert">{{ .error }}</div>
             {{ end }}
 
-            <form method="POST" action="{{.admin_path}}/login" autocomplete="off">
+            <form id="admin-login-form" method="POST" action="{{.admin_path}}/login" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
                     <label for="username" class="form-label">{{t $lang "admin.admins.col_username"}}</label>
@@ -62,12 +63,13 @@
 
                 <button type="submit" class="btn-login">{{t $lang "nav.login"}}</button>
             </form>
-        </div>
+        </section>
 
         {{/* Version number at bottom per AI.md PART 18 */}}
         <div class="login-footer">
             v{{ .version }}
         </div>
-    </div>
+      </div>
+    </main>
 </body>
 </html>

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +14,36 @@ import (
 )
 
 var secretsFileMu sync.Mutex
+var secretAuditMu sync.Mutex
+var secretAuditHook func(string)
+var pendingSecretAuditKeys []string
+
+// SetSecretGeneratedAuditHook installs the application audit sink and flushes
+// names generated before the logger was ready. Secret values never leave here.
+func SetSecretGeneratedAuditHook(hook func(string)) {
+	secretAuditMu.Lock()
+	secretAuditHook = hook
+	pending := append([]string(nil), pendingSecretAuditKeys...)
+	pendingSecretAuditKeys = nil
+	secretAuditMu.Unlock()
+	if hook != nil {
+		for _, key := range pending {
+			hook(key)
+		}
+	}
+}
+
+func recordSecretGenerated(key string) {
+	secretAuditMu.Lock()
+	hook := secretAuditHook
+	if hook == nil {
+		pendingSecretAuditKeys = append(pendingSecretAuditKeys, key)
+	}
+	secretAuditMu.Unlock()
+	if hook != nil {
+		hook(key)
+	}
+}
 
 // ReadSecret returns a dotted secret value from secrets.yml without exposing
 // the file contents through the general configuration API.
@@ -65,6 +97,44 @@ func WriteSecret(key, value string) error {
 		return fmt.Errorf("secret value is required")
 	}
 	return WriteSecretValue(key, value)
+}
+
+// EnsureContactWebhookSecrets creates one 32-byte HMAC key for every
+// configured contact webhook that does not already have a saved key.
+func EnsureContactWebhookSecrets(cfg *AppConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	roles := map[string]ContactRoleConfig{
+		"admin":    cfg.Server.Contact.Admin,
+		"security": cfg.Server.Contact.Security,
+		"abuse":    cfg.Server.Contact.Abuse,
+		"general":  cfg.Server.Contact.General,
+	}
+	for role, contact := range roles {
+		for transport, endpoint := range contact.Webhooks {
+			if strings.TrimSpace(endpoint) == "" {
+				continue
+			}
+			key := fmt.Sprintf("server.contact.%s.webhooks.%s_secret", role, transport)
+			secret, err := ReadSecret(key)
+			if err != nil {
+				return fmt.Errorf("read contact webhook secret: %w", err)
+			}
+			if secret != "" {
+				continue
+			}
+			value := make([]byte, 32)
+			if _, err := rand.Read(value); err != nil {
+				return fmt.Errorf("generate contact webhook secret: %w", err)
+			}
+			if err := WriteSecret(key, base64.RawURLEncoding.EncodeToString(value)); err != nil {
+				return fmt.Errorf("persist contact webhook secret: %w", err)
+			}
+			recordSecretGenerated(key)
+		}
+	}
+	return nil
 }
 
 // WriteSecretValue stores any YAML value at a dotted secret path atomically.

@@ -463,12 +463,12 @@ func validOIDCProviderName(name string) bool {
 }
 
 func validProviderURL(raw string) bool {
-	parsed, err := url.ParseRequestURI(raw)
+	parsed, err := url.Parse(raw)
 	return err == nil && parsed.Host != "" && parsed.User == nil && parsed.Fragment == "" && (parsed.Scheme == "https" || parsed.Scheme == "http")
 }
 
 func validSAMLMetadataURL(raw string) bool {
-	parsed, err := url.ParseRequestURI(raw)
+	parsed, err := url.Parse(raw)
 	return err == nil && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil && parsed.Fragment == ""
 }
 

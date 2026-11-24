@@ -1,11 +1,30 @@
 package scheduler
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/config"
 )
+
+func TestScheduledBackupPasswordRequiresEncryptionUnderCompliance(t *testing.T) {
+	previous := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+	t.Setenv("CONFIG_DIR", t.TempDir())
+
+	cfg := config.DefaultAppConfig()
+	cfg.Server.Compliance.HIPAA = true
+	config.SetGlobalConfig(cfg)
+
+	_, err := scheduledBackupPassword()
+	if !errors.Is(err, backup.ErrComplianceEncryptionRequired) {
+		t.Fatalf("scheduledBackupPassword() error = %v, want %v", err, backup.ErrComplianceEncryptionRequired)
+	}
+}
 
 // backup.Create() only does real local filesystem I/O (tar.gz archive creation,
 // optional local encryption) with no network calls, so exercising it against a

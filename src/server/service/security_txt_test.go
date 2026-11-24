@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +17,84 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
+
+func TestPGPKeyserverPublishPersistsRetriesAndSkipsAcceptedServers(t *testing.T) {
+	db := setupSecurityTxtServerDB(t)
+	dir := t.TempDir()
+	manager := NewPGPKeyManager(db, dir)
+	if _, err := manager.Generate("Weather", "security@example.com", false); err != nil {
+		t.Fatal(err)
+	}
+	manager.publisher = func(context.Context, string, string) error { return errors.New("temporary network failure") }
+	results, err := manager.PublishToKeyservers(context.Background(), []string{"keys.example"})
+	if err != nil || results["keys.example"] == nil {
+		t.Fatalf("PublishToKeyservers() = %v, %v; want retryable failure", results, err)
+	}
+	info, err := manager.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.publishState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := state.Fingerprints[info.Fingerprint]["keys.example"]
+	if record.Attempts != 1 || record.NextAttempt == nil || record.Final || record.PublishedAt != nil {
+		t.Fatalf("failed publish state = %#v", record)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	record.NextAttempt = &past
+	state.Fingerprints[info.Fingerprint]["keys.example"] = record
+	if err := manager.savePublishState(state); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	manager.publisher = func(context.Context, string, string) error { calls++; return nil }
+	if err := manager.RetryKeyserverPublishes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("retry publisher calls = %d, want 1", calls)
+	}
+	info, err = manager.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := info.KeyserversPublished["keys.example"]; !ok {
+		t.Fatal("successful retry was not recorded in the database")
+	}
+	results, err = manager.PublishToKeyservers(context.Background(), []string{"keys.example"})
+	if err != nil || len(results) != 0 || calls != 1 {
+		t.Fatalf("accepted server was not skipped: results=%v err=%v calls=%d", results, err, calls)
+	}
+}
+
+func TestPGPKeyserverPermanentFailureIsFinal(t *testing.T) {
+	db := setupSecurityTxtServerDB(t)
+	manager := NewPGPKeyManager(db, t.TempDir())
+	if _, err := manager.Generate("Weather", "security@example.com", false); err != nil {
+		t.Fatal(err)
+	}
+	manager.publisher = func(context.Context, string, string) error { return errors.New("status 400") }
+	if _, err := manager.PublishToKeyservers(context.Background(), []string{"keys.example"}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := manager.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.publishState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record := state.Fingerprints[info.Fingerprint]["keys.example"]; !record.Final || record.NextAttempt != nil {
+		t.Fatalf("permanent failure state = %#v", record)
+	}
+	encoded, err := json.Marshal(state)
+	if err != nil || len(encoded) == 0 {
+		t.Fatalf("persisted state is not valid JSON: %v", err)
+	}
+}
 
 // setupSecurityTxtServerDB opens a fresh in-memory SQLite database with the
 // real production ServerSchema applied (server_config lives there),

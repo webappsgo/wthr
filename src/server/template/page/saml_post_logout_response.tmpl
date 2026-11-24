@@ -9,11 +9,14 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <section class="register-container" aria-labelledby="saml-logout-title">
-        <h1 id="saml-logout-title">{{t .server.Lang "auth.saml.logout_title"}}</h1>
+        <header class="page-header"><h1 id="saml-logout-title" class="page-title">{{t .server.Lang "auth.saml.logout_title"}}</h1></header>
         <p>{{t .server.Lang "auth.saml.logout_description"}}</p>
         <form method="post" action="{{.Destination}}">
             <input type="hidden" name="SAMLResponse" value="{{.Message}}">
@@ -21,6 +24,7 @@
             <button type="submit" class="btn-primary">{{t .server.Lang "auth.saml.logout_continue"}}</button>
         </form>
     </section>
+  </div>
 </main>
 {{template "footer" .}}
 </body>

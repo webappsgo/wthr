@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.invite.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.invite.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.invite.intro"}}</p>
   </div>
 

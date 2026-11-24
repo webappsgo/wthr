@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.security_reports.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.security_reports.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.security_reports.intro"}}</p>
   </div>
   {{template "flash" .}}
@@ -29,7 +29,7 @@
     </form>
     {{if .Reports}}
     <div class="table-responsive">
-      <table class="table">
+      <div class="table-wrapper"><table class="table data-table">
         <thead><tr>
           <th scope="col">{{t $lang "admin.security_reports.col_tracking"}}</th>
           <th scope="col">{{t $lang "admin.security_reports.col_severity"}}</th>
@@ -46,7 +46,7 @@
           <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
         </tr>{{end}}
         </tbody>
-      </table>
+      </table></div>
     </div>
     {{else}}
     <div class="empty-state">

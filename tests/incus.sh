@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, August 13, 2026 19:24 EDT
 # @@File             :  incus.sh
 # @@Description      :  AI.md PART 29 full integration testing in Incus system containers, once per init system
-# @@Changelog        :  Run the full suite once per init system (systemd on Debian, OpenRC on Alpine) with Tor and I2P tests
+# @@Changelog        :  Show matrix server logs on failure; let the last I2P test drop-in override the default
 # @@TODO             :  none
 # @@Other            :  none
 # @@Resource         :  none
@@ -238,8 +238,8 @@ check "features.i2p.enabled is false by default" test "$(overlay i2p enabled)" =
 check "checks.i2p is omitted by default" test "$(healthz | jq '(.checks | has("i2p"))')" = "false"
 # Opt in through a yaml.d drop-in (this also exercises the drop-in directory)
 mkdir -p "${CONF_ROOT}/yaml.d"
-printf 'server:\n  i2p:\n    enabled: true\n' > "${CONF_ROOT}/yaml.d/50-i2p.yml"
-chmod 0644 "${CONF_ROOT}/yaml.d/50-i2p.yml"
+printf 'server:\n  i2p:\n    enabled: true\n' > "${CONF_ROOT}/yaml.d/zz-i2p.yml"
+chmod 0644 "${CONF_ROOT}/yaml.d/zz-i2p.yml"
 ${PROJECT_NAME} --service restart
 wait_for 180 healthz_up
 check "features.i2p.enabled is true after opt-in" test "$(overlay i2p enabled)" = "true"
@@ -271,7 +271,7 @@ check "status is disabled" test "$(overlay i2p status)" = "disabled"
 check "provider is none" test "$(overlay i2p provider)" = "none"
 check "checks.i2p is omitted" test "$(healthz | jq '(.checks | has("i2p"))')" = "false"
 mv "${I2PD_BIN}.hidden" "$I2PD_BIN"
-rm -f "${CONF_ROOT}/yaml.d/50-i2p.yml"
+rm -f "${CONF_ROOT}/yaml.d/zz-i2p.yml"
 ${PROJECT_NAME} --service restart
 wait_for 180 healthz_up
 
@@ -320,19 +320,19 @@ remote() {
 
 # Wait until the container accepts commands, its init system finished booting and the network is up
 wait_boot() {
-    local container="$1" init="$2" i state
-    for i in $(seq 1 60); do incus exec "$container" -- true 2>/dev/null && break; sleep 1; done
+    local container="$1" init="$2" state
+    for _ in $(seq 1 60); do incus exec "$container" -- true 2>/dev/null && break; sleep 1; done
     if [ "$init" = "systemd" ]; then
         # "degraded" is normal in a container; only "starting" means boot is unfinished
-        for i in $(seq 1 90); do
+        for _ in $(seq 1 90); do
             state=$(incus exec "$container" -- systemctl is-system-running 2>/dev/null || true)
             [ -n "$state" ] && [ "$state" != "starting" ] && break
             sleep 1
         done
     else
-        for i in $(seq 1 60); do incus exec "$container" -- test -d /run/openrc 2>/dev/null && break; sleep 1; done
+        for _ in $(seq 1 60); do incus exec "$container" -- test -d /run/openrc 2>/dev/null && break; sleep 1; done
     fi
-    for i in $(seq 1 60); do incus exec "$container" -- sh -c 'ip route | grep -q "^default"' 2>/dev/null && break; sleep 1; done
+    for _ in $(seq 1 60); do incus exec "$container" -- sh -c 'ip route | grep -q "^default"' 2>/dev/null && break; sleep 1; done
 }
 
 run_mode() {
@@ -377,7 +377,11 @@ run_mode() {
     # service is uninstalled and nothing else holds the port
     echo "=== [$init] Running the route/header matrix ==="
     incus exec "$container" -- mkdir -p /matrix-logs
-    incus exec "$container" -- /usr/local/bin/matrix.sh "$PROJECT_NAME" "$PROJECT_ORG"
+    if ! incus exec "$container" -- /usr/local/bin/matrix.sh "$PROJECT_NAME" "$PROJECT_ORG"; then
+        echo "=== [$init] Route/header matrix server logs ===" >&2
+        incus exec "$container" -- sh -c 'for log_file in /matrix-logs/stdout-server.log /matrix-logs/app-server.log; do if [ -f "$log_file" ]; then echo "--- $log_file"; grep -n -C 4 -E "template .* failed|panic:" "$log_file" || tail -n 200 "$log_file"; fi; done' >&2 || true
+        return 1
+    fi
 }
 
 # One container per init system, run one after the other (never in parallel)

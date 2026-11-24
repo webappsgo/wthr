@@ -10,12 +10,15 @@
     <script src="{{asset "/static/js/app.js"}}" defer></script>
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <div class="register-container">
         <div class="register-header">
-            <h1>🌤️ {{t .server.Lang "login.brand_heading"}}</h1>
+            <header class="page-header"><h1 class="page-title">🌤️ {{t .server.Lang "login.brand_heading"}}</h1></header>
             <p>{{t .server.Lang "register.create_account_subtitle"}}</p>
         </div>
 
@@ -111,12 +114,13 @@
         </div>
     </div>
 
-    <script type="application/json" id="register-data">
+    <textarea hidden id="register-data">
         {
             "weak": "{{t .server.Lang "register.js_strength_weak"}}",
             "medium": "{{t .server.Lang "register.js_strength_medium"}}",
             "strong": "{{t .server.Lang "register.js_strength_strong"}}"
         }
-    </script>
+    </textarea>
+  </div>
 </main>
 {{template "footer" .}}

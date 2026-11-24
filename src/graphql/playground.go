@@ -3,17 +3,19 @@ package graphql
 import (
 	"embed"
 	"fmt"
+	"html"
 	"io/fs"
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/server/buildstamp"
 )
 
 //go:embed static/vendor/react.production.min.js
 //go:embed static/vendor/react-dom.production.min.js
 //go:embed static/vendor/graphiql.min.js
 //go:embed static/vendor/graphiql.min.css
-//go:embed static/graphiql-init.js
 //go:embed static/graphiql-theme.css
 var playgroundAssets embed.FS
 
@@ -31,8 +33,8 @@ var playgroundAssetContentType = map[string]string{
 	".css": "text/css; charset=utf-8",
 }
 
-// PlaygroundAssetHandler serves the embedded GraphiQL/React/init-script/theme
-// assets that back the local (non-CDN) playground page.
+// PlaygroundAssetHandler serves the embedded GraphiQL/React/theme assets
+// used by the local (non-CDN) playground page.
 func PlaygroundAssetHandler() http.HandlerFunc {
 	sub, err := fs.Sub(playgroundAssets, "static")
 	if err != nil {
@@ -66,11 +68,11 @@ func renderPlaygroundHTML(theme Theme, endpoint string) string {
 	b.WriteString("<link rel=\"stylesheet\" href=\"" + playgroundAssetPrefix + "graphiql-theme.css\">\n")
 	b.WriteString("</head>\n<body>\n")
 	b.WriteString("<div id=\"graphiql\" class=\"graphiql-container " + themeClass +
-		"\" data-endpoint=\"" + endpoint + "\">Loading GraphQL Playground...</div>\n")
+		"\" data-endpoint=\"" + html.EscapeString(endpoint) + "\">Loading GraphQL Playground...</div>\n")
 	b.WriteString("<script src=\"" + playgroundAssetPrefix + "vendor/react.production.min.js\"></script>\n")
 	b.WriteString("<script src=\"" + playgroundAssetPrefix + "vendor/react-dom.production.min.js\"></script>\n")
 	b.WriteString("<script src=\"" + playgroundAssetPrefix + "vendor/graphiql.min.js\"></script>\n")
-	b.WriteString("<script src=\"" + playgroundAssetPrefix + "graphiql-init.js\"></script>\n")
+	b.WriteString("<script src=\"" + buildstamp.Asset("/static/js/app.js") + "\" defer></script>\n")
 	b.WriteString("</body>\n</html>\n")
 	return b.String()
 }

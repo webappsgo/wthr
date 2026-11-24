@@ -11,14 +11,15 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌀</text></svg>">
 </head>
 <body data-auto-refresh-seconds="300">
-{{template "header" .}}
-<main id="main-content" role="main">
-    {{template "navbar" .}}
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+    <div>
 
-    <div class="weather-container">
-
-        <div class="hurricane-header">
-            <h1>🌀 {{t .server.Lang "hurricane.page_heading"}}</h1>
+        <div>
+            <header class="page-header"><h1 class="page-title">🌀 {{t .server.Lang "hurricane.page_heading"}}</h1></header>
             <p class="storm-count">
                 {{ if eq .Count 0 }}
                     {{t .server.Lang "hurricane.no_active_storms"}}
@@ -31,14 +32,14 @@
         </div>
 
         {{ if eq .Count 0 }}
-        <div class="no-storms">
+        <div class="empty-state">
             <div class="no-storms-icon">🌊</div>
             <h3>{{t .server.Lang "hurricane.all_clear_heading"}}</h3>
             <p>{{t .server.Lang "hurricane.all_clear_message"}}</p>
             <p class="text-sm margin-y-md">{{t .server.Lang "hurricane.data_source_noaa"}}</p>
         </div>
         {{ else }}
-        <div class="storms-grid">
+        <div>
             {{ range .Storms }}
             {{ $category := "tropical-storm" }}
             {{ if ge .WindSpeed 157 }}
@@ -52,11 +53,11 @@
             {{ else if ge .WindSpeed 74 }}
                 {{ $category = "category-1" }}
             {{ end }}
-            <div class="storm-card {{$category}}">
-                <div class="storm-name">
+            <section class="section-card" aria-labelledby="hurricane-storm-{{.ID}}">
+                <h2 class="storm-name" id="hurricane-storm-{{.ID}}">
                     {{ if ge .WindSpeed 74 }}🌀{{ else if ge .WindSpeed 39 }}🌊{{ else }}🌧️{{ end }}
                     {{.Name}}
-                </div>
+                </h2>
                 <div class="storm-classification">{{.Intensity}}</div>
 
                 <div class="storm-details">
@@ -101,7 +102,7 @@
                     {{ end }}
                 </div>
                 {{ end }}
-            </div>
+            </section>
             {{ end }}
         </div>
         {{ end }}
@@ -115,5 +116,6 @@
         </div>
     </div>
 
+  </div>
 </main>
 {{template "footer" .}}

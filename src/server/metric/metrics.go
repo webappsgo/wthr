@@ -54,6 +54,11 @@ var (
 		[]string{"method", "path"},
 	)
 
+	ContactBlockedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{Name: "contact_blocked_total", Help: "Contact form requests blocked or silently dropped by antispam"},
+		[]string{"reason"},
+	)
+
 	HTTPActiveRequests = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "wthr_http_active_requests",
@@ -99,6 +104,21 @@ var (
 			Help: "Total number of database errors",
 		},
 		[]string{"operation", "error_type"},
+	)
+
+	DBBusyTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "wthr_db_busy_total",
+			Help: "SQLite writes that encountered a busy or locked error and were retried",
+		},
+	)
+
+	DBWriteWaitSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "wthr_db_write_wait_seconds",
+			Help:    "Time SQLite writes waited for the write handle and file lock",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
 	)
 
 	// Cache metrics
@@ -303,6 +323,12 @@ func RecordDBQuery(operation, table string, duration time.Duration, err error) {
 		DBErrors.WithLabelValues(operation, ClassifyDBError(err)).Inc()
 	}
 }
+
+// RecordDBBusy records one SQLite busy/locked write failure that is retried.
+func RecordDBBusy() { DBBusyTotal.Inc() }
+
+// RecordDBWriteWait records the time spent waiting for SQLite write access.
+func RecordDBWriteWait(duration time.Duration) { DBWriteWaitSeconds.Observe(duration.Seconds()) }
 
 // ClassifyDBError maps a database error onto the fixed error_type label set
 // AI.md PART 21 defines for wthr_db_errors_total: connection, timeout,

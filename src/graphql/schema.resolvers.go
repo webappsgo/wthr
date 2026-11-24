@@ -1431,7 +1431,7 @@ func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error
 	}
 
 	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM scheduler_tasks ORDER BY task_name",
+		"SELECT name, schedule, enabled, last_run, next_run, run_count, fail_count FROM scheduler_tasks ORDER BY name",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tasks: %w", err)

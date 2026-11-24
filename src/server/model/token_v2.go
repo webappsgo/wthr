@@ -282,6 +282,18 @@ func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
 	return err
 }
 
+// QueueLastUsed coalesces an authenticated token activity write until the
+// database hot-counter flusher runs.
+func (m *TokenModelV2) QueueLastUsed(tokenID int64) error {
+	db := m.getDB()
+	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
+	if database.IsRemoteDatabase(db) {
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
+		return err
+	}
+	return database.QueueHotCounterUpdate(db, fmt.Sprintf("token:%d", tokenID), query, sqlTimestamp(time.Now()), tokenID)
+}
+
 // ListTokens lists all tokens for an owner per TEMPLATE.md PART 11
 func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, error) {
 	if ownerType != OwnerTypeUser && ownerType != OwnerTypeAdmin {

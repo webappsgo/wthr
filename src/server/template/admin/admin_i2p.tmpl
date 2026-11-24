@@ -3,7 +3,7 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <h1>🧭 {{t $lang "admin.i2p.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">🧭 {{t $lang "admin.i2p.title"}}</h1></header>
     <p>{{t $lang "admin.i2p.intro"}}</p>
 
     {{if eq .form_status "saved"}}
@@ -38,7 +38,7 @@
     </div>
     {{end}}
 
-    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-status-heading">
+    <section class="section-card mb-4 p-4" role="region" aria-labelledby="i2p-status-heading">
         <h2 id="i2p-status-heading">{{t $lang "admin.i2p.status_heading"}}</h2>
 
         <div class="status-row">
@@ -48,7 +48,7 @@
             <strong id="i2p-status-text">{{if .I2PStatus.running}}{{t $lang "admin.i2p.status_running"}}{{else if .I2PStatus.enabled}}{{t $lang "admin.i2p.status_stopped"}}{{else}}{{t $lang "admin.i2p.status_disabled"}}{{end}}</strong>
         </div>
 
-        <table class="data-table mt-3">
+        <div class="table-wrapper"><table class="data-table mt-3">
             <tbody>
                 <tr>
                     <th scope="row">{{t $lang "admin.i2p.provider_label"}}</th>
@@ -67,7 +67,7 @@
                     <td>{{.I2PStatus.uptime_seconds}}</td>
                 </tr>
             </tbody>
-        </table>
+        </table></div>
 
         {{if .I2PStatus.address}}
         <div class="onion-address-box mt-3" role="region" aria-labelledby="i2p-address-label">
@@ -86,7 +86,7 @@
         {{end}}
     </section>
 
-    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-settings-heading">
+    <section class="section-card mb-4 p-4" role="region" aria-labelledby="i2p-settings-heading">
         <h2 id="i2p-settings-heading">{{t $lang "admin.i2p.settings_heading"}}</h2>
         <p>{{t $lang "admin.i2p.settings_intro"}}</p>
 
@@ -280,7 +280,7 @@
         </form>
     </section>
 
-    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-actions-heading">
+    <section class="section-card mb-4 p-4" role="region" aria-labelledby="i2p-actions-heading">
         <h2 id="i2p-actions-heading">{{t $lang "admin.i2p.actions_heading"}}</h2>
 
         <div class="action-row">

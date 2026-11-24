@@ -1,54 +1,127 @@
 {{template "head" .}}
-
 {{template "navbar" .}}
 
-<main id="main-content" class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "security.report.title"}}</h1>
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "security.report.title"}}</h1></header>
     <p>{{t .server.Lang "security.report.intro"}}</p>
 
-    <div class="card margin-y-lg">
-        {{template "flash" .}}
+    {{template "flash" .}}
+
+    {{if eq .Mode "review"}}
+    <div class="modal-overlay active">
+        <section class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="security-review-title" aria-describedby="security-review-description">
+            <div class="modal-header">
+                <h2 id="security-review-title" class="modal-title">{{t .server.Lang "contact.report.review_title"}}</h2>
+            </div>
+            <div class="modal-body">
+                <p id="security-review-description">{{t .server.Lang "contact.report.review_intro"}}</p>
+                <dl>
+                    <dt>{{t .server.Lang "contact.email_label"}}</dt>
+                    <dd class="long-string">{{.Values.email}}</dd>
+                    <dt>{{t .server.Lang "contact.report.type_label"}}</dt>
+                    <dd>{{t .server.Lang "contact.report.type.security"}}</dd>
+                    <dt>{{t .server.Lang "security.report.field.summary"}}</dt>
+                    <dd>{{.Values.summary}}</dd>
+                </dl>
+                <form method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "contact.report.confirm_form"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="security_id" value="{{.SecurityID}}">
+                    <input type="hidden" name="step" value="confirm">
+                    <input type="hidden" name="review_token" value="{{.ReviewToken}}">
+                    <input type="hidden" name="form_token" value="{{.FormToken}}">
+                    {{range .SnapshotFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+                    <div class="form-group">
+                        <label class="form-label"><input type="checkbox" name="confirmed" value="true" required autofocus> {{t .server.Lang "contact.report.confirm_statement"}} *</label>
+                    </div>
+                    <div class="modal-footer modal-actions">
+                        <button class="btn btn-primary" type="submit">{{t .server.Lang "contact.report.confirm_button"}}</button>
+                    </div>
+                </form>
+                <form method="post" action="{{path "/server/contact"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="security_id" value="{{.SecurityID}}">
+                    <input type="hidden" name="step" value="edit">
+                    <input type="hidden" name="form_token" value="{{.FormToken}}">
+                    <input type="hidden" name="review_token" value="{{.ReviewToken}}">
+                    {{range .SnapshotFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+                    <button class="btn btn-secondary" type="submit">{{t .server.Lang "contact.report.edit_button"}}</button>
+                </form>
+            </div>
+        </section>
+    </div>
+    {{else}}
+    <section class="section-card" aria-labelledby="security-report-form-title">
+        <h2 id="security-report-form-title">{{t .server.Lang "security.report.form_aria"}}</h2>
         <form id="security-report-form" method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "security.report.form_aria"}}">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <input type="hidden" name="security_id" value="{{.SecurityID}}">
+            <input type="hidden" name="step" value="submit">
+            <input type="hidden" name="form_token" value="{{.FormToken}}">
+            {{if .HoneypotEnabled}}<div class="contact-honeypot" aria-hidden="true">
+                <label for="security-website">{{t .server.Lang "contact.report.honeypot_label"}}</label>
+                <input id="security-website" type="text" name="website" value="" tabindex="-1" autocomplete="off" maxlength="200" aria-hidden="true">
+            </div>{{end}}
+
             {{range .Fields}}{{if ne .Type "captcha"}}
+            {{$field := .}}
             {{- $label := printf "security.report.field.%s" .Name -}}
             {{- $help := printf "security.report.help.%s" .Name -}}
             <div class="form-group">
                 {{if eq .Type "checkbox"}}
-                <label class="form-label"><input type="checkbox" name="{{.Name}}" value="true"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help"> {{t $.server.Lang $label}}</label>
+                <label class="form-label"><input type="checkbox" name="{{.Name}}" value="true"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help"> {{t $.server.Lang $label}}{{if .Required}} *{{end}}</label>
                 {{else}}
                 <label for="sr-{{.Name}}" class="form-label">{{t $.server.Lang $label}}{{if .Required}} *{{end}}</label>
                 {{if eq .Type "textarea"}}
-                <textarea id="sr-{{.Name}}" name="{{.Name}}" class="form-input" rows="6"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}} aria-describedby="sr-{{.Name}}-help"></textarea>
+                <textarea id="sr-{{.Name}}" name="{{.Name}}" class="form-input" rows="6"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}} aria-describedby="sr-{{.Name}}-help">{{index $.Values .Name}}</textarea>
                 {{else if eq .Type "enum"}}
                 <select id="sr-{{.Name}}" name="{{.Name}}" class="form-input"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help">
                     <option value="">{{t $.server.Lang "security.report.select"}}</option>
-                    {{range .Options}}<option value="{{.}}">{{t $.server.Lang (printf "security.report.opt.%s" .)}}</option>{{end}}
+                    {{range $field.Options}}<option value="{{.}}"{{if eq (index $.Values $field.Name) .}} selected{{end}}>{{t $.server.Lang (printf "security.report.opt.%s" .)}}</option>{{end}}
                 </select>
                 {{else if eq .Type "number"}}
-                <input type="number" id="sr-{{.Name}}" name="{{.Name}}" class="form-input" min="1" max="3650" value="90" aria-describedby="sr-{{.Name}}-help">
+                <input type="number" id="sr-{{.Name}}" name="{{.Name}}" class="form-input" min="1" max="3650" value="{{index $.Values .Name}}"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help">
                 {{else}}
-                <input type="{{.Type}}" id="sr-{{.Name}}" name="{{.Name}}" class="form-input"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Options}} list="sr-{{.Name}}-list"{{end}} aria-describedby="sr-{{.Name}}-help">
+                <input type="{{.Type}}" id="sr-{{.Name}}" name="{{.Name}}" class="form-input" value="{{index $.Values .Name}}"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Options}} list="sr-{{.Name}}-list"{{end}} aria-describedby="sr-{{.Name}}-help">
                 {{if .Options}}<datalist id="sr-{{.Name}}-list">{{range .Options}}<option value="{{.}}">{{end}}</datalist>{{end}}
                 {{end}}
-                {{end}}
                 <small id="sr-{{.Name}}-help" class="form-help">{{t $.server.Lang $help}}</small>
+                {{end}}
             </div>
             {{end}}{{end}}
 
             {{if eq .Captcha.Provider "simple"}}
             <div class="form-group">
-                <label for="sr-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}}</label>
+                <label for="sr-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}} *</label>
                 <input type="hidden" name="captcha_id" value="{{.Captcha.ID}}">
                 <input type="text" id="sr-captcha" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off" aria-describedby="sr-captcha-help">
                 <small id="sr-captcha-help" class="form-help">{{t .server.Lang "contact.captcha.help"}}</small>
             </div>
             {{else if eq .Captcha.Provider "recaptcha"}}
             <div class="g-recaptcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <noscript>
+                <p>{{t .server.Lang "contact.report.captcha_fallback"}}</p>
+                {{with .Captcha.Fallback}}
+                <div class="form-group">
+                    <label for="sr-captcha-fallback" class="form-label">{{tf $.server.Lang "contact.captcha.question" "a" (printf "%d" .A) "b" (printf "%d" .B)}} *</label>
+                    <input type="hidden" name="captcha_id" value="{{.ID}}">
+                    <input id="sr-captcha-fallback" type="text" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off">
+                </div>
+                {{end}}
+            </noscript>
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
             {{else if eq .Captcha.Provider "hcaptcha"}}
             <div class="h-captcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <noscript>
+                <p>{{t .server.Lang "contact.report.captcha_fallback"}}</p>
+                {{with .Captcha.Fallback}}
+                <div class="form-group">
+                    <label for="sr-captcha-fallback" class="form-label">{{tf $.server.Lang "contact.captcha.question" "a" (printf "%d" .A) "b" (printf "%d" .B)}} *</label>
+                    <input type="hidden" name="captcha_id" value="{{.ID}}">
+                    <input id="sr-captcha-fallback" type="text" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off">
+                </div>
+                {{end}}
+            </noscript>
             <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
             {{end}}
 
@@ -56,7 +129,14 @@
                 <button type="submit" class="btn btn-primary" id="security-report-submit">{{t .server.Lang "security.report.submit"}}</button>
             </div>
         </form>
-    </div>
+    </section>
+    {{end}}
+
+    <section class="section-card" aria-labelledby="security-pointer-title">
+        <h2 id="security-pointer-title">{{t .server.Lang "contact.report.security_pointer_title"}}</h2>
+        <p>{{t .server.Lang "contact.report.security_pointer"}} <a href="{{path "/server/security"}}">{{t .server.Lang "contact.report.security_policy_link"}}</a>.</p>
+    </section>
+  </div>
 </main>
 
 {{template "footer" .}}

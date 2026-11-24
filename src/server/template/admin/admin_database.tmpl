@@ -5,13 +5,13 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
             <div class="content-header">
-                <h1>🗄️ {{t $lang "admin.database.title"}}</h1>
+                <header class="page-header"><h1 class="page-title">🗄️ {{t $lang "admin.database.title"}}</h1></header>
                 <p class="subtitle">{{t $lang "admin.database.subtitle"}}</p>
             </div>
             {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 
             <!-- Database Status Section -->
-            <section class="admin-card" aria-labelledby="db-status-heading">
+            <section class="admin-section-card" aria-labelledby="db-status-heading">
                 <div class="card-header">
                     <h2 id="db-status-heading">{{t $lang "admin.database.status_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.database.status_description"}}</p>
@@ -47,7 +47,7 @@
             </section>
 
             <!-- Database Optimization Section -->
-            <section class="admin-card" aria-labelledby="db-optimize-heading">
+            <section class="admin-section-card" aria-labelledby="db-optimize-heading">
                 <div class="card-header">
                     <h2 id="db-optimize-heading">{{t $lang "admin.database.optimize_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.database.optimize_description"}}</p>
@@ -121,7 +121,7 @@
             </section>
 
             <!-- Cache Management Section -->
-            <section class="admin-card" aria-labelledby="cache-heading">
+            <section class="admin-section-card" aria-labelledby="cache-heading">
                 <div class="card-header">
                     <h2 id="cache-heading">{{t $lang "admin.database.cache_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.database.cache_description"}}</p>
@@ -169,7 +169,7 @@
             </section>
 
             <!-- Database Configuration Section -->
-            <section class="admin-card" aria-labelledby="db-config-heading">
+            <section class="admin-section-card" aria-labelledby="db-config-heading">
                 <div class="card-header">
                     <h2 id="db-config-heading">{{t $lang "admin.database.config_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.database.config_description"}}</p>
@@ -337,7 +337,7 @@
             </section>
 
             <!-- Database Settings Section -->
-            <section class="admin-card" aria-labelledby="db-settings-heading">
+            <section class="admin-section-card" aria-labelledby="db-settings-heading">
                 <div class="card-header">
                     <h2 id="db-settings-heading">{{t $lang "admin.database.settings_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.database.settings_description"}}</p>
@@ -407,7 +407,7 @@
                 </div>
             </section>
 
-    <script type="application/json" id="admin-database-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <textarea hidden id="admin-database-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

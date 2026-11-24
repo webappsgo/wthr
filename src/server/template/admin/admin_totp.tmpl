@@ -1,17 +1,16 @@
 {{template "head" .}}
 {{template "admin_header" .}}
-<main id="main-content" class="admin-content">
-    <h1>{{t .server.Lang "admin.totp.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "admin.totp.title"}}</h1></header>
     {{if .success}}<div class="alert alert-success" role="status" aria-live="polite">{{.success}}</div>{{end}}
     {{if .recovery_keys}}
-    <section class="card" aria-labelledby="recovery-codes-heading">
+    <section class="section-card" aria-labelledby="recovery-codes-heading">
         <h2 id="recovery-codes-heading">{{t .server.Lang "admin.totp.recovery_codes_title"}}</h2>
         <p>{{t .server.Lang "admin.totp.recovery_codes_once"}}</p>
         <ul>{{range .recovery_keys}}<li><code>{{.}}</code></li>{{end}}</ul>
     </section>
     {{end}}
     {{if .totp.Enabled}}
-    <section class="card" aria-labelledby="totp-enabled-heading">
+    <section class="section-card" aria-labelledby="totp-enabled-heading">
         <h2 id="totp-enabled-heading">{{t .server.Lang "admin.totp.enabled_heading"}}</h2>
         <p>{{t .server.Lang "admin.totp.recovery_remaining"}}: {{.totp.RecoveryKeysCount}}</p>
         <form method="post" action="{{.admin_self_path}}/profile/security/totp/recovery/regenerate">
@@ -29,7 +28,7 @@
         </form>
     </section>
     {{else if .show_setup}}
-    <section class="card" aria-labelledby="totp-setup-heading">
+    <section class="section-card" aria-labelledby="totp-setup-heading">
         <h2 id="totp-setup-heading">{{t .server.Lang "admin.totp.setup_heading"}}</h2>
         <p>{{t .server.Lang "admin.totp.scan_qr"}}</p>
         <img src="{{.setup.qr_code}}" alt="{{t .server.Lang "admin.totp.qr_alt"}}" width="200" height="200">
@@ -43,7 +42,7 @@
         </form>
     </section>
     {{else}}
-    <section class="card" aria-labelledby="totp-disabled-heading">
+    <section class="section-card" aria-labelledby="totp-disabled-heading">
         <h2 id="totp-disabled-heading">{{t .server.Lang "admin.totp.disabled_heading"}}</h2>
         <p>{{t .server.Lang "admin.totp.encouragement"}}</p>
         <form method="post" action="{{.admin_self_path}}/profile/security/totp/setup">
@@ -54,5 +53,4 @@
         </form>
     </section>
     {{end}}
-</main>
 {{template "admin_footer" .}}

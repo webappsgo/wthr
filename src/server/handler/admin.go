@@ -582,9 +582,9 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request) {
 	// The scheduler registers every task in scheduler_tasks (src/database/server_schema.go) on start
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-		SELECT task_name, schedule, enabled, last_run, next_run, last_status
+		SELECT name, schedule, enabled, last_run, next_run, last_status
 		FROM scheduler_tasks
-		ORDER BY task_name
+		ORDER BY name
 	`)
 	if err != nil {
 		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.core.failed_to_fetch_scheduled_tasks"), map[string]interface{}{"details": err.Error()})
@@ -600,7 +600,7 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 	for rows.Next() {
 		var taskName, schedule, lastStatus sql.NullString
 		var enabled bool
-		var lastRun, nextRun sql.NullTime
+		var lastRun, nextRun sql.NullInt64
 
 		if err := rows.Scan(&taskName, &schedule, &enabled, &lastRun, &nextRun, &lastStatus); err != nil {
 			continue
@@ -624,10 +624,10 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 		}
 
 		if lastRun.Valid {
-			task["last_run"] = lastRun.Time
+			task["last_run"] = time.Unix(lastRun.Int64, 0).UTC()
 		}
 		if nextRun.Valid {
-			task["next_run"] = nextRun.Time
+			task["next_run"] = time.Unix(nextRun.Int64, 0).UTC()
 		}
 
 		// Use schedule as interval if available

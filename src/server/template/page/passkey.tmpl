@@ -11,12 +11,15 @@
     <script src="{{asset "/static/js/app.js"}}" defer></script>
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <div class="auth-container">
         <div class="auth-card">
-            <h1>{{t .server.Lang "passkey.page_heading"}}</h1>
+            <header class="page-header"><h1 class="page-title">{{t .server.Lang "passkey.page_heading"}}</h1></header>
             <p>{{t .server.Lang "passkey.page_subtitle"}}</p>
 
             {{if .error}}
@@ -34,7 +37,7 @@
             </div>
         </div>
     </div>
-    <script type="application/json" id="passkey-login-data">
+    <textarea hidden id="passkey-login-data">
         {
             "unsupportedBrowser": "{{t .server.Lang "passkey.js_unsupported_browser"}}",
             "failedStart": "{{t .server.Lang "passkey.js_failed_start"}}",
@@ -44,7 +47,8 @@
             "successRedirecting": "{{t .server.Lang "passkey.js_success_redirecting"}}",
             "failedGeneric": "{{t .server.Lang "passkey.js_failed_generic"}}"
         }
-    </script>
+    </textarea>
+  </div>
 </main>
 {{template "footer" .}}
 

@@ -55,10 +55,13 @@ func TestFindAvailableSystemIDExhausted(t *testing.T) {
 
 func TestAccountCommandsLinuxShadowTools(t *testing.T) {
 	has := func(name string) bool { return name == "groupadd" || name == "useradd" }
-	got := accountCommands("linux", "wthr", 899, "/etc/webappsgo/wthr", "/sbin/nologin", has)
+	got, err := accountCommands("linux", "wthr", 899, "/etc/webappsgo/wthr", "/sbin/nologin", has)
+	if err != nil {
+		t.Fatalf("accountCommands() error = %v", err)
+	}
 	want := [][]string{
 		{"groupadd", "--system", "--gid", "899", "wthr"},
-		{"useradd", "--system", "--uid", "899", "--gid", "899", "--home-dir", "/etc/webappsgo/wthr", "--shell", "/sbin/nologin", "--comment", "wthr service account", "wthr"},
+		{"useradd", "--system", "--uid", "899", "--gid", "899", "--home-dir", "/etc/webappsgo/wthr", "--no-create-home", "--shell", "/sbin/nologin", "--comment", "wthr service account", "wthr"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v\nwant %v", got, want)
@@ -66,7 +69,10 @@ func TestAccountCommandsLinuxShadowTools(t *testing.T) {
 }
 
 func TestAccountCommandsBusyBox(t *testing.T) {
-	got := accountCommands("linux", "wthr", 898, "/var/lib/webappsgo/wthr", "/sbin/nologin", func(string) bool { return false })
+	got, err := accountCommands("linux", "wthr", 898, "/var/lib/webappsgo/wthr", "/sbin/nologin", func(name string) bool { return name == "addgroup" || name == "adduser" })
+	if err != nil {
+		t.Fatalf("accountCommands() error = %v", err)
+	}
 	if got[0][0] != "addgroup" || got[1][0] != "adduser" {
 		t.Fatalf("BusyBox hosts must use addgroup and adduser, got %v", got)
 	}
@@ -76,12 +82,18 @@ func TestAccountCommandsBusyBox(t *testing.T) {
 }
 
 func TestAccountCommandsFreeBSDAndDarwin(t *testing.T) {
-	bsd := accountCommands("freebsd", "wthr", 897, "/var/lib/webappsgo/wthr", "/usr/sbin/nologin", func(name string) bool { return name == "pw" })
+	bsd, err := accountCommands("freebsd", "wthr", 897, "/var/lib/webappsgo/wthr", "/usr/sbin/nologin", func(name string) bool { return name == "pw" })
+	if err != nil {
+		t.Fatalf("accountCommands(freebsd) error = %v", err)
+	}
 	if bsd[0][0] != "pw" || bsd[0][1] != "groupadd" || bsd[1][1] != "useradd" {
 		t.Errorf("FreeBSD must use pw, got %v", bsd)
 	}
 
-	mac := accountCommands("darwin", "wthr", 399, "/usr/local/var/webappsgo/wthr", "/usr/bin/false", func(string) bool { return true })
+	mac, err := accountCommands("darwin", "wthr", 399, "/usr/local/var/webappsgo/wthr", "/usr/bin/false", func(string) bool { return true })
+	if err != nil {
+		t.Fatalf("accountCommands(darwin) error = %v", err)
+	}
 	joined := ""
 	for _, command := range mac {
 		joined += strings.Join(command, " ") + "\n"
@@ -203,22 +215,34 @@ func TestStartedAsRootIsDecidedAtStart(t *testing.T) {
 }
 
 func TestAccountRemoveCommands(t *testing.T) {
-	shadow := accountRemoveCommands("linux", "wthr", func(name string) bool { return name == "userdel" || name == "groupdel" })
+	shadow, err := accountRemoveCommands("linux", "wthr", func(name string) bool { return name == "userdel" || name == "groupdel" })
+	if err != nil {
+		t.Fatalf("accountRemoveCommands(shadow) error = %v", err)
+	}
 	if shadow[0][0] != "userdel" || shadow[1][0] != "groupdel" {
 		t.Errorf("shadow tools must remove the user before the group, got %v", shadow)
 	}
 
-	busybox := accountRemoveCommands("linux", "wthr", func(string) bool { return false })
+	busybox, err := accountRemoveCommands("linux", "wthr", func(name string) bool { return name == "deluser" || name == "delgroup" })
+	if err != nil {
+		t.Fatalf("accountRemoveCommands(busybox) error = %v", err)
+	}
 	if busybox[0][0] != "deluser" || busybox[1][0] != "delgroup" {
 		t.Errorf("BusyBox hosts must use deluser and delgroup, got %v", busybox)
 	}
 
-	bsd := accountRemoveCommands("freebsd", "wthr", func(name string) bool { return name == "pw" })
+	bsd, err := accountRemoveCommands("freebsd", "wthr", func(name string) bool { return name == "pw" })
+	if err != nil {
+		t.Fatalf("accountRemoveCommands(freebsd) error = %v", err)
+	}
 	if bsd[0][1] != "userdel" || bsd[1][1] != "groupdel" {
 		t.Errorf("FreeBSD must use pw userdel and groupdel, got %v", bsd)
 	}
 
-	mac := accountRemoveCommands("darwin", "wthr", func(string) bool { return true })
+	mac, err := accountRemoveCommands("darwin", "wthr", func(string) bool { return true })
+	if err != nil {
+		t.Fatalf("accountRemoveCommands(darwin) error = %v", err)
+	}
 	if mac[0][3] != "/Users/wthr" || mac[1][3] != "/Groups/wthr" {
 		t.Errorf("macOS must delete the dscl user and group records, got %v", mac)
 	}

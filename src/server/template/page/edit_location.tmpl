@@ -1,12 +1,14 @@
 {{template "head" .}}
 
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
 
-    <div class="container">
-        <div class="page-header">
-            <h1>{{t .server.Lang "edit.location_heading"}}</h1>
+
+    <div >
+        <header class="page-header"><h1 class="page-title">{{t .server.Lang "edit.location_heading"}}</h1>
             <a href="/users/dashboard" class="back-link">← {{t .server.Lang "add.location_back_to_dashboard"}}</a>
-        </div>
+        </header>
 
         <div class="form-card">
             <div id="message" role="alert" aria-live="polite"></div>
@@ -106,8 +108,10 @@
         </div>
     </div>
 
-    <script type="application/json" id="edit-location-data">
+    <textarea hidden id="edit-location-data">
     {"apiPath": "{{.api_path}}", "locationId": {{ .location.ID }}}
-    </script>
+    </textarea>
 
+  </div>
+</main>
 {{template "footer" .}}

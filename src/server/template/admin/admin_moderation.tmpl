@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.moderation.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.moderation.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.moderation.intro"}}</p>
   </div>
   {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
@@ -23,7 +23,7 @@
       <button class="btn btn-primary" type="submit">{{t $lang "admin.moderation.search_action"}}</button>
     </form>
     {{if .users}}
-    <div class="table-responsive"><table class="admin-table">
+    <div class="table-responsive"><div class="table-wrapper"><table class="admin-table data-table">
       <thead><tr><th>{{t $lang "admin.moderation.username"}}</th><th>{{t $lang "admin.moderation.email"}}</th><th>{{t $lang "admin.moderation.status_label"}}</th><th>{{t $lang "admin.moderation.actions"}}</th></tr></thead>
       <tbody>{{range .users}}<tr>
         <td><a href="{{$ap}}/moderation/users/{{.ID}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</a></td>
@@ -31,7 +31,7 @@
         <td>{{if and .IsActive (not .IsBanned)}}{{t $lang "admin.moderation.status_active"}}{{else}}{{t $lang "admin.moderation.status_disabled"}}{{end}}</td>
         <td><a class="btn btn-secondary" href="{{$ap}}/moderation/users/{{.ID}}">{{t $lang "admin.moderation.view_action"}}</a></td>
       </tr>{{end}}</tbody>
-    </table></div>
+    </table></div></div>
     {{else}}<p>{{t $lang "admin.moderation.no_users"}}</p>{{end}}
   </section>
 {{template "admin_footer" .}}

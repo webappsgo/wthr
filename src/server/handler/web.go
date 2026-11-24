@@ -87,7 +87,16 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				errorMsg = err.Error()
 			} else {
-				forecast, _ := h.weatherService.GetForecast(enhanced.Latitude, enhanced.Longitude, 16, units)
+				forecast, forecastErr := h.weatherService.GetForecast(enhanced.Latitude, enhanced.Longitude, 16, units)
+				if forecastErr != nil || forecast == nil {
+					// The page template always renders its forecast section after
+					// current conditions succeed. Keep that section iterable when
+					// the upstream forecast service is temporarily unavailable.
+					forecast = &service.Forecast{Days: []service.ForecastDay{}}
+					if forecastErr != nil {
+						errorMsg = forecastErr.Error()
+					}
+				}
 
 				// Enrich current weather with icon and description
 				currentData := map[string]interface{}{
@@ -120,7 +129,7 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 				weatherData = map[string]interface{}{
 					"Location": locationData,
 					"Current":  currentData,
-					"Forecast": forecast,
+					"Forecast": formatForecastForWeb(h.weatherService, forecast),
 					"Units":    units,
 				}
 			}
@@ -142,6 +151,42 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 		"Error":             errorMsg,
 		"HideFooter":        false,
 	}))
+}
+
+func formatForecastForWeb(weatherService *service.WeatherService, forecast *service.Forecast) map[string]interface{} {
+	days := make([]map[string]interface{}, 0)
+	if forecast != nil {
+		days = make([]map[string]interface{}, len(forecast.Days))
+		for i, day := range forecast.Days {
+			dateFormatted := day.Date
+			if date, err := time.Parse("2006-01-02", day.Date); err == nil {
+				dateFormatted = date.Format("Mon 2 Jan")
+			}
+			days[i] = map[string]interface{}{
+				"Date":                     day.Date,
+				"DateFormatted":            dateFormatted,
+				"WeatherCode":              day.WeatherCode,
+				"Icon":                     weatherService.GetWeatherIcon(day.WeatherCode, true),
+				"Description":              weatherService.GetWeatherDescription(day.WeatherCode),
+				"TempMax":                  day.TempMax,
+				"TempMin":                  day.TempMin,
+				"FeelsLikeMax":             day.FeelsLikeMax,
+				"FeelsLikeMin":             day.FeelsLikeMin,
+				"Precipitation":            day.Precipitation,
+				"PrecipitationHours":       day.PrecipitationHours,
+				"PrecipitationProbability": day.PrecipitationProbability,
+				"WindSpeedMax":             day.WindSpeedMax,
+				"WindGustsMax":             day.WindGustsMax,
+				"WindDirection":            day.WindDirection,
+				"SolarRadiation":           day.SolarRadiation,
+			}
+		}
+	}
+	timezone := ""
+	if forecast != nil {
+		timezone = forecast.Timezone
+	}
+	return map[string]interface{}{"Days": days, "Timezone": timezone}
 }
 
 // ServeMoonInterface serves the moon phase interface

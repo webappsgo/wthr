@@ -36,6 +36,7 @@
   --color-primary-bg: rgba(189, 147, 249, 0.15);
   --color-secondary: #50fa7b;
   --color-accent: #ff79c6;
+  --z-banner: 250;
 
   /* Status */
   --color-success: #50fa7b;
@@ -61,6 +62,13 @@
   --space-lg: 1.5rem;
   --space-xl: 2rem;
   --space-2xl: 3rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
 
   /* Border radius */
   --radius-sm: 0.25rem;
@@ -241,6 +249,53 @@ a:hover {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 var(--space-md);
+}
+
+.container-sm { max-width: 40rem; }
+.container-md { max-width: 56rem; }
+.container-lg { max-width: 72rem; }
+
+.page-header {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-6) var(--space-4);
+}
+
+.page-title { margin: 0; }
+.page-lead { max-width: 70ch; margin: 0; color: var(--color-muted); }
+.section-card { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-secondary); }
+.hub-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.hub-link { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); text-decoration: none; }
+.hub-link:hover { border-color: var(--color-border-hover); }
+.hub-title { font-weight: 600; }
+.hub-desc { color: var(--color-muted); }
+
+.cookie-banner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: var(--z-banner);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: #fff;
+  background: var(--color-accent);
+}
+.cookie-message { margin: 0; text-align: center; }
+.cookie-policy-link,
+.cookie-preferences-link { margin-inline-start: var(--space-2); color: inherit; text-decoration: underline; }
+.cookie-buttons { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.cookie-buttons form { margin: 0; }
+.btn-decline,
+.btn-accept { min-height: 2.75rem; padding: var(--space-2) var(--space-4); border: 1px solid #fff; border-radius: var(--radius-md); cursor: pointer; }
+.btn-decline { color: #fff; background: transparent; }
+.btn-accept { color: var(--color-accent); background: #fff; }
+
+@media (max-width: 40rem) {
+  .cookie-banner { flex-direction: column; justify-content: center; padding: var(--space-3); text-align: center; }
+  .cookie-buttons { justify-content: center; }
 }
 
 @media (min-width: 768px) {
@@ -1011,6 +1066,16 @@ a.profile-dropdown-item[href="/server/auth/logout"]:hover {
 
 .form-group {
   margin-bottom: var(--space-lg);
+}
+
+.contact-honeypot {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .form-label {
@@ -2691,11 +2756,6 @@ textarea:user-invalid {
    ============================================ */
 
 /* ==================== SEVERE WEATHER PAGE ==================== */
-
-.page-header {
-  font-size: 2rem;
-  margin-bottom: var(--space-sm);
-}
 
 .page-subtitle {
   color: var(--color-muted);
@@ -7992,6 +8052,7 @@ pre.select-all {
   overflow-wrap: anywhere;
 }
 
+.table-wrapper,
 .table-scroll {
   overflow-x: auto;
   max-width: 100%;

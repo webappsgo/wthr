@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/webappsgo/wthr/src/auditlog"
 )
 
 // EventType represents the type of audit event
@@ -250,6 +251,8 @@ type AuditEvent struct {
 	Details map[string]interface{} `json:"details,omitempty"`
 	// success or failure
 	Result string `json:"result"`
+	// SHA-256 of the previous JSONL entry without its line ending.
+	Prev string `json:"prev"`
 	// For cluster mode
 	NodeID string `json:"node_id,omitempty"`
 	// Optional reason
@@ -275,8 +278,9 @@ type AuditEvent struct {
 // AuditLogger handles audit logging
 type AuditLogger struct {
 	logFile string
+	chain   *auditlog.Logger
 	mu      sync.Mutex
-	file    *os.File
+	closed  bool
 }
 
 // NewAuditLogger creates a new audit logger
@@ -287,27 +291,27 @@ func NewAuditLogger(logDir string) (*AuditLogger, error) {
 	}
 
 	logFile := filepath.Join(logDir, "audit.log")
-
-	// Open log file in append mode
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	chain, err := auditlog.Open(logFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open audit log: %w", err)
 	}
-
-	return &AuditLogger{
-		logFile: logFile,
-		file:    file,
-	}, nil
+	return &AuditLogger{logFile: logFile, chain: chain}, nil
 }
 
 // Log writes an audit event to the log file
 func (al *AuditLogger) Log(event AuditEvent) error {
 	al.mu.Lock()
-	defer al.mu.Unlock()
+	closed := al.closed
+	al.mu.Unlock()
+	if closed {
+		return fmt.Errorf("failed to write audit log: file is closed")
+	}
 
 	// Set timestamp if not already set
 	if event.Time.IsZero() {
-		event.Time = time.Now().UTC()
+		event.Time = time.Now().UTC().Truncate(time.Millisecond)
+	} else {
+		event.Time = event.Time.UTC().Truncate(time.Millisecond)
 	}
 
 	// Generate ID if not set (use ULID per AI.md PART 18 line 18898)
@@ -323,18 +327,18 @@ func (al *AuditLogger) Log(event AuditEvent) error {
 			event.Severity = "info"
 		}
 	}
-
-	// Marshal event to JSON
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal audit event: %w", err)
 	}
-
-	// Write to file with newline
-	if _, err := al.file.Write(append(data, '\n')); err != nil {
+	var entry map[string]json.RawMessage
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return fmt.Errorf("failed to marshal audit event: %w", err)
+	}
+	entry["time"], _ = json.Marshal(event.Time.Format("2006-01-02T15:04:05.000Z"))
+	if _, err := al.chain.AppendJSON(entry); err != nil {
 		return fmt.Errorf("failed to write audit log: %w", err)
 	}
-
 	return nil
 }
 
@@ -379,41 +383,22 @@ func (al *AuditLogger) LogFailure(event string, category string, actorType strin
 func (al *AuditLogger) Close() error {
 	al.mu.Lock()
 	defer al.mu.Unlock()
-
-	if al.file != nil {
-		return al.file.Close()
+	if al.closed {
+		return nil
 	}
-
-	return nil
+	al.closed = true
+	return al.chain.Close()
 }
 
 // Rotate rotates the audit log file
 func (al *AuditLogger) Rotate() error {
 	al.mu.Lock()
-	defer al.mu.Unlock()
-
-	// Close current file
-	if al.file != nil {
-		_ = al.file.Close()
+	closed := al.closed
+	al.mu.Unlock()
+	if closed {
+		return fmt.Errorf("failed to rotate audit log: file is closed")
 	}
-
-	// Rename current file with timestamp
-	timestamp := time.Now().Format("20060102-150405")
-	archiveFile := fmt.Sprintf("%s.%s", al.logFile, timestamp)
-
-	if err := os.Rename(al.logFile, archiveFile); err != nil {
-		return fmt.Errorf("failed to rotate audit log: %w", err)
-	}
-
-	// Open new file
-	file, err := os.OpenFile(al.logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open new audit log: %w", err)
-	}
-
-	al.file = file
-
-	return nil
+	return al.chain.Rotate()
 }
 
 // GetEventTypes returns all available event types

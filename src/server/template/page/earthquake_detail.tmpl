@@ -1,5 +1,8 @@
 {{template "head" .}}
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+
 
 {{$titleClass := "eq-detail-title--red"}}
 {{if eq .Earthquake.Tsunami 1}}
@@ -23,17 +26,13 @@
     {{$magnitudeClass = "eq-magnitude__badge--strong"}}
 {{end}}
 
-<div class="weather-container page-container earthquake-detail">
-    <nav class="eq-detail-nav">
-        <a href="/" class="eq-detail-nav__link eq-detail-nav__link--home">🏠 {{t .server.Lang "earthquake.detail_nav_home"}}</a>
-        <a href="/moon" class="eq-detail-nav__link eq-detail-nav__link--moon">🌙 {{t .server.Lang "earthquake.detail_nav_moon"}}</a>
-        <a href="/earthquakes" class="eq-detail-nav__link eq-detail-nav__link--earthquake">🌍 {{t .server.Lang "earthquake.detail_nav_earthquakes"}}</a>
-    </nav>
+<header class="page-header">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/earthquakes">{{t .server.Lang "earthquake.detail_back_link"}}</a></nav>
+    <h1 class="page-title">{{.Earthquake.Place}}</h1>
+</header>
 
-    <a href="/earthquakes" class="eq-detail-back-link">← {{t .server.Lang "earthquake.detail_back_link"}}</a>
-
-    <section class="eq-detail-card">
-        <h1 class="eq-detail-title {{$titleClass}}">{{.Earthquake.Place}}</h1>
+    <section class="section-card" aria-labelledby="earthquake-detail-heading">
+        <h2 id="earthquake-detail-heading">{{t .server.Lang "earthquake.detail_magnitude_label"}}</h2>
 
         <div class="eq-detail-summary">
             <div class="eq-magnitude">
@@ -108,11 +107,11 @@
             {{end}}
         </div>
 
-        <div id="map" class="map-container eq-detail-map"></div>
+        <div id="map" class="map-container" data-latitude="{{.Earthquake.Latitude}}" data-longitude="{{.Earthquake.Longitude}}" data-magnitude="{{.Earthquake.Magnitude}}" data-place="{{.Earthquake.Place}}" data-time="{{.Earthquake.Time.Format "2006-01-02 15:04:05"}}" data-depth="{{.Earthquake.Depth}}" data-tsunami="{{.Earthquake.Tsunami}}"></div>
     </section>
 
-    <section class="console-section">
-        <h3 class="console-section__title text-green">📟 {{t .server.Lang "earthquake.detail_console_heading"}}</h3>
+    <section class="section-card" aria-labelledby="earthquake-console-heading">
+        <h2 id="earthquake-console-heading">📟 {{t .server.Lang "earthquake.detail_console_heading"}}</h2>
         <div class="console-commands">
             <div class="command-item">
                 <strong class="console-section__label">{{t .server.Lang "earthquake.detail_command_label"}}</strong>
@@ -124,18 +123,15 @@
         </div>
     </section>
 
-    <div class="data-footer">
+    <section class="section-card" aria-labelledby="earthquake-data-source-heading">
+        <h2 id="earthquake-data-source-heading" class="sr-only">{{t .server.Lang "earthquake.detail_data_provided_by"}}</h2>
         <p class="data-footer__text">
             {{t .server.Lang "earthquake.detail_data_provided_by"}} <a href="https://earthquake.usgs.gov/" target="_blank" class="data-footer__link">{{t .server.Lang "earthquake.detail_usgs_program"}}</a><br>
             {{t .server.Lang "earthquake.detail_updated_frequently"}}
         </p>
-    </div>
-</div>
+    </section>
 
-<script src="{{asset "/static/vendor/leaflet/leaflet.js"}}"></script>
 
-<script type="application/json" id="earthquake-detail-data">
-{"latitude": {{.Earthquake.Latitude}}, "longitude": {{.Earthquake.Longitude}}, "magnitude": {{.Earthquake.Magnitude}}, "place": {{.Earthquake.Place | printf "%q"}}, "time": {{.Earthquake.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{.Earthquake.Depth}}, "tsunami": {{.Earthquake.Tsunami}}}
-</script>
-
+  </div>
+</main>
 {{template "footer" .}}

@@ -48,6 +48,8 @@ type Admin struct {
 	UpdatedAt            time.Time  `json:"updated_at"`
 	LastLoginAt          *time.Time `json:"last_login_at,omitempty"`
 	PersonalPGPPublicKey string     `json:"personal_pgp_public_key,omitempty"`
+	APITokenID           int64      `json:"-"`
+	APITokenLastUsedAt   *time.Time `json:"-"`
 }
 
 // AdminSession represents an active admin session
@@ -429,9 +431,10 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 	var storedCreatedAt interface{}
 	var storedUpdatedAt interface{}
 	var storedLastLoginAt interface{}
+	var storedTokenLastUsedAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT admins.id, admins.username, admins.email, admins.password_hash, tokens.token_prefix, admins.is_super_admin, admins.is_active,
+		SELECT admins.id, admins.username, admins.email, admins.password_hash, tokens.token_prefix, tokens.id, tokens.last_used_at, admins.is_super_admin, admins.is_active,
 		       admins.created_at, admins.updated_at, admins.last_login_at
 		FROM tokens
 		INNER JOIN admins ON admins.id = tokens.owner_id
@@ -443,6 +446,8 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 		&admin.Email,
 		&admin.PasswordHash,
 		&apiTokenPrefix,
+		&admin.APITokenID,
+		&storedTokenLastUsedAt,
 		&admin.IsSuperAdmin,
 		&admin.IsActive,
 		&storedCreatedAt,
@@ -468,12 +473,27 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
 		admin.LastLoginAt = &parsed
 	}
+	if parsed, ok := parseStoredTimestamp(storedTokenLastUsedAt); ok {
+		admin.APITokenLastUsedAt = &parsed
+	}
 
 	if apiTokenPrefix.Valid {
 		admin.APITokenPrefix = apiTokenPrefix.String
 	}
 
 	return &admin, nil
+}
+
+// QueueAPITokenLastUsed coalesces an authenticated admin-token activity write
+// until the database hot-counter flusher runs.
+func (m *AdminModel) QueueAPITokenLastUsed(tokenID int64) error {
+	db := m.getDB()
+	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
+	if database.IsRemoteDatabase(db) {
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
+		return err
+	}
+	return database.QueueHotCounterUpdate(db, fmt.Sprintf("token:%d", tokenID), query, sqlTimestamp(time.Now()), tokenID)
 }
 
 // GetCount returns the total number of admins
@@ -1149,6 +1169,19 @@ func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite,
 		`UPDATE admin_sessions SET last_used_at = ? WHERE token_hash = ?`, sqlTimestamp(time.Now()), HashAdminSessionToken(sessionID))
 	return err
+}
+
+// QueueSessionLastUsed coalesces an authenticated admin-session activity write
+// until the database hot-counter flusher runs.
+func (m *AdminSessionModel) QueueSessionLastUsed(sessionID string) error {
+	db := m.getDB()
+	hash := HashAdminSessionToken(sessionID)
+	query := `UPDATE admin_sessions SET last_used_at = ? WHERE token_hash = ?`
+	if database.IsRemoteDatabase(db) {
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), hash)
+		return err
+	}
+	return database.QueueHotCounterUpdate(db, "admin_session:"+hash, query, sqlTimestamp(time.Now()), hash)
 }
 
 // DeleteSession deletes a session (logout)

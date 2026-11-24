@@ -314,6 +314,24 @@ func TestTor_MonitorHealth_StopsOnSignal(t *testing.T) {
 	}
 }
 
+func TestTor_StopMonitorLockedIsIdempotent(t *testing.T) {
+	ts := &TorService{monitorStop: make(chan struct{})}
+
+	ts.mu.Lock()
+	ts.stopMonitorLocked()
+	ts.stopMonitorLocked()
+	ts.mu.Unlock()
+
+	select {
+	case <-ts.monitorStop:
+	default:
+		t.Fatal("monitor stop signal remains open")
+	}
+	if !ts.monitorStopClosed {
+		t.Fatal("monitorStopClosed = false after stopping monitor")
+	}
+}
+
 // TestOnionKeyPersistence verifies a missing key asks Tor to generate one, a saved key is
 // reloaded, and the key file and directory are private.
 func TestOnionKeyPersistence(t *testing.T) {

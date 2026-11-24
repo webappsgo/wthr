@@ -5,6 +5,32 @@ import (
 	"time"
 )
 
+func TestShouldUpdateLastUsed(t *testing.T) {
+	now := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+	justUnderMinute := now.Add(-time.Minute + time.Nanosecond)
+	atLeastMinute := now.Add(-time.Minute)
+
+	tests := []struct {
+		name     string
+		lastUsed *time.Time
+		want     bool
+	}{
+		{name: "missing timestamp", lastUsed: nil, want: true},
+		{name: "under one minute", lastUsed: &justUnderMinute, want: false},
+		{name: "exactly one minute", lastUsed: &atLeastMinute, want: true},
+		{name: "future timestamp", lastUsed: ptrTime(now.Add(time.Second)), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ShouldUpdateLastUsed(tt.lastUsed, now); got != tt.want {
+				t.Fatalf("ShouldUpdateLastUsed() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+func ptrTime(value time.Time) *time.Time { return &value }
+
 // TestGenerateSessionID_Unique verifies tokens are non-empty and unique
 // across calls (a collision would be a catastrophic security bug).
 func TestGenerateSessionID_Unique(t *testing.T) {

@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/99designs/gqlgen v0.17.60
 	github.com/ProtonMail/go-crypto v1.4.1
+	github.com/beevik/etree v1.8.1
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/coreos/go-oidc/v3 v3.11.0
@@ -32,6 +33,7 @@ require (
 	github.com/redis/go-redis/v9 v9.14.0
 	github.com/rs/cors v1.11.1
 	github.com/russross/blackfriday/v2 v2.1.0
+	github.com/supatype/saml v0.7.0
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/vektah/gqlparser/v2 v2.5.22
 	golang.org/x/crypto v0.58.0
@@ -100,7 +102,6 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/aziontech/azionapi-go-sdk v0.144.0 // indirect
 	github.com/baidubce/bce-sdk-go v0.9.264 // indirect
-	github.com/beevik/etree v1.8.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bodgit/tsig v1.2.2 // indirect
@@ -199,6 +200,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect

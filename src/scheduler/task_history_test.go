@@ -68,7 +68,7 @@ func TestTaskHistoryTableComesFromServerSchema(t *testing.T) {
 		columns = append(columns, column)
 	}
 
-	want := []string{"id", "task_name", "start_time", "end_time", "duration_ms", "status", "error", "created_at"}
+	want := []string{"id", "task_id", "started_at", "finished_at", "status", "error", "duration_ms"}
 	if len(columns) != len(want) {
 		t.Fatalf("columns = %v, want %v", columns, want)
 	}
@@ -198,6 +198,26 @@ func TestGetTaskHistory(t *testing.T) {
 		}
 	})
 
+	t.Run("nullable duration preserves the history entry", func(t *testing.T) {
+		serverDB := database.GetServerDB()
+		if _, err := serverDB.Exec(`
+			INSERT INTO scheduler_history (task_id, started_at, finished_at, duration_ms, status, error)
+			VALUES ('nullable-duration-job', ?, NULL, NULL, 'running', '')
+		`, time.Now().Unix()); err != nil {
+			t.Fatalf("insert nullable-duration history row: %v", err)
+		}
+		history, err := s.GetTaskHistory("nullable-duration-job", 10)
+		if err != nil {
+			t.Fatalf("GetTaskHistory() error: %v", err)
+		}
+		if len(history) != 1 {
+			t.Fatalf("len(history) = %d, want 1", len(history))
+		}
+		if history[0].Duration != 0 || !history[0].EndTime.IsZero() {
+			t.Errorf("nullable fields = duration %d, end %v; want zero duration and no end time", history[0].Duration, history[0].EndTime)
+		}
+	})
+
 	t.Run("many entries are ordered most-recent-first", func(t *testing.T) {
 		base := time.Now().Add(-1 * time.Hour)
 		for i := 0; i < 5; i++ {
@@ -215,7 +235,7 @@ func TestGetTaskHistory(t *testing.T) {
 		}
 		for i := 0; i < len(history)-1; i++ {
 			if history[i].StartTime.Before(history[i+1].StartTime) {
-				t.Errorf("history not ordered DESC by start_time at index %d", i)
+				t.Errorf("history not ordered DESC by Unix start time at index %d", i)
 			}
 		}
 	})
@@ -390,35 +410,23 @@ func TestCleanupOldTaskHistory(t *testing.T) {
 // errFakeTaskFailure is a stable sentinel error used to assert error-path recording.
 var errFakeTaskFailure = errors.New("simulated task failure")
 
-// historyOffsetLayout renders an instant with a NUMERIC offset and no zone
-// name. Every layout carrying the MST element instead prints the fixed zone's
-// abbreviation, and an abbreviation the time package refuses to parse would
-// make the whole fixture unreadable - which would quietly turn these cases into
-// another copy of the unparseable-value case rather than the mixed-layout case
-// they exist to cover.
-const historyOffsetLayout = "2006-01-02 15:04:05-07:00"
-
-// historyZoneWest and historyZoneEast are fixed offsets far enough apart that
-// the wall-clock text of two instants orders the opposite way from the instants
-// themselves: the same moment reads eleven hours earlier in the west zone than
-// in UTC and thirteen hours later in the east zone. Both names are short,
-// uppercase and digit-free, so time.Parse accepts them wherever a layout does
-// print a zone name.
+// historyZoneWest and historyZoneEast provide non-UTC input locations for
+// verifying that persisted Unix seconds represent the same instants.
 var (
 	historyZoneWest = time.FixedZone("WST", -11*60*60)
 	historyZoneEast = time.FixedZone("EAST", 13*60*60)
 )
 
 // seedTaskHistoryRow inserts one scheduler_history row at an explicit
-// id, writing start_time and end_time exactly as given so each case controls
-// the stored layout and zone. The column list is the one RecordTaskRun writes;
+// id, writing started_at and finished_at exactly as given. The column list is
+// the one RecordTaskRun writes;
 // the table itself comes from database.ServerSchema via newSchedulerTestDBs, so
 // no fixture here can drift from the production DDL.
 func seedTaskHistoryRow(t *testing.T, db *sql.DB, id int64, taskName string, startTime, endTime interface{}) {
 	t.Helper()
 
 	if _, err := db.Exec(`
-		INSERT INTO scheduler_history (id, task_name, start_time, end_time, duration_ms, status, error)
+		INSERT INTO scheduler_history (id, task_id, started_at, finished_at, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, 1000, 'success', '')
 	`, id, taskName, startTime, endTime); err != nil {
 		t.Fatalf("seed scheduler_history id=%d: %v", id, err)
@@ -429,7 +437,7 @@ func seedTaskHistoryRow(t *testing.T, db *sql.DB, id int64, taskName string, sta
 // canonical UTC text rather than letting the driver render the bound time.Time
 // with time.Time.String() in the host's local zone. Against the old code the
 // stored bytes carried an offset and a zone name, so this parse fails.
-func TestRecordTaskRun_WritesCanonicalTimestamps(t *testing.T) {
+func TestRecordTaskRun_WritesUnixSeconds(t *testing.T) {
 	serverDB, _ := newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
 	if err := s.InitTaskHistoryTable(); err != nil {
@@ -444,32 +452,24 @@ func TestRecordTaskRun_WritesCanonicalTimestamps(t *testing.T) {
 		t.Fatalf("RecordTaskRun() error: %v", err)
 	}
 
-	// CAST keeps the driver from re-rendering the DATETIME column as a
-	// time.Time on the way out, so the assertion sees the bytes actually stored.
-	var storedStart, storedEnd string
+	var storedStart, storedEnd int64
 	if err := serverDB.QueryRow(
-		"SELECT CAST(start_time AS TEXT), CAST(end_time AS TEXT) FROM scheduler_history WHERE task_name = ?", "canonical-job",
+		"SELECT started_at, finished_at FROM scheduler_history WHERE task_id = ?", "canonical-job",
 	).Scan(&storedStart, &storedEnd); err != nil {
 		t.Fatalf("query stored timestamps: %v", err)
 	}
 
-	if want := start.UTC().Format(sqlTimestampLayout); storedStart != want {
-		t.Errorf("start_time = %q, want canonical %q", storedStart, want)
+	if want := start.Unix(); storedStart != want {
+		t.Errorf("started_at = %d, want %d", storedStart, want)
 	}
-	if want := end.UTC().Format(sqlTimestampLayout); storedEnd != want {
-		t.Errorf("end_time = %q, want canonical %q", storedEnd, want)
+	if want := end.Unix(); storedEnd != want {
+		t.Errorf("finished_at = %d, want %d", storedEnd, want)
 	}
 }
 
-// TestTaskHistoryOrderingAcrossStoredLayouts is the regression for the reader
-// side: history rows left by earlier builds hold local-zone text, so ordering
-// them with the SQL "ORDER BY start_time DESC" compares wall clocks and leading
-// characters instead of instants. The fixtures below are written so that text
-// ordering and instant ordering disagree on every host: the true newest run
-// renders as 01:00 in a -11:00 zone while a run ten hours older renders as
-// 15:00 in a +13:00 zone. Against the old code GetLastTaskRun returns the older
-// run and GetTaskHistory lists it first.
-func TestTaskHistoryOrderingAcrossStoredLayouts(t *testing.T) {
+// TestTaskHistoryOrderingUsesUnixSeconds checks that numeric history timestamps
+// preserve absolute ordering regardless of the input time zone.
+func TestTaskHistoryOrderingUsesUnixSeconds(t *testing.T) {
 	serverDB, _ := newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
 	if err := s.InitTaskHistoryTable(); err != nil {
@@ -479,27 +479,19 @@ func TestTaskHistoryOrderingAcrossStoredLayouts(t *testing.T) {
 	const taskName = "mixed-layout-job"
 	base := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 
-	// True newest run, stored as "2026-03-14 01:00:00-11:00".
+	// The newest run is supplied in a non-UTC location.
 	newestStart := base
 	seedTaskHistoryRow(t, serverDB, 1, taskName,
-		newestStart.In(historyZoneWest).Format(historyOffsetLayout),
-		newestStart.Add(30*time.Second).In(historyZoneWest).Format(historyOffsetLayout))
+		newestStart.In(historyZoneWest).Unix(),
+		newestStart.Add(30*time.Second).In(historyZoneWest).Unix())
 
-	// Ten hours older, stored as "2026-03-14 15:00:00+13:00" - text that sorts
-	// after the row above even though the instant is earlier.
+	// Ten hours older, supplied in another non-UTC location.
 	olderStart := base.Add(-10 * time.Hour)
 	seedTaskHistoryRow(t, serverDB, 2, taskName,
-		olderStart.In(historyZoneEast).Format(historyOffsetLayout),
-		olderStart.Add(30*time.Second).In(historyZoneEast).Format(historyOffsetLayout))
+		olderStart.In(historyZoneEast).Unix(),
+		olderStart.Add(30*time.Second).In(historyZoneEast).Unix())
 
-	// A value no layout can parse, inserted at the highest explicit id so an
-	// implementation that fell back to insertion order would pick it as "last
-	// run". It must sort to the end instead: a row this code cannot interpret
-	// must never be reported as the most recent execution.
-	seedTaskHistoryRow(t, serverDB, 3, taskName, "not-a-timestamp", "not-a-timestamp")
-
-	// The oldest run of all, recorded through the current writer, so the table
-	// really does hold canonical and legacy encodings side by side.
+	// The oldest run of all, recorded through the current writer.
 	oldestStart := base.Add(-20 * time.Hour)
 	if err := s.RecordTaskRun(taskName, oldestStart, oldestStart.Add(30*time.Second), nil); err != nil {
 		t.Fatalf("RecordTaskRun() error: %v", err)
@@ -526,8 +518,8 @@ func TestTaskHistoryOrderingAcrossStoredLayouts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTaskHistory() error: %v", err)
 	}
-	if len(history) != 4 {
-		t.Fatalf("len(history) = %d, want 4", len(history))
+	if len(history) != 3 {
+		t.Fatalf("len(history) = %d, want 3", len(history))
 	}
 	if history[0].ID != 1 {
 		t.Errorf("history[0].id = %d, want 1", history[0].ID)
@@ -537,12 +529,6 @@ func TestTaskHistoryOrderingAcrossStoredLayouts(t *testing.T) {
 	}
 	if !history[2].StartTime.Equal(oldestStart) {
 		t.Errorf("history[2].start = %s, want the canonically written %s", history[2].StartTime, oldestStart)
-	}
-	if history[3].ID != 3 {
-		t.Errorf("history[3].id = %d, want 3 (the unparseable row sorts last)", history[3].ID)
-	}
-	if !history[3].StartTime.IsZero() {
-		t.Errorf("history[3].start = %s, want the zero time for an unparseable value", history[3].StartTime)
 	}
 	for i := 0; i < len(history)-1; i++ {
 		if history[i].StartTime.Before(history[i+1].StartTime) {
@@ -564,10 +550,8 @@ func TestTaskHistoryOrderingAcrossStoredLayouts(t *testing.T) {
 	}
 }
 
-// TestGetAllTaskInfoUsesTrueLastRun pins the same ordering fix at the surface
-// the admin panel reads: TaskInfo.LastRun comes from GetLastTaskRun, so a
-// history holding a legacy local-zone row would otherwise report a stale run as
-// the task's last execution.
+// TestGetAllTaskInfoUsesTrueLastRun checks that the admin task view reads the
+// newest Unix-second history record.
 func TestGetAllTaskInfoUsesTrueLastRun(t *testing.T) {
 	serverDB, _ := newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
@@ -580,12 +564,8 @@ func TestGetAllTaskInfoUsesTrueLastRun(t *testing.T) {
 	}
 
 	base := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
-	seedTaskHistoryRow(t, serverDB, 1, "mixed-info-job",
-		base.In(historyZoneWest).Format(historyOffsetLayout),
-		base.Add(30*time.Second).In(historyZoneWest).Format(historyOffsetLayout))
-	seedTaskHistoryRow(t, serverDB, 2, "mixed-info-job",
-		base.Add(-10*time.Hour).In(historyZoneEast).Format(historyOffsetLayout),
-		base.Add(-10*time.Hour).Add(30*time.Second).In(historyZoneEast).Format(historyOffsetLayout))
+	seedTaskHistoryRow(t, serverDB, 1, "mixed-info-job", base.Unix(), base.Add(30*time.Second).Unix())
+	seedTaskHistoryRow(t, serverDB, 2, "mixed-info-job", base.Add(-10*time.Hour).Unix(), base.Add(-10*time.Hour).Add(30*time.Second).Unix())
 
 	infos, err := s.GetAllTaskInfo()
 	if err != nil {

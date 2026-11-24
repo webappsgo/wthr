@@ -4,6 +4,7 @@
 package scheduler
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -24,18 +25,25 @@ func SetAppVersion(version string) {
 
 func scheduledBackupPassword() (string, error) {
 	cfg := config.GetGlobalConfig()
-	if cfg == nil || !cfg.Server.Maintenance.Backup.Encryption.Enabled {
+	if cfg == nil {
 		return "", nil
 	}
-	if cfg.Server.Security.EncryptionKey == "" {
-		return "", fmt.Errorf("backup encryption is enabled but the server encryption key is unavailable")
+	complianceMode := cfg.Server.Compliance.Enabled()
+	if !complianceMode && !cfg.Server.Maintenance.Backup.Encryption.Enabled {
+		return "", nil
 	}
 	sealed, err := config.ReadSecret("server.backup.encryption_password")
 	if err != nil {
 		return "", fmt.Errorf("stored backup password could not be read")
 	}
 	if sealed == "" {
+		if complianceMode {
+			return "", backup.ErrComplianceEncryptionRequired
+		}
 		return "", fmt.Errorf("backup encryption is enabled but no stored backup password is available")
+	}
+	if cfg.Server.Security.EncryptionKey == "" {
+		return "", fmt.Errorf("backup encryption is enabled but the server encryption key is unavailable")
 	}
 	password, _, err := util.DecryptAtRestGrace(cfg.Server.Security.EncryptionKey, sealed)
 	if err != nil {
@@ -52,6 +60,10 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 		log.Println("INFO: Starting hourly backup...")
 		password, err := scheduledBackupPassword()
 		if err != nil {
+			if errors.Is(err, backup.ErrComplianceEncryptionRequired) {
+				logBackupSkippedComplianceAudit(database.GetServerDB(), "hourly")
+				return nil
+			}
 			return err
 		}
 

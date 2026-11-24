@@ -1,126 +1,195 @@
 {{template "head" .}}
-
 {{template "navbar" .}}
 
-<div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "contact.heading"}}</h1>
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header">
+      <h1 class="page-title">{{t .server.Lang "contact.heading"}}</h1>
+      <p class="page-lead">{{t .server.Lang "contact.report.purpose"}}</p>
+      <p class="page-lead">{{t .server.Lang "contact.report.not_for_support"}}</p>
+    </header>
+    {{template "flash" .}}
 
-    <div class="card margin-y-lg">
-        {{template "flash" .}}
-        <div id="contact-message" role="alert" aria-live="polite"></div>
-
+    {{if eq .Mode "review"}}
+    <div class="modal-overlay active">
+        <section class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="contact-review-title" aria-describedby="contact-review-description">
+            <div class="modal-header">
+                <h2 id="contact-review-title" class="modal-title">{{t .server.Lang "contact.report.review_title"}}</h2>
+            </div>
+            <div class="modal-body">
+                <p id="contact-review-description">{{t .server.Lang "contact.report.review_intro"}}</p>
+                <dl>
+                    <dt>{{t .server.Lang "contact.email_label"}}</dt>
+                    <dd class="long-string">{{.Values.email}}</dd>
+                    <dt>{{t .server.Lang "contact.report.type_label"}}</dt>
+                    <dd>{{t .server.Lang (printf "contact.report.type.%s" .Type)}}</dd>
+                    <dt>{{t .server.Lang "contact.subject_label"}}</dt>
+                    <dd>{{.Values.subject}}</dd>
+                </dl>
+                <form method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "contact.report.confirm_form"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="step" value="confirm">
+                    <input type="hidden" name="review_token" value="{{.ReviewToken}}">
+                    <input type="hidden" name="form_token" value="{{.FormToken}}">
+                    {{range .SnapshotFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+                    <div class="form-group">
+                        <label class="form-label"><input type="checkbox" name="confirmed" value="true" required autofocus> {{t .server.Lang "contact.report.confirm_statement"}} *</label>
+                    </div>
+                    <div class="modal-footer modal-actions">
+                        <button class="btn btn-primary" type="submit">{{t .server.Lang "contact.report.confirm_button"}}</button>
+                    </div>
+                </form>
+                <form method="post" action="{{path "/server/contact"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="step" value="edit">
+                    <input type="hidden" name="type" value="{{.Type}}">
+                    <input type="hidden" name="form_token" value="{{.FormToken}}">
+                    <input type="hidden" name="review_token" value="{{.ReviewToken}}">
+                    {{range .SnapshotFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+                    <button class="btn btn-secondary" type="submit">{{t .server.Lang "contact.report.edit_button"}}</button>
+                </form>
+            </div>
+        </section>
+    </div>
+    {{else if eq .Mode "form"}}
+    <section class="section-card" aria-labelledby="contact-form-title">
+        <h2 id="contact-form-title">{{t .server.Lang (printf "contact.report.type.%s" .Type)}}</h2>
         <form id="contact-form" method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "contact.form_aria"}}">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <input type="hidden" name="type" value="{{.Type}}">
+            <input type="hidden" name="form_token" value="{{.FormToken}}">
+            <input type="hidden" name="step" value="submit">
+
+            {{if .HoneypotEnabled}}<div class="contact-honeypot" aria-hidden="true">
+                <label for="contact-website">{{t .server.Lang "contact.report.honeypot_label"}}</label>
+                <input id="contact-website" type="text" name="website" value="" tabindex="-1" autocomplete="off" maxlength="200" aria-hidden="true">
+            </div>{{end}}
+
             <div class="form-group">
-                <label for="contact-name" class="form-label">{{t .server.Lang "contact.name_label"}}</label>
-                <input type="text"
-                       id="contact-name"
-                       name="name"
-                       class="form-input"
-                       required
-                       aria-label="{{t .server.Lang "contact.name_aria"}}"
-                       aria-required="true"
-                       aria-describedby="contact-name-help"
-                       title="{{t .server.Lang "contact.name_title"}}"
-                       placeholder="John Doe">
+                <label for="contact-name" class="form-label">{{t .server.Lang "contact.name_label"}} *</label>
+                <input id="contact-name" type="text" name="name" class="form-input" value="{{index .Values "name"}}" maxlength="100" required aria-required="true" autocomplete="name" aria-describedby="contact-name-help">
                 <small id="contact-name-help" class="form-help">{{t .server.Lang "contact.name_help"}}</small>
             </div>
-
             <div class="form-group">
-                <label for="contact-email" class="form-label">{{t .server.Lang "contact.email_label"}}</label>
-                <input type="email"
-                       id="contact-email"
-                       name="email"
-                       class="form-input"
-                       required
-                       aria-label="{{t .server.Lang "contact.email_aria"}}"
-                       aria-required="true"
-                       aria-describedby="contact-email-help"
-                       title="{{t .server.Lang "contact.email_title"}}"
-                       placeholder="john@example.com">
+                <label for="contact-email" class="form-label">{{t .server.Lang "contact.email_label"}} *</label>
+                <input id="contact-email" type="email" name="email" class="form-input" value="{{index .Values "email"}}" maxlength="254" required aria-required="true" autocomplete="email" aria-describedby="contact-email-help">
                 <small id="contact-email-help" class="form-help">{{t .server.Lang "contact.email_help"}}</small>
             </div>
 
+            {{if or (eq .Type "abuse") (eq .Type "dmca")}}
             <div class="form-group">
-                <label for="contact-subject" class="form-label">{{t .server.Lang "contact.subject_label"}}</label>
-                <select id="contact-subject"
-                        name="subject"
-                        class="form-input"
-                        required
-                        aria-label="{{t .server.Lang "contact.subject_aria"}}"
-                        aria-required="true"
-                        aria-describedby="contact-subject-help"
-                        title="{{t .server.Lang "contact.subject_title"}}">
-                    <option value="">{{t .server.Lang "contact.subject_select"}}</option>
-                    <option value="general">{{t .server.Lang "contact.subject_general"}}</option>
-                    <option value="support">{{t .server.Lang "contact.subject_support"}}</option>
-                    <option value="bug">{{t .server.Lang "contact.subject_bug"}}</option>
-                    <option value="feature">{{t .server.Lang "contact.subject_feature"}}</option>
-                    <option value="privacy">{{t .server.Lang "contact.subject_privacy"}}</option>
-                    <option value="account">{{t .server.Lang "contact.subject_account"}}</option>
-                    <option value="other">{{t .server.Lang "contact.subject_other"}}</option>
-                </select>
-                <small id="contact-subject-help" class="form-help">{{t .server.Lang "contact.subject_help"}}</small>
+                <label for="contact-reported-url" class="form-label">{{t .server.Lang "contact.report.reported_url"}} *</label>
+                <input id="contact-reported-url" type="url" name="reported_url" class="form-input" value="{{index .Values "reported_url"}}" maxlength="2048" required aria-required="true" aria-describedby="contact-reported-url-help">
+                <small id="contact-reported-url-help" class="form-help">{{tf .server.Lang "contact.report.reported_url_help" "fqdn" .FQDN}}</small>
             </div>
+            {{end}}
+
+            {{if eq .Type "abuse"}}
+            <div class="form-group">
+                <label for="contact-reason" class="form-label">{{t .server.Lang "contact.report.reason"}} *</label>
+                <select id="contact-reason" name="reason" class="form-input" required aria-required="true">
+                    <option value="">{{t .server.Lang "contact.report.reason_select"}}</option>
+                    {{range .ReasonOptions}}<option value="{{.Value}}"{{if eq $.Values.reason .Value}} selected{{end}}>{{t $.server.Lang .LabelKey}}</option>{{end}}
+                </select>
+            </div>
+            {{else if eq .Type "dmca"}}
+            <div class="form-group">
+                <label for="contact-copyrighted-work" class="form-label">{{t .server.Lang "contact.report.copyrighted_work"}} *</label>
+                <textarea id="contact-copyrighted-work" name="copyrighted_work" class="form-input" rows="5" maxlength="2000" required aria-required="true">{{index .Values "copyrighted_work"}}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label"><input type="checkbox" name="good_faith" value="true"{{if eq .Values.good_faith "true"}} checked{{end}} required aria-required="true"> {{t .server.Lang "contact.report.good_faith"}} *</label>
+            </div>
+            <div class="form-group">
+                <label class="form-label"><input type="checkbox" name="accuracy" value="true"{{if eq .Values.accuracy "true"}} checked{{end}} required aria-required="true"> {{t .server.Lang "contact.report.accuracy"}} *</label>
+            </div>
+            <div class="form-group">
+                <label for="contact-signature" class="form-label">{{t .server.Lang "contact.report.signature"}} *</label>
+                <input id="contact-signature" type="text" name="signature" class="form-input" value="{{index .Values "signature"}}" maxlength="100" required aria-required="true" autocomplete="name">
+            </div>
+            {{else if eq .Type "privacy"}}
+            <div class="form-group">
+                <label for="contact-request-kind" class="form-label">{{t .server.Lang "contact.report.request_kind"}} *</label>
+                <select id="contact-request-kind" name="request_kind" class="form-input" required aria-required="true">
+                    <option value="">{{t .server.Lang "contact.report.request_kind_select"}}</option>
+                    {{range .RequestKindOptions}}<option value="{{.Value}}"{{if eq $.Values.request_kind .Value}} selected{{end}}>{{t $.server.Lang .LabelKey}}</option>{{end}}
+                </select>
+            </div>
+            {{end}}
 
             <div class="form-group">
-                <label for="contact-message-text" class="form-label">{{t .server.Lang "contact.message_label"}}</label>
-                <textarea id="contact-message-text"
-                          name="message"
-                          class="form-input"
-                          rows="8"
-                          required
-                          aria-label="{{t .server.Lang "contact.message_aria"}}"
-                          aria-required="true"
-                          aria-describedby="contact-message-help"
-                          title="{{t .server.Lang "contact.message_title"}}"
-                          placeholder="{{t .server.Lang "contact.message_placeholder"}}"></textarea>
-                <small id="contact-message-help" class="form-help">{{t .server.Lang "contact.message_help"}}</small>
+                <label for="contact-subject" class="form-label">{{t .server.Lang "contact.subject_label"}} *</label>
+                <input id="contact-subject" type="text" name="subject" class="form-input" value="{{index .Values "subject"}}" maxlength="200" required aria-required="true" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="contact-message-text" class="form-label">{{t .server.Lang "contact.message_label"}} *</label>
+                <textarea id="contact-message-text" name="message" class="form-input" rows="8" maxlength="5000" required aria-required="true" aria-describedby="contact-message-help">{{index .Values "message"}}</textarea>
+                <small id="contact-message-help" class="form-help">{{t .server.Lang "contact.report.message_help"}}</small>
             </div>
 
             {{if eq .Captcha.Provider "simple"}}
             <div class="form-group">
-                <label for="contact-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}}</label>
+                <label for="contact-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}} *</label>
                 <input type="hidden" name="captcha_id" value="{{.Captcha.ID}}">
-                <input type="text" id="contact-captcha" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off" aria-describedby="contact-captcha-help">
+                <input id="contact-captcha" type="text" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off" aria-describedby="contact-captcha-help">
                 <small id="contact-captcha-help" class="form-help">{{t .server.Lang "contact.captcha.help"}}</small>
             </div>
             {{else if eq .Captcha.Provider "recaptcha"}}
             <div class="g-recaptcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <noscript>
+                <p>{{t .server.Lang "contact.report.captcha_fallback"}}</p>
+                {{with .Captcha.Fallback}}
+                <div class="form-group">
+                    <label for="contact-captcha-fallback" class="form-label">{{tf $.server.Lang "contact.captcha.question" "a" (printf "%d" .A) "b" (printf "%d" .B)}} *</label>
+                    <input type="hidden" name="captcha_id" value="{{.ID}}">
+                    <input id="contact-captcha-fallback" type="text" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off">
+                </div>
+                {{end}}
+            </noscript>
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
             {{else if eq .Captcha.Provider "hcaptcha"}}
             <div class="h-captcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <noscript>
+                <p>{{t .server.Lang "contact.report.captcha_fallback"}}</p>
+                {{with .Captcha.Fallback}}
+                <div class="form-group">
+                    <label for="contact-captcha-fallback" class="form-label">{{tf $.server.Lang "contact.captcha.question" "a" (printf "%d" .A) "b" (printf "%d" .B)}} *</label>
+                    <input type="hidden" name="captcha_id" value="{{.ID}}">
+                    <input id="contact-captcha-fallback" type="text" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off">
+                </div>
+                {{end}}
+            </noscript>
             <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
             {{end}}
 
             <div class="form-actions">
-                <button type="submit"
-                        class="btn btn-primary"
-                        id="contact-submit"
-                        aria-label="{{t .server.Lang "contact.send_aria"}}"
-                        title="{{t .server.Lang "contact.send_title"}}">
-                    📧 {{t .server.Lang "contact.send_label"}}
-                </button>
-                <button type="reset"
-                        class="btn btn-secondary"
-                        aria-label="{{t .server.Lang "contact.clear_aria"}}"
-                        title="{{t .server.Lang "contact.clear_title"}}">
-                    🔄 {{t .server.Lang "contact.clear_label"}}
-                </button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "contact.send_label"}}</button>
+                <a class="btn btn-secondary" href="{{path "/server/contact"}}">{{t .server.Lang "contact.report.choose_another"}}</a>
             </div>
         </form>
-    </div>
+    </section>
+    {{else}}
+    <section class="section-card" aria-labelledby="contact-chooser-title">
+        <h2 id="contact-chooser-title">{{t .server.Lang "contact.report.chooser_title"}}</h2>
+        <ul class="list-unstyled">
+            <li><a class="btn btn-primary" href="{{path "/server/contact?type=abuse"}}">{{t .server.Lang "contact.report.choose_abuse"}}</a></li>
+            <li><a class="btn btn-primary" href="{{path "/server/contact?type=dmca"}}">{{t .server.Lang "contact.report.choose_dmca"}}</a></li>
+            <li><a class="btn btn-primary" href="{{path "/server/contact?type=privacy"}}">{{t .server.Lang "contact.report.choose_privacy"}}</a></li>
+        </ul>
+    </section>
+    {{end}}
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "contact.alternative_heading"}}</h2>
-        <div class="margin-y-md">
-            <p><strong>{{t .server.Lang "contact.github_issues_label"}}</strong> <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="text-cyan">{{t .server.Lang "contact.github_issues_link"}}</a></p>
-            <p><strong>{{t .server.Lang "contact.documentation_label"}}</strong> <a href="/docs" class="text-cyan">{{t .server.Lang "contact.documentation_link"}}</a></p>
-            <p><strong>{{t .server.Lang "contact.help_label"}}</strong> <a href="/server/help" class="text-cyan">{{t .server.Lang "contact.help_link"}}</a></p>
-        </div>
-    </div>
-</div>
-
-
-
+    <section class="section-card" aria-labelledby="contact-security-pointer">
+        <h2 id="contact-security-pointer">{{t .server.Lang "contact.report.security_pointer_title"}}</h2>
+        <p>{{t .server.Lang "contact.report.security_pointer"}} <a href="{{path "/server/security"}}">{{t .server.Lang "contact.report.security_policy_link"}}</a>.</p>
+    </section>
+    {{if eq .Mode "chooser"}}
+    <section class="section-card" aria-labelledby="contact-abuse-info-title">
+        <h2 id="contact-abuse-info-title">{{t .server.Lang "contact.report.abuse_info_title"}}</h2>
+        <p>{{t .server.Lang "contact.report.abuse_info"}}</p>
+        {{if .AbuseEmail}}<p>{{t .server.Lang "contact.report.abuse_email_intro"}} <a href="mailto:{{.AbuseEmail}}">{{.AbuseEmail}}</a>.</p>{{end}}
+    </section>
+    {{end}}
+  </div>
+</main>
 {{template "footer" .}}

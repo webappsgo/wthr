@@ -6,7 +6,7 @@
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
 {{- $current := .current_format -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.logs_format.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.logs_format.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.logs_format.intro"}}</p>
   </div>
 
@@ -25,8 +25,8 @@
       <h2 id="logs-format-list-heading">{{t $lang "admin.logs_format.available_heading"}}</h2>
     </div>
     {{if .formats}}
-    <div class="admin-table-scroll">
-      <table class="admin-table">
+    <div class="table-wrapper admin-table-scroll">
+      <table class="admin-table data-table">
         <caption class="admin-table-caption">{{t $lang "admin.logs_format.available_caption"}}</caption>
         <thead class="admin-table-header">
           <tr class="admin-table-head-row">

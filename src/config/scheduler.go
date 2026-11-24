@@ -38,10 +38,6 @@ type SchedulerTask struct {
 	MaxSize string `yaml:"max_size"`
 	// Compress rotated logs (log_rotation)
 	Compress bool `yaml:"compress"`
-	// Verify a backup after creating it (backup_daily)
-	Verify bool `yaml:"verify"`
-	// Restart the service when its health check fails (tor_health, i2p_health)
-	RestartOnFail bool `yaml:"restart_on_fail"`
 }
 
 // SchedulerTaskDef describes one built-in scheduled task: its stable id, the
@@ -67,15 +63,16 @@ func SchedulerTaskDefs() []SchedulerTaskDef {
 		{Name: "session_cleanup", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 15m"}},
 		{Name: "token_cleanup", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 15m"}},
 		{Name: "log_rotation", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "0 0 * * *", MaxAge: "30d", MaxSize: "100MB", Compress: true}},
-		{Name: "backup_daily", Global: true, Defaults: SchedulerTask{Enabled: true, Schedule: "0 2 * * *", Verify: true}},
+		{Name: "backup_daily", Global: true, Defaults: SchedulerTask{Enabled: true, Schedule: "0 2 * * *"}},
 		{Name: "backup_hourly", Global: true, Defaults: SchedulerTask{Enabled: false, Schedule: "@hourly"}},
 		{Name: "healthcheck_self", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 5m"}},
-		{Name: "tor_health", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 10m", RestartOnFail: true}},
-		{Name: "i2p_health", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 10m", RestartOnFail: true}},
+		{Name: "tor_health", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 10m"}},
+		{Name: "i2p_health", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 10m"}},
 		{Name: "cluster_heartbeat", Critical: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 30s"}},
 		{Name: "rate_limit_cleanup", Defaults: SchedulerTask{Enabled: true, Schedule: "@hourly"}},
 		{Name: "audit_log_cleanup", Defaults: SchedulerTask{Enabled: true, Schedule: "@daily"}},
 		{Name: "security_report_cleanup", Defaults: SchedulerTask{Enabled: true, Schedule: "@daily"}},
+		{Name: "keyserver_retry", Global: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 1m"}},
 		{Name: "weather_alert_check", Defaults: SchedulerTask{Enabled: true, Schedule: "@every 5m"}},
 		{Name: "weather_alert_expire", Defaults: SchedulerTask{Enabled: true, Schedule: "@every 5m"}},
 		{Name: "weather_daily_forecast", Defaults: SchedulerTask{Enabled: true, Schedule: "0 7 * * *"}},
@@ -83,6 +80,7 @@ func SchedulerTaskDefs() []SchedulerTaskDef {
 		{Name: "earthquake_poll", Defaults: SchedulerTask{Enabled: true, Schedule: "@every 1m"}},
 		{Name: "hurricane_poll", Defaults: SchedulerTask{Enabled: true, Schedule: "@every 15m"}},
 		{Name: "notification_queue", Defaults: SchedulerTask{Enabled: true, Schedule: "@every 2m"}},
+		{Name: "contact_webhook_retry", Critical: true, Global: true, Defaults: SchedulerTask{Enabled: true, Schedule: "@every 1m"}},
 		{Name: "notification_delivery_cleanup", Defaults: SchedulerTask{Enabled: true, Schedule: "@daily"}},
 		{Name: "notification_cleanup", Defaults: SchedulerTask{Enabled: true, Schedule: "0 2 * * *"}},
 		{Name: "notification_limit_enforcement", Defaults: SchedulerTask{Enabled: true, Schedule: "0 3 * * *"}},

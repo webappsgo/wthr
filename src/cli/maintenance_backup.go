@@ -4,6 +4,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,6 +55,9 @@ func MaintenanceBackupCommand(args []string) error {
 			}
 		}
 	}
+	if cfg := config.GetGlobalConfig(); password == "" && cfg != nil && cfg.Server.Compliance.Enabled() && !backupEncryptionConfigured() {
+		return errors.New(T("cli.maintenance_backup.compliance_password_required"))
+	}
 
 	// Get paths per AI.md PART 4
 	p := path.GetDefaultPaths("wthr")
@@ -102,6 +106,9 @@ func MaintenanceBackupCommand(args []string) error {
 
 	backupPath, _, err := svc.CreateBackupArchive(opts)
 	if err != nil {
+		if errors.Is(err, backup.ErrComplianceEncryptionRequired) {
+			return errors.New(T("cli.maintenance_backup.compliance_password_required"))
+		}
 		return fmt.Errorf("backup failed: %w", err)
 	}
 

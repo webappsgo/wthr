@@ -150,6 +150,7 @@ func countRows(t *testing.T, ddb *DualDB, db string, query string, args ...inter
 // fresh data directory and returns the directory.
 func seedLegacyDatabases(t *testing.T) string {
 	t.Helper()
+	setDatabaseTestConfig(t)
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
 	if err := os.MkdirAll(dbDir, 0o755); err != nil {
@@ -256,6 +257,7 @@ func TestInitDualDB_LegacyUpgradeIsIdempotent(t *testing.T) {
 // TestInitDualDB_FreshInstallHasCanonicalLayout proves a new install has the
 // PART 12 tables in their canonical database and none of the legacy ones.
 func TestInitDualDB_FreshInstallHasCanonicalLayout(t *testing.T) {
+	setDatabaseTestConfig(t)
 	ddb, err := InitDualDB(t.TempDir())
 	if err != nil {
 		t.Fatalf("InitDualDB: %v", err)

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,8 @@ func newServerPagesTestDB(t *testing.T) *database.DB {
 func newServerPagesTestConfig() *config.AppConfig {
 	return &config.AppConfig{
 		Server: config.ServerConfig{
-			Mode: "production",
+			Mode:  "production",
+			Pages: config.DefaultPagesConfig(),
 			Branding: config.BrandingConfig{
 				Title:       "Weather",
 				Description: "Weather forecasts and alerts",
@@ -175,43 +177,71 @@ func TestGetTermsAPI(t *testing.T) {
 func validContactBody() map[string]interface{} {
 	id, a, b := contactCaptcha.New()
 	return map[string]interface{}{
-		"name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
+		"type": "privacy", "request_kind": "access", "name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
 		"captcha_id": id, "captcha_answer": fmt.Sprintf("%d", a+b),
 	}
 }
 
 func TestHandleContactFormSubmission(t *testing.T) {
+	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
+	cfg.Server.Pages.Contact.Antispam.ReviewMinSeconds = 0
 
 	t.Run("invalid form data returns 400", func(t *testing.T) {
 		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", map[string]interface{}{"name": "Ada"})
-		HandleContactFormSubmission(nil, cfg)(w, r)
+		HandleContactFormSubmission(db, cfg)(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())
 		}
 	})
 
-	t.Run("no smtp and no db saves and returns 500", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", validContactBody())
-		HandleContactFormSubmission(nil, cfg)(w, r)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusInternalServerError, w.Body.String())
+	t.Run("first call reviews and confirm saves exactly once", func(t *testing.T) {
+		manager, err := getContactAntispam(db, cfg)
+		if err != nil {
+			t.Fatal(err)
 		}
-	})
-
-	t.Run("no smtp with db saves successfully", func(t *testing.T) {
-		db := newServerPagesTestDB(t)
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", validContactBody())
-		r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
-
+		formToken, err := manager.NewContactFormToken(time.Now().Add(-5 * time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := validContactBody()
+		first["form_token"] = formToken
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", first)
 		HandleContactFormSubmission(db, cfg)(w, r)
-
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var firstResponse struct {
+			Data struct {
+				Status      string `json:"status"`
+				FormToken   string `json:"form_token"`
+				ReviewToken string `json:"review_token"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &firstResponse); err != nil {
+			t.Fatal(err)
+		}
+		if firstResponse.Data.Status != "review" || firstResponse.Data.ReviewToken == "" || firstResponse.Data.FormToken == "" {
+			t.Fatalf("first response = %s", w.Body.String())
 		}
 		var count int
 		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
 			t.Fatalf("query contact_submissions: %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("first step delivered %d messages", count)
+		}
+		second := validContactBody()
+		second["step"], second["confirmed"] = "confirm", true
+		second["form_token"], second["review_token"] = firstResponse.Data.FormToken, firstResponse.Data.ReviewToken
+		r, w = newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", second)
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
+		HandleContactFormSubmission(db, cfg)(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("confirm status = %d, body=%s", w.Code, w.Body.String())
+		}
+		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
+			t.Fatal(err)
 		}
 		if count != 1 {
 			t.Errorf("contact_submissions count = %d, want 1", count)

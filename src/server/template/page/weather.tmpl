@@ -2,8 +2,9 @@
 {{template "header" .}}
 {{template "navbar" .}}
 
-    <main class="weather-container" id="main-content" role="main">
-        <h1 class="text-purple">{{.Title}}</h1>
+    <main id="main-content">
+  <div class="container container-md">
+        <header class="page-header"><h1 class="page-title">{{.Title}}</h1></header>
 
         <!-- Location Search Form -->
         <form id="weather-form" class="search-form" action="/" method="get" role="search">
@@ -74,8 +75,8 @@
             <!-- Mobile-Optimized Forecast -->
             <div class="forecast-section">
                 <!-- Desktop Table (hidden on mobile) -->
-                <div class="table-scroll">
-                <table class="forecast-table desktop-table">
+                <div class="table-wrapper table-scroll">
+                <table class="forecast-table desktop-table data-table">
                     <thead>
                         <tr>
                             <th>{{t .server.Lang "weather.th_date"}}</th>
@@ -242,9 +243,10 @@
             </div>
         {{end}}
 
-    </main>
+      </div>
+</main>
 
-    <script type="application/json" id="index-data">
+    <textarea hidden id="index-data">
         {
             "getting": "{{t .server.Lang "index.js_getting"}}",
             "gps": "{{t .server.Lang "index.js_gps"}}",
@@ -263,7 +265,7 @@
             "locationPrefilled": "{{t .server.Lang "index.js_location_prefilled"}}",
             "approximateLocation": "{{t .server.Lang "index.js_approximate_location"}}"
         }
-    </script>
+    </textarea>
 
 {{if not .HideFooter}}
 {{template "footer" .}}

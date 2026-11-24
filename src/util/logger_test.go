@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,6 +163,31 @@ func TestLogger_Audit(t *testing.T) {
 	}
 	if !strings.Contains(audit, "permission denied") {
 		t.Error("audit.log missing failure error message")
+	}
+	lines := strings.Split(strings.TrimSpace(audit), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("audit.log has %d entries, want 2", len(lines))
+	}
+	var first, second map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("decode first audit entry: %v", err)
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
+		t.Fatalf("decode second audit entry: %v", err)
+	}
+	for _, field := range []string{"id", "time", "event", "category", "severity", "actor", "result", "prev"} {
+		if _, ok := first[field]; !ok {
+			t.Errorf("first audit entry missing required %q field", field)
+		}
+	}
+	if got, ok := second["prev"].(string); !ok || len(got) != 64 {
+		t.Errorf("second audit prev = %v, want 64-character hash", second["prev"])
+	}
+	if _, err := os.Stat(filepath.Join(logDir, "audit.log")); err != nil {
+		t.Fatalf("audit log disappeared after append: %v", err)
+	}
+	if err := logger.auditLog.Close(); err != nil {
+		t.Fatalf("close audit log: %v", err)
 	}
 }
 

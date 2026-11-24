@@ -4,9 +4,9 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <header class="page-header"><h1 class="page-title">{{t $lang "admin.tokens.new_token_heading"}}</h1></header>
   <section class="admin-section" role="alert" aria-labelledby="new-token-heading">
-    <h1 id="new-token-heading">{{t $lang "admin.tokens.new_token_heading"}}</h1>
-    <p>{{t $lang "admin.tokens.new_token_notice"}}</p>
+    <h2 id="new-token-heading">{{t $lang "admin.tokens.new_token_notice"}}</h2>
     <p><code class="admin-break-all">{{.new_token}}</code></p>
     <a class="btn btn-primary" href="{{$ap}}/security/tokens">{{t $lang "admin.tokens.registry_action"}}</a>
   </section>

@@ -32,8 +32,50 @@ func validateConfig(cfg *AppConfig) bool {
 	validateServerUpdate(cfg)
 	validateServerBranding(cfg)
 	validateServerSEO(cfg)
+	validateServerLogs(cfg)
 	validateWebRobots(cfg)
 	return portReplaced
+}
+
+func validateServerLogs(cfg *AppConfig) {
+	audit := &cfg.Server.Logs.Audit
+	defaults := DefaultLogsConfig().Audit
+	if audit.Filename == "" || filepath.Base(audit.Filename) != audit.Filename || audit.Filename == "." || audit.Filename == ".." {
+		warnConfig("invalid server.logs.audit.filename, using %s", defaults.Filename)
+		audit.Filename = defaults.Filename
+	}
+	if audit.Format != "json" {
+		if audit.Format != "" {
+			warnConfig("invalid server.logs.audit.format %q, using json", audit.Format)
+		}
+		audit.Format = defaults.Format
+	}
+	if audit.Rotate == "" {
+		audit.Rotate = defaults.Rotate
+	}
+	if !validAuditRetention(audit.Keep) {
+		warnConfig("invalid server.logs.audit.keep %q, using %s", audit.Keep, defaults.Keep)
+		audit.Keep = defaults.Keep
+	}
+}
+
+func validAuditRetention(keep string) bool {
+	if keep == "none" || keep == "forever" {
+		return true
+	}
+	if keep == "" {
+		return false
+	}
+	unit := keep[len(keep)-1]
+	number := keep
+	if unit < '0' || unit > '9' {
+		number = keep[:len(keep)-1]
+		if unit != 'd' && unit != 'w' && unit != 'm' {
+			return false
+		}
+	}
+	count, err := strconv.Atoi(number)
+	return err == nil && count >= 0
 }
 
 // validateServerSEO bounds the sitemap and feed limits (AI.md PART 16): an
@@ -356,6 +398,10 @@ func warnConfig(format string, args ...interface{}) {
 // It reports whether the port was replaced.
 func validateServerIdentity(cfg *AppConfig) bool {
 	portReplaced := false
+	if !validServerAddress(cfg.Server.Address) {
+		warnConfig("invalid server.address %q, using default %q", cfg.Server.Address, "[::]")
+		cfg.Server.Address = "[::]"
+	}
 	if !isValidPortValue(cfg.Server.Port) {
 		p := randomPort()
 		warnConfig("invalid port %v, using random port %d", cfg.Server.Port, p)
@@ -383,6 +429,14 @@ func validateServerIdentity(cfg *AppConfig) bool {
 	}
 
 	return portReplaced
+}
+
+func validServerAddress(raw string) bool {
+	address := strings.TrimSpace(raw)
+	if strings.HasPrefix(address, "[") && strings.HasSuffix(address, "]") {
+		address = strings.TrimSuffix(strings.TrimPrefix(address, "["), "]")
+	}
+	return net.ParseIP(address) != nil
 }
 
 // isValidPortValue reports whether a configured port is usable. A port may be

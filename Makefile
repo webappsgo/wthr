@@ -2,8 +2,8 @@
 PROJECT_NAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/||' || basename "$$(pwd)")
 PROJECT_ORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/([^/]+)/[^/]+$$|\1|' || basename "$$(dirname "$$(pwd)")")
 
-# Version precedence: release.txt > env/default fallback
-VERSION ?= $(shell cat release.txt 2>/dev/null || echo "devel")
+# Local builds: explicit user override > non-empty release.txt > short commit id.
+VERSION ?= $(shell v=; [ -r release.txt ] && v=$$(tr -d '[:space:]' < release.txt); if [ -n "$$v" ]; then echo "$$v"; else git rev-parse --short=7 HEAD 2>/dev/null || echo devel; fi)
 
 # Build info — BUILD_EPOCH is the single captured time source; BUILD_DATE is derived from it
 BUILD_EPOCH := $(shell date -u +%s)
@@ -34,6 +34,7 @@ RELDIR := releases
 # GO_BUILD maps to GOCACHE inside the image
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECT_NAME)
+INTERNAL_NAME := $(shell awk '/^[[:space:]]*internal_name:/ {print $$2; exit}' IDEA.md)
 
 # Build targets (space-separated — consumed by shell for-loops; all 8 platforms)
 PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64 freebsd/arm64
@@ -44,23 +45,22 @@ REGISTRY ?= ghcr.io/$(PROJECT_ORG)/$(PROJECT_NAME)
 # Resource caps keep one build from starving concurrent builds on the same host
 DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
-DOCKER_NETWORK ?=
-DOCKER_NETWORK_FLAG = $(if $(strip $(DOCKER_NETWORK)),--network $(DOCKER_NETWORK),)
+DOCKER_TIMEOUT ?= 3600
 
-GO_DOCKER := docker run --rm \
+# Every Go toolchain run shares these bounded resource and lifetime options.
+GO_DOCKER_RUN := timeout -k 30 $(DOCKER_TIMEOUT) docker run --rm --no-healthcheck \
 	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	$(DOCKER_NETWORK_FLAG) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
 	-e CGO_ENABLED=0 \
-	-e GOFLAGS=-buildvcs=false \
-	casjaysdev/go:latest
+	-e GOFLAGS=-buildvcs=false
+GO_DOCKER := $(GO_DOCKER_RUN) casjaysdev/go:latest
 # CGO_ENABLED=0 and GOFLAGS=-buildvcs=false are casjaysdev/go:latest defaults; set explicitly for clarity
 
-.PHONY: build local release docker test dev clean
+.PHONY: build local release release-check docker test dev clean
 
 # =============================================================================
 # BUILD - Build all platforms + local binary (via Docker with cached modules)
@@ -68,57 +68,16 @@ GO_DOCKER := docker run --rm \
 build: clean
 	@mkdir -p $(BINDIR) $(GO_CACHE) $(GO_BUILD)
 	@echo "Building version $(VERSION)..."
-
-	# Tidy and download modules
-	@echo "Tidying and downloading Go modules..."
-	@$(GO_DOCKER) go mod tidy
-	@$(GO_DOCKER) go mod download
-	@$(GO_DOCKER) go generate ./src/swagger
-
-	# Build for local OS/ARCH
-	@echo "Building local binary..."
-	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
-
-	# Build server for all platforms
-	@for platform in $(PLATFORMS); do \
-		OS=$${platform%/*}; \
-		ARCH=$${platform#*/}; \
-		OUTPUT=$(BINDIR)/$(PROJECT_NAME)-$$OS-$$ARCH; \
-		[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
-		echo "Building server $$OS/$$ARCH..."; \
-		$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
-			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" \
-			-o $$OUTPUT ./src" || exit 1; \
-	done
-
-	# Build CLI for all platforms (if exists)
-	@if [ -d "src/client" ]; then \
+	@$(GO_DOCKER_RUN) -e BUILD_LDFLAGS="$(LDFLAGS)" casjaysdev/go:latest sh -c ' \
+		set -e; go mod tidy; go mod download; go generate ./src/swagger; \
+		GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME) ./src; \
 		for platform in $(PLATFORMS); do \
-			OS=$${platform%/*}; \
-			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-cli-$$OS-$$ARCH; \
-			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
-			echo "Building CLI $$OS/$$ARCH..."; \
-			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
-				go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" \
-				-o $$OUTPUT ./src/client" || exit 1; \
-		done; \
-	fi
-
-	# Build agent for all platforms (if exists)
-	@if [ -d "src/agent" ]; then \
-		for platform in $(PLATFORMS); do \
-			OS=$${platform%/*}; \
-			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-agent-$$OS-$$ARCH; \
-			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
-			echo "Building agent $$OS/$$ARCH..."; \
-			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
-				go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" \
-				-o $$OUTPUT ./src/agent" || exit 1; \
-		done; \
-	fi
+			OS=$${platform%/*}; ARCH=$${platform#*/}; EXT=""; \
+			if [ "$$OS" = "windows" ]; then EXT=".exe"; fi; \
+			GOOS=$$OS GOARCH=$$ARCH go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME)-$$OS-$$ARCH$$EXT ./src; \
+			if [ -d src/client ]; then GOOS=$$OS GOARCH=$$ARCH go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME)-cli-$$OS-$$ARCH$$EXT ./src/client; fi; \
+			if [ -d src/agent ]; then GOOS=$$OS GOARCH=$$ARCH go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME)-agent-$$OS-$$ARCH$$EXT ./src/agent; fi; \
+		done'
 
 	@echo "Build complete: $(BINDIR)/"
 
@@ -128,41 +87,22 @@ build: clean
 local: clean
 	@mkdir -p $(BINDIR) $(GO_CACHE) $(GO_BUILD)
 	@echo "Building local binaries version $(VERSION)..."
-
-	# Tidy and download modules
-	@echo "Tidying and downloading Go modules..."
-	@$(GO_DOCKER) go mod tidy
-	@$(GO_DOCKER) go mod download
-	@$(GO_DOCKER) go generate ./src/swagger
-
-	# Build server binary
-	@echo "Building $(PROJECT_NAME)..."
-	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
-
-	# Build CLI binary (if exists)
-	@if [ -d "src/client" ]; then \
-		echo "Building $(PROJECT_NAME)-cli..."; \
-		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-cli ./src/client"; \
-	fi
-
-	# Build agent binary (if exists)
-	@if [ -d "src/agent" ]; then \
-		echo "Building $(PROJECT_NAME)-agent..."; \
-		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-agent ./src/agent"; \
-	fi
+	@$(GO_DOCKER_RUN) -e BUILD_LDFLAGS="$(LDFLAGS)" casjaysdev/go:latest sh -c ' \
+		set -e; go mod tidy; go mod download; go generate ./src/swagger; \
+		GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME) ./src; \
+		if [ -d src/client ]; then GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME)-cli ./src/client; fi; \
+		if [ -d src/agent ]; then GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go build -buildvcs=false -trimpath -ldflags "$$BUILD_LDFLAGS" -o $(BINDIR)/$(PROJECT_NAME)-agent ./src/agent; fi'
 
 	@echo "Local build complete: $(BINDIR)/"
 
 # =============================================================================
 # RELEASE - Manual local release (stable only)
 # =============================================================================
-# Release tag and name: numeric SemVer gets a v prefix, text versions never do (AI.md PART 26)
-RELEASE_TAG := $(shell echo "$(VERSION)" | grep -Eq "^[0-9]+[.][0-9]+[.][0-9]+" && echo "v$(VERSION)" || echo "$(VERSION)")
+# Stable SemVer only. Devel and prerelease builds are published by CI.
+release-check:
+	@echo "$(VERSION)" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' >/dev/null || { echo "ERROR: make release needs a stable SemVer X.Y.Z in release.txt (got '$(VERSION)')" >&2; exit 78; }
 
-release: build
+release: release-check build
 	@mkdir -p $(RELDIR)
 	@echo "Preparing release $(VERSION)..."
 
@@ -182,17 +122,17 @@ release: build
 		-czf $(RELDIR)/$(PROJECT_NAME)-$(VERSION)-source.tar.gz .
 
 	# Delete existing release/tag if exists
-	@gh release delete $(RELEASE_TAG) --yes 2>/dev/null || true
-	@git tag -d $(RELEASE_TAG) 2>/dev/null || true
-	@git push origin :refs/tags/$(RELEASE_TAG) 2>/dev/null || true
+	@gh release delete v$(VERSION) --yes 2>/dev/null || true
+	@git tag -d v$(VERSION) 2>/dev/null || true
+	@git push origin :refs/tags/v$(VERSION) 2>/dev/null || true
 
 	# Create new release (stable)
-	@gh release create $(RELEASE_TAG) $(RELDIR)/* \
-		--title "$(RELEASE_TAG)" \
-		--notes "Release $(RELEASE_TAG)" \
+	@gh release create v$(VERSION) $(RELDIR)/* \
+		--title "v$(VERSION)" \
+		--notes "Release v$(VERSION)" \
 		--latest
 
-	@echo "Release complete: $(RELEASE_TAG)"
+	@echo "Release complete: v$(VERSION)"
 
 # =============================================================================
 # DOCKER - Build and push container to registry (set REGISTRY env var)
@@ -206,8 +146,8 @@ docker:
 	@docker buildx version > /dev/null 2>&1 || (echo "docker buildx required" && exit 1)
 
 	# Create/use builder
-	@docker buildx create --name $(PROJECT_NAME)-builder --use 2>/dev/null || \
-		docker buildx use $(PROJECT_NAME)-builder
+	@docker buildx create --name multiarch-builder --use 2>/dev/null || \
+		docker buildx use multiarch-builder
 
 	# Build multi-arch locally (pushing is CI/CD's responsibility)
 	@docker buildx build \
@@ -230,17 +170,20 @@ docker:
 test:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@echo "Running tests with coverage..."
-	@$(GO_DOCKER) sh -c " \
-		mkdir -p \"\$${TMPDIR:-/tmp}/$(PROJECT_ORG)\" && \
-		COVDIR=\$$(mktemp -d \"\$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX\") && \
-		go mod download && \
-		go test -timeout 30m -v -cover -coverprofile=\$$COVDIR/coverage.out ./... && \
-		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.out | awk '/^total:/{print \$$3}' | sed 's/%//') && \
-		echo \"Coverage: \$$COVERAGE%\" && \
-		if [ \$$(echo \"\$$COVERAGE < 60\" | bc -l) -eq 1 ]; then \
-			echo \"ERROR: Coverage is \$$COVERAGE%, must be >= 60%\"; exit 1; \
-		fi && \
-		echo \"Tests complete - Coverage: \$$COVERAGE% (>= 60% required)\""
+	@set -eu; \
+	NETWORK="$(PROJECT_NAME)-test-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)"; \
+	docker network create "$$NETWORK" >/dev/null; \
+	trap 'docker network rm "$$NETWORK" >/dev/null 2>&1 || true' EXIT INT TERM; \
+	$(GO_DOCKER_RUN) --network "$$NETWORK" casjaysdev/go:latest sh -c ' \
+		set -e; \
+		mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)"; \
+		COVDIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(INTERNAL_NAME)-XXXXXX"); \
+		go mod download; go vet ./...; staticcheck ./...; \
+		go test -p 1 -timeout 30m -v -cover -coverprofile="$$COVDIR/coverage.out" ./...; \
+		COVERAGE=$$(go tool cover -func="$$COVDIR/coverage.out" | awk "/^total:/ {print \$$3}" | sed "s/%//"); \
+		echo "Coverage: $$COVERAGE%"; \
+		if [ "$$(awk -v c="$$COVERAGE" "BEGIN {print (c < 60)}")" = "1" ]; then echo "ERROR: Coverage is $$COVERAGE%, must be >= 60%" >&2; exit 1; fi; \
+		echo "Tests complete - Coverage: $$COVERAGE% (>= 60% required)"'
 
 # =============================================================================
 # DEV - Quick build for local development/testing (to random temp dir)
@@ -249,22 +192,14 @@ test:
 # Builds server + CLI + agent (if they exist)
 dev:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
-	@$(GO_DOCKER) go mod tidy
-	@$(GO_DOCKER) go generate ./src/swagger
-	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)" && \
-		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX") && \
-		echo "Quick dev build to $$BUILD_DIR..." && \
-		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME) ./src && \
-		echo "Built: $$BUILD_DIR/$(PROJECT_NAME)" && \
-		if [ -d "src/client" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-cli ./src/client && \
-			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-cli"; \
-		fi && \
-		if [ -d "src/agent" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-agent ./src/agent && \
-			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-agent"; \
-		fi && \
-		echo "Test:  docker run --rm --name $(PROJECT_NAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECT_NAME) --help"
+	@set -e; mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)"; \
+	BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(INTERNAL_NAME)-XXXXXX"); \
+	$(GO_DOCKER_RUN) -v "$$BUILD_DIR:/build" casjaysdev/go:latest sh -c ' \
+		set -e; go mod tidy; go generate ./src/swagger; \
+		go build -buildvcs=false -o /build/$(PROJECT_NAME) ./src; \
+		if [ -d src/client ]; then go build -buildvcs=false -o /build/$(PROJECT_NAME)-cli ./src/client; fi; \
+		if [ -d src/agent ]; then go build -buildvcs=false -o /build/$(PROJECT_NAME)-agent ./src/agent; fi'; \
+	echo "Built binaries in $$BUILD_DIR"
 
 # =============================================================================
 # CLEAN - Remove build artifacts

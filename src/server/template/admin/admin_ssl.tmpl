@@ -4,11 +4,11 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <h1>🔒 {{t $lang "admin.ssl.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">🔒 {{t $lang "admin.ssl.title"}}</h1></header>
     <p class="text-comment mb-4">{{t $lang "admin.ssl.subtitle"}}</p>
     {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 
-    <section class="card p-4 mb-4" aria-labelledby="ssl-renewal-heading">
+    <section class="section-card p-4 mb-4" aria-labelledby="ssl-renewal-heading">
         <h2 id="ssl-renewal-heading" class="section-title">{{t $lang "admin.ssl.auto_renewal_heading"}}</h2>
         <form method="post" action="/server/{{.admin_path}}/ssl/auto-renew">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
@@ -25,7 +25,7 @@
         </form>
     </section>
 
-    <section class="card p-4 mb-4" aria-labelledby="ssl-revoke-heading">
+    <section class="section-card p-4 mb-4" aria-labelledby="ssl-revoke-heading">
         <h2 id="ssl-revoke-heading" class="section-title">{{t $lang "admin.ssl.revoke_cert_action"}}</h2>
         <form method="post" action="/server/{{.admin_path}}/ssl/revoke">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
@@ -41,8 +41,8 @@
     </section>
 
     <div class="grid-2 gap-lg">
-        <section class="card p-4">
-            <h2 class="section-title">📜 {{t $lang "admin.ssl.cert_status_heading"}}</h2>
+        <section class="section-card p-4" aria-labelledby="admin_ssl-section-3">
+            <h2 class="section-title" id="admin_ssl-section-3">📜 {{t $lang "admin.ssl.cert_status_heading"}}</h2>
 
             <div id="certStatus" role="status" aria-live="polite">
                 <div class="text-center p-4 text-comment">
@@ -61,8 +61,8 @@
             </div>
         </section>
 
-        <section class="card p-4">
-            <h2 class="section-title">🌐 {{t $lang "admin.ssl.lets_encrypt_heading"}}</h2>
+        <section class="section-card p-4" aria-labelledby="admin_ssl-section-4">
+            <h2 class="section-title" id="admin_ssl-section-4">🌐 {{t $lang "admin.ssl.lets_encrypt_heading"}}</h2>
 
             <form id="letsEncryptForm" method="post" action="{{.admin_path}}/ssl/obtain">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
@@ -133,8 +133,8 @@
         </section>
     </div>
 
-    <section class="card p-4 mt-4" id="dnsCard">
-        <h2 class="section-title">🧩 {{t $lang "admin.ssl.dns_heading"}}</h2>
+    <section class="section-card p-4 mt-4" id="dnsCard" aria-labelledby="admin_ssl-section-5">
+        <h2 class="section-title" id="admin_ssl-section-5">🧩 {{t $lang "admin.ssl.dns_heading"}}</h2>
         <p class="text-comment mb-3">{{t $lang "admin.ssl.dns_intro"}}</p>
 
         <form id="dnsForm" method="post" action="{{.admin_path}}/ssl/dns">
@@ -162,7 +162,7 @@
         </form>
     </section>
 
-<script type="application/json" id="admin-ssl-data">{"adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "messages": {"load_failed": {{t $lang "admin.ssl.js.load_failed"}}, "obtained": {{t $lang "admin.ssl.js.obtained"}}, "renewed": {{t $lang "admin.ssl.js.renewed"}}, "valid": {{t $lang "admin.ssl.js.valid"}}, "request_failed": {{t $lang "admin.ssl.js.request_failed"}}, "check_variables": {{t $lang "admin.ssl.js.check_variables"}}, "confirm_renew": {{t $lang "admin.ssl.js.confirm_renew"}}, "no_certificate": {{t $lang "admin.ssl.js.no_certificate"}}, "subject": {{t $lang "admin.ssl.js.subject"}}, "issuer": {{t $lang "admin.ssl.js.issuer"}}, "valid_until": {{t $lang "admin.ssl.js.valid_until"}}, "days_remaining": {{t $lang "admin.ssl.js.days_remaining"}}}}</script>
+<textarea hidden id="admin-ssl-data">{"adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "messages": {"load_failed": {{t $lang "admin.ssl.js.load_failed"}}, "obtained": {{t $lang "admin.ssl.js.obtained"}}, "renewed": {{t $lang "admin.ssl.js.renewed"}}, "valid": {{t $lang "admin.ssl.js.valid"}}, "request_failed": {{t $lang "admin.ssl.js.request_failed"}}, "check_variables": {{t $lang "admin.ssl.js.check_variables"}}, "confirm_renew": {{t $lang "admin.ssl.js.confirm_renew"}}, "no_certificate": {{t $lang "admin.ssl.js.no_certificate"}}, "subject": {{t $lang "admin.ssl.js.subject"}}, "issuer": {{t $lang "admin.ssl.js.issuer"}}, "valid_until": {{t $lang "admin.ssl.js.valid_until"}}, "days_remaining": {{t $lang "admin.ssl.js.days_remaining"}}}}</textarea>
 <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

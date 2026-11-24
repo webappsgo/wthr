@@ -2,9 +2,10 @@
 {{template "header" .}}
 {{template "navbar" .}}
 
-<main class="weather-container page-container" id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <header class="text-center margin-y-lg">
-        <h1 class="text-purple">{{t .server.Lang "dashboard.welcome_back"}}</h1>
+        <header class="page-header"><h1 class="page-title">{{t .server.Lang "dashboard.welcome_back"}}</h1></header>
         <p class="text-comment">{{.user.Email}} · {{.user.Role | upper}}</p>
     </header>
 
@@ -26,17 +27,16 @@
         </div>
     </section>
 
-    <section class="card">
-        <div class="card-header flex items-center justify-between gap-sm">
-            <h2 class="card-title">{{t .server.Lang "dashboard.your_saved_locations"}}</h2>
+    <section class="section-card" aria-labelledby="dashboard-section-1">
+        <div class="flex items-center justify-between gap-sm">
+            <h2 class="card-title" id="dashboard-section-1">{{t .server.Lang "dashboard.your_saved_locations"}}</h2>
             <a href="/users/locations/new" class="btn btn-primary btn-sm">+ {{t .server.Lang "dashboard.add_location"}}</a>
         </div>
-        <div class="card-body">
+        <div>
             {{if gt .locationCount 0}}
                 <div class="grid grid-3 gap-md">
                     {{range .locations}}
-                    <div class="card bg-bg">
-                        <div class="card-body flex flex-col gap-md">
+                    <div class="flex flex-col gap-md">
                             <div>
                                 <h3 class="text-cyan text-xl font-semibold">{{.Name}}</h3>
                                 <p class="text-comment text-sm">📍 {{.Latitude}}, {{.Longitude}}</p>
@@ -71,6 +71,7 @@
             {{end}}
         </div>
     </section>
+  </div>
 </main>
 
 {{template "footer" .}}

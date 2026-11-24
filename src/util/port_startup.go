@@ -86,6 +86,12 @@ func peekConfigPort(configDir string) string {
 // environment variable (the --port flag sets it), then server.port from server.yml, then
 // a random unused port in 64000-64999 for a first run.
 func ResolveStartupPorts(configDir string) (StartupPorts, error) {
+	return ResolveStartupPortsWithValue(peekConfigPort(configDir))
+}
+
+// ResolveStartupPortsWithValue applies the PORT environment override before
+// the already merged early-config port value.
+func ResolveStartupPortsWithValue(configPort string) (StartupPorts, error) {
 	if spec := strings.TrimSpace(os.Getenv("PORT")); spec != "" {
 		httpPort, httpsPort, err := ParsePortSpec(spec)
 		if err != nil {
@@ -94,7 +100,7 @@ func ResolveStartupPorts(configDir string) (StartupPorts, error) {
 		return StartupPorts{HTTP: httpPort, HTTPS: httpsPort, Spec: spec}, nil
 	}
 
-	if spec := peekConfigPort(configDir); spec != "" {
+	if spec := strings.TrimSpace(configPort); spec != "" {
 		httpPort, httpsPort, err := ParsePortSpec(spec)
 		if err != nil {
 			return StartupPorts{}, err

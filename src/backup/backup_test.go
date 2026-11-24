@@ -6,12 +6,33 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/config"
 )
+
+func TestCreateBackupArchiveRequiresEncryptionForCompliance(t *testing.T) {
+	previous := config.GetGlobalConfig()
+	cfg := config.DefaultAppConfig()
+	cfg.Server.Compliance.HIPAA = true
+	config.SetGlobalConfig(cfg)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+
+	archivePath := filepath.Join(t.TempDir(), "backup.tar.gz")
+	service := New(t.TempDir(), t.TempDir())
+	_, _, err := service.CreateBackupArchive(BackupOptions{OutputPath: archivePath})
+	if !errors.Is(err, ErrComplianceEncryptionRequired) {
+		t.Fatalf("CreateBackupArchive() error = %v, want %v", err, ErrComplianceEncryptionRequired)
+	}
+	if _, statErr := os.Stat(archivePath); !os.IsNotExist(statErr) {
+		t.Fatalf("unencrypted archive exists after rejection: stat error = %v", statErr)
+	}
+}
 
 // TestEncryptDecryptRoundTrip verifies AES-256-GCM encrypt/decrypt returns
 // the original plaintext exactly, and that a wrong password fails to decrypt.

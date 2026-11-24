@@ -431,16 +431,14 @@ func (h *SAMLAuthHandler) ACS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	externalID := assertion.Subject.NameID.Value
-	if cfg.WantAssertionsSigned && assertion.Signature == nil {
+	if cfg.WantAssertionsSigned && !assertion.SignaturePresent {
 		h.failed(w, r, provider)
 		return
 	}
 	attributes := make(map[string][]string)
 	for _, statement := range assertion.AttributeStatements {
 		for _, attr := range statement.Attributes {
-			for _, value := range attr.Values {
-				attributes[attr.Name] = append(attributes[attr.Name], value.Value)
-			}
+			attributes[attr.Name] = append(attributes[attr.Name], attr.Values...)
 		}
 	}
 	get := func(name string) string {

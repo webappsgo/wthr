@@ -78,6 +78,31 @@ func TestRecordDBQuery(t *testing.T) {
 	}
 }
 
+func TestRecordDBWriteMetrics(t *testing.T) {
+	beforeBusy := toFloat64(DBBusyTotal)
+	var beforeWait dto.Metric
+	if err := DBWriteWaitSeconds.Write(&beforeWait); err != nil {
+		t.Fatalf("read DB write wait histogram: %v", err)
+	}
+
+	RecordDBBusy()
+	RecordDBWriteWait(250 * time.Millisecond)
+
+	if got := toFloat64(DBBusyTotal); got != beforeBusy+1 {
+		t.Errorf("DBBusyTotal = %v, want %v", got, beforeBusy+1)
+	}
+	var afterWait dto.Metric
+	if err := DBWriteWaitSeconds.Write(&afterWait); err != nil {
+		t.Fatalf("read DB write wait histogram: %v", err)
+	}
+	if got, want := afterWait.GetHistogram().GetSampleCount(), beforeWait.GetHistogram().GetSampleCount()+1; got != want {
+		t.Errorf("DBWriteWaitSeconds sample count = %d, want %d", got, want)
+	}
+	if got := afterWait.GetHistogram().GetSampleSum() - beforeWait.GetHistogram().GetSampleSum(); got < .25 {
+		t.Errorf("DBWriteWaitSeconds sample sum delta = %v, want at least 0.25", got)
+	}
+}
+
 // errDBFail is a sentinel error for the error-path test case above.
 var errDBFail = &testError{"db failure"}
 

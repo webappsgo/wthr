@@ -6,7 +6,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
     <div class="content-header">
-        <h1>{{t $lang "admin.email_editor.title"}}</h1>
+        <header class="page-header"><h1 class="page-title">{{t $lang "admin.email_editor.title"}}</h1></header>
     </div>
 
     {{template "flash" .}}
@@ -95,7 +95,7 @@
         </div>
     </div>
 
-    <script type="application/json" id="admin-email-editor-data">{"subjectPlaceholder": {{t $lang "admin.email_editor.preview_subject_placeholder"}}, "bodyPlaceholder": {{t $lang "admin.email_editor.preview_body_placeholder"}}, "reloadConfirm": {{t $lang "admin.email_editor.reload_confirm"}}, "reloadTitle": {{t $lang "admin.email_editor.reload_title"}}}</script>
+    <textarea hidden id="admin-email-editor-data">{"subjectPlaceholder": {{t $lang "admin.email_editor.preview_subject_placeholder"}}, "bodyPlaceholder": {{t $lang "admin.email_editor.preview_body_placeholder"}}, "reloadConfirm": {{t $lang "admin.email_editor.reload_confirm"}}, "reloadTitle": {{t $lang "admin.email_editor.reload_title"}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

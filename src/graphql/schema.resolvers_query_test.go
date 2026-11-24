@@ -592,8 +592,8 @@ func TestQueryResolver_AdminTasks(t *testing.T) {
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
 	if _, err := database.ExecContext(context.Background(), ddb.Server, database.TimeoutWrite,
-		`INSERT INTO scheduler_tasks (task_name, schedule, enabled, run_count, fail_count) VALUES (?, ?, ?, ?, ?)`,
-		"geoip_update", "0 3 * * 0", true, 0, 0,
+		`INSERT INTO scheduler_tasks (id, name, schedule, enabled, run_count, fail_count) VALUES (?, ?, ?, ?, ?, ?)`,
+		"geoip_update", "geoip_update", "0 3 * * 0", true, 0, 0,
 	); err != nil {
 		t.Fatalf("seed scheduled task: %v", err)
 	}

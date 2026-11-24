@@ -11,11 +11,14 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
     {{template "header" .}}
     {{template "navbar" .}}
 
-    <main class="weather-container" id="main-content" role="main">
-        <h1 class="text-purple">{{t .server.Lang "moon.title"}}</h1>
+    <main id="main-content">
+  <div class="container container-md">
+        <header class="page-header"><h1 class="page-title">{{t .server.Lang "moon.title"}}</h1></header>
 
         <!-- Location Search Form - Mobile First -->
         <form action="/moon" method="get" id="moon-form" class="moon-form">
@@ -204,16 +207,17 @@
             </div>
         {{end}}
 
-    </main>
+      </div>
+</main>
 
-    <script type="application/json" id="moon-data">
+    <textarea hidden id="moon-data">
         {
             "apiPath": "{{.api_path}}",
             "gettingLocation": "{{t .server.Lang "moon.js_getting_location"}}",
             "foundLocation": "{{t .server.Lang "moon.js_found_location"}}",
             "locationError": "{{t .server.Lang "moon.js_location_error"}}"
         }
-    </script>
+    </textarea>
 
 {{if not .HideFooter}}
 {{template "footer" .}}

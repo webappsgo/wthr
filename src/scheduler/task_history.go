@@ -2,12 +2,12 @@ package scheduler
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sort"
 	"time"
 
-	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -71,15 +71,12 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 		errorMsg = err.Error()
 	}
 
-	// Both timestamps are bound as canonical UTC text. Binding the time.Time
-	// values themselves would let the driver render them with
-	// time.Time.String(), in the host's local zone, so two servers - or one
-	// server either side of a timezone change - would fill the same column with
-	// two encodings that no longer share an ordering.
+	// Scheduler history timestamps are Unix seconds, so they sort identically
+	// across hosts and time zones.
 	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO scheduler_history (task_name, start_time, end_time, duration_ms, status, error)
+		INSERT INTO scheduler_history (task_id, started_at, finished_at, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, taskName, dbtime.FormatSQLTimestamp(startTime), dbtime.FormatSQLTimestamp(endTime), duration, status, errorMsg)
+	`, taskName, startTime.Unix(), endTime.Unix(), duration, status, errorMsg)
 
 	return dbErr
 }
@@ -88,30 +85,15 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 // absolute instant each run started, most recent first, keeping at most limit
 // of them (limit <= 0 means all).
 //
-// Ordering decision: the ordering is done in Go, after parsing, rather than by
-// the SQL "ORDER BY start_time DESC" this used to rely on. RecordTaskRun now
-// writes canonical UTC text, but rows written by earlier builds are still on
-// disk in the driver's local-zone time.Time.String() layout, and SQL compares
-// those two encodings as text - by wall clock and by leading character, not by
-// instant. A text ORDER BY therefore interleaves legacy and current rows
-// wrongly, and an SQL LIMIT stacked on top of it discards rows off the wrong
-// end of that ordering, which is how GetLastTaskRun could return a run that was
-// not the most recent. Parsing every value to an absolute instant first makes
-// mixed on-disk data give the same answer as uniform data. The scan stays
-// bounded: it is filtered to a single task by an index, and
-// CleanupOldTaskHistory prunes the table on a schedule.
-//
-// A start_time that is NULL or in a layout the project never writes keeps its
-// zero value, so such a row sorts to the very end and can never be mistaken for
-// the newest run. It is still listed, because the run genuinely happened and
-// hiding it would misreport the task's history.
+// The canonical table stores Unix seconds, so ordering by the integer start
+// time is consistent across hosts and time zones.
 func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskRun, error) {
 	// id DESC only breaks ties between runs that share a start instant; the
 	// real ordering is applied below.
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutComplexSelect, `
-		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
+		SELECT id, task_id, started_at, finished_at, duration_ms, status, COALESCE(error, '')
 		FROM scheduler_history
-		WHERE task_name = ?
+		WHERE task_id = ?
 		ORDER BY id DESC
 	`, taskName)
 
@@ -127,18 +109,22 @@ func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskR
 	var history []TaskRun
 	for rows.Next() {
 		var run TaskRun
-		var storedStart, storedEnd interface{}
+		var storedStart, storedEnd sql.NullInt64
+		var duration sql.NullInt64
 		err := rows.Scan(&run.ID, &run.TaskName, &storedStart, &storedEnd,
-			&run.Duration, &run.Status, &run.Error)
+			&duration, &run.Status, &run.Error)
 		if err != nil {
 			continue
 		}
-
-		if parsed, ok := dbtime.ParseStoredTimestamp(storedStart); ok {
-			run.StartTime = parsed
+		if duration.Valid {
+			run.Duration = duration.Int64
 		}
-		if parsed, ok := dbtime.ParseStoredTimestamp(storedEnd); ok {
-			run.EndTime = parsed
+
+		if storedStart.Valid {
+			run.StartTime = time.Unix(storedStart.Int64, 0).UTC()
+		}
+		if storedEnd.Valid {
+			run.EndTime = time.Unix(storedEnd.Int64, 0).UTC()
 		}
 
 		history = append(history, run)
@@ -188,7 +174,7 @@ func (s *Scheduler) GetTaskStats(taskName string) (total, success, errors int, e
 			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
 			SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors
 		FROM scheduler_history
-		WHERE task_name = ?
+		WHERE task_id = ?
 	`, taskName).Scan(&total, &success, &errors)
 
 	return
@@ -242,14 +228,16 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 		days = 90
 	}
 
-	// RecordTaskRun writes start_time as canonical UTC text, but rows left by
-	// earlier builds hold the driver's local-zone rendering of a bound
-	// time.Time - compare each value as a UTC instant in Go rather than against
-	// SQLite's datetime('now'), which would read that local-zone text as if it
-	// were UTC (see CleanupOldSessions).
+	// Unix seconds allow cleanup comparisons to use the same UTC instant
+	// independent of the server's local time zone.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
-	rows, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "scheduler_history", "id", "start_time", cutoff)
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk,
+		"DELETE FROM scheduler_history WHERE started_at < ?", cutoff.Unix())
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}

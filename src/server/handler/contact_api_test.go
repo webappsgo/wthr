@@ -11,7 +11,10 @@ import (
 )
 
 func TestContactFieldsMatchValidationLimits(t *testing.T) {
-	limits := map[string]int{"name": contactNameMax, "email": contactEmailMax, "subject": contactSubjectMax, "message": contactMessageMax}
+	limits := map[string]int{
+		"name": contactNameMax, "email": contactEmailMax, "subject": contactSubjectMax, "message": contactMessageMax,
+		"reported_url": 2048, "copyrighted_work": 2000, "signature": 100,
+	}
 	for _, field := range contactFields() {
 		want, limited := limits[field.Name]
 		if !limited {
@@ -27,15 +30,15 @@ func TestContactFieldsMatchValidationLimits(t *testing.T) {
 }
 
 func TestValidateContactFormCountsCharactersNotBytes(t *testing.T) {
-	valid := contactForm{Name: strings.Repeat("é", contactNameMax), Email: "a@example.com", Subject: "s", Message: "m"}
+	valid := contactForm{Type: "privacy", RequestKind: "access", Name: strings.Repeat("é", contactNameMax), Email: "a@example.com", Subject: "s", Message: "m"}
 	if !validateContactForm(&valid) {
 		t.Error("100 two-byte characters must fit a 100-character name limit")
 	}
-	tooLong := contactForm{Name: strings.Repeat("é", contactNameMax+1), Email: "a@example.com", Subject: "s", Message: "m"}
+	tooLong := contactForm{Type: "privacy", RequestKind: "access", Name: strings.Repeat("é", contactNameMax+1), Email: "a@example.com", Subject: "s", Message: "m"}
 	if validateContactForm(&tooLong) {
 		t.Error("101 characters must exceed the name limit")
 	}
-	longEmail := contactForm{Name: "n", Email: strings.Repeat("a", 250) + "@example.com", Subject: "s", Message: "m"}
+	longEmail := contactForm{Type: "privacy", RequestKind: "access", Name: "n", Email: strings.Repeat("a", 250) + "@example.com", Subject: "s", Message: "m"}
 	if validateContactForm(&longEmail) {
 		t.Error("an email longer than 254 characters must be rejected")
 	}
@@ -43,14 +46,16 @@ func TestValidateContactFormCountsCharactersNotBytes(t *testing.T) {
 
 func TestGetContactFormAPIDescribesTheForm(t *testing.T) {
 	t.Setenv("DOMAIN", "wthr.example")
-	cfg := &config.AppConfig{}
+	db := newServerPagesTestDB(t)
+	cfg := newServerPagesTestConfig()
+	cfg.Server.Pages = config.DefaultPagesConfig()
 	cfg.Server.Contact.Abuse.Email = "abuse@example.com"
 	cfg.Server.Contact.Admin.Email = "private-admin@example.com"
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/contact", nil)
 	r.Header.Set("Accept", "application/json")
 	w := httptest.NewRecorder()
-	GetContactFormAPI(cfg)(w, r)
+	GetContactFormAPI(db, cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
@@ -64,18 +69,26 @@ func TestGetContactFormAPIDescribesTheForm(t *testing.T) {
 			Required  bool   `json:"required"`
 			MaxLength *int   `json:"max_length"`
 		} `json:"fields"`
+		Types       []string               `json:"types"`
 		Captcha     map[string]interface{} `json:"captcha"`
 		SecurityURL string                 `json:"security_url"`
 		AbuseEmail  string                 `json:"abuse_email"`
+		FormToken   string                 `json:"form_token"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v\n%s", err, w.Body.String())
 	}
-	if len(body.Fields) != 5 || body.Fields[0].Name != "name" || body.Fields[3].MaxLength == nil || *body.Fields[3].MaxLength != 5000 {
+	if len(body.Fields) != 13 || body.Fields[0].Name != "name" || body.Fields[3].MaxLength == nil || *body.Fields[3].MaxLength != 5000 {
 		t.Errorf("fields = %+v", body.Fields)
 	}
-	if body.Captcha["provider"] != "simple" || body.Captcha["challenge_id"] == "" || body.Captcha["question"] == "" {
+	if strings.Join(body.Types, ",") != "abuse,dmca,privacy" {
+		t.Errorf("types = %v", body.Types)
+	}
+	if body.Captcha["provider"] != "simple" || body.Captcha["captcha_id"] == "" || body.Captcha["question"] == "" {
 		t.Errorf("captcha = %v, want the simple provider with challenge_id and question", body.Captcha)
+	}
+	if body.FormToken == "" {
+		t.Error("form_token is required")
 	}
 	if body.AbuseEmail != "abuse@example.com" || !strings.HasPrefix(body.SecurityURL, "http://wthr.example") || !strings.HasSuffix(body.SecurityURL, "/server/security") {
 		t.Errorf("security_url=%q abuse_email=%q", body.SecurityURL, body.AbuseEmail)
@@ -147,7 +160,7 @@ func TestInvalidContactFieldNamesTheFirstOffender(t *testing.T) {
 			t.Errorf("invalidContactField() = %q, want %q", got, want)
 		}
 	}
-	ok := contactForm{Name: " n ", Email: "a@example.com", Subject: "s", Message: "m"}
+	ok := contactForm{Type: "privacy", RequestKind: "access", Name: " n ", Email: "a@example.com", Subject: "s", Message: "m"}
 	if got := invalidContactField(&ok); got != "" || ok.Name != "n" {
 		t.Errorf("valid form: field=%q trimmed name=%q", got, ok.Name)
 	}

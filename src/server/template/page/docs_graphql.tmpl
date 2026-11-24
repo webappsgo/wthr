@@ -1,0 +1,22 @@
+{{template "head" .}}
+{{template "header" .}}
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header">
+      <h1 class="page-title">{{.title}}</h1>
+      <p class="page-lead">{{.description}}</p>
+    </header>
+    <section class="section-card" aria-labelledby="graphql-tool-heading">
+      <h2 id="graphql-tool-heading">{{t .server.Lang "api.docs_graphql_launch"}}</h2>
+      <iframe class="docs-tool-frame" src="{{.tool_path}}" title="{{.title}}" loading="lazy"></iframe>
+    </section>
+    <noscript>
+      <section class="section-card" aria-labelledby="graphql-noscript-heading">
+        <h2 id="graphql-noscript-heading">{{t .server.Lang "api.docs_resources_heading"}}</h2>
+        <p>{{t .server.Lang "api.docs_subtitle"}} <a href="{{.plain_path}}">{{t .server.Lang "api.docs_graphql_title"}}</a></p>
+      </section>
+    </noscript>
+  </div>
+</main>
+{{template "footer" .}}

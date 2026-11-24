@@ -2,11 +2,12 @@
 
 {{template "navbar" .}}
 
-<div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "help.heading"}}</h1>
+<main id="main-content">
+ <div class="container container-md">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "help.heading"}}</h1></header>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.quick_start_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-8">
+        <h2 class="text-cyan" id="help-card-8">{{t .server.Lang "help.quick_start_heading"}}</h2>
         <p class="text-comment margin-bottom-1">{{t .server.Lang "help.quick_start_intro"}}</p>
         <div class="console-commands">
             <div class="command-item">
@@ -34,10 +35,10 @@
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}{{.server.APIPath}}/severe-weather?location=Miami</code>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.getting_started_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-7">
+        <h2 class="text-cyan" id="help-card-7">{{t .server.Lang "help.getting_started_heading"}}</h2>
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.faq_location_question"}}</summary>
             <div class="help-content">
@@ -65,10 +66,10 @@
                 <p>{{t .server.Lang "help.faq_alerts_answer"}}</p>
             </div>
         </details>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.features_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-6">
+        <h2 class="text-cyan" id="help-card-6">{{t .server.Lang "help.features_heading"}}</h2>
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.feature_forecasts_title"}}</summary>
             <div class="help-content">
@@ -135,10 +136,10 @@
                 <p>{{t .server.Lang "help.feature_moon_calculated"}}</p>
             </div>
         </details>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.api_access_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-5">
+        <h2 class="text-cyan" id="help-card-5">{{t .server.Lang "help.api_access_heading"}}</h2>
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.api_endpoints_title"}}</summary>
             <div class="help-content">
@@ -147,7 +148,6 @@
                     <li><code>GET {{.server.APIPath}}/weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_weather"}}</li>
                     <li><code>GET {{.server.APIPath}}/earthquakes?feed=all_day</code> - {{t .server.Lang "help.api_endpoint_earthquakes"}}</li>
                     <li><code>GET {{.server.APIPath}}/severe-weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_severe"}}</li>
-                    <li><code>GET {{.server.APIPath}}/hurricanes</code> - {{t .server.Lang "help.api_endpoint_hurricanes"}}</li>
                     <li><code>GET {{.server.APIPath}}/moon?location=CITY</code> - {{t .server.Lang "help.api_endpoint_moon"}}</li>
                     <li><code>GET {{.server.APIPath}}/search?q=QUERY</code> - {{t .server.Lang "help.api_endpoint_search"}}</li>
                     <li><code>GET /server/healthz</code> - {{t .server.Lang "help.api_endpoint_healthz"}}</li>
@@ -206,10 +206,10 @@
                 <p>{{t .server.Lang "help.graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_introspection_middle"}} <a href="/server/docs/graphql" class="text-cyan">{{t .server.Lang "help.graphql_playground_link"}}</a>.</p>
             </div>
         </details>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.troubleshooting_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-4">
+        <h2 class="text-cyan" id="help-card-4">{{t .server.Lang "help.troubleshooting_heading"}}</h2>
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.trouble_weather_title"}}</summary>
             <div class="help-content">
@@ -239,10 +239,10 @@
                 <p>{{t .server.Lang "help.trouble_password_click"}} <a href="/server/auth/login" class="text-cyan">{{t .server.Lang "help.trouble_password_login_link"}}</a>. {{t .server.Lang "help.trouble_password_instructions"}}</p>
             </div>
         </details>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.privacy_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-3">
+        <h2 class="text-cyan" id="help-card-3">{{t .server.Lang "help.privacy_heading"}}</h2>
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.privacy_data_question"}}</summary>
             <div class="help-content">
@@ -256,11 +256,11 @@
                 <p>{{t .server.Lang "help.privacy_delete_go_to"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help.settings_page_link"}}</a> {{t .server.Lang "help.privacy_delete_answer"}}</p>
             </div>
         </details>
-    </div>
+    </section>
 
     {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
-    <div class="card margin-y-lg" id="i2p-access">
-        <h2 class="text-cyan">🔗 {{t .server.Lang "help.i2p_heading"}}</h2>
+    <section class="section-card" id="i2p-access" aria-labelledby="help-card-2">
+        <h2 class="text-cyan" id="help-card-2">🔗 {{t .server.Lang "help.i2p_heading"}}</h2>
         <p>{{t .server.Lang "help.i2p_description"}}</p>
         <h3 class="text-purple">{{t .server.Lang "help.i2p_address_heading"}}</h3>
         <div class="code-wrapper margin-y-md">
@@ -274,18 +274,18 @@
             <li>{{t .server.Lang "help.i2p_step_open"}} <code class="mobile-code i2p-address">http://{{.server.I2P.Address}}</code></li>
         </ol>
         <p class="text-comment"><small>{{t .server.Lang "help.i2p_http_note"}}</small></p>
-    </div>
+    </section>
     {{end}}
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help.still_need_help_heading"}}</h2>
+    <section class="section-card" aria-labelledby="help-card-1">
+        <h2 class="text-cyan" id="help-card-1">{{t .server.Lang "help.still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">
             <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" rel="noopener noreferrer" class="btn btn-primary">{{t .server.Lang "help.report_issue_label"}}</a>
             <a href="{{path "/server/help/mcp"}}" class="btn btn-secondary">{{t .server.Lang "help_mcp.link"}}</a>
             <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api.docs_heading"}}</a>
             <a href="{{path "/server/security"}}" class="btn btn-secondary">{{t .server.Lang "security.title"}}</a>
         </div>
-    </div>
-</div>
+    </section>
+</div></main>
 
 {{template "footer" .}}

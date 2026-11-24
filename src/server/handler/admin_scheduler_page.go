@@ -260,8 +260,6 @@ func (h *SchedulerHandler) SubmitPage(w http.ResponseWriter, r *http.Request) {
 		task.Enabled = r.PostFormValue("enabled") == "on"
 		task.RetryOnFail = r.PostFormValue("retry_on_fail") == "on"
 		task.Compress = r.PostFormValue("compress") == "on"
-		task.Verify = r.PostFormValue("verify") == "on"
-		task.RestartOnFail = r.PostFormValue("restart_on_fail") == "on"
 		if v := r.PostFormValue("retry_delay"); v != "" {
 			task.RetryDelay = v
 		}

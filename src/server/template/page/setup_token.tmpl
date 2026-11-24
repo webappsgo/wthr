@@ -11,11 +11,16 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-sm">
     <div class="setup-container">
         <div class="setup-card">
             <div class="setup-header">
                 <div class="setup-icon">🔐</div>
-                <h1 class="setup-title">{{t .server.Lang "setup.token_title"}}</h1>
+                <header class="page-header"><h1 class="page-title">{{t .server.Lang "setup.token_title"}}</h1></header>
                 <p class="setup-subtitle">{{t .server.Lang "setup.token_subtitle"}}</p>
             </div>
 
@@ -55,7 +60,7 @@
         </div>
     </div>
 
-    <script type="application/json" id="setup-token-data">
+    <textarea hidden id="setup-token-data">
         {
             "invalidFormat": "{{t .server.Lang "setup.token_invalid_format_error"}}",
             "verifying": "{{t .server.Lang "setup.token_verifying_button"}}",
@@ -63,6 +68,7 @@
             "networkError": "{{t .server.Lang "setup.token_network_error"}}",
             "continueLabel": "{{t .server.Lang "setup.token_continue_button"}}"
         }
-    </script>
-</body>
-</html>
+    </textarea>
+  </div>
+</main>
+{{template "footer" .}}

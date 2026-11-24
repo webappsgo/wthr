@@ -7,7 +7,7 @@
 {{- $self := $ap -}}
 {{- if .admin_self_path}}{{$self = .admin_self_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.profile.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.profile.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.profile.intro"}}</p>
   </div>
 

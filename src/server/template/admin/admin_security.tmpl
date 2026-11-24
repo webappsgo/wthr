@@ -5,12 +5,12 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
             <div class="content-header">
-                <h1>🔒 {{t $lang "admin.security.title"}}</h1>
+                <header class="page-header"><h1 class="page-title">🔒 {{t $lang "admin.security.title"}}</h1></header>
                 <p class="subtitle">{{t $lang "admin.security.subtitle"}}</p>
             </div>
 
             {{if .NewOperatorToken}}
-            <section class="admin-card" aria-labelledby="new-operator-token-heading" role="alert">
+            <section class="admin-section-card" aria-labelledby="new-operator-token-heading" role="alert">
                 <div class="card-header">
                     <h2 id="new-operator-token-heading">{{t $lang "admin.security.operator_token_new_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.operator_token_new_description"}}</p>
@@ -21,7 +21,7 @@
             </section>
             {{end}}
 
-            <section class="admin-card" aria-labelledby="operator-token-heading">
+            <section class="admin-section-card" aria-labelledby="operator-token-heading">
                 <div class="card-header">
                     <h2 id="operator-token-heading">{{t $lang "admin.security.operator_token_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.operator_token_description"}}</p>
@@ -43,7 +43,7 @@
             </section>
 
             <!-- Security Headers Section -->
-            <section class="admin-card" aria-labelledby="headers-heading">
+            <section class="admin-section-card" aria-labelledby="headers-heading">
                 <div class="card-header">
                     <h2 id="headers-heading">{{t $lang "admin.security.headers_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.headers_description"}}</p>
@@ -147,7 +147,7 @@
             </section>
 
             <!-- CORS Settings Section -->
-            <section class="admin-card" aria-labelledby="cors-heading">
+            <section class="admin-section-card" aria-labelledby="cors-heading">
                 <div class="card-header">
                     <h2 id="cors-heading">{{t $lang "admin.security.cors_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.cors_description"}}</p>
@@ -267,7 +267,7 @@
             </section>
 
             <!-- Rate Limiting Section -->
-            <section class="admin-card" aria-labelledby="ratelimit-heading">
+            <section class="admin-section-card" aria-labelledby="ratelimit-heading">
                 <div class="card-header">
                     <h2 id="ratelimit-heading">{{t $lang "admin.security.ratelimit_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.ratelimit_description"}}</p>
@@ -380,7 +380,7 @@
             </section>
 
             <!-- Authentication Settings Section -->
-            <section class="admin-card" aria-labelledby="auth-heading">
+            <section class="admin-section-card" aria-labelledby="auth-heading">
                 <div class="card-header">
                     <h2 id="auth-heading">{{t $lang "admin.security.auth_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.auth_description"}}</p>
@@ -469,7 +469,7 @@
             </section>
 
             <!-- Admin Passkey Management Section -->
-            <section class="admin-card" aria-labelledby="passkeys-heading">
+            <section class="admin-section-card" aria-labelledby="passkeys-heading">
                 <div class="card-header">
                     <h2 id="passkeys-heading">{{t $lang "admin.security.passkeys_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.security.passkeys_description"}}</p>
@@ -522,7 +522,7 @@
                 </div>
             </section>
 
-    <script type="application/json" id="admin-security-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <textarea hidden id="admin-security-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

@@ -105,7 +105,7 @@ __request() {
         printf '  Path: %s\n' "$path" >&2
         printf '  Accept: %s\n' "$accept" >&2
         printf '  Content-Type: %s\n' "$ct" >&2
-        head -c 200 "$body" >&2 || true
+        head -c 8000 "$body" >&2 || true
         printf '\n' >&2
         return
     fi
@@ -197,10 +197,12 @@ server:
       window: 60
     global_burst: 100000
 users:
+  enabled: true
   # The suite's "Creating regular user" step POSTs /server/auth/register,
-  # which 404s unless self-registration is open (AI.md PART 34 default is open).
+  # which requires multi-user mode and open self-registration (AI.md PART 33/34).
   registration:
     mode: open
+    require_email_verification: false
 EOF
 
     COLUMNS=120 "/usr/local/bin/$PROJECTNAME" \
@@ -249,7 +251,7 @@ __create_admin() {
         --data-urlencode "setup_token=$setup_token" \
         "$BASE_URL/server/administration/verify-token" >/dev/null
 
-    curl -q -LSsf -D "$hdr" -o "$body" -c "$SETUP_COOKIE" -b "$SETUP_COOKIE" \
+    curl -q -LSs -D "$hdr" -o "$body" -c "$SETUP_COOKIE" -b "$SETUP_COOKIE" \
         -H "Accept: application/json" \
         --data-urlencode "username=$ADMIN_USERNAME" \
         --data-urlencode "email=admin@example.com" \
@@ -259,6 +261,9 @@ __create_admin() {
 
     if [ "$(__http_code "$hdr")" != "200" ]; then
         __fail "admin bootstrap :: expected status 200, got $(__http_code "$hdr")"
+        head -c 8000 "$body" >&2 || true
+        printf '\n' >&2
+        return 1
         head -c 200 "$body" >&2 || true
         printf '\n' >&2
         return
@@ -283,23 +288,44 @@ __admin_api_matrix() {
 }
 
 __create_user() {
-    curl -q -LSsf -L -c "$USER_COOKIE" -b "$USER_COOKIE" \
+    local hdr="$TEST_DIR/register.headers"
+    local body="$TEST_DIR/register.body"
+
+    curl -q -LSs -D "$hdr" -o "$body" -c "$USER_COOKIE" -b "$USER_COOKIE" \
         --data-urlencode "username=matrixuser" \
         --data-urlencode "email=matrixuser@example.com" \
         --data-urlencode "password=MatrixPassword123!" \
         --data-urlencode "confirm_password=MatrixPassword123!" \
-        "$BASE_URL/server/auth/register" >/dev/null
+        "$BASE_URL/server/auth/register"
 
     if [ -z "$(__cookie_value "$USER_COOKIE" "user_session")" ]; then
-        __fail "user bootstrap :: user_session cookie missing"
+        __fail "user bootstrap :: HTTP $(__http_code "$hdr"); user_session cookie missing"
+        head -c 8000 "$body" >&2 || true
+        printf '\n' >&2
     fi
 }
 
 __check_user_login() {
     local hdr="$TEST_DIR/login.headers"
     local body="$TEST_DIR/login.body"
+    local login_cookie="$TEST_DIR/login.cookies"
+    local invalid_cookie="$TEST_DIR/login-invalid.cookies"
+    local csrf_token
 
-    curl -q -LSs -D "$hdr" -o "$body" -c "$USER_COOKIE" -b "$USER_COOKIE" \
+    # Registration already auto-logs this user in; omit the session cookie here
+    # so the login route returns its form instead of redirecting to the dashboard.
+    curl -q -LSs -D "$hdr" -o "$body" -c "$login_cookie" \
+        -H "Accept: text/html" \
+        "$BASE_URL/server/auth/login"
+    csrf_token=$(__cookie_value "$login_cookie" "csrf_token")
+    if [ -z "$csrf_token" ]; then
+        __fail "user login :: CSRF token missing from login form"
+        return
+    fi
+    cp "$login_cookie" "$invalid_cookie"
+
+    curl -q -LSs -D "$hdr" -o "$body" -c "$login_cookie" -b "$login_cookie" \
+        --data-urlencode "csrf_token=$csrf_token" \
         --data-urlencode "identifier=matrixuser" \
         --data-urlencode "password=MatrixPassword123!" \
         "$BASE_URL/server/auth/login" >/dev/null
@@ -307,9 +333,11 @@ __check_user_login() {
         200 | 302 | 303) ;;
         *) __fail "user login :: expected 200/302/303, got $(__http_code "$hdr")" ;;
     esac
+    cp "$login_cookie" "$USER_COOKIE"
 
-    curl -q -LSs -D "$hdr" -o "$body" \
+    curl -q -LSs -D "$hdr" -o "$body" -c "$invalid_cookie" -b "$invalid_cookie" \
         -H "Accept: application/json" \
+        --data-urlencode "csrf_token=$csrf_token" \
         --data-urlencode "identifier=matrixuser" \
         --data-urlencode "password=WrongPassword000!" \
         "$BASE_URL/server/auth/login" >/dev/null

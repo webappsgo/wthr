@@ -49,6 +49,7 @@ import (
 	appgraphql "github.com/webappsgo/wthr/src/graphql"
 	"github.com/webappsgo/wthr/src/mcp"
 	"github.com/webappsgo/wthr/src/mode"
+	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/privilege"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/secret"
@@ -231,7 +232,8 @@ func registerMetricsRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, 
 // /server/docs/graphql, and the query endpoint at /api/{api_version}/server/graphql with its
 // /api/graphql alias. The alias mounts the SAME handler - an alias is never a redirect.
 func registerGraphQLRoutes(r chi.Router, apiPath string, query, playground, assets http.HandlerFunc) {
-	r.Get("/server/docs/graphql", playground)
+	r.Get("/server/docs/graphql", interactiveDocsPage("page/docs_graphql.tmpl", "api.docs_graphql_title", "api.docs_graphql_desc", "/server/docs/graphql/ui", apiPath+"/server/graphql"))
+	r.Get("/server/docs/graphql/ui", playground)
 	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
 	// never loaded from a CDN, see src/graphql/playground.go.
 	r.Get("/server/docs/graphql/assets/*", assets)
@@ -243,10 +245,23 @@ func registerGraphQLRoutes(r chi.Router, apiPath string, query, playground, asse
 // /server/docs/swagger, and the JSON spec at /api/{api_version}/server/swagger with its
 // /api/swagger alias served by the same handler.
 func registerSwaggerRoutes(r chi.Router, apiPath string, spec, ui http.HandlerFunc) {
-	r.Get("/server/docs/swagger", ui)
+	r.Get("/server/docs/swagger", interactiveDocsPage("page/docs_swagger.tmpl", "api.docs_swagger_title", "api.docs_swagger_desc", "/server/docs/swagger/index.html", apiPath+"/server/swagger"))
 	r.Get("/server/docs/swagger/*", ui)
 	r.Get(apiPath+"/server/swagger", spec)
 	r.Get("/api/swagger", spec)
+}
+
+// interactiveDocsPage renders the project's shared page shell around a local API tool.
+func interactiveDocsPage(templateName, titleKey, descriptionKey, toolPath, plainPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data := util.TemplateData(r, map[string]interface{}{
+			"title":       handler.Translate(r, titleKey),
+			"description": handler.Translate(r, descriptionKey),
+			"tool_path":   toolPath,
+			"plain_path":  plainPath,
+		})
+		middleware.RenderHTML(w, r, http.StatusOK, templateName, data)
+	}
 }
 
 // restartRequested is signalled by the admin restart endpoint; the signal loop then runs
@@ -259,6 +274,15 @@ const exitRestart = 75
 // restartPending records that the shutdown in progress is a restart.
 var restartPending atomic.Bool
 
+type serverRunHooks struct {
+	exitProcess    func(int)
+	runRootPhase   func(*util.DirectoryPaths, util.StartupPorts, string)
+	serviceStop    <-chan struct{}
+	installSignals bool
+}
+
+var runServerWithHooksRunner = runServerWithHooks
+
 // main starts the server directly, or under the Windows Service Control Manager when the
 // process was started as a Windows service.
 func main() {
@@ -270,6 +294,24 @@ func main() {
 
 // runServer runs the server from startup to graceful shutdown.
 func runServer() {
+	runServerWithHooksRunner(serverRunHooks{
+		exitProcess:    os.Exit,
+		runRootPhase:   runRootPhase,
+		serviceStop:    serviceStopRequested,
+		installSignals: true,
+	})
+}
+
+func runServerWithHooks(hooks serverRunHooks) {
+	if hooks.exitProcess == nil {
+		hooks.exitProcess = os.Exit
+	}
+	if hooks.runRootPhase == nil {
+		hooks.runRootPhase = runRootPhase
+	}
+	if hooks.serviceStop == nil {
+		hooks.serviceStop = serviceStopRequested
+	}
 	// Registered first so it runs last, after every other deferred cleanup
 	defer func() {
 		if restartPending.Load() {
@@ -278,11 +320,11 @@ func runServer() {
 			// container restart policies start a fresh process with the right privileges.
 			// A manually started server re-executes itself instead.
 			if util.DetectServiceManager() != "manual" {
-				os.Exit(exitRestart)
+				hooks.exitProcess(exitRestart)
 			}
 			if err := restartProcess(); err != nil {
 				log.Printf("Restart failed: %v", err)
-				os.Exit(1)
+				hooks.exitProcess(1)
 			}
 		}
 	}()
@@ -322,10 +364,10 @@ func runServer() {
 	if err := cliInstance.Parse(os.Args[1:]); err != nil {
 		// Bad CLI usage (AI.md PART 8: exit code 64 = usage error).
 		log.Printf("Failed to parse CLI: %v", err)
-		os.Exit(64)
+		hooks.exitProcess(64)
 	}
 	if os.Getenv("CLI_COMMAND_HANDLED") == "1" {
-		os.Exit(0)
+		hooks.exitProcess(0)
 	}
 
 	// Check if this is a command that exits (handled by CLI package)
@@ -340,52 +382,9 @@ func runServer() {
 		// AI.md PART 13: /server/healthz is the canonical route (root /healthz is optional);
 		// the check tries HTTP and HTTPS on every configured port
 		if !runHealthCheck(port) {
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
-		os.Exit(0)
-	}
-
-	// Handle --daemon flag (AI.md PART 8: Daemonize - detach from terminal, Unix only)
-	// AI.md: "modern service managers prefer foreground" but flag should work
-	if config.IsTruthy(os.Getenv("DAEMON")) && runtime.GOOS != "windows" {
-		// Check if we're already daemonized (avoid double fork)
-		if os.Getenv("_DAEMON_CHILD") != "1" {
-			// Fork a new process
-			execPath, err := os.Executable()
-			if err != nil {
-				// General startup failure (AI.md PART 8: exit code 1).
-				log.Printf("Failed to get executable path for daemon: %v", err)
-				os.Exit(1)
-			}
-
-			// Set marker so child knows it's the daemon
-			env := os.Environ()
-			env = append(env, "_DAEMON_CHILD=1")
-
-			// Create child process
-			procAttr := &os.ProcAttr{
-				Dir: "/",
-				Env: env,
-				// Detach stdin/stdout/stderr
-				Files: []*os.File{nil, nil, nil},
-			}
-
-			proc, err := os.StartProcess(execPath, os.Args, procAttr)
-			if err != nil {
-				// General startup failure (AI.md PART 8: exit code 1).
-				log.Printf("Failed to start daemon process: %v", err)
-				os.Exit(1)
-			}
-
-			// Release the child and exit parent
-			if err := proc.Release(); err != nil {
-				log.Printf("WARNING: failed to release daemon process handle: %v", err)
-			}
-			fmt.Printf("Started daemon with PID %d\n", proc.Pid)
-			os.Exit(0)
-		}
-		// Child process continues with normal startup
-		fmt.Println("Running as daemon (detached from terminal)")
+		hooks.exitProcess(0)
 	}
 
 	// Initialize mode from environment variables (AI.md PART 6)
@@ -400,7 +399,7 @@ func runServer() {
 	if err != nil {
 		// Config/path resolution failure (AI.md PART 8: exit code 2).
 		log.Printf("Failed to determine directory paths: %v", err)
-		os.Exit(2)
+		hooks.exitProcess(2)
 	}
 
 	// Apply environment variable overrides (set by CLI or directly)
@@ -418,14 +417,14 @@ func runServer() {
 				if err := os.Remove(envDataDir); err != nil {
 					// Config-directed path (DATA_DIR) unusable (AI.md PART 8: exit code 2).
 					log.Printf("Failed to remove file at %s: %v", envDataDir, err)
-					os.Exit(2)
+					hooks.exitProcess(2)
 				}
 			}
 		}
 		if err := os.MkdirAll(envDataDir, dirPerm); err != nil {
 			// Config-directed path (DATA_DIR) unusable (AI.md PART 8: exit code 2).
 			log.Printf("Failed to create data directory %s: %v", envDataDir, err)
-			os.Exit(2)
+			hooks.exitProcess(2)
 		}
 		dirPaths.Data = envDataDir
 	}
@@ -438,14 +437,14 @@ func runServer() {
 				if err := os.Remove(envConfigDir); err != nil {
 					// Config-directed path (CONFIG_DIR) unusable (AI.md PART 8: exit code 2).
 					log.Printf("Failed to remove file at %s: %v", envConfigDir, err)
-					os.Exit(2)
+					hooks.exitProcess(2)
 				}
 			}
 		}
 		if err := os.MkdirAll(envConfigDir, dirPerm); err != nil {
 			// Config-directed path (CONFIG_DIR) unusable (AI.md PART 8: exit code 2).
 			log.Printf("Failed to create config directory %s: %v", envConfigDir, err)
-			os.Exit(2)
+			hooks.exitProcess(2)
 		}
 		dirPaths.Config = envConfigDir
 	}
@@ -459,7 +458,7 @@ func runServer() {
 	if err := util.CreateDirectories(dirPaths); err != nil {
 		// Config-directed paths unusable (AI.md PART 8: exit code 2).
 		log.Printf("Failed to create directories: %v", err)
-		os.Exit(2)
+		hooks.exitProcess(2)
 	}
 
 	// AI.md PART 8 step 8d: every private path is owner-only before server.yml is read
@@ -468,20 +467,22 @@ func runServer() {
 		// Config-directed path unusable (AI.md PART 8: exit code 2).
 		log.Printf("Failed to make the private paths private: %v", err)
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(2)
+		hooks.exitProcess(2)
 	}
 	if err := cluster.JoinFromEnvironment(dirPaths.Config, dirPaths.Log); err != nil {
 		log.Printf("Cluster enrollment failed: %v", err)
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 
-	// AI.md PART 8 step 8e: PORT, then server.port from server.yml, then a random 64xxx port
-	startupPorts, err := util.ResolveStartupPorts(dirPaths.Config)
+	// AI.md PART 8 step 8e reads only listener and daemon settings from the
+	// merged server.yml and yaml.d view, before secrets or other config values.
+	startupSettings := config.LoadStartupSettings(dirPaths.Config)
+	startupPorts, err := util.ResolveStartupPortsWithValue(startupSettings.Port)
 	if err != nil {
 		// Config error: invalid port configuration (AI.md PART 8: exit code 2).
 		log.Printf("Failed to determine the server ports: %v", err)
 		fmt.Fprintf(os.Stderr, "Failed to determine the server ports: %v\n", err)
-		os.Exit(2)
+		hooks.exitProcess(2)
 	}
 
 	// Generate server.yml if it doesn't exist, saving the determined port in it (AI.md PART 8 step 13)
@@ -489,17 +490,63 @@ func runServer() {
 		log.Printf("Warning: Failed to generate server.yml: %v", err)
 	}
 
+	// Daemonize manual starts before binding privileged listeners. Service
+	// managers and containers keep the process in the foreground.
+	daemonize := daemonizeRequested(startupSettings.Daemonize)
+	if daemonize && runtime.GOOS != "windows" && !util.IsContainer() && util.DetectServiceManager() == "manual" && os.Getenv("_DAEMON_CHILD") != "1" {
+		execPath, err := os.Executable()
+		if err != nil {
+			log.Printf("Failed to get executable path for daemon: %v", err)
+			hooks.exitProcess(1)
+		}
+		env := os.Environ()
+		env = append(env, "_DAEMON_CHILD=1")
+		proc, err := os.StartProcess(execPath, os.Args, &os.ProcAttr{Dir: "/", Env: env, Files: []*os.File{nil, nil, nil}})
+		if err != nil {
+			log.Printf("Failed to start daemon process: %v", err)
+			hooks.exitProcess(1)
+		}
+		if err := proc.Release(); err != nil {
+			log.Printf("WARNING: failed to release daemon process handle: %v", err)
+		}
+		fmt.Printf("Started daemon with PID %d\n", proc.Pid)
+		hooks.exitProcess(0)
+	}
+	if daemonize && os.Getenv("_DAEMON_CHILD") == "1" {
+		fmt.Println("Running as daemon (detached from terminal)")
+	}
+
 	// AI.md PART 8 steps 8a-8i: service account, ownership, privileged ports, privilege drop
-	runRootPhase(dirPaths, startupPorts)
+	hooks.runRootPhase(dirPaths, startupPorts, startupSettings.Address)
+
+	// Load shared logging settings after privilege drop so the audit file uses
+	// its configured path and retention from the first entry onward.
+	cfg, configErr := config.CurrentConfig()
+	config.SetGlobalConfig(cfg)
 
 	// Initialize logger
 	appLogger, err := util.NewLogger(dirPaths.Log)
 	if err != nil {
 		// General startup failure (AI.md PART 8: exit code 1).
 		log.Printf("Failed to initialize logger: %v", err)
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 	handler.SetSecurityLogger(appLogger)
+	if configErr != nil {
+		appLogger.Error("Warning: Could not load server.yml: %v (using defaults)", configErr)
+		fmt.Printf("%s Warning: Could not load server.yml: %v (using defaults)\n", display.Emoji("⚠️", "WARNING:"), configErr)
+	} else {
+		appLogger.Printf("Configuration loaded from server.yml")
+		fmt.Printf("%s Configuration loaded from server.yml\n", display.Emoji("✅", "[OK]"))
+	}
+	if cfg != nil {
+		if err := appLogger.ConfigureAudit(cfg.Server.Logs.Audit); err != nil {
+			appLogger.Error("Invalid audit log configuration: %v", err)
+		}
+	}
+	config.SetSecretGeneratedAuditHook(func(key string) {
+		appLogger.Audit("system", "config.secret_generated", "configuration", "", key, "", "", true, "")
+	})
 
 	// Print startup timestamp
 	startTime := time.Now()
@@ -544,7 +591,7 @@ func runServer() {
 		token, err := util.GenerateSetupToken()
 		if err != nil {
 			appLogger.Error("Failed to generate setup token: %v", err)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 		setupToken = token
 		appLogger.Printf("Setup token generated (will be displayed in banner)")
@@ -557,7 +604,7 @@ func runServer() {
 	dualDB, err := database.InitDualDB(dirPaths.Data)
 	if err != nil {
 		appLogger.Error("Failed to initialize dual database system: %v", err)
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 	defer func() {
 		if err := dualDB.Close(); err != nil {
@@ -569,7 +616,7 @@ func runServer() {
 	database.SetGlobalDualDB(dualDB)
 	if err := (&model.SettingsModel{DB: dualDB.Server}).MigrateLegacyDatabaseSettings(); err != nil {
 		appLogger.Error("Failed to migrate legacy settings into YAML config files: %v", err)
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 
 	// AI.md PART 11 "Cryptographic Keys": installation_secret, cookie_signing_key and csrf_token_secret
@@ -577,7 +624,7 @@ func runServer() {
 	secretStore := secret.NewStore(dualDB.Server)
 	if err := secretStore.EnsureAll(); err != nil {
 		appLogger.Error("Failed to initialize the project secrets: %v", err)
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 	secret.SetDefault(secretStore)
 	dbPath := fmt.Sprintf("%s/db/server.db + %s/db/users.db", dirPaths.Data, dirPaths.Data)
@@ -608,19 +655,6 @@ func runServer() {
 		fmt.Printf("%s Database initialized: %s (setup mode)\n", display.Emoji("✅", "[OK]"), dbPath)
 	}
 
-	// Load server configuration
-	cfg, err := config.CurrentConfig()
-	if err != nil {
-		appLogger.Error("Warning: Could not load server.yml: %v (using defaults)", err)
-		fmt.Printf("%s Warning: Could not load server.yml: %v (using defaults)\n", display.Emoji("⚠️", "WARNING:"), err)
-	} else {
-		appLogger.Printf("Configuration loaded from server.yml")
-		fmt.Printf("%s Configuration loaded from server.yml\n", display.Emoji("✅", "[OK]"))
-	}
-
-	// Set global config for handler access
-	config.SetGlobalConfig(cfg)
-
 	clusterEnabledSetting, _, clusterConfigErr := config.ReadSetting("server.cluster.enabled")
 	if clusterConfigErr != nil {
 		appLogger.Printf("WARNING: Could not read cluster mode setting: %v", clusterConfigErr)
@@ -628,7 +662,7 @@ func runServer() {
 	remoteClusterMode := database.IsRemoteDatabase(database.GetServerDB())
 	if config.IsTruthy(fmt.Sprint(clusterEnabledSetting)) && !remoteClusterMode {
 		appLogger.Error("Cluster mode requires a configured PostgreSQL or MySQL database")
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 	if remoteClusterMode {
 		nodeID, err := os.Hostname()
@@ -650,7 +684,7 @@ func runServer() {
 		manager := cluster.NewClusterManager(database.GetServerDB(), nodeID, net.JoinHostPort(nodeHost, nodePort), true)
 		if err := manager.StartClusterManager(); err != nil {
 			appLogger.Error("Failed to start cluster manager: %v", err)
-			os.Exit(3)
+			hooks.exitProcess(3)
 		}
 		defer manager.StopClusterManager()
 		if syncedConfig, syncErr := config.CurrentConfig(); syncErr == nil {
@@ -658,7 +692,7 @@ func runServer() {
 			config.SetGlobalConfig(cfg)
 		} else {
 			appLogger.Error("Failed to load synchronized cluster configuration: %v", syncErr)
-			os.Exit(3)
+			hooks.exitProcess(3)
 		}
 	}
 
@@ -829,9 +863,9 @@ func runServer() {
 	if os.Getenv("CLI_STATUS_FLAG") == "1" {
 		isHealthy := showServerStatus(db, dbPath, hasNoUsers)
 		if isHealthy {
-			os.Exit(0)
+			hooks.exitProcess(0)
 		}
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 
 	// Create chi router
@@ -901,14 +935,14 @@ func runServer() {
 	if err != nil {
 		// General startup failure — embedded locale corruption (AI.md PART 8: exit code 1).
 		log.Printf("Failed to initialize i18n: %v", err)
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 	// AI.md PART 31: an unsupported language silently falls back to English
 	if !i18nService.IsSupported(serverLang) {
 		i18nService, err = i18n.NewI18n(localesFS, "en")
 		if err != nil {
 			log.Printf("Failed to initialize i18n: %v", err)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 	}
 	// Global accessor for services/scheduler tasks with no gin.Context
@@ -1061,7 +1095,7 @@ func runServer() {
 	if err != nil {
 		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
 		log.Printf("Failed to get static subdirectory: %v", err)
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 	staticFileServer := pwa.StaticCache(http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS))))
 	r.Get("/static/css/accent.css", handler.ServeAccentCSS)
@@ -1080,7 +1114,7 @@ func runServer() {
 	if err != nil {
 		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
 		log.Printf("Failed to get template subdirectory: %v", err)
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 
 	// Walk the filesystem and collect all .tmpl files
@@ -1095,7 +1129,7 @@ func runServer() {
 		return nil
 	}); err != nil {
 		log.Printf("Failed to enumerate embedded templates: %v", err)
-		os.Exit(1)
+		hooks.exitProcess(1)
 	}
 
 	// Debug: Print loaded templates
@@ -1148,7 +1182,7 @@ func runServer() {
 		if err != nil {
 			// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
 			log.Printf("Failed to read template %s: %v", path, err)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 		contentStr := string(content)
 		// If template doesn't have {{define}}, wrap it to give it a name matching the path
@@ -1159,7 +1193,7 @@ func runServer() {
 		if err != nil {
 			// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
 			log.Printf("Failed to parse template %s: %v", path, err)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 	}
 
@@ -1356,6 +1390,9 @@ func runServer() {
 		// Atomic publication ensures each request observes either the old
 		// complete snapshot or the new complete snapshot.
 		config.SetGlobalConfig(newCfg)
+		if err := appLogger.ConfigureAudit(newCfg.Server.Logs.Audit); err != nil {
+			appLogger.Error("Invalid audit log configuration after reload: %v", err)
+		}
 
 		// Port changes require a manual restart to take effect.
 		if err := config.SyncSharedConfigFromFiles(); err != nil {
@@ -1378,6 +1415,9 @@ func runServer() {
 	scheduler.SetAppVersion(Version)
 	// AI.md PART 19: timezone, catch-up window and every task's schedule and enabled state come from server.scheduler
 	taskScheduler.Configure(cfg.Server.Scheduler)
+	if err := scheduler.RegisterContactWebhookRetryTask(taskScheduler); err != nil {
+		log.Printf("WARNING: Failed to schedule contact webhook retries: %v", err)
+	}
 	var notificationService *service.NotificationService
 
 	// addScheduledTask registers a built-in task under its AI.md PART 19 id; the schedule
@@ -1439,6 +1479,15 @@ func runServer() {
 		return err
 	})
 
+	addScheduledTask("keyserver_retry", func() error {
+		serverDB := database.GetServerDB()
+		if serverDB == nil {
+			return nil
+		}
+		manager := service.NewPGPKeyManager(serverDB, filepath.Join(path.GetConfigDir(), "security"))
+		return manager.RetryKeyserverPublishes(context.Background())
+	})
+
 	// Register weather alert checks - run every 5 minutes per IDEA.md
 	addScheduledTask("weather_alert_check", func() error {
 		return weatherNotifications.CheckWeatherAlerts()
@@ -1497,15 +1546,13 @@ func runServer() {
 
 	// AI.md PART 19: Tor health check every 10 minutes (when Tor installed)
 	addScheduledTask("tor_health", func() error {
-		restart := cfg.Server.Scheduler.SchedulerTaskSettings("tor_health").RestartOnFail
-		return scheduler.CheckOverlayHealth("tor", torService, restart)
+		return scheduler.CheckOverlayHealth("tor", torService, true)
 	})
 
 	// AI.md PART 19: I2P provider health check every 10 minutes (only registered when the I2P eepsite is opted in)
 	if cfg.Server.I2P.Enabled {
 		addScheduledTask("i2p_health", func() error {
-			restart := cfg.Server.Scheduler.SchedulerTaskSettings("i2p_health").RestartOnFail
-			return scheduler.CheckOverlayHealth("i2p", i2pManager, restart)
+			return scheduler.CheckOverlayHealth("i2p", i2pManager, true)
 		})
 	}
 
@@ -1615,7 +1662,7 @@ func runServer() {
 		fmt.Printf("%s Failed to initialize task history table: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		// DB connection failure (AI.md PART 8: exit code 3).
 		log.Printf("Failed to initialize task history table: %v", err)
-		os.Exit(3)
+		hooks.exitProcess(3)
 	}
 
 	// Start the scheduler
@@ -1770,6 +1817,9 @@ func runServer() {
 		// Legacy fallback
 		listenAddress = os.Getenv("SERVER_ADDRESS")
 	}
+	if listenAddress == "" && startupSettings.Address != "" && cfg != nil {
+		listenAddress = strings.TrimSpace(cfg.Server.Address)
+	}
 
 	// Check if listenAddress contains a port (e.g., "127.0.0.1:8080" or "[::]:8080")
 	if listenAddress != "" && strings.Contains(listenAddress, ":") {
@@ -1856,7 +1906,7 @@ func runServer() {
 			// Certificate failure at startup (AI.md PART 8: exit code 2 = config-directed path unusable).
 			log.Printf("Failed to prepare TLS: %v", tlsErr)
 			fmt.Fprintf(os.Stderr, "Failed to prepare TLS: %v\n", tlsErr)
-			os.Exit(2)
+			hooks.exitProcess(2)
 		}
 		runtime := newTLSRuntime(sslManager, sslSettings, tlsFQDN)
 		runtime.SetServerDB(dualDB.Server)
@@ -1958,7 +2008,7 @@ func runServer() {
 		if tokenErr != nil {
 			// General startup failure (AI.md PART 8: exit code 1).
 			log.Printf("ERROR: cannot generate the operator token: %v", tokenErr)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 		cfg.Server.Token = generated
 		if saveErr := config.SaveConfig(cfg); saveErr != nil {
@@ -2670,12 +2720,15 @@ func runServer() {
 
 		adminRoutes.Get("/backup", func(w http.ResponseWriter, r *http.Request) {
 			backupPassword, _ := config.ReadSecret("server.backup.encryption_password")
+			cfg := config.GetGlobalConfig()
+			complianceMode := cfg != nil && cfg.Server.Compliance.Enabled()
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":                        "Backup Management - Admin",
 				"page":                         "backup",
 				"breadcrumb":                   "Backup",
 				"flash":                        handler.TakeFlash(w, r),
 				"backup_encryption_configured": backupPassword != "",
+				"backup_encryption_required":   complianceMode && backupPassword == "",
 				"backup_files":                 handler.BackupFilesForPage(),
 			}))
 		})
@@ -2812,6 +2865,9 @@ func runServer() {
 		adminRoutes.Post("/settings/weather", adminWeatherHandler.UpdateWeatherSettingsForm)
 		adminRoutes.Get("/notifications", adminNotificationsHandler.ShowNotificationSettings)
 		adminRoutes.Post("/notifications", adminNotificationsHandler.UpdateNotificationSettingsForm)
+		adminRoutes.Get("/notify", handler.ShowAdminContactNotifications)
+		adminRoutes.Post("/notify", handler.SaveAdminContactNotifications)
+		adminRoutes.Post("/notify/test", handler.TestAdminContactWebhooks)
 		adminRoutes.Get("/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
 		adminRoutes.Post("/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
 
@@ -3200,9 +3256,6 @@ func runServer() {
 		weatherAPI.Get("/docs", apiHandler.GetDocsJSON)
 		weatherAPI.Get("/earthquakes", earthquakeHandler.HandleEarthquakeAPI)
 		weatherAPI.Get("/earthquakes/{id}", earthquakeHandler.HandleEarthquakeByIDAPI)
-		// Backwards compat
-		weatherAPI.Get("/hurricanes", hurricaneHandler.HandleHurricaneAPI)
-		weatherAPI.Get("/hurricanes/{id}", hurricaneHandler.HandleHurricaneByIDAPI)
 		weatherAPI.Get("/severe-weather", severeWeatherHandler.HandleSevereWeatherAPI)
 		weatherAPI.Get("/severe-weather/{id}", severeWeatherHandler.HandleAlertByIDAPI)
 		weatherAPI.Get("/moon", moonHandler.HandleMoonAPI)
@@ -3237,7 +3290,6 @@ func runServer() {
 					apiBase + "/docs",
 					apiBase + "/blocklist",
 					apiBase + "/earthquakes",
-					apiBase + "/hurricanes",
 					apiBase + "/severe-weather",
 					apiBase + "/moon",
 				},
@@ -3261,7 +3313,7 @@ func runServer() {
 	apiV1.Get("/server/privacy", handler.GetPrivacyAPI(db, cfg))
 	apiV1.Get("/server/help", handler.GetHelpAPI(db, cfg))
 	apiV1.Get("/server/terms", handler.GetTermsAPI(db, cfg))
-	apiV1.Get("/server/contact", handler.GetContactFormAPI(cfg))
+	apiV1.Get("/server/contact", handler.GetContactFormAPI(db, cfg))
 	apiV1.Post("/server/contact", handler.HandleContactFormSubmission(db, cfg))
 	apiV1.Get("/server/dpo", handler.GetDPOAPI(cfg))
 	apiV1.Get("/server/security", handler.GetSecurityAPI(cfg))
@@ -4823,9 +4875,8 @@ func runServer() {
 	r.Get("/severe/{type}", severeWeatherHandler.HandleSevereWeatherByType)
 	r.Get("/severe/{type}/{location}", severeWeatherHandler.HandleSevereWeatherByType)
 
-	// AI.md PART 14: Legacy endpoints are technical debt - DELETED
-	// OLD: /api/earthquakes and /api/hurricanes redirects removed
-	// Use versioned endpoints: /api/{api_version}/earthquakes and /api/{api_version}/hurricanes
+	// AI.md PART 14: Legacy endpoints are technical debt and are deleted.
+	// Hurricane data is available through the severe-weather API.
 
 	// Theme toggle (AI.md PART 16 Theme Switching) - POST form, works without JS
 	r.Post("/theme", server.SetThemeHandler)
@@ -4837,6 +4888,9 @@ func runServer() {
 	r.Get("/weather/{location}", weatherHandler.HandleLocation)
 	// Backwards compatibility catch-all
 	r.Get("/{location}", weatherHandler.HandleLocation)
+	handler.SetContactRouteMatcher(r)
+	handler.SetContactLocationValidator(weatherService.HasKnownLocation)
+	handler.SetContactEarthquakeValidator(earthquakeService.HasCachedEarthquake)
 
 	// Build final URL for documentation
 	// Per AI.md PART 5 - DOMAIN env var (no project prefix)
@@ -4914,7 +4968,7 @@ func runServer() {
 		if pidErr != nil {
 			log.Printf("PID file: %v", pidErr)
 			fmt.Fprintf(os.Stderr, "%v\n", pidErr)
-			os.Exit(1)
+			hooks.exitProcess(1)
 		}
 		if pidFile != nil {
 			defer func() { _ = pidFile.Remove() }()
@@ -4931,7 +4985,7 @@ func runServer() {
 			if listenErr != nil {
 				// Listener bind/network failure (AI.md PART 8: exit code 3).
 				log.Printf("Failed to start server: %v", listenErr)
-				os.Exit(3)
+				hooks.exitProcess(3)
 			}
 		}
 		return listener
@@ -4951,7 +5005,7 @@ func runServer() {
 		if err := serve(); err != nil && err != http.ErrServerClosed {
 			// Listener bind/network failure (AI.md PART 8: exit code 3).
 			log.Printf("Failed to start server: %v", err)
-			os.Exit(3)
+			hooks.exitProcess(3)
 		}
 	}
 	if plainListener != nil {
@@ -4969,7 +5023,7 @@ func runServer() {
 		overlayListener, overlayErr := net.Listen("tcp", "127.0.0.1:0")
 		if overlayErr != nil {
 			log.Printf("Failed to start the overlay backend: %v", overlayErr)
-			os.Exit(3)
+			hooks.exitProcess(3)
 		}
 		overlayPort = overlayListener.Addr().(*net.TCPAddr).Port
 		overlayServer := newServer(strconv.Itoa(overlayPort), r)
@@ -5062,7 +5116,9 @@ func runServer() {
 	}
 
 	// Per AI.md PART 27 line 6536: Ignore SIGHUP - config reloads automatically via file watcher
-	signal.Ignore(syscall.SIGHUP)
+	if hooks.installSignals {
+		signal.Ignore(syscall.SIGHUP)
+	}
 
 	// Add platform-specific signals (SIGUSR1/2 on Unix only)
 	allSignals := make([]os.Signal, len(baseSignals)+len(platformSignals))
@@ -5071,7 +5127,10 @@ func runServer() {
 		allSignals[len(baseSignals)+i] = sig
 	}
 
-	signal.Notify(sigChan, allSignals...)
+	if hooks.installSignals {
+		signal.Notify(sigChan, allSignals...)
+		defer signal.Stop(sigChan)
+	}
 
 	// AI.md PART 8 shutdown flow: (a) stop accepting and report not-ready,
 	// (b) close long-lived connections cleanly, (c) drain in-flight requests,
@@ -5091,6 +5150,9 @@ func runServer() {
 		}
 
 		taskScheduler.StopScheduler()
+		if err := database.StopHotCounterFlusher(context.Background()); err != nil {
+			log.Printf("Hot-counter shutdown flush error: %v", err)
+		}
 
 		if systemCollector != nil {
 			systemCollector.StopSystemCollector()
@@ -5127,7 +5189,7 @@ func runServer() {
 	// Handle signals
 	for {
 		select {
-		case <-serviceStopRequested:
+		case <-hooks.serviceStop:
 			log.Println("INFO: Windows service stop requested, shutting down gracefully...")
 			shutdownGracefully()
 			return

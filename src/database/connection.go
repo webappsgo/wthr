@@ -33,6 +33,9 @@ type DatabaseConfig struct {
 }
 
 func initializeRemoteSchema(db *sql.DB, driver string) error {
+	if err := migrateRemoteSchedulerSchema(db, driver); err != nil {
+		return fmt.Errorf("migrate remote scheduler schema: %w", err)
+	}
 	for _, schema := range []struct{ name, prefix, ddl string }{
 		{"server", "srv_", ServerSchema},
 		{"users", "usr_", UsersSchema},

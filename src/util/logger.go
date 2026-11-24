@@ -1,27 +1,35 @@
 package util
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/oklog/ulid/v2"
+	"github.com/webappsgo/wthr/src/auditlog"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/privilege"
 )
 
 // Logger handles application logging to both stdout and files
 type Logger struct {
-	accessLog   *log.Logger
-	serverLog   *log.Logger
-	errorLog    *log.Logger
-	auditLog    *log.Logger
-	securityLog *log.Logger
-	debugLog    *log.Logger
-	logDir      string
-	isDebug     bool
+	auditMu      sync.RWMutex
+	accessLog    *log.Logger
+	serverLog    *log.Logger
+	errorLog     *log.Logger
+	auditLog     *auditlog.Logger
+	auditPath    string
+	auditEnabled bool
+	securityLog  *log.Logger
+	debugLog     *log.Logger
+	logDir       string
+	isDebug      bool
 }
 
 // NewLogger creates a new logger instance
@@ -39,10 +47,7 @@ func NewLogger(logDir string) (*Logger, error) {
 	// Check if debug mode per AI.md PART 5: Boolean Handling
 	isDebug := os.Getenv("MODE") == "development" || config.IsTruthy(os.Getenv("DEBUG"))
 
-	l := &Logger{
-		logDir:  logDir,
-		isDebug: isDebug,
-	}
+	l := &Logger{logDir: logDir, isDebug: isDebug}
 
 	// Open log files
 	accessFile, err := os.OpenFile(
@@ -75,16 +80,29 @@ func NewLogger(logDir string) (*Logger, error) {
 		return nil, fmt.Errorf("failed to open error.log: %w", err)
 	}
 
-	auditFile, err := os.OpenFile(
-		filepath.Join(logDir, "audit.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
-	if err != nil {
+	auditSettings := config.DefaultLogsConfig().Audit
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		auditSettings = cfg.Server.Logs.Audit
+	}
+	if auditSettings.Filename == "" {
+		auditSettings.Filename = "audit.log"
+	}
+	if filepath.Base(auditSettings.Filename) != auditSettings.Filename || auditSettings.Filename == "." || auditSettings.Filename == ".." {
 		_ = accessFile.Close()
 		_ = serverFile.Close()
 		_ = errorFile.Close()
-		return nil, fmt.Errorf("failed to open audit.log: %w", err)
+		return nil, fmt.Errorf("invalid audit log filename %q", auditSettings.Filename)
+	}
+	auditPath := filepath.Join(logDir, auditSettings.Filename)
+	var auditFile *auditlog.Logger
+	if auditSettings.Enabled {
+		auditFile, err = auditlog.Open(auditPath, auditlog.Options{Keep: auditSettings.Keep, Compress: auditSettings.Compress})
+		if err != nil {
+			_ = accessFile.Close()
+			_ = serverFile.Close()
+			_ = errorFile.Close()
+			return nil, fmt.Errorf("failed to open audit log: %w", err)
+		}
 	}
 
 	securityFile, err := os.OpenFile(
@@ -96,7 +114,9 @@ func NewLogger(logDir string) (*Logger, error) {
 		_ = accessFile.Close()
 		_ = serverFile.Close()
 		_ = errorFile.Close()
-		_ = auditFile.Close()
+		if auditFile != nil {
+			_ = auditFile.Close()
+		}
 		return nil, fmt.Errorf("failed to open security.log: %w", err)
 	}
 
@@ -119,12 +139,9 @@ func NewLogger(logDir string) (*Logger, error) {
 		0,
 	)
 
-	l.auditLog = log.New(
-		// Audit only to file, not stdout
-		auditFile,
-		"",
-		0,
-	)
+	l.auditLog = auditFile
+	l.auditPath = auditPath
+	l.auditEnabled = auditSettings.Enabled
 
 	l.securityLog = log.New(
 		// Security only to file, not stdout
@@ -216,12 +233,38 @@ func (l *Logger) Debug(format string, v ...interface{}) {
 
 // Audit logs an audit entry (JSON format)
 func (l *Logger) Audit(userID, action, resource, oldValue, newValue, ip, userAgent string, success bool, errorMsg string) {
-	timestamp := time.Now().Format(time.RFC3339)
-	entry := fmt.Sprintf(
-		`{"timestamp":"%s","user_id":"%s","action":"%s","resource":"%s","old_value":"%s","new_value":"%s","ip":"%s","user_agent":"%s","success":%t,"error":"%s"}`,
-		timestamp, userID, action, resource, oldValue, newValue, ip, userAgent, success, errorMsg,
-	)
-	l.auditLog.Println(entry)
+	if l == nil {
+		return
+	}
+	l.auditMu.RLock()
+	defer l.auditMu.RUnlock()
+	if !l.auditEnabled || l.auditLog == nil {
+		return
+	}
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	result, severity := "failure", "warn"
+	if success {
+		result, severity = "success", "info"
+	}
+	details := map[string]any{"old_value": oldValue, "new_value": newValue}
+	if errorMsg != "" {
+		details["error"] = errorMsg
+	}
+	entry := map[string]any{
+		"id":       ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(),
+		"time":     now.Format("2006-01-02T15:04:05.000Z"),
+		"event":    action,
+		"category": "administration",
+		"severity": severity,
+		"actor":    map[string]string{"type": "user", "id": userID, "ip": ip, "user_agent": userAgent},
+		"target":   map[string]string{"type": "resource", "id": resource},
+		"details":  details,
+		"result":   result,
+		"source":   "web",
+	}
+	if _, err := l.auditLog.AppendJSON(entry); err != nil {
+		l.Error("Failed to append audit event: %v", err)
+	}
 }
 
 // Print is a helper for general output (goes to access log)
@@ -255,7 +298,7 @@ func (l *Logger) RotateLogs() error {
 	timestamp := time.Now().Format("2006-01-02")
 
 	// AI.md PART 11: Include all log files in rotation
-	logFiles := []string{"access.log", "error.log", "audit.log", "security.log", "debug.log"}
+	logFiles := []string{"access.log", "error.log", "security.log", "debug.log"}
 
 	for _, logFile := range logFiles {
 		currentPath := filepath.Join(l.logDir, logFile)
@@ -277,6 +320,14 @@ func (l *Logger) RotateLogs() error {
 			return fmt.Errorf("failed to truncate %s: %w", logFile, err)
 		}
 	}
+	l.auditMu.RLock()
+	if l.auditLog != nil {
+		if err := l.auditLog.Rotate(); err != nil {
+			l.auditMu.RUnlock()
+			return fmt.Errorf("failed to rotate audit log: %w", err)
+		}
+	}
+	l.auditMu.RUnlock()
 
 	// Compress old logs (older than 1 day)
 	// Delete logs older than 30 days
@@ -284,6 +335,52 @@ func (l *Logger) RotateLogs() error {
 		return fmt.Errorf("failed to clean old logs: %w", err)
 	}
 
+	return nil
+}
+
+// ConfigureAudit applies the audit settings loaded at startup or by a config reload.
+func (l *Logger) ConfigureAudit(settings config.AuditLogConfig) error {
+	if l == nil {
+		return nil
+	}
+	l.auditMu.Lock()
+	defer l.auditMu.Unlock()
+	if settings.Filename == "" {
+		settings.Filename = "audit.log"
+	}
+	if filepath.Base(settings.Filename) != settings.Filename || settings.Filename == "." || settings.Filename == ".." {
+		return fmt.Errorf("invalid audit log filename %q", settings.Filename)
+	}
+	nextPath := filepath.Join(l.logDir, settings.Filename)
+	if !settings.Enabled {
+		if l.auditLog != nil {
+			if err := l.auditLog.Close(); err != nil {
+				return err
+			}
+			l.auditLog = nil
+		}
+		l.auditPath = nextPath
+		l.auditEnabled = false
+		return nil
+	}
+	if l.auditLog != nil && l.auditPath == nextPath {
+		if err := l.auditLog.Configure(auditlog.Options{Keep: settings.Keep, Compress: settings.Compress}); err != nil {
+			return err
+		}
+	} else {
+		if l.auditLog != nil {
+			if err := l.auditLog.Close(); err != nil {
+				return err
+			}
+		}
+		opened, err := auditlog.Open(nextPath, auditlog.Options{Keep: settings.Keep, Compress: settings.Compress})
+		if err != nil {
+			return err
+		}
+		l.auditLog = opened
+	}
+	l.auditPath = nextPath
+	l.auditEnabled = true
 	return nil
 }
 
@@ -299,6 +396,9 @@ func (l *Logger) cleanOldLogs() error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
+			continue
+		}
+		if entry.Name() == filepath.Base(l.auditPath)+".chain" || strings.HasPrefix(entry.Name(), filepath.Base(l.auditPath)+".20") {
 			continue
 		}
 

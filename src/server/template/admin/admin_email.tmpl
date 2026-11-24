@@ -5,13 +5,13 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
             <div class="content-header">
-                <h1>📧 {{t $lang "admin.email.title"}}</h1>
+                <header class="page-header"><h1 class="page-title">📧 {{t $lang "admin.email.title"}}</h1></header>
                 <p class="subtitle">{{t $lang "admin.email.intro"}}</p>
             </div>
             {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 
             <!-- SMTP Configuration Section -->
-            <section class="admin-card" aria-labelledby="smtp-heading">
+            <section class="admin-section-card" aria-labelledby="smtp-heading">
                 <div class="card-header">
                     <h2 id="smtp-heading">{{t $lang "admin.email.smtp_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.email.smtp_description"}}</p>
@@ -189,7 +189,7 @@
             </section>
 
             <!-- Email Templates Section -->
-            <section class="admin-card" aria-labelledby="templates-heading">
+            <section class="admin-section-card" aria-labelledby="templates-heading">
                 <div class="card-header">
                     <h2 id="templates-heading">{{t $lang "admin.email.templates_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.email.templates_description"}}</p>
@@ -286,7 +286,7 @@
             <!-- Test Email Result -->
             <div id="test-result" class="alert d-none" role="status" aria-live="polite"></div>
 
-    <script type="application/json" id="admin-email-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <textarea hidden id="admin-email-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

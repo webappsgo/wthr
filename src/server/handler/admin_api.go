@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -299,6 +300,15 @@ func CreateBackup(w http.ResponseWriter, r *http.Request) {
 		Retention:   &retention,
 	})
 	if err != nil {
+		if errors.Is(err, backup.ErrComplianceEncryptionRequired) {
+			if wantsFormSubmission(r) {
+				SetFlash(w, r, "error", "admin.backup.compliance_required")
+				http.Redirect(w, r, adminPagePath(r, "/backup"), http.StatusSeeOther)
+				return
+			}
+			RespondError(w, r, http.StatusConflict, "COMPLIANCE_ENCRYPTION_REQUIRED", Translate(r, "admin.backup.compliance_required"))
+			return
+		}
 		if wantsFormSubmission(r) {
 			redirectAdminForm(w, r, adminPagePath(r, "/backup"), "flash.settings_saved", "flash.settings_save_failed", err)
 			return
@@ -532,13 +542,13 @@ func nextScheduledBackup() string {
 	if db == nil {
 		return ""
 	}
-	var nextRun sql.NullString
+	var nextRun sql.NullInt64
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
-		"SELECT next_run FROM scheduler_tasks WHERE task_id LIKE 'backup%' AND enabled = 1 AND next_run IS NOT NULL ORDER BY next_run ASC LIMIT 1").Scan(&nextRun)
+		"SELECT next_run FROM scheduler_tasks WHERE id LIKE 'backup%' AND enabled = 1 AND next_run IS NOT NULL ORDER BY next_run ASC LIMIT 1").Scan(&nextRun)
 	if err != nil || !nextRun.Valid {
 		return ""
 	}
-	return nextRun.String
+	return time.Unix(nextRun.Int64, 0).UTC().Format(time.RFC3339)
 }
 
 // DownloadBackup downloads a specific backup file

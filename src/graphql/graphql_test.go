@@ -300,6 +300,7 @@ const graphQLLocalTimestampLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
 // database.GetServerDB().
 func newGraphQLTimestampTestDB(t *testing.T) *database.DualDB {
 	t.Helper()
+	setupGraphQLTestConfig(t)
 	ddb, err := database.InitDualDB(t.TempDir())
 	if err != nil {
 		t.Fatalf("InitDualDB: %v", err)

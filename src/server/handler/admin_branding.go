@@ -258,7 +258,14 @@ func updateBrandingFromJSON(cfg *config.AppConfig, w http.ResponseWriter, r *htt
 }
 
 func splitBrandingKeywords(value string) []string {
-	return strings.FieldsFunc(value, func(char rune) bool { return char == ',' || char == '\n' || char == '\r' })
+	items := strings.FieldsFunc(value, func(char rune) bool { return char == ',' || char == '\n' || char == '\r' })
+	keywords := make([]string, 0, len(items))
+	for _, item := range items {
+		if keyword := strings.TrimSpace(item); keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+	return keywords
 }
 
 func normalizeTwitterHandle(value string) string {

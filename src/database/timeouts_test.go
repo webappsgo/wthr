@@ -28,6 +28,51 @@ func openMemDB(t *testing.T, name string) *sql.DB {
 	return db
 }
 
+func TestExecContextRetriesSQLiteWriteLock(t *testing.T) {
+	db := openMemDB(t, "write-lock-retry")
+	db.SetMaxOpenConns(2)
+	if _, err := db.Exec("CREATE TABLE write_lock_retry (id INTEGER PRIMARY KEY)"); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec("INSERT INTO write_lock_retry (id) VALUES (1)"); err != nil {
+		t.Fatal(err)
+	}
+
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := ExecContext(context.Background(), db, TimeoutWrite, "INSERT INTO write_lock_retry (id) VALUES (2)")
+		writeDone <- err
+	}()
+
+	time.Sleep(2 * time.Second)
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write did not recover after the lock was released: %v", err)
+	}
+}
+
+func TestWithTransactionDoesNotRetryCallback(t *testing.T) {
+	db := openMemDB(t, "transaction-callback-once")
+	callbackCalls := 0
+	err := WithTransaction(context.Background(), db, func(*sql.Tx) error {
+		callbackCalls++
+		return errors.New("SQLITE_BUSY")
+	})
+	if err == nil || !isSQLiteBusyError(err) {
+		t.Fatalf("transaction error = %v, want SQLite busy error", err)
+	}
+	if callbackCalls != 1 {
+		t.Fatalf("transaction callback ran %d times, want once", callbackCalls)
+	}
+}
+
 // TestDefaultPoolConfig and TestDevPoolConfig assert the exact numeric
 // contract from AI.md PART 10 (small deployment vs development tiers).
 func TestDefaultPoolConfig(t *testing.T) {
@@ -289,12 +334,17 @@ func TestWithTransaction(t *testing.T) {
 			t.Fatalf("setup: %v", err)
 		}
 
+		callbackCalls := 0
 		err := WithTransaction(context.Background(), db, func(tx *sql.Tx) error {
+			callbackCalls++
 			_, err := tx.Exec("INSERT INTO t (id) VALUES (1)")
 			return err
 		})
 		if err != nil {
 			t.Fatalf("WithTransaction: %v", err)
+		}
+		if callbackCalls != 1 {
+			t.Errorf("transaction callback calls = %d, want 1 after successful commit", callbackCalls)
 		}
 
 		var count int
@@ -342,6 +392,32 @@ func TestWithTransaction(t *testing.T) {
 		})
 		if err == nil {
 			t.Error("expected error from WithTransaction on closed db, got nil")
+		}
+	})
+
+	t.Run("does not retry callback after SQLite busy error", func(t *testing.T) {
+		db := openMemDB(t, "txbusy")
+		if _, err := db.Exec("CREATE TABLE t (id INTEGER PRIMARY KEY)"); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		callbackCalls := 0
+		err := WithTransaction(context.Background(), db, func(tx *sql.Tx) error {
+			callbackCalls++
+			return errors.New("SQLITE_BUSY: simulated pre-commit write conflict")
+		})
+		if !isSQLiteBusyError(err) {
+			t.Fatalf("WithTransaction error = %v, want simulated SQLITE_BUSY error", err)
+		}
+		if callbackCalls != 1 {
+			t.Errorf("transaction callback calls = %d, want once", callbackCalls)
+		}
+		var count int
+		if err := db.QueryRow("SELECT COUNT(*) FROM t").Scan(&count); err != nil {
+			t.Fatalf("verify rolled-back rows: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("row count = %d, want no rows after rollback", count)
 		}
 	})
 }

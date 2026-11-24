@@ -70,6 +70,20 @@ func TestResolveStartupPortsOrder(t *testing.T) {
 	}
 }
 
+func TestResolveStartupPortsWithMergedConfigValue(t *testing.T) {
+	t.Setenv("PORT", "")
+	got, err := ResolveStartupPortsWithValue("8081,8444")
+	if err != nil || got.HTTP != 8081 || got.HTTPS != 8444 || !got.FromConfig {
+		t.Fatalf("ResolveStartupPortsWithValue() = %+v, %v; want configured dual ports", got, err)
+	}
+
+	t.Setenv("PORT", "9001")
+	got, err = ResolveStartupPortsWithValue("8081")
+	if err != nil || got.HTTP != 9001 || got.FromConfig {
+		t.Fatalf("PORT override = %+v, %v; want 9001 from environment", got, err)
+	}
+}
+
 func TestResolveStartupPortsInvalid(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORT", "nope")

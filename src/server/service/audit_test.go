@@ -72,6 +72,7 @@ func TestAudit_Log(t *testing.T) {
 			Event:    "test.event",
 			Category: "test",
 			Result:   "success",
+			Prev:     "caller-supplied-value",
 		}
 		if err := logger.Log(event); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -94,6 +95,9 @@ func TestAudit_Log(t *testing.T) {
 		}
 		if got.Severity != "info" {
 			t.Errorf("expected default severity 'info' for success result, got %q", got.Severity)
+		}
+		if got.Prev != "0000000000000000000000000000000000000000000000000000000000000000" {
+			t.Errorf("expected the genesis hash to replace the caller prev value, got %q", got.Prev)
 		}
 	})
 

@@ -5,7 +5,7 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
             <div class="content-header">
-                <h1>🌐 {{t $lang "admin.web.title"}}</h1>
+                <header class="page-header"><h1 class="page-title">🌐 {{t $lang "admin.web.title"}}</h1></header>
                 <p class="subtitle">{{t $lang "admin.web.subtitle"}}</p>
             </div>
 
@@ -15,7 +15,7 @@
                 <strong>{{t $lang "admin.web.note_label"}}</strong> {{t $lang "admin.web.note_text"}}
             </div>
 
-            <section class="admin-card" aria-labelledby="mcp-heading">
+            <section class="admin-section-card" aria-labelledby="mcp-heading">
                 <div class="card-header">
                     <h2 id="mcp-heading">{{t $lang "admin.web.mcp_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.mcp_desc"}}</p>
@@ -27,7 +27,7 @@
             </section>
 
             <!-- Branding Section -->
-            <section class="admin-card" aria-labelledby="branding-heading">
+            <section class="admin-section-card" aria-labelledby="branding-heading">
                 <div class="card-header">
                     <h2 id="branding-heading">{{t $lang "admin.web.branding_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.branding_desc"}}</p>
@@ -39,7 +39,7 @@
             </section>
 
             <!-- SEO Settings Section -->
-            <section class="admin-card" aria-labelledby="seo-heading">
+            <section class="admin-section-card" aria-labelledby="seo-heading">
                 <div class="card-header">
                     <h2 id="seo-heading">{{t $lang "admin.web.seo_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.seo_desc"}}</p>
@@ -51,7 +51,7 @@
             </section>
 
             <!-- robots.txt Section -->
-            <section class="admin-card" aria-labelledby="robots-heading">
+            <section class="admin-section-card" aria-labelledby="robots-heading">
                 <div class="card-header">
                     <h2 id="robots-heading">{{t $lang "admin.web.robots_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.robots_desc"}}</p>
@@ -90,7 +90,7 @@
                 </div>
             </section>
 
-            <section class="admin-card" aria-labelledby="feeds-heading">
+            <section class="admin-section-card" aria-labelledby="feeds-heading">
                 <div class="card-header">
                     <h2 id="feeds-heading">{{t $lang "admin.web.feeds_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.feeds_desc"}}</p>
@@ -115,7 +115,7 @@
                 </div>
             </section>
 
-            <section class="admin-card" aria-labelledby="cors-heading">
+            <section class="admin-section-card" aria-labelledby="cors-heading">
                 <div class="card-header">
                     <h2 id="cors-heading">{{t $lang "admin.web.cors_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.cors_desc"}}</p>
@@ -149,7 +149,7 @@
             </section>
 
             <!-- security.txt Section -->
-            <section class="admin-card" aria-labelledby="security-txt-heading">
+            <section class="admin-section-card" aria-labelledby="security-txt-heading">
                 <div class="card-header">
                     <h2 id="security-txt-heading">{{t $lang "admin.web.security_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.web.security_desc"}}</p>
@@ -246,9 +246,9 @@
                 </div>
             </section>
 
-    <script type="application/json" id="admin-web-data">
+    <textarea hidden id="admin-web-data">
     {"apiPath": "{{.api_path}}", "adminApiPath": "{{.admin_api_path}}"}
-    </script>
+    </textarea>
 
 {{template "admin_footer" .}}
 {{end}}

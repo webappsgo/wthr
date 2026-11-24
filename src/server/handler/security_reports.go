@@ -175,12 +175,16 @@ func deliverSecurityReport(r *http.Request, cfg *config.AppConfig, securityID st
 	if field = invalidSecurityField(values); field != "" {
 		return securityInvalid, "", field
 	}
-	if mail := (&contactForm{Name: values["name"], Email: values["email"], Subject: "x", Message: "x"}); invalidContactField(mail) != "" {
-		return securityInvalid, "", invalidContactField(mail)
+	if mail := (&contactForm{Name: values["name"], Email: values["email"], Subject: "x", Message: "x"}); invalidContactIdentity(mail) != "" {
+		return securityInvalid, "", invalidContactIdentity(mail)
 	}
 	if res := checkContactCaptcha(r, cfg, captcha); res != "" {
 		return res, "", "captcha"
 	}
+	return storeSecurityReport(r, cfg, securityID, values)
+}
+
+func storeSecurityReport(r *http.Request, cfg *config.AppConfig, securityID string, values map[string]string) (result, trackingID, field string) {
 	store := newSecurityStore()
 	if store == nil {
 		return securityFailed, "", ""
@@ -210,8 +214,54 @@ func deliverSecurityReport(r *http.Request, cfg *config.AppConfig, securityID st
 		return securityFailed, "", ""
 	}
 	logSecurityEvent(r, "security.report_received", fmt.Sprintf("tracking_id=%s severity=%s component=%s", tracking, report.Severity, sanitizeLogToken(report.Component)))
+	dispatchSecurityReportWebhooks(r, cfg, tracking, report, armoredKey)
 	notifySecurityReport(r, cfg, tracking, token, report, values["email"], armoredKey)
 	return securityReceived, tracking, ""
+}
+
+func dispatchSecurityReportWebhooks(r *http.Request, cfg *config.AppConfig, tracking string, report service.SecurityReport, researcherKey string) {
+	if cfg == nil {
+		cfg = config.GetGlobalConfig()
+	}
+	if cfg == nil {
+		return
+	}
+	base := service.ContactWebhookMessage{
+		Event: "security.report_received", Subject: Translate(r, "email.security_report.maintainer_subject") + " " + tracking,
+		Severity: report.Severity, ProjectName: "wthr", ProjectVersion: Version,
+		AppURL: util.BuildURL(r, "/"), TrackingID: tracking, FailureRateKey: util.TrustedGetClientIP(r),
+	}
+	adminMessage := base
+	adminMessage.Body = Translate(r, "email.security_report.maintainer_warning") + " " + tracking + " (" + sanitizeLogToken(report.Severity) + ", " + sanitizeLogToken(report.Component) + ")"
+	_, _ = service.DispatchContactWebhooksWithRetry(r.Context(), cfg.Server.Contact, "admin", adminMessage)
+
+	publicKey := strings.TrimSpace(researcherKey)
+	if publicKey == "" && database.GetUsersDB() != nil {
+		rows, err := database.GetUsersDB().QueryContext(r.Context(), `SELECT personal_pgp_public_key FROM admins WHERE is_active = 1 AND personal_pgp_public_key IS NOT NULL AND trim(personal_pgp_public_key) <> '' ORDER BY id`)
+		if err == nil {
+			defer func() { _ = rows.Close() }()
+			if rows.Next() {
+				_ = rows.Scan(&publicKey)
+			}
+		}
+	}
+	if publicKey == "" {
+		return
+	}
+	content, err := json.Marshal(struct {
+		Tracking string                 `json:"tracking_id"`
+		Report   service.SecurityReport `json:"report"`
+	}{tracking, report})
+	if err != nil {
+		return
+	}
+	sealed, err := service.EncryptToArmoredKey(publicKey, content)
+	if err != nil {
+		return
+	}
+	securityMessage := base
+	securityMessage.Body = string(sealed)
+	_, _ = service.DispatchContactWebhooksWithRetry(r.Context(), cfg.Server.Contact, "security", securityMessage)
 }
 
 // sanitizeLogToken keeps a free-text component safe for one log line.
@@ -328,68 +378,6 @@ func securityReportFormData(w http.ResponseWriter, r *http.Request, cfg *config.
 		"Credits":    securityCredits,
 		"Fields":     securityFieldSpecs(),
 	}
-}
-
-// handleSecurityFormWeb is the no-JavaScript submission of the security-mode form (POST /server/contact with security_id).
-func handleSecurityFormWeb(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, securityID string) {
-	result, tracking, field := deliverSecurityReport(r, cfg, securityID, securityFormValues(r), contactForm{
-		CaptchaID: r.PostFormValue("captcha_id"), CaptchaAnswer: r.PostFormValue("captcha_answer"),
-		CaptchaToken: firstNonEmpty(r.PostFormValue("g-recaptcha-response"), r.PostFormValue("h-captcha-response")),
-	})
-	switch result {
-	case securityReceived:
-		renderSecurityReceived(w, r, cfg, tracking)
-		return
-	case securityInvalid:
-		SetFlash(w, r, "error", "flash.security_report_invalid")
-	case contactCaptchaFailed:
-		SetFlash(w, r, "error", "flash.contact_captcha_failed")
-	case contactCaptchaOffline:
-		SetFlash(w, r, "error", "flash.contact_captcha_unavailable")
-	default:
-		SetFlash(w, r, "error", "flash.security_report_failed")
-	}
-	_ = field
-	http.Redirect(w, r, "/server/contact?security_id="+url.QueryEscape(securityID), http.StatusSeeOther)
-}
-
-// handleSecurityFormAPI is the JSON submission (POST /api/{api_version}/server/contact with security_id).
-func handleSecurityFormAPI(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, securityID string, raw map[string]interface{}) {
-	values := map[string]string{}
-	for k, v := range raw {
-		switch typed := v.(type) {
-		case string:
-			values[k] = typed
-		case bool:
-			values[k] = strconv.FormatBool(typed)
-		case float64:
-			values[k] = strconv.FormatFloat(typed, 'f', -1, 64)
-		}
-	}
-	captcha := contactForm{CaptchaID: values["captcha_id"], CaptchaAnswer: values["captcha_answer"], CaptchaToken: values["captcha_response"]}
-	result, tracking, field := deliverSecurityReport(r, cfg, securityID, values, captcha)
-	switch result {
-	case securityReceived:
-		RespondSuccess(w, r, Translate(r, "success.security_report.received"), map[string]interface{}{"tracking_id": tracking})
-	case securityInvalid:
-		ValidationFailed(w, r, Translate(r, "errors.contact.invalid"), map[string]interface{}{"field": field, "rule": "invalid"})
-	case contactCaptchaFailed:
-		RespondError(w, r, http.StatusBadRequest, "CAPTCHA_FAILED", Translate(r, "errors.contact.captcha_failed"))
-	case contactCaptchaOffline:
-		w.Header().Set("Retry-After", "30")
-		RespondError(w, r, http.StatusServiceUnavailable, "CAPTCHA_UNAVAILABLE", Translate(r, "errors.contact.captcha_unavailable"))
-	default:
-		RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", Translate(r, "errors.contact.failed_to_send_message"))
-	}
-}
-
-// decodeSecurityBody reads a JSON body for the security API path.
-func decodeSecurityBody(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool) {
-	var raw map[string]interface{}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<17)).Decode(&raw); err != nil {
-		return nil, false
-	}
-	return raw, true
 }
 
 // ShowSecurityReportStatus is the researcher status page.

@@ -2,11 +2,11 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<div class="admin-header"><h1>🔔 {{t $lang "admin.notifications.title"}}</h1></div>
+<div class="admin-header"><header class="page-header"><h1 class="page-title">🔔 {{t $lang "admin.notifications.title"}}</h1></header></div>
 
 <!-- Admin Personal Notification Preferences -->
-<section class="card mb-4">
-    <h2 class="section-title">👤 {{t $lang "admin.notifications.your_prefs_heading"}}</h2>
+<section class="section-card mb-4" aria-labelledby="admin_notifications-section-1">
+    <h2 class="section-title" id="admin_notifications-section-1">👤 {{t $lang "admin.notifications.your_prefs_heading"}}</h2>
     <p class="text-comment mb-3">
         {{t $lang "admin.notifications.your_prefs_intro"}}
     </p>
@@ -102,7 +102,7 @@
 <!-- System-wide Notification Settings -->
 <form id="notificationSettingsForm" method="post" action="{{.admin_path}}/notifications">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card mb-4"><h2>📧 {{t $lang "admin.notifications.email_events_heading"}}</h2>
+<section class="section-card mb-4" aria-labelledby="admin_notifications-section-2"><h2 id="admin_notifications-section-2">📧 {{t $lang "admin.notifications.email_events_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.email_events_intro"}}</p>
 <label><input type="checkbox" name="email_startup" value="true" {{if .settings.email_startup}}checked{{end}}> {{t $lang "admin.notifications.event_startup"}}</label>
 <label><input type="checkbox" name="email_shutdown" value="true" {{if .settings.email_shutdown}}checked{{end}}> {{t $lang "admin.notifications.event_shutdown"}}</label>
@@ -110,13 +110,13 @@
 <label><input type="checkbox" name="email_backup_failed" value="true" {{if .settings.email_backup_failed}}checked{{end}}> {{t $lang "admin.email_editor.tpl_backup_failed_name"}}</label>
 <label><input type="checkbox" name="email_cert_renewal" value="true" {{if .settings.email_cert_renewal}}checked{{end}}> {{t $lang "admin.notifications.event_cert_renewal"}}</label>
 </section>
-<section class="card mb-4"><h2>🪝 {{t $lang "admin.notifications.webhook_heading"}}</h2>
+<section class="section-card mb-4" aria-labelledby="admin_notifications-section-3"><h2 id="admin_notifications-section-3">🪝 {{t $lang "admin.notifications.webhook_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.webhook_intro"}}</p>
 <label><input type="checkbox" name="webhook_enabled" value="true" {{if .settings.webhook_enabled}}checked{{end}}> {{t $lang "admin.notifications.webhook_enable_label"}}</label>
 <label>{{t $lang "admin.notifications.webhook_url_label"}} <input type="url" name="webhook_url" value="{{.settings.webhook_url}}"></label>
 <label>{{t $lang "admin.notifications.webhook_events_label"}} <input type="text" name="webhook_events" value="{{.settings.webhook_events}}" placeholder="startup,shutdown,backup"></label>
 </section>
-<section class="card mb-4"><h2>⚙️ {{t $lang "admin.notifications.system_settings_heading"}}</h2>
+<section class="section-card mb-4" aria-labelledby="admin_notifications-section-4"><h2 id="admin_notifications-section-4">⚙️ {{t $lang "admin.notifications.system_settings_heading"}}</h2>
 <p class="text-comment mb-2">{{t $lang "admin.notifications.system_settings_intro"}}</p>
 <label>{{t $lang "admin.notifications.position_label"}} <select name="webui_position"><option value="top-right" {{if eq .settings.webui_position "top-right"}}selected{{end}}>Top right</option><option value="top-left" {{if eq .settings.webui_position "top-left"}}selected{{end}}>Top left</option><option value="bottom-right" {{if eq .settings.webui_position "bottom-right"}}selected{{end}}>Bottom right</option><option value="bottom-left" {{if eq .settings.webui_position "bottom-left"}}selected{{end}}>Bottom left</option></select></label>
 <label>{{t $lang "admin.notifications.duration_label"}} <input type="number" name="webui_duration" value="{{.settings.webui_duration}}" min="1" max="60"></label>
@@ -128,7 +128,7 @@
 <button type="submit" class="btn btn-primary">💾 {{t $lang "admin.notifications.save_system_action"}}</button>
 </form>
 
-<script type="application/json" id="admin-notifications-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+<textarea hidden id="admin-notifications-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
 <script src="{{asset "/static/js/app.js"}}" defer></script>
 
 {{template "admin_footer" .}}

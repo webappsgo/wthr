@@ -4,9 +4,8 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
-<main class="admin-container" id="main-content">
   <header class="admin-header">
-    <h1>{{t $lang "admin.dashboard.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.dashboard.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.dashboard.intro"}}</p>
   </header>
   <section class="stats-grid" aria-label="{{t $lang "admin.dashboard.overview"}}">
@@ -32,5 +31,4 @@
       <a class="admin-card" href="{{$ap}}/admins"><h3>{{t $lang "admin.admins.title"}}</h3></a>
     </nav>
   </section>
-</main>
 {{template "admin_footer" .}}

@@ -72,6 +72,9 @@ func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 		if ctx.Version != "1.2.3" {
 			t.Errorf("Version = %q, want %q (passed to InjectServerContext)", ctx.Version, "1.2.3")
 		}
+		if ctx.GitOrg != "webappsgo" || ctx.GitRepo != "wthr" {
+			t.Errorf("GitHub source = %q/%q, want webappsgo/wthr", ctx.GitOrg, ctx.GitRepo)
+		}
 		if ctx.Lang != "en" {
 			t.Errorf("Lang = %q, want default %q when no lang was set upstream", ctx.Lang, "en")
 		}
@@ -209,5 +212,8 @@ func TestGetServerContext_MissingReturnsSafeDefaults(t *testing.T) {
 	}
 	if ctx.Version != "unknown" {
 		t.Errorf("Version = %q, want the safe fallback %q", ctx.Version, "unknown")
+	}
+	if ctx.GitOrg != "webappsgo" || ctx.GitRepo != "wthr" {
+		t.Errorf("GitHub source = %q/%q, want webappsgo/wthr", ctx.GitOrg, ctx.GitRepo)
 	}
 }

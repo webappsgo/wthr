@@ -785,7 +785,7 @@ func TestScanGraphQLScheduledTask(t *testing.T) {
 		}
 	})
 
-	t.Run("valid NullTime fields populate LastRun and NextRun", func(t *testing.T) {
+	t.Run("valid Unix-second fields populate LastRun and NextRun", func(t *testing.T) {
 		lastRun := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		nextRun := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 
@@ -793,8 +793,8 @@ func TestScanGraphQLScheduledTask(t *testing.T) {
 			*(dest[0].(*string)) = "my-task"
 			*(dest[1].(*string)) = "* * * * *"
 			*(dest[2].(*bool)) = true
-			*(dest[3].(*sql.NullTime)) = sql.NullTime{Time: lastRun, Valid: true}
-			*(dest[4].(*sql.NullTime)) = sql.NullTime{Time: nextRun, Valid: true}
+			*(dest[3].(*sql.NullInt64)) = sql.NullInt64{Int64: lastRun.Unix(), Valid: true}
+			*(dest[4].(*sql.NullInt64)) = sql.NullInt64{Int64: nextRun.Unix(), Valid: true}
 			*(dest[5].(*int)) = 10
 			*(dest[6].(*int)) = 2
 			return nil
@@ -816,13 +816,13 @@ func TestScanGraphQLScheduledTask(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid NullTime fields leave LastRun and NextRun nil", func(t *testing.T) {
+	t.Run("invalid Unix-second fields leave LastRun and NextRun nil", func(t *testing.T) {
 		task, err := scanGraphQLScheduledTask(func(dest ...any) error {
 			*(dest[0].(*string)) = "my-task"
 			*(dest[1].(*string)) = "* * * * *"
 			*(dest[2].(*bool)) = false
-			*(dest[3].(*sql.NullTime)) = sql.NullTime{Valid: false}
-			*(dest[4].(*sql.NullTime)) = sql.NullTime{Valid: false}
+			*(dest[3].(*sql.NullInt64)) = sql.NullInt64{Valid: false}
+			*(dest[4].(*sql.NullInt64)) = sql.NullInt64{Valid: false}
 			*(dest[5].(*int)) = 0
 			*(dest[6].(*int)) = 0
 			return nil

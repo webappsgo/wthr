@@ -6,7 +6,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"math/rand"
+	"reflect"
+	"runtime"
+	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/server/metric"
 )
 
 // Query timeout constants per AI.md PART 10
@@ -89,7 +96,82 @@ func QueryContext(ctx context.Context, db *sql.DB, timeout time.Duration, query 
 func ExecContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) (sql.Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	return db.ExecContext(ctx, query, args...)
+	if !isSQLiteDB(db) {
+		return db.ExecContext(ctx, query, args...)
+	}
+
+	started := time.Now()
+	result, err := execSQLiteWithRetry(ctx, db, query, args...)
+	recordSQLiteWriteWait(started)
+	return result, err
+}
+
+const sqliteWriteMaxRetries = 8
+
+func execSQLiteWithRetry(ctx context.Context, db *sql.DB, query string, args ...interface{}) (sql.Result, error) {
+	for attempt := 0; ; attempt++ {
+		result, err := db.ExecContext(ctx, query, args...)
+		if !isSQLiteBusyError(err) || attempt >= sqliteWriteMaxRetries {
+			return result, err
+		}
+		metric.RecordDBBusy()
+		if err := waitSQLiteRetry(ctx, attempt); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func waitSQLiteRetry(ctx context.Context, attempt int) error {
+	delay := 25 * time.Millisecond * time.Duration(1<<attempt)
+	jitter := time.Duration(rand.Int63n(int64(delay/2) + 1))
+	timer := time.NewTimer(delay + jitter)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func recordSQLiteWriteWait(started time.Time) {
+	wait := time.Since(started)
+	metric.RecordDBWriteWait(wait)
+	if wait > time.Second {
+		log.Printf("WARN db.busy wait_ms=%d caller=%s", wait.Milliseconds(), databaseCaller())
+	}
+}
+
+func isSQLiteDB(db *sql.DB) bool {
+	if db == nil {
+		return false
+	}
+	t := reflect.TypeOf(db.Driver())
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t.PkgPath() == "modernc.org/sqlite"
+}
+
+func isSQLiteBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToUpper(err.Error())
+	return strings.Contains(message, "SQLITE_BUSY") || strings.Contains(message, "SQLITE_LOCKED") ||
+		strings.Contains(message, "DATABASE IS BUSY") || strings.Contains(message, "DATABASE IS LOCKED") ||
+		strings.Contains(message, "DATABASE TABLE IS LOCKED") || strings.Contains(message, "DATABASE SCHEMA IS LOCKED")
+}
+
+func databaseCaller() string {
+	pc, _, _, ok := runtime.Caller(2)
+	if !ok {
+		return "unknown"
+	}
+	if caller := runtime.FuncForPC(pc); caller != nil {
+		return caller.Name()
+	}
+	return "unknown"
 }
 
 // WithTimeout creates a context with the specified timeout
@@ -117,21 +199,51 @@ func HandleQueryError(err error) error {
 }
 
 // WithTransaction executes a function within a transaction with timeout
-// AI.md PART 10: Transaction timeout = 30 seconds
+// AI.md PART 10: Transaction timeout = 30 seconds. On SQLite, the callback is
+// invoked at most once because it may perform non-database side effects.
 func WithTransaction(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	ctx, cancel := context.WithTimeout(ctx, TimeoutTransaction)
 	defer cancel()
+	if !isSQLiteDB(db) {
+		return withSingleTransaction(ctx, db, fn)
+	}
+	started := time.Now()
+	defer recordSQLiteWriteWait(started)
 
+	for attempt := 0; ; attempt++ {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			if isSQLiteBusyError(err) && attempt < sqliteWriteMaxRetries {
+				metric.RecordDBBusy()
+				if retryErr := waitSQLiteRetry(ctx, attempt); retryErr != nil {
+					return retryErr
+				}
+				continue
+			}
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+
+		if err := fn(tx); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		// Commit errors are returned without re-running fn: a driver may have
+		// committed before surfacing an error, so repeating the callback could
+		// duplicate side effects.
+		return tx.Commit()
+	}
+}
+
+func withSingleTransaction(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-
 	if err := fn(tx); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-
 	return tx.Commit()
 }
 

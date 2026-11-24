@@ -483,7 +483,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 // ListUsers retrieves all users with pagination
 func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
-		SELECT id, username, email, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, created_at, updated_at, last_login_at, last_login_ip
+		SELECT id, username, email, display_name, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, created_at, updated_at, last_login_at, last_login_ip
 		FROM users
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -497,7 +497,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var user User
-		var lastLoginIP, banReason sql.NullString
+		var lastLoginIP, banReason, displayName sql.NullString
 
 		// See UserModel.GetByID for why the timestamp columns are scanned as raw
 		// driver values. Here a single legacy row would have aborted the entire
@@ -510,6 +510,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 			&user.ID,
 			&user.Username,
 			&user.Email,
+			&displayName,
 			&user.EmailVerified,
 			&user.IsActive,
 			&user.IsBanned,
@@ -535,6 +536,9 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 		}
 		if lastLoginIP.Valid {
 			user.LastLoginIP = lastLoginIP.String
+		}
+		if displayName.Valid {
+			user.DisplayName = displayName.String
 		}
 		if banReason.Valid {
 			user.BanReason = banReason.String

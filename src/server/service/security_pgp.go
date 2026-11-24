@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -53,13 +54,74 @@ type PGPKeyInfo struct {
 // private key, encrypted under a key derived from installation_secret, in
 // pgp.priv.asc.enc. Only metadata is stored in the database.
 type PGPKeyManager struct {
-	db  *sql.DB
-	dir string
+	db        *sql.DB
+	dir       string
+	publisher keyserverPublisher
+}
+
+type keyserverPublisher func(context.Context, string, string) error
+
+type keyserverPublishStateFile struct {
+	Version      int                                               `json:"version"`
+	Fingerprints map[string]map[string]keyserverPublishStateRecord `json:"fingerprints"`
+}
+
+type keyserverPublishStateRecord struct {
+	PublishedAt *time.Time `json:"published_at,omitempty"`
+	Attempts    int        `json:"attempt_count"`
+	NextAttempt *time.Time `json:"next_attempt,omitempty"`
+	Final       bool       `json:"final,omitempty"`
+}
+
+var keyserverPublishMu sync.Mutex
+
+const maxKeyserverPublishAttempts = 8
+
+var keyserverRetryDelays = []time.Duration{
+	time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute,
+	16 * time.Minute, 32 * time.Minute, 64 * time.Minute, 6 * time.Hour,
 }
 
 // NewPGPKeyManager creates a manager that keeps its files in dir.
 func NewPGPKeyManager(db *sql.DB, dir string) *PGPKeyManager {
 	return &PGPKeyManager{db: db, dir: dir}
+}
+
+func (m *PGPKeyManager) publishState() (*keyserverPublishStateFile, error) {
+	state := &keyserverPublishStateFile{Version: 1, Fingerprints: map[string]map[string]keyserverPublishStateRecord{}}
+	data, err := os.ReadFile(filepath.Join(m.dir, "keyservers.state"))
+	if errors.Is(err, os.ErrNotExist) {
+		return state, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, state); err != nil {
+		return nil, fmt.Errorf("decode keyserver publish state: %w", err)
+	}
+	if state.Fingerprints == nil {
+		state.Fingerprints = map[string]map[string]keyserverPublishStateRecord{}
+	}
+	return state, nil
+}
+
+func (m *PGPKeyManager) savePublishState(state *keyserverPublishStateFile) error {
+	if err := os.MkdirAll(m.dir, 0o700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := filepath.Join(m.dir, ".keyservers.state.tmp")
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, filepath.Join(m.dir, "keyservers.state")); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func (m *PGPKeyManager) pubPath() string  { return filepath.Join(m.dir, "pgp.pub.asc") }
@@ -519,22 +581,123 @@ func (m *PGPKeyManager) PublishToKeyservers(ctx context.Context, keyservers []st
 		return nil, err
 	}
 	results := map[string]error{}
+	keyserverPublishMu.Lock()
+	defer keyserverPublishMu.Unlock()
+	state, err := m.publishState()
+	if err != nil {
+		return nil, err
+	}
+	if state.Fingerprints[info.Fingerprint] == nil {
+		state.Fingerprints[info.Fingerprint] = map[string]keyserverPublishStateRecord{}
+	}
+	byServer := state.Fingerprints[info.Fingerprint]
+	changed := false
 	for _, ks := range keyservers {
 		ks = strings.TrimRight(strings.TrimSpace(ks), "/")
 		if ks == "" {
 			continue
 		}
-		results[ks] = publishKey(ctx, ks, armoredPub)
-		if results[ks] == nil {
-			info.KeyserversPublished[ks] = time.Now().UTC()
+		if rec, ok := byServer[ks]; ok && rec.PublishedAt != nil {
+			continue
 		}
+		publisher := m.publisher
+		if publisher == nil {
+			publisher = publishKey
+		}
+		results[ks] = publisher(ctx, ks, armoredPub)
+		rec := byServer[ks]
+		rec.Attempts++
+		if results[ks] == nil {
+			now := time.Now().UTC()
+			rec.PublishedAt = &now
+			rec.NextAttempt = nil
+			info.KeyserversPublished[ks] = now
+		} else if retryableKeyserverError(results[ks]) && rec.Attempts < maxKeyserverPublishAttempts {
+			delay := keyserverRetryDelays[rec.Attempts-1]
+			next := time.Now().UTC().Add(delay)
+			rec.NextAttempt = &next
+		} else {
+			rec.Final = true
+		}
+		byServer[ks] = rec
+		changed = true
 	}
 	raw, _ := json.Marshal(info.KeyserversPublished)
 	_, err = m.db.Exec(`UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw))
-	if err == nil {
-		_ = os.WriteFile(filepath.Join(m.dir, "keyservers.state"), raw, 0o600)
+	if err == nil && changed {
+		err = m.savePublishState(state)
 	}
 	return results, err
+}
+
+// RetryKeyserverPublishes processes persisted publish attempts whose backoff elapsed.
+func (m *PGPKeyManager) RetryKeyserverPublishes(ctx context.Context) error {
+	info, err := m.Info()
+	if err != nil {
+		if errors.Is(err, ErrNoKeypair) {
+			return nil
+		}
+		return err
+	}
+	armoredPub, err := m.PublicKey()
+	if err != nil {
+		return err
+	}
+	keyserverPublishMu.Lock()
+	defer keyserverPublishMu.Unlock()
+	state, err := m.publishState()
+	if err != nil {
+		return err
+	}
+	byServer := state.Fingerprints[info.Fingerprint]
+	if len(byServer) == 0 {
+		return nil
+	}
+	publisher := m.publisher
+	if publisher == nil {
+		publisher = publishKey
+	}
+	now := time.Now().UTC()
+	for server, rec := range byServer {
+		if rec.PublishedAt != nil || rec.Final || rec.NextAttempt == nil || rec.NextAttempt.After(now) {
+			continue
+		}
+		err := publisher(ctx, server, armoredPub)
+		rec.Attempts++
+		if err == nil {
+			rec.PublishedAt = &now
+			rec.NextAttempt = nil
+			info.KeyserversPublished[server] = now
+		} else if retryableKeyserverError(err) && rec.Attempts < maxKeyserverPublishAttempts {
+			delay := keyserverRetryDelays[rec.Attempts-1]
+			next := now.Add(delay)
+			rec.NextAttempt = &next
+		} else {
+			rec.Final = true
+		}
+		byServer[server] = rec
+	}
+	raw, err := json.Marshal(info.KeyserversPublished)
+	if err != nil {
+		return err
+	}
+	if _, err := m.db.ExecContext(ctx, `UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw)); err != nil {
+		return err
+	}
+	return m.savePublishState(state)
+}
+
+func retryableKeyserverError(err error) bool {
+	var networkErr net.Error
+	if errors.As(err, &networkErr) {
+		return true
+	}
+	message := err.Error()
+	var status int
+	if _, scanErr := fmt.Sscanf(message, "status %d", &status); scanErr != nil {
+		return true
+	}
+	return status == http.StatusTooManyRequests || status >= 500
 }
 
 func publishKey(ctx context.Context, keyserver, armoredPub string) error {

@@ -6,7 +6,7 @@
 
     <!-- Main Content -->
         <div class="admin-header">
-            <h1>⚙️ {{t $lang "admin.settings.title"}}</h1>
+            <header class="page-header"><h1 class="page-title">⚙️ {{t $lang "admin.settings.title"}}</h1></header>
             <p class="subtitle">{{t $lang "admin.settings.subtitle"}}</p>
         </div>
 
@@ -1377,7 +1377,7 @@
         </div>
 
     <!-- Scripts -->
-    <script type="application/json" id="admin-settings-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <textarea hidden id="admin-settings-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

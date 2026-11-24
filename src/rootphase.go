@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/privilege"
@@ -30,7 +31,7 @@ func serviceDirectories(dirPaths *util.DirectoryPaths) []string {
 
 // startupListenHost returns the host the server binds, resolved the same way the HTTP
 // server resolves it later so a pre-bound privileged socket and the late bind agree.
-func startupListenHost() string {
+func startupListenHost(configAddress ...string) string {
 	listen := os.Getenv("LISTEN")
 	if listen == "" {
 		listen = os.Getenv("SERVER_ADDRESS")
@@ -41,10 +42,20 @@ func startupListenHost() string {
 		}
 		return listen
 	}
+	if len(configAddress) > 0 && strings.TrimSpace(configAddress[0]) != "" {
+		return strings.Trim(strings.TrimSpace(configAddress[0]), "[]")
+	}
 	if config.IsTruthy(os.Getenv("REVERSE_PROXY")) {
 		return "127.0.0.1"
 	}
 	return getDefaultListenAddress()
+}
+
+func daemonizeRequested(configValue bool) bool {
+	if value, exists := os.LookupEnv("DAEMON"); exists && strings.TrimSpace(value) != "" {
+		return config.IsTruthy(value)
+	}
+	return configValue
 }
 
 // needsPortBinding is false for --status: it only reads the database and must work while
@@ -58,7 +69,7 @@ func needsPortBinding() bool {
 // owned by that account, binds every privileged port while still root and then drops
 // to the account and proves the drop. It does nothing for a regular user, on Windows
 // (the service runs as a Virtual Service Account) or when the port needs no root.
-func runRootPhase(dirPaths *util.DirectoryPaths, ports util.StartupPorts) {
+func runRootPhase(dirPaths *util.DirectoryPaths, ports util.StartupPorts, configAddress string) {
 	if runtime.GOOS == "windows" || !privilege.IsRoot() {
 		return
 	}
@@ -92,7 +103,7 @@ func runRootPhase(dirPaths *util.DirectoryPaths, ports util.StartupPorts) {
 		listenPorts = append(listenPorts, ports.HTTPS)
 	}
 	if needsPortBinding() {
-		if err := privilege.BindPrivilegedPorts(startupListenHost(), listenPorts); err != nil {
+		if err := privilege.BindPrivilegedPorts(startupListenHost(configAddress), listenPorts); err != nil {
 			// Listener bind failure (AI.md PART 8: exit code 3).
 			log.Printf("Failed to bind a privileged port: %v", err)
 			fmt.Fprintf(os.Stderr, "Failed to bind a privileged port: %v\n", err)

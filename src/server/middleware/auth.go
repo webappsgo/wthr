@@ -42,12 +42,11 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 						// Valid API token found
 						user, err = userModel.GetByID(int64(apiToken.UserID))
 						if err == nil {
-							// Update last used timestamp asynchronously
-							go func(tokenID int) {
-								if err := tokenModel.UpdateLastUsed(tokenID); err != nil {
-									log.Printf("Unable to update API token last-used time: %v", err)
+							if model.ShouldUpdateLastUsed(apiToken.LastUsedAt, time.Now()) {
+								if err := tokenModel.QueueLastUsed(apiToken.ID); err != nil {
+									log.Printf("Unable to queue API token last-used time: %v", err)
 								}
-							}(apiToken.ID)
+							}
 							ctx := reqctx.SetValue(r.Context(), UserContextKey, user)
 							// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
 							ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
@@ -70,7 +69,7 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 					if settings.IdleTimeout > 0 && !time.Now().Before(session.LastUsedAt.Add(settings.IdleTimeout)) {
 						_ = sessionModel.DeleteSession(sessionID)
 						err = sql.ErrNoRows
-					} else if sessionConfig().ExtendOnActivity {
+					} else if sessionConfig().ExtendOnActivity && model.ShouldUpdateLastUsed(&session.LastUsedAt, time.Now()) {
 						err = sessionModel.Touch(sessionID)
 					}
 				}

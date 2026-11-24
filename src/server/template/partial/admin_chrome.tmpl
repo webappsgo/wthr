@@ -71,6 +71,7 @@
           <li><a class="nav-link{{if eq $page "ssl"}} is-active{{end}}" href="{{$ap}}/ssl"{{if eq $page "ssl"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ssl"}}</a></li>
           <li><a class="nav-link{{if eq $page "scheduler"}} is-active{{end}}" href="{{$ap}}/scheduler"{{if eq $page "scheduler"}} aria-current="page"{{end}}>{{t $lang "admin.nav.scheduler"}}</a></li>
           <li><a class="nav-link{{if eq $page "email"}} is-active{{end}}" href="{{$ap}}/email"{{if eq $page "email"}} aria-current="page"{{end}}>{{t $lang "admin.nav.email"}}</a></li>
+          <li><a class="nav-link{{if eq $page "notify"}} is-active{{end}}" href="{{$ap}}/notify"{{if eq $page "notify"}} aria-current="page"{{end}}>{{t $lang "admin.notify.title"}}</a></li>
           <li><a class="nav-link{{if eq $page "channels"}} is-active{{end}}" href="{{$ap}}/notifications/channels"{{if eq $page "channels"}} aria-current="page"{{end}}>{{t $lang "admin.nav.channels"}}</a></li>
           <li><a class="nav-link{{if eq $page "templates"}} is-active{{end}}" href="{{$ap}}/notifications/templates"{{if eq $page "templates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.templates"}}</a></li>
           <li><a class="nav-link{{if eq $page "logs"}} is-active{{end}}" href="{{$ap}}/logs"{{if eq $page "logs"}} aria-current="page"{{end}}>{{t $lang "admin.nav.logs"}}</a></li>
@@ -146,7 +147,7 @@
     {{- /* Tapping outside the open drawer closes it, still without JavaScript. */}}
     <label class="admin-drawer-scrim" for="admin-drawer" aria-hidden="true"></label>
     <div class="admin-main-col">
-      <main class="admin-content" id="main-content" role="main">
+      <main class="admin-content container container-lg" id="main-content" role="main">
         <nav class="admin-breadcrumb" aria-label="{{t $lang "admin.breadcrumb.label"}}">
           <ol class="admin-breadcrumb__list">
             <li class="admin-breadcrumb__item"><a href="{{$ap}}">{{t $lang "admin.breadcrumb.home"}}</a></li>

@@ -28,10 +28,11 @@ func ShowAdminModerationPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	searchQuery := strings.ToLower(query)
 	status := r.URL.Query().Get("status")
 	filtered := make([]*model.User, 0, len(users))
 	for _, user := range users {
-		if query != "" && !strings.Contains(strings.ToLower(user.Username+" "+user.Email+" "+user.DisplayName), strings.ToLower(query)) {
+		if searchQuery != "" && !strings.Contains(strings.ToLower(user.Username+" "+user.Email+" "+user.DisplayName), searchQuery) {
 			continue
 		}
 		if status == "active" && (!user.IsActive || user.IsBanned) || status == "disabled" && user.IsActive && !user.IsBanned {

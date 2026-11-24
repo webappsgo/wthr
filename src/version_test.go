@@ -36,3 +36,28 @@ func TestBuildDateDerivedFromEpoch(t *testing.T) {
 		t.Errorf("BuildDate = %q, want %q", BuildDate, want)
 	}
 }
+
+func TestVersionAccessors(t *testing.T) {
+	version, commitID, buildDate, buildEpoch, officialSite := Version, CommitID, BuildDate, BuildEpoch, OfficialSite
+	Version, CommitID, BuildDate, BuildEpoch, OfficialSite = "1.2.3", "abc1234", "2026-01-02T03:04:05Z", "1767323045", "https://example.test"
+	t.Cleanup(func() {
+		Version, CommitID, BuildDate, BuildEpoch, OfficialSite = version, commitID, buildDate, buildEpoch, officialSite
+	})
+
+	if got := GetVersion(); got != Version {
+		t.Fatalf("GetVersion() = %q, want %q", got, Version)
+	}
+	info := GetBuildInfo()
+	want := map[string]string{
+		"version": Version, "build_date": BuildDate, "build_epoch": BuildEpoch,
+		"commit_id": CommitID, "official_site": OfficialSite,
+	}
+	for key, value := range want {
+		if info[key] != value {
+			t.Errorf("GetBuildInfo()[%q] = %q, want %q", key, info[key], value)
+		}
+	}
+	if got, want := GetVersionString(), "v1.2.3 (built: 2026-01-02T03:04:05Z, commit: abc1234)"; got != want {
+		t.Errorf("GetVersionString() = %q, want %q", got, want)
+	}
+}

@@ -43,6 +43,21 @@ func TestBackupEncryptionConfigured(t *testing.T) {
 	}
 }
 
+func TestMaintenanceBackupComplianceRequiresSavedPassword(t *testing.T) {
+	previous := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+	t.Setenv("CONFIG_DIR", t.TempDir())
+
+	cfg := config.DefaultAppConfig()
+	cfg.Server.Compliance.GDPR = true
+	config.SetGlobalConfig(cfg)
+
+	err := MaintenanceBackupCommand(nil)
+	if err == nil || !strings.Contains(err.Error(), "Compliance mode requires encrypted backups") {
+		t.Fatalf("MaintenanceBackupCommand() error = %v, want compliance password instructions", err)
+	}
+}
+
 // TestMaintenanceRestoreCommand covers: no backup path argument, a backup
 // file that does not exist, declining the overwrite confirmation, and
 // accepting it against a file that is not a valid backup archive (real

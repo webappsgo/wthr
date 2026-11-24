@@ -585,7 +585,7 @@ func TestAdminHandler_GetLogsStats_CountsRecentRowsByInstant(t *testing.T) {
 // columns (enabled, last_status).
 func TestAdminHandler_GetTasksStats_Success(t *testing.T) {
 	h, serverDB, _ := newAdminTestHandler(t)
-	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (task_id, task_name, schedule, enabled, last_status) VALUES ('t1', 'rotate-logs', 'daily', 1, 'ok')`); err != nil {
+	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (id, name, schedule, enabled, last_status) VALUES ('t1', 'rotate-logs', 'daily', 1, 'ok')`); err != nil {
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
@@ -620,21 +620,11 @@ func TestAdminHandler_GetSystemStats_Success(t *testing.T) {
 	}
 }
 
-// TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch is a
-// regression test documenting a genuine production bug in
-// src/server/handler/admin.go GetScheduledTasks: it gates on
-// "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND
-// name='scheduled_tasks'" to decide whether to seed/query scheduler state,
-// but the real table used everywhere else in this file is
-// "scheduler_tasks", not "scheduled_tasks". Since a table literally
-// named "scheduled_tasks" never exists, this check always evaluates to
-// tableExists == 0 and the handler always returns an empty array - even
-// when scheduler_tasks has rows (seeded by the internal scheduler
-// per PART 19). Admins can never see real scheduled task status through
-// this endpoint.
-func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing.T) {
+// TestAdminHandler_GetScheduledTasksReturnsCanonicalRows covers reading the
+// canonical scheduler_tasks table and decoding its Unix-second timestamps.
+func TestAdminHandler_GetScheduledTasksReturnsCanonicalRows(t *testing.T) {
 	h, serverDB, _ := newAdminTestHandler(t)
-	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (task_id, task_name, schedule, enabled) VALUES ('t1', 'rotate-logs', 'daily', 1)`); err != nil {
+	if _, err := serverDB.Exec(`INSERT INTO scheduler_tasks (id, name, schedule, enabled) VALUES ('t1', 'rotate-logs', 'daily', 1)`); err != nil {
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
@@ -648,8 +638,8 @@ func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing
 	if err := json.Unmarshal(w.Body.Bytes(), &tasks); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(tasks) == 0 {
-		t.Errorf("BUG admin.go GetScheduledTasks: returned empty task list despite a seeded scheduler_tasks row (handler checks for a nonexistent 'scheduled_tasks' table instead of 'scheduler_tasks', so it always short-circuits to an empty response)")
+	if len(tasks) != 1 || tasks[0]["name"] != "rotate-logs" {
+		t.Errorf("tasks = %#v, want the seeded canonical task", tasks)
 	}
 }
 

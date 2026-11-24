@@ -2,10 +2,11 @@
 {{template "header" .}}
 {{template "navbar" .}}
 
-<main class="container" id="main-content" role="main" aria-label="Weather forecast content">
+<main id="main-content">
+  <div class="container container-md">
     <div class="admin_header">
         <div>
-            <h1>🌤️ {{t .server.Lang "index.page_heading"}}</h1>
+            <header class="page-header"><h1 class="page-title">🌤️ {{t .server.Lang "index.page_heading"}}</h1></header>
             <p class="subtitle">{{t .server.Lang "index.page_subtitle"}}</p>
         </div>
     </div>
@@ -109,8 +110,8 @@
             <!-- Mobile-Optimized Forecast -->
             <div class="forecast-section">
                 <!-- Desktop Table (hidden on mobile) -->
-                <div class="table-scroll">
-                <table class="forecast-table desktop-table">
+                <div class="table-wrapper table-scroll">
+                <table class="forecast-table desktop-table data-table">
                     <thead>
                         <tr>
                             <th>{{t .server.Lang "index.th_date"}}</th>
@@ -239,7 +240,7 @@
         {{end}}
     </div>
 
-    <script type="application/json" id="index-data">
+    <textarea hidden id="index-data">
         {
             "getting": "{{t .server.Lang "index.js_getting"}}",
             "gps": "{{t .server.Lang "index.js_gps"}}",
@@ -258,7 +259,8 @@
             "locationPrefilled": "{{t .server.Lang "index.js_location_prefilled"}}",
             "approximateLocation": "{{t .server.Lang "index.js_approximate_location"}}"
         }
-    </script>
+    </textarea>
+  </div>
 </main>
 
 {{template "footer" .}}

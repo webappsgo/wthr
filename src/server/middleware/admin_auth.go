@@ -84,10 +84,15 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 				lastUsedAt = createdAt
 				lastUsedAtOK = createdAtOK
 			}
+			var storedLastUsedAt *time.Time
+			if lastUsedAtOK {
+				storedLastUsedAt = &lastUsedAt
+			}
 			settings := SessionSettingsFor(SessionAccountAdmin)
 			idleExpired := settings.IdleTimeout > 0 && (!lastUsedAtOK || !now.Before(lastUsedAt.Add(settings.IdleTimeout)))
-			if err == nil && !idleExpired && dbtime.IsAfter(activity.ExpiresAt, now) && sessionConfig().ExtendOnActivity {
-				err = (&model.AdminSessionModel{DB: db}).UpdateSessionLastUsed(session)
+			if err == nil && !idleExpired && dbtime.IsAfter(activity.ExpiresAt, now) &&
+				sessionConfig().ExtendOnActivity && model.ShouldUpdateLastUsed(storedLastUsedAt, now) {
+				err = (&model.AdminSessionModel{DB: db}).QueueSessionLastUsed(session)
 			}
 
 			if err != nil || idleExpired || !dbtime.IsAfter(activity.ExpiresAt, now) {

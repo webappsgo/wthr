@@ -10,12 +10,15 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <div class="auth-container">
         <div class="auth-card">
-            <h1>{{t .server.Lang "recovery.key_page_heading"}}</h1>
+            <header class="page-header"><h1 class="page-title">{{t .server.Lang "recovery.key_page_heading"}}</h1></header>
             <p>{{t .server.Lang "recovery.key_page_subtitle"}}</p>
 
             {{if .error}}
@@ -36,6 +39,7 @@
             </div>
         </div>
     </div>
+  </div>
 </main>
 {{template "footer" .}}
 

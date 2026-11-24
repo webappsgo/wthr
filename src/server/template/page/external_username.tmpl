@@ -9,11 +9,14 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <section class="register-container" aria-labelledby="external-username-title">
-        <h1 id="external-username-title">{{if .RequireAdminMFA}}{{t .server.Lang "login.2fa_required_title"}}{{else}}{{t .server.Lang "auth.external_username.title"}}{{end}}</h1>
+        <header class="page-header"><h1 id="external-username-title" class="page-title">{{if .RequireAdminMFA}}{{t .server.Lang "login.2fa_required_title"}}{{else}}{{t .server.Lang "auth.external_username.title"}}{{end}}</h1></header>
         <p>{{if .RequireAdminMFA}}{{t .server.Lang "errors.auth.two_factor_required"}}{{else}}{{t .server.Lang "auth.external_username.description"}}{{end}}</p>
         {{if .error}}<p class="error-message" role="alert">{{.error}}</p>{{end}}
         <form method="post" action="/server/auth/external/username">
@@ -37,6 +40,7 @@
             {{end}}
         </form>
     </section>
+  </div>
 </main>
 {{template "footer" .}}
 </body>

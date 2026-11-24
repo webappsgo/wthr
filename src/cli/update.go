@@ -78,12 +78,7 @@ func UpdateCommand(args []string) error {
 		if !isValidBranch(args[1]) {
 			return fmt.Errorf("invalid branch: %s (use stable, beta, or devel)", args[1])
 		}
-		cfg, err := config.CurrentConfig()
-		if err != nil {
-			return fmt.Errorf("failed to load configuration: %w", err)
-		}
-		cfg.Server.Update.Branch = normalizeUpdateBranch(args[1])
-		if err := config.SaveConfig(cfg); err != nil {
+		if err := config.WriteSetting("server.update.branch", normalizeUpdateBranch(args[1])); err != nil {
 			return fmt.Errorf("failed to save update branch: %w", err)
 		}
 		return nil

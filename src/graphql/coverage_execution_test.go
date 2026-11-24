@@ -31,6 +31,9 @@ func TestGraphQLSchemaRootFieldsExecuteThroughGeneratedExecutor(t *testing.T) {
 		for _, field := range operation.root.Fields {
 			field := field
 			t.Run(operation.name+"/"+field.Name, func(t *testing.T) {
+				if strings.HasPrefix(field.Name, "__") {
+					t.Skip("built-in introspection fields are exercised by the schema introspection test")
+				}
 				args, ok := graphQLCoverageArguments(schema, field.Arguments)
 				if !ok {
 					t.Skip("required argument has no safe GraphQL literal")
@@ -52,13 +55,20 @@ func TestGraphQLSchemaRootFieldsExecuteThroughGeneratedExecutor(t *testing.T) {
 					t.Fatalf("GraphQL status = %d, body=%s", response.Code, response.Body.String())
 				}
 				var result struct {
-					Data map[string]json.RawMessage `json:"data"`
+					Data   map[string]json.RawMessage `json:"data"`
+					Errors []json.RawMessage          `json:"errors"`
 				}
 				if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 					t.Fatalf("decode GraphQL response: %v; body=%s", err, response.Body.String())
 				}
 				if _, ok := result.Data[field.Name]; !ok {
 					t.Fatalf("GraphQL response omitted %q for query %s: %s", field.Name, query, response.Body.String())
+				}
+				if len(result.Errors) > 0 {
+					t.Fatalf("GraphQL query %s returned errors: %s", query, response.Body.String())
+				}
+				if string(result.Data[field.Name]) == "null" {
+					t.Fatalf("GraphQL query %s returned a null value: %s", query, response.Body.String())
 				}
 			})
 		}
@@ -145,7 +155,7 @@ func graphQLCoverageSelection(schema *ast.Schema, typ *ast.Type, depth int, seen
 	if definition == nil || (definition.Kind != ast.Object && definition.Kind != ast.Interface) {
 		return "", true
 	}
-	if depth >= 3 || seen[definition.Name] {
+	if depth >= 6 || seen[definition.Name] {
 		return " { __typename }", true
 	}
 	seen[definition.Name] = true

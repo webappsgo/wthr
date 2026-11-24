@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // newWebTestContext builds a bare GET request/recorder pair, matching
@@ -54,6 +56,32 @@ func TestWebHandlerServeMoonInterface_NotInitialized(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "Initializing") {
 		t.Errorf("body = %s, want it to mention Initializing", w.Body.String())
+	}
+}
+
+func TestFormatForecastForWeb(t *testing.T) {
+	weatherService := service.NewWeatherService(nil, nil)
+	day := service.ForecastDay{Date: "2026-11-22", WeatherCode: 1, TempMax: 12, TempMin: 4}
+
+	formatted := formatForecastForWeb(weatherService, &service.Forecast{Days: []service.ForecastDay{day}, Timezone: "UTC"})
+	days, ok := formatted["Days"].([]map[string]interface{})
+	if !ok || len(days) != 1 {
+		t.Fatalf("formatted forecast days = %#v, want one day", formatted["Days"])
+	}
+	if days[0]["DateFormatted"] != "Sun 22 Nov" || days[0]["TempMax"] != float64(12) || days[0]["TempMin"] != float64(4) {
+		t.Errorf("formatted forecast day = %#v", days[0])
+	}
+	if days[0]["Icon"] == "" || days[0]["Description"] == "" {
+		t.Errorf("forecast icon and description should be populated: %#v", days[0])
+	}
+	if formatted["Timezone"] != "UTC" {
+		t.Errorf("forecast timezone = %v, want UTC", formatted["Timezone"])
+	}
+
+	empty := formatForecastForWeb(weatherService, nil)
+	emptyDays, ok := empty["Days"].([]map[string]interface{})
+	if !ok || len(emptyDays) != 0 {
+		t.Errorf("nil forecast days = %#v, want an empty slice", empty["Days"])
 	}
 }
 

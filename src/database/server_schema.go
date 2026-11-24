@@ -69,18 +69,19 @@ CREATE INDEX IF NOT EXISTS idx_cluster_node ON server_cluster_state(node_id);
 
 -- Scheduler State table (scheduled tasks)
 CREATE TABLE IF NOT EXISTS scheduler_tasks (
-	task_id TEXT PRIMARY KEY,
-	task_name TEXT NOT NULL,
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	task_type TEXT NOT NULL DEFAULT 'global',
+	enabled INTEGER NOT NULL DEFAULT 1,
 	schedule TEXT NOT NULL,
-	last_run DATETIME,
+	last_run INTEGER,
 	last_status TEXT,
 	last_error TEXT,
-	next_run DATETIME,
+	next_run INTEGER,
 	run_count INTEGER DEFAULT 0,
 	fail_count INTEGER DEFAULT 0,
-	enabled BOOLEAN DEFAULT 1,
 	locked_by TEXT,
-	locked_at DATETIME
+	locked_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_enabled ON scheduler_tasks(enabled);
@@ -90,17 +91,16 @@ CREATE INDEX IF NOT EXISTS idx_scheduler_locked ON scheduler_tasks(locked_by);
 -- Scheduler History table (one row per task execution)
 CREATE TABLE IF NOT EXISTS scheduler_history (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	task_name TEXT NOT NULL,
-	start_time DATETIME NOT NULL,
-	end_time DATETIME NOT NULL,
-	duration_ms INTEGER NOT NULL,
+	task_id TEXT NOT NULL,
+	started_at INTEGER NOT NULL,
+	finished_at INTEGER,
 	status TEXT NOT NULL,
 	error TEXT,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	duration_ms INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON scheduler_history(task_name);
-CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON scheduler_history(start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON scheduler_history(task_id);
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON scheduler_history(started_at DESC);
 
 -- Cluster Nodes table (for future cluster mode)
 CREATE TABLE IF NOT EXISTS server_nodes (
@@ -333,6 +333,22 @@ CREATE INDEX IF NOT EXISTS idx_nq_state ON notification_queue(state);
 CREATE INDEX IF NOT EXISTS idx_nq_priority ON notification_queue(priority);
 CREATE INDEX IF NOT EXISTS idx_nq_retry ON notification_queue(next_retry_at);
 CREATE INDEX IF NOT EXISTS idx_nq_created ON notification_queue(created_at);
+
+-- Outbound contact webhook retries retain only event payload metadata and
+-- never persist webhook URLs or per-webhook signing secrets.
+CREATE TABLE IF NOT EXISTS contact_webhook_retries (
+	id TEXT PRIMARY KEY,
+	role TEXT NOT NULL,
+	transport TEXT NOT NULL,
+	webhook_id TEXT NOT NULL,
+	message_json TEXT NOT NULL,
+	attempt_count INTEGER NOT NULL DEFAULT 0,
+	next_retry_at INTEGER NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_webhook_retries_due ON contact_webhook_retries(next_retry_at);
 
 -- Notification Metrics table (custom metrics and analytics; PART 21)
 CREATE TABLE IF NOT EXISTS notification_metrics (

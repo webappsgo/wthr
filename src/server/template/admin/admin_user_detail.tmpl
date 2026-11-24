@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.user_detail.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.user_detail.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.user_detail.intro"}}</p>
   </div>
   {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
@@ -27,9 +27,9 @@
   <section class="admin-section" aria-labelledby="user-detail-security-heading">
     <div class="section-header"><h2 id="user-detail-security-heading">{{t $lang "admin.user_detail.sessions_heading"}}</h2></div>
     {{if .sessions}}
-      <div class="table-responsive"><table class="admin-table"><thead><tr><th>{{t $lang "admin.user_detail.ip_address"}}</th><th>{{t $lang "admin.user_detail.user_agent"}}</th><th>{{t $lang "admin.user_detail.last_used"}}</th></tr></thead><tbody>
+      <div class="table-responsive"><div class="table-wrapper"><table class="admin-table data-table"><thead><tr><th>{{t $lang "admin.user_detail.ip_address"}}</th><th>{{t $lang "admin.user_detail.user_agent"}}</th><th>{{t $lang "admin.user_detail.last_used"}}</th></tr></thead><tbody>
       {{range .sessions}}<tr><td>{{.ip_address}}</td><td>{{.user_agent}}</td><td>{{.last_used_at}}</td></tr>{{end}}
-      </tbody></table></div>
+      </tbody></table></div></div>
     {{else}}<p>{{t $lang "admin.user_detail.no_sessions"}}</p>{{end}}
     <form method="post" action="{{$ap}}/moderation/users/{{.user.ID}}">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}"><input type="hidden" name="action" value="revoke_sessions">
@@ -38,9 +38,9 @@
   </section>
   <section class="admin-section" aria-labelledby="user-detail-activity-heading">
     <div class="section-header"><h2 id="user-detail-activity-heading">{{t $lang "admin.user_detail.activity_heading"}}</h2></div>
-    {{if .activities}}<div class="table-responsive"><table class="admin-table"><thead><tr><th>{{t $lang "admin.user_detail.activity_type"}}</th><th>{{t $lang "admin.user_detail.activity_time"}}</th><th>{{t $lang "admin.user_detail.ip_address"}}</th></tr></thead><tbody>
+    {{if .activities}}<div class="table-responsive"><div class="table-wrapper"><table class="admin-table data-table"><thead><tr><th>{{t $lang "admin.user_detail.activity_type"}}</th><th>{{t $lang "admin.user_detail.activity_time"}}</th><th>{{t $lang "admin.user_detail.ip_address"}}</th></tr></thead><tbody>
       {{range .activities}}<tr><td>{{.ActivityType}}</td><td>{{.CreatedAt}}</td><td>{{.IPAddress}}</td></tr>{{end}}
-    </tbody></table></div>{{else}}<p>{{t $lang "admin.user_detail.empty_message"}}</p>{{end}}
+    </tbody></table></div></div>{{else}}<p>{{t $lang "admin.user_detail.empty_message"}}</p>{{end}}
   </section>
   <section class="admin-section" aria-labelledby="user-detail-actions-heading">
     <div class="section-header"><h2 id="user-detail-actions-heading">{{t $lang "admin.user_detail.actions_heading"}}</h2></div>

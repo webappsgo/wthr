@@ -424,18 +424,19 @@ release:beta:
     - if: $CI_COMMIT_BRANCH == "beta"
 
 # =============================================================================
-# DAILY BUILDS (Scheduled + main/master push) - All 8 platforms
+# DEVEL BUILDS (Scheduled + main/master push) - All 8 platforms
 # =============================================================================
 
-build:daily:
+build:devel:
   <<: *go-build
   stage: build
   before_script:
     # all tooling is pre-installed in casjaysdev/go:latest - never `apk add` inside a CI job
-    # Daily identity is the commit, not a timestamp - the daily
+    # Devel identity is the commit, not a timestamp - the devel
     # release is a single rolling release, not a versioned tag
     - export VERSION="${CI_COMMIT_SHA:0:7}"
     - export COMMIT_ID="${CI_COMMIT_SHA:0:7}"
+    - echo "RELEASE_VERSION=${COMMIT_ID}" > release.env
     - export BUILD_EPOCH="$(date -u +%s)"
     - export BUILD_DATE="$(date -u -d @$BUILD_EPOCH +"%Y-%m-%dT%H:%M:%SZ")"
     # OFFICIAL_SITE (optional): site.txt wins; otherwise use CI/CD Variables or leave empty
@@ -480,6 +481,8 @@ build:daily:
   artifacts:
     paths:
       - ${PROJECT_NAME}-*
+    reports:
+      dotenv: release.env
     expire_in: 1 day
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -487,25 +490,24 @@ build:daily:
       when: manual
       allow_failure: true
 
-release:daily:
+release:devel:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
-    - build:daily
+    - build:devel
     - test
   before_script:
-    # Delete the prior rolling `daily` release + tag - the daily channel is a
+    # Delete the prior rolling `devel` release + tag - the devel channel is a
     # single rolling release, not a versioned tag, so the old one must go
     # before the new one is published
     - >
       curl --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/daily" || true
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/devel" || true
     - >
       curl --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/daily" || true
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/devel" || true
   script:
-    # Daily identity is the commit, not a timestamp - CI_COMMIT_SHA is a
-    # predefined variable, so it needs no cross-job dotenv passthrough
+    # RELEASE_VERSION arrives from the build job's dotenv artifact.
     - echo "${CI_COMMIT_SHA:0:7}" > version.txt
     # Source archive - already-staged release assets are excluded to avoid
     # archiving our own output
@@ -526,37 +528,37 @@ release:daily:
       - ${PROJECT_NAME}-*
     expire_in: 1 day
   release:
-    tag_name: "daily"
-    name: "Daily Build ${CI_COMMIT_SHA:0:7}"
-    description: "Daily build: ${CI_COMMIT_SHA:0:7}"
+    tag_name: "devel"
+    name: "Devel Build ${RELEASE_VERSION}"
+    description: "Devel build: ${RELEASE_VERSION}"
     assets:
       links:
         - name: "${PROJECT_NAME}-linux-amd64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-linux-amd64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-linux-amd64?job=build:devel"
         - name: "${PROJECT_NAME}-linux-arm64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-linux-arm64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-linux-arm64?job=build:devel"
         - name: "${PROJECT_NAME}-darwin-amd64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-darwin-amd64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-darwin-amd64?job=build:devel"
         - name: "${PROJECT_NAME}-darwin-arm64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-darwin-arm64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-darwin-arm64?job=build:devel"
         - name: "${PROJECT_NAME}-windows-amd64.exe"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-windows-amd64.exe?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-windows-amd64.exe?job=build:devel"
         - name: "${PROJECT_NAME}-windows-arm64.exe"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-windows-arm64.exe?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-windows-arm64.exe?job=build:devel"
         - name: "${PROJECT_NAME}-freebsd-amd64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-freebsd-amd64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-freebsd-amd64?job=build:devel"
         - name: "${PROJECT_NAME}-freebsd-arm64"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-freebsd-arm64?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-freebsd-arm64?job=build:devel"
         - name: "${PROJECT_NAME}-sbom.cdx.json"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-sbom.cdx.json?job=build:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-sbom.cdx.json?job=build:devel"
         - name: "${PROJECT_NAME}-${CI_COMMIT_SHA:0:7}-source.tar.gz"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-${CI_COMMIT_SHA:0:7}-source.tar.gz?job=release:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/${PROJECT_NAME}-${CI_COMMIT_SHA:0:7}-source.tar.gz?job=release:devel"
         - name: "sha256.txt"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/sha256.txt?job=release:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/sha256.txt?job=release:devel"
         - name: "sha512.txt"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/sha512.txt?job=release:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/sha512.txt?job=release:devel"
         - name: "version.txt"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/version.txt?job=release:daily"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_BRANCH}/raw/version.txt?job=release:devel"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"

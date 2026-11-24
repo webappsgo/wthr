@@ -4,11 +4,11 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
     <div class="content-header">
-        <h1>📊 {{t $lang "admin.metrics.title"}}</h1>
+        <header class="page-header"><h1 class="page-title">📊 {{t $lang "admin.metrics.title"}}</h1></header>
     </div>
     {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
     <noscript>
-        <section class="admin-page-card" aria-labelledby="metrics-no-script-heading">
+        <section class="admin-page-section-card" aria-labelledby="metrics-no-script-heading">
             <h2 id="metrics-no-script-heading">{{t $lang "admin.metrics.title"}}</h2>
             <p>{{t $lang "admin.metrics.export_formats_heading"}}</p>
             <ul>
@@ -157,7 +157,7 @@
             <div class="admin-page-card">
                 <h2>📊 {{t $lang "admin.metrics.registered_heading"}}</h2>
                 <div class="table-responsive">
-                    <table class="admin-table">
+                    <div class="table-wrapper"><table class="admin-table data-table">
                         <thead>
                             <tr>
                                 <th scope="col">{{t $lang "admin.metrics.col_name"}}</th>
@@ -171,7 +171,7 @@
                                 <td colspan="4" class="text-center text-muted p-3">{{t $lang "admin.metrics.registered_empty"}}</td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
             </div>
         </div>
@@ -204,7 +204,7 @@
         </div>
     </div>
 
-    <script type="application/json" id="admin-metrics-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "msgLoadError": {{t $lang "admin.metrics.load_error"}}, "msgExportError": {{t $lang "admin.metrics.export_error"}}, "registeredEmpty": {{t $lang "admin.metrics.registered_empty"}}}</script>
+    <textarea hidden id="admin-metrics-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "msgLoadError": {{t $lang "admin.metrics.load_error"}}, "msgExportError": {{t $lang "admin.metrics.export_error"}}, "registeredEmpty": {{t $lang "admin.metrics.registered_empty"}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

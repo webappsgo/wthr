@@ -2,14 +2,14 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<div class="admin-header"><h1>👥 {{t $lang "admin.users.title"}}</h1></div>
+<div class="admin-header"><header class="page-header"><h1 class="page-title">👥 {{t $lang "admin.users.title"}}</h1></header></div>
 {{template "flash" .}}
 <form id="userSettingsForm" method="post" action="{{.admin_path}}/users/settings">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>{{t $lang "admin.users.multi_user_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_users-section-1"><h2 id="admin_users-section-1">{{t $lang "admin.users.multi_user_heading"}}</h2>
 <label><input type="checkbox" name="enabled" value="true" {{if .settings.enabled}}checked{{end}}> {{t $lang "admin.users.enable_multi_user_label"}}</label>
 </section>
-<section class="card"><h2>{{t $lang "admin.users.registration_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_users-section-2"><h2 id="admin_users-section-2">{{t $lang "admin.users.registration_heading"}}</h2>
 <label for="registration_mode">{{t $lang "admin.users.registration_mode_label"}}</label>
 <select id="registration_mode" name="registration_mode">
     <option value="open" {{if eq .settings.registration_mode "open"}}selected{{end}}>{{t $lang "admin.users.registration_mode_open"}}</option>

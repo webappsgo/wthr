@@ -1,29 +1,34 @@
 {{template "head" .}}
 
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
 
-<div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "examples.page_title"}}</h1>
+
+<div >
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "examples.page_title"}}</h1></header>
 
     <p>{{t .server.Lang "examples.note"}}</p>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "examples.console_title"}}</h2>
+    <section class="section-card" aria-labelledby="examples-card-2">
+        <h2 class="text-cyan" id="examples-card-2">{{t .server.Lang "examples.console_title"}}</h2>
         <ul>
             {{range .ConsoleExamples}}
             <li><code>{{.}}</code></li>
             {{end}}
         </ul>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "examples.json_title"}}</h2>
+    <section class="section-card" aria-labelledby="examples-card-1">
+        <h2 class="text-cyan" id="examples-card-1">{{t .server.Lang "examples.json_title"}}</h2>
         <ul>
             {{range .JSONExamples}}
             <li><code>{{.}}</code></li>
             {{end}}
         </ul>
-    </div>
+    </section>
 </div>
 
+  </div>
+</main>
 {{template "footer" .}}

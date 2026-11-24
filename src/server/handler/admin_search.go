@@ -167,9 +167,9 @@ func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchRes
 
 	pattern := adminSearchPattern(query)
 	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect,
-		`SELECT task_name, COALESCE(schedule, '') FROM scheduler_tasks
-		 WHERE task_id LIKE ? ESCAPE '\' OR task_name LIKE ? ESCAPE '\'
-		 ORDER BY task_name LIMIT ?`, pattern, pattern, adminSearchLimit)
+		`SELECT name, COALESCE(schedule, '') FROM scheduler_tasks
+		 WHERE id LIKE ? ESCAPE '\' OR name LIKE ? ESCAPE '\'
+		 ORDER BY name LIMIT ?`, pattern, pattern, adminSearchLimit)
 	if err != nil {
 		return nil
 	}

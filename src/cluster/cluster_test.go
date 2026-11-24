@@ -612,6 +612,11 @@ func TestPullConfigFromSharedDatabase_Empty(t *testing.T) {
 // TestPushConfigToSecondaries_NoSecondaries verifies a primary with zero
 // secondaries returns nil (nothing to push) rather than erroring.
 func TestPushConfigToSecondaries_NoSecondaries(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cm := newReadyManager(t, "node-1", "10.0.0.1:8080")
 	if err := cm.electPrimary(); err != nil {
 		t.Fatalf("electPrimary() error = %v", err)

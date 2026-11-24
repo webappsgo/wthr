@@ -2,12 +2,16 @@
 
 {{template "navbar" .}}
 
-<main id="main-content" class="weather-container">
-    <p><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></p>
-    <h1 class="text-purple">{{t .server.Lang "security.thanks.title"}}</h1>
-    <p>{{t .server.Lang "security.thanks.intro"}}</p>
+<main id="main-content">
+  <div class="container container-sm">
+    <header class="page-header">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></nav>
+      <h1 class="page-title">{{t .server.Lang "security.thanks.title"}}</h1>
+      <p class="page-lead">{{t .server.Lang "security.thanks.intro"}}</p>
+    </header>
 
-    <section class="card margin-y-lg">
+    <section class="section-card" aria-labelledby="security-thanks-content">
+        <h2 id="security-thanks-content" class="sr-only">{{t .server.Lang "security.thanks.title"}}</h2>
         {{if .Entries}}
         <ul>
             {{range .Entries}}<li>{{.Credit}} <small>{{.Date}}</small></li>{{end}}
@@ -16,6 +20,7 @@
         <p>{{t .server.Lang "security.thanks.empty"}}</p>
         {{end}}
     </section>
+  </div>
 </main>
 
 {{template "footer" .}}

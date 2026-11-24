@@ -4,7 +4,7 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
     <div class="content-header">
-        <h1>💾 {{t $lang "admin.backup.mgmt_title"}}</h1>
+        <header class="page-header"><h1 class="page-title">💾 {{t $lang "admin.backup.mgmt_title"}}</h1></header>
     </div>
 
     <div class="admin-page-container wide">
@@ -18,7 +18,11 @@
         <div class="admin-alert admin-alert-warning" role="alert">{{t $lang "admin.backup.unencrypted_warning"}}</div>
         {{end}}
 
-        <section class="card" aria-labelledby="backup-encryption-heading">
+        {{if .backup_encryption_required}}
+        <dialog open class="backup-required-dialog" aria-labelledby="backup-encryption-heading">
+            <p class="admin-alert admin-alert-warning" role="alert">{{t $lang "admin.backup.compliance_required"}}</p>
+        {{end}}
+        <section class="section-card" aria-labelledby="backup-encryption-heading">
             <h2 id="backup-encryption-heading">{{t $lang "admin.backup.encryption_heading"}}</h2>
             <p>{{t $lang "admin.backup.encryption_help"}}</p>
             <form method="post" action="{{.admin_path}}/backup/encryption">
@@ -34,6 +38,7 @@
                 <button type="submit" class="btn btn-primary">{{t $lang "admin.backup.encryption_save_action"}}</button>
             </form>
         </section>
+        {{if .backup_encryption_required}}</dialog>{{end}}
 
         <div class="admin-alert admin-alert-success" id="successAlert" role="status" aria-live="polite"></div>
         <div class="admin-alert admin-alert-error" id="errorAlert" role="alert" aria-live="assertive"></div>
@@ -139,7 +144,7 @@
             <h2>📋 {{t $lang "admin.backup.history_heading"}}</h2>
             {{if .backup_files}}
             <div class="table-wrapper">
-                <table>
+                <table class="data-table">
                     <thead><tr><th scope="col">{{t $lang "admin.backup.history_heading"}}</th><th scope="col">{{t $lang "admin.backup.limit_archive_size"}}</th><th scope="col">{{t $lang "admin.backup.password_label"}}</th></tr></thead>
                     <tbody>{{range .backup_files}}<tr><td><a href="{{$.admin_path}}/backup/{{.Filename}}/download">{{.Filename}}</a></td><td>{{.Size}}</td><td>{{.Created}}</td></tr>{{end}}</tbody>
                 </table>
@@ -160,7 +165,7 @@
         </div>
     </div>
 
-    <script type="application/json" id="admin-backup-data">{"adminApiPath": {{.admin_api_path}}, "text": {"never": {{t $lang "admin.backup.msg_never"}}, "empty": {{t $lang "admin.backup.empty_message"}}, "created": {{t $lang "admin.backup.msg_created"}}, "creating": {{t $lang "admin.backup.msg_creating"}}, "createFailed": {{t $lang "admin.backup.msg_create_failed"}}, "deleteConfirm": {{t $lang "admin.backup.msg_delete_confirm"}}, "deleted": {{t $lang "admin.backup.msg_deleted"}}, "deleteFailed": {{t $lang "admin.backup.msg_delete_failed"}}, "restoreConfirm": {{t $lang "admin.backup.msg_restore_confirm"}}, "restored": {{t $lang "admin.backup.msg_restored"}}, "restoreFailed": {{t $lang "admin.backup.msg_restore_failed"}}, "loadFailed": {{t $lang "admin.backup.msg_load_failed"}}, "scheduleSaved": {{t $lang "admin.backup.msg_schedule_saved"}}, "scheduleFailed": {{t $lang "admin.backup.msg_schedule_failed"}}, "createAction": {{t $lang "admin.backup.create_action"}}, "downloadAction": {{t $lang "admin.backup.download_action"}}, "restoreAction": {{t $lang "admin.backup.restore_action"}}, "deleteAction": {{t $lang "admin.backup.delete_action"}}, "saveScheduleAction": {{t $lang "admin.backup.save_schedule_action"}}, "encryptedYes": {{t $lang "admin.backup.encrypted_yes"}}, "encryptedNo": {{t $lang "admin.backup.encrypted_no"}}}}</script>
+    <textarea hidden id="admin-backup-data">{"adminApiPath": {{.admin_api_path}}, "text": {"never": {{t $lang "admin.backup.msg_never"}}, "empty": {{t $lang "admin.backup.empty_message"}}, "created": {{t $lang "admin.backup.msg_created"}}, "creating": {{t $lang "admin.backup.msg_creating"}}, "createFailed": {{t $lang "admin.backup.msg_create_failed"}}, "deleteConfirm": {{t $lang "admin.backup.msg_delete_confirm"}}, "deleted": {{t $lang "admin.backup.msg_deleted"}}, "deleteFailed": {{t $lang "admin.backup.msg_delete_failed"}}, "restoreConfirm": {{t $lang "admin.backup.msg_restore_confirm"}}, "restored": {{t $lang "admin.backup.msg_restored"}}, "restoreFailed": {{t $lang "admin.backup.msg_restore_failed"}}, "loadFailed": {{t $lang "admin.backup.msg_load_failed"}}, "scheduleSaved": {{t $lang "admin.backup.msg_schedule_saved"}}, "scheduleFailed": {{t $lang "admin.backup.msg_schedule_failed"}}, "createAction": {{t $lang "admin.backup.create_action"}}, "downloadAction": {{t $lang "admin.backup.download_action"}}, "restoreAction": {{t $lang "admin.backup.restore_action"}}, "deleteAction": {{t $lang "admin.backup.delete_action"}}, "saveScheduleAction": {{t $lang "admin.backup.save_schedule_action"}}, "encryptedYes": {{t $lang "admin.backup.encrypted_yes"}}, "encryptedNo": {{t $lang "admin.backup.encrypted_no"}}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

@@ -2,19 +2,18 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<main class="admin-page">
-<div class="admin-header"><h1>🌍 {{t $lang "admin.geoip.title"}}</h1></div>
+<div class="admin-header"><header class="page-header"><h1 class="page-title">🌍 {{t $lang "admin.geoip.title"}}</h1></header></div>
 {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</p>{{end}}
 <form method="post" action="/server/{{.admin_path}}/network/geoip">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-    <section class="card">
-        <h2>{{t $lang "admin.geoip.config_heading"}}</h2>
+    <section class="section-card" aria-labelledby="admin_geoip-section-1">
+        <h2 id="admin_geoip-section-1">{{t $lang "admin.geoip.config_heading"}}</h2>
         <label><input type="checkbox" name="enabled" {{if .GeoIPEnabled}}checked{{end}}> {{t $lang "admin.geoip.enable_label"}}</label>
         <p>{{t $lang "admin.geoip.failure_note"}}</p>
         <p class="note">{{t $lang "admin.geoip.data_source_label"}} <a href="https://github.com/sapics/ip-location-db">sapics/ip-location-db</a></p>
     </section>
-    <section class="card">
-        <h2>{{t $lang "admin.geoip.country_blocking_heading"}}</h2>
+    <section class="section-card" aria-labelledby="admin_geoip-section-2">
+        <h2 id="admin_geoip-section-2">{{t $lang "admin.geoip.country_blocking_heading"}}</h2>
         <label for="deny-countries">{{t $lang "admin.geoip.deny_countries_label"}}</label>
         <textarea id="deny-countries" name="deny_countries" rows="4" aria-describedby="country-code-note">{{.DenyCountries}}</textarea>
         <label for="allow-countries">{{t $lang "admin.geoip.allow_countries_label"}}</label>
@@ -24,7 +23,7 @@
     </section>
     <button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>
-<section class="card" aria-labelledby="geoip-status-heading">
+<section class="section-card" aria-labelledby="geoip-status-heading">
     <h2 id="geoip-status-heading">{{t $lang "admin.geoip.database_status_heading"}}</h2>
     <dl>
         <dt>{{t $lang "admin.geoip.update_schedule"}}</dt>
@@ -37,8 +36,8 @@
         <dd>{{.GeoIPDatabasesPresent}} / 4</dd>
     </dl>
 </section>
-<section class="card">
-    <h2>{{t $lang "admin.geoip.presets_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_geoip-section-4">
+    <h2 id="admin_geoip-section-4">{{t $lang "admin.geoip.presets_heading"}}</h2>
     {{if .PresetNames}}
     <ul>
     {{range .PresetNames}}
@@ -75,5 +74,4 @@
         <button type="submit">{{t $lang "admin.geoip.save_preset"}}</button>
     </form>
 </section>
-</main>
 {{template "admin_footer" .}}

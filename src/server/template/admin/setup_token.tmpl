@@ -12,12 +12,14 @@
     <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h1 class="login-title">{{ .branding.Title }}</h1>
-                <p class="login-subtitle">{{t $lang "admin.setup_token.subtitle"}}</p>
-            </div>
+    <a href="#main-content" class="skip-link">{{t $lang "aria.skip_to_main"}}</a>
+    <a href="#setup-token-content" class="skip-link">{{t $lang "admin.skip.nav"}}</a>
+    <main id="main-content">
+      <div class="container container-sm">
+        <header class="page-header"><h1 class="page-title">{{ .branding.Title }}</h1></header>
+        <section class="section-card" aria-labelledby="setup-token-heading">
+            <h2 class="sr-only" id="setup-token-heading">{{t $lang "admin.setup_token.subtitle"}}</h2>
+            <div id="setup-token-content">
 
             <div class="login-info">
                 <p>{{t $lang "admin.setup_token.welcome_message"}}</p>
@@ -53,13 +55,15 @@
                 <p>{{t $lang "admin.setup_token.help_shown_once"}}</p>
                 <p>{{t $lang "admin.setup_token.help_check_console"}}</p>
             </div>
-        </div>
+            </div>
+        </section>
 
         {{ if .version }}
         <div class="login-footer">
             v{{ .version }}
         </div>
         {{ end }}
-    </div>
+      </div>
+    </main>
 </body>
 </html>

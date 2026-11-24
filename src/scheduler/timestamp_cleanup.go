@@ -23,6 +23,12 @@ const sqlTimestampLayout = dbtime.SQLTimestampLayout
 // UTC time.Time, reporting false for NULL and for layouts the project never
 // writes so an unrecognised value can never cause a delete.
 func parseStoredTimestamp(value interface{}) (time.Time, bool) {
+	switch stored := value.(type) {
+	case int64:
+		return time.Unix(stored, 0).UTC(), true
+	case int:
+		return time.Unix(int64(stored), 0).UTC(), true
+	}
 	return dbtime.ParseStoredTimestamp(value)
 }
 

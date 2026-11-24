@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.tokens.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.tokens.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.tokens.intro"}}</p>
   </div>
   {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
@@ -28,7 +28,7 @@
   <section class="admin-section" aria-labelledby="tokens-list-heading">
     <div class="section-header"><h2 id="tokens-list-heading">{{t $lang "admin.tokens.list_heading"}}</h2></div>
     {{if .tokens}}
-    <div class="table-responsive"><table class="admin-table">
+    <div class="table-responsive"><div class="table-wrapper"><table class="admin-table data-table">
       <thead><tr><th>{{t $lang "admin.tokens.owner"}}</th><th>{{t $lang "admin.tokens.name"}}</th><th>{{t $lang "admin.tokens.prefix"}}</th><th>{{t $lang "admin.tokens.created"}}</th><th>{{t $lang "admin.tokens.last_used"}}</th><th>{{t $lang "admin.tokens.expires"}}</th><th>{{t $lang "admin.tokens.actions"}}</th></tr></thead>
       <tbody>{{range .tokens}}<tr>
         <td>{{.Email}} <span class="text-muted">(#{{.UserID}})</span></td><td>{{.Name}}</td><td><code>{{.Prefix}}</code></td>
@@ -39,7 +39,7 @@
           <button class="btn btn-danger" type="submit">{{t $lang "admin.tokens.revoke_action"}}</button>
         </form></td>
       </tr>{{end}}</tbody>
-    </table></div>
+    </table></div></div>
     {{else}}
       <div class="empty-state"><p class="empty-state__icon" aria-hidden="true">&#128273;</p><h3 class="empty-state__title">{{t $lang "admin.tokens.empty_title"}}</h3><p class="empty-state__message">{{t $lang "admin.tokens.empty_message"}}</p></div>
     {{end}}

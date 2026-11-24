@@ -108,7 +108,8 @@ name="{internal_name}"
 description="{app_name}"
 command="{binary}"
 command_args=""
-pidfile="/var/run/{internal_org}/{internal_name}/{internal_name}.pid"
+# OpenRC's supervisor PID file differs from the server PID file.
+pidfile="/var/run/{internal_org}-{internal_name}.pid"
 command_background=true
 output_log="/var/log/{internal_org}/{internal_name}/server.log"
 error_log="/var/log/{internal_org}/{internal_name}/error.log"
@@ -140,7 +141,8 @@ const sysVScriptTemplate = `#!/bin/sh
 NAME={internal_name}
 DAEMON={binary}
 DAEMON_USER={internal_name}
-PIDFILE=/var/run/{internal_org}/{internal_name}/{internal_name}.pid
+# The supervisor PID file differs from the server PID file.
+PIDFILE=/var/run/{internal_org}-{internal_name}.pid
 LOGFILE=/var/log/{internal_org}/{internal_name}/server.log
 
 case "$1" in
@@ -213,7 +215,16 @@ const rcdScriptTemplate = `#!/bin/sh
 
 name="{internal_name}"
 rcvar="{internal_name}_enable"
-command="{binary}"
+# daemon(8)'s supervisor PID file differs from the server PID file.
+pidfile="/var/run/{internal_org}-{internal_name}.pid"
+command="/usr/sbin/daemon"
+command_args="-P ${pidfile} -r -f {binary}"
+start_precmd="{internal_name}_prestart"
+
+{internal_name}_prestart()
+{
+    install -d -m 0755 /var/run/{internal_org}/{internal_name} /var/log/{internal_org}/{internal_name}
+}
 
 load_rc_config $name
 run_rc_command "$1"

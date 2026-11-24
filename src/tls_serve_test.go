@@ -226,6 +226,36 @@ func TestProvisionWaitsForADNSProviderOnDNS01(t *testing.T) {
 	}
 }
 
+func TestLetsEncryptAndDNSRuntimeHelpers(t *testing.T) {
+	manager := util.NewSSLManager(nil, t.TempDir())
+	settings := configSSL(true).LetsEncrypt
+	settings.Email = "  "
+	runtime := newTLSRuntime(manager, config.SSLConfig{LetsEncrypt: settings}, "example.com")
+	if _, err := runtime.letsEncrypt(); err == nil || !strings.Contains(err.Error(), "email is empty") {
+		t.Fatalf("letsEncrypt() with no email = %v, want an email configuration error", err)
+	}
+
+	local := configSSL(false).LetsEncrypt
+	runtime = newTLSRuntime(manager, config.SSLConfig{LetsEncrypt: local}, "example.com")
+	if got := runtime.currentLetsEncryptSettings(); got.Email != local.Email {
+		t.Fatalf("current settings without global config = %#v, want %#v", got, local)
+	}
+	previous := config.GetGlobalConfig()
+	live := &config.AppConfig{Server: config.ServerConfig{SSL: config.SSLConfig{LetsEncrypt: config.LetsEncryptConfig{Email: "live@example.test", DNSProvider: "cloudflare"}}}}
+	config.SetGlobalConfig(live)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+	if got := runtime.currentLetsEncryptSettings(); got.Email != "live@example.test" {
+		t.Fatalf("current settings with global config = %#v", got)
+	}
+
+	config.SetGlobalConfig(nil)
+	runtime.settings.LetsEncrypt.Challenge = "http-01"
+	runtime.recordDNSValidated()
+	runtime.settings.LetsEncrypt.Challenge = "dns-01"
+	runtime.settings.LetsEncrypt.DNSProvider = ""
+	runtime.recordDNSValidated()
+}
+
 func TestPrepareChallengeFailsOnBadDNSCredentials(t *testing.T) {
 	previous := config.GetGlobalConfig()
 	cfg := &config.AppConfig{}

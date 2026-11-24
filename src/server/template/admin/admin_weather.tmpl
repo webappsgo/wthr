@@ -2,11 +2,11 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<div class="admin-header"><h1>🌤️ {{t $lang "admin.weather.title"}}</h1></div>
+<div class="admin-header"><header class="page-header"><h1 class="page-title">🌤️ {{t $lang "admin.weather.title"}}</h1></header></div>
 {{template "flash" .}}
 <form id="weatherSettingsForm" method="post" action="{{.admin_path}}/settings/weather">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>{{t $lang "admin.weather.data_sources_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_weather-section-1"><h2 id="admin_weather-section-1">{{t $lang "admin.weather.data_sources_heading"}}</h2>
 <h3>{{t $lang "admin.weather.openmeteo_heading"}}</h3>
 <label><input type="checkbox" name="openmeteo_enabled" value="true" {{if .settings.openmeteo_enabled}}checked{{end}}> {{t $lang "admin.weather.enabled_label"}}</label>
 <label>{{t $lang "admin.weather.base_url_label"}} <input type="url" name="openmeteo_base_url" value="{{.settings.openmeteo_base_url}}"></label>
@@ -16,17 +16,17 @@
 <label><input type="checkbox" name="usgs_earthquake_enabled" value="true" {{if .settings.usgs_earthquake_enabled}}checked{{end}}> {{t $lang "admin.weather.usgs_earthquake_label"}}</label>
 <label><input type="checkbox" name="nhc_hurricane_enabled" value="true" {{if .settings.nhc_hurricane_enabled}}checked{{end}}> {{t $lang "admin.weather.nhc_hurricane_label"}}</label>
 </section>
-<section class="card"><h2>{{t $lang "admin.weather.caching_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_weather-section-2"><h2 id="admin_weather-section-2">{{t $lang "admin.weather.caching_heading"}}</h2>
 <label><input type="checkbox" name="cache_enabled" value="true" {{if .settings.cache_enabled}}checked{{end}}> {{t $lang "admin.weather.enable_cache_label"}}</label>
 <label>{{t $lang "admin.weather.cache_ttl_label"}} <input type="number" name="cache_ttl" value="{{.settings.cache_ttl}}"></label>
 <label>{{t $lang "admin.weather.cache_max_size_label"}} <input type="number" name="cache_max_size" value="{{.settings.cache_max_size}}"></label>
 </section>
-<section class="card"><h2>{{t $lang "admin.weather.features_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_weather-section-3"><h2 id="admin_weather-section-3">{{t $lang "admin.weather.features_heading"}}</h2>
 <label><input type="checkbox" name="forecast_enabled" value="true" {{if .settings.forecast_enabled}}checked{{end}}> {{t $lang "admin.weather.forecast_label"}}</label>
 <label><input type="checkbox" name="current_weather_enabled" value="true" {{if .settings.current_weather_enabled}}checked{{end}}> {{t $lang "admin.weather.current_weather_label"}}</label>
 <label><input type="checkbox" name="historical_data_enabled" value="true" {{if .settings.historical_data_enabled}}checked{{end}}> {{t $lang "admin.weather.historical_data_label"}}</label>
 </section>
-<section class="card"><h2>{{t $lang "admin.weather.alerts_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_weather-section-4"><h2 id="admin_weather-section-4">{{t $lang "admin.weather.alerts_heading"}}</h2>
 <label><input type="checkbox" name="alerts_enabled" value="true" {{if .settings.alerts_enabled}}checked{{end}}> {{t $lang "admin.weather.enable_alerts_label"}}</label>
 <label>{{t $lang "admin.weather.check_interval_label"}} <input type="number" name="alerts_check_interval" value="{{.settings.alerts_check_interval}}"></label>
 <label>{{t $lang "admin.weather.severity_threshold_label"}} <select name="alerts_severity_threshold">
@@ -36,7 +36,7 @@
 <option value="extreme" {{if eq .settings.alerts_severity_threshold "extreme"}}selected{{end}}>{{t $lang "admin.weather.severity_extreme"}}</option>
 </select></label>
 </section>
-<section class="card"><h2>{{t $lang "admin.weather.api_limits_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_weather-section-5"><h2 id="admin_weather-section-5">{{t $lang "admin.weather.api_limits_heading"}}</h2>
 <label>{{t $lang "admin.weather.rate_limit_label"}} <input type="number" name="api_rate_limit" value="{{.settings.api_rate_limit}}"></label>
 <label>{{t $lang "admin.weather.max_forecast_days_label"}} <input type="number" name="api_max_forecast_days" value="{{.settings.api_max_forecast_days}}"></label>
 <label>{{t $lang "admin.weather.max_historical_days_label"}} <input type="number" name="api_max_historical_days" value="{{.settings.api_max_historical_days}}"></label>

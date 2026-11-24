@@ -1,12 +1,15 @@
 package service
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -25,6 +28,8 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
+	secureSAML "github.com/supatype/saml"
+	secureSAMLSP "github.com/supatype/saml/samlsp"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
@@ -84,6 +89,38 @@ type SAMLService struct {
 	settings      *models.SettingsModel
 	mu            sync.Mutex
 	metadataCache map[string]samlMetadataCacheEntry
+}
+
+// SAMLParsedAssertion contains only the assertion claims used by the login
+// flow. The security-maintained parser verifies the XML before claims cross
+// this boundary, so callers never consume namespace-ambiguous XML structs.
+type SAMLParsedAssertion struct {
+	Subject             *SAMLParsedSubject
+	SignaturePresent    bool
+	AttributeStatements []SAMLParsedAttributeStatement
+	AuthnStatements     []SAMLParsedAuthnStatement
+}
+
+type SAMLParsedSubject struct {
+	NameID *SAMLParsedNameID
+}
+
+type SAMLParsedNameID struct {
+	Format string
+	Value  string
+}
+
+type SAMLParsedAttributeStatement struct {
+	Attributes []SAMLParsedAttribute
+}
+
+type SAMLParsedAttribute struct {
+	Name   string
+	Values []string
+}
+
+type SAMLParsedAuthnStatement struct {
+	SessionIndex string
 }
 
 func NewSAMLService() *SAMLService {
@@ -225,10 +262,13 @@ func (s *SAMLService) ServiceProvider(ctx context.Context, p *SAMLProviderConfig
 	return sp, nil
 }
 
-// ParseResponse applies the configured assertion clock skew while validating
-// a response. crewjam/saml exposes this setting as a package global, so the
-// lock keeps provider-specific values from racing across concurrent logins.
-func (s *SAMLService) ParseResponse(sp *saml.ServiceProvider, provider *SAMLProviderConfig, request *http.Request, requestIDs []string) (*saml.Assertion, error) {
+// ParseResponse validates a response with the maintained, namespace-aware
+// parser before returning the claims used by the login flow. The legacy
+// ServiceProvider remains responsible for metadata and SLO operations.
+func (s *SAMLService) ParseResponse(sp *saml.ServiceProvider, provider *SAMLProviderConfig, request *http.Request, requestIDs []string) (*SAMLParsedAssertion, error) {
+	if sp == nil || provider == nil || request == nil {
+		return nil, errors.New("invalid SAML response parser input")
+	}
 	skew := 2 * time.Minute
 	if provider.ClockSkew != "" {
 		parsed, err := time.ParseDuration(provider.ClockSkew)
@@ -239,10 +279,112 @@ func (s *SAMLService) ParseResponse(sp *saml.ServiceProvider, provider *SAMLProv
 	}
 	samlClockSkewMu.Lock()
 	defer samlClockSkewMu.Unlock()
-	previous := saml.MaxClockSkew
-	saml.MaxClockSkew = skew
-	defer func() { saml.MaxClockSkew = previous }()
+	metadataBytes, err := xml.Marshal(sp.IDPMetadata)
+	if err != nil {
+		return nil, fmt.Errorf("marshal SAML identity-provider metadata: %w", err)
+	}
+	metadata, err := secureSAMLSP.ParseMetadata(metadataBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse SAML identity-provider metadata: %w", err)
+	}
+	secureSP := &secureSAML.ServiceProvider{
+		EntityID:          sp.EntityID,
+		Key:               sp.Key,
+		Certificate:       sp.Certificate,
+		MetadataURL:       sp.MetadataURL,
+		AcsURL:            sp.AcsURL,
+		IDPMetadata:       metadata,
+		AllowIDPInitiated: sp.AllowIDPInitiated,
+		ReplayCache:       samlReplayCache{},
+	}
+	assertion, err := parseSAMLResponseSafely(secureSP, request, requestIDs, skew)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeSAMLAssertion(assertion), nil
+}
+
+// parseSAMLResponseSafely contains parser panics so malformed ACS requests
+// cannot crash the server.
+func parseSAMLResponseSafely(sp *secureSAML.ServiceProvider, request *http.Request, requestIDs []string, skew time.Duration) (assertion *secureSAML.Assertion, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			assertion = nil
+			err = errors.New("invalid SAML response")
+		}
+	}()
+	previous := secureSAML.MaxClockSkew
+	secureSAML.MaxClockSkew = skew
+	defer func() { secureSAML.MaxClockSkew = previous }()
 	return sp.ParseResponse(request, requestIDs)
+}
+
+func normalizeSAMLAssertion(assertion *secureSAML.Assertion) *SAMLParsedAssertion {
+	if assertion == nil {
+		return nil
+	}
+	parsed := &SAMLParsedAssertion{SignaturePresent: assertion.Signature != nil}
+	if assertion.Subject != nil {
+		parsed.Subject = &SAMLParsedSubject{}
+		if assertion.Subject.NameID != nil {
+			parsed.Subject.NameID = &SAMLParsedNameID{Format: assertion.Subject.NameID.Format, Value: assertion.Subject.NameID.Value}
+		}
+	}
+	for _, statement := range assertion.AttributeStatements {
+		parsedStatement := SAMLParsedAttributeStatement{}
+		for _, attribute := range statement.Attributes {
+			parsedAttribute := SAMLParsedAttribute{Name: attribute.Name}
+			for _, value := range attribute.Values {
+				parsedAttribute.Values = append(parsedAttribute.Values, value.Value)
+			}
+			parsedStatement.Attributes = append(parsedStatement.Attributes, parsedAttribute)
+		}
+		parsed.AttributeStatements = append(parsed.AttributeStatements, parsedStatement)
+	}
+	for _, statement := range assertion.AuthnStatements {
+		parsed.AuthnStatements = append(parsed.AuthnStatements, SAMLParsedAuthnStatement{SessionIndex: statement.SessionIndex})
+	}
+	return parsed
+}
+
+// SAMLParsedLogoutRequestIdentity contains the signed request identity fields
+// decoded with namespace-aware XML tags after the SLO library verifies its
+// signature.
+type SAMLParsedLogoutRequestIdentity struct {
+	ID     string
+	NameID string
+}
+
+// ParseSAMLLogoutRequestIdentity reads the bounded SAMLRequest parameter using
+// the namespace-aware parser. Callers must first verify the request signature
+// and compare the returned ID and NameID with the verified library result.
+func ParseSAMLLogoutRequestIdentity(r *http.Request) (*SAMLParsedLogoutRequestIdentity, error) {
+	if r == nil || (r.Method != http.MethodGet && r.Method != http.MethodPost) {
+		return nil, errors.New("SAML logout request is required")
+	}
+	encoded := r.FormValue("SAMLRequest")
+	if encoded == "" || len(encoded) > (2<<20) {
+		return nil, errors.New("invalid SAML logout request")
+	}
+	message, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, errors.New("invalid SAML logout request")
+	}
+	if r.Method == http.MethodGet {
+		compressed := flate.NewReader(bytes.NewReader(message))
+		message, err = io.ReadAll(io.LimitReader(compressed, (1<<20)+1))
+		closeErr := compressed.Close()
+		if err != nil || closeErr != nil || len(message) > 1<<20 {
+			return nil, errors.New("invalid SAML logout request")
+		}
+	} else if len(message) > 1<<20 {
+		return nil, errors.New("invalid SAML logout request")
+	}
+	var request secureSAML.LogoutRequest
+	if err := xml.Unmarshal(message, &request); err != nil || request.ID == "" || request.NameID == nil || request.NameID.Value == "" {
+		return nil, errors.New("invalid SAML logout request")
+	}
+	return &SAMLParsedLogoutRequestIdentity{ID: request.ID, NameID: request.NameID.Value}, nil
 }
 
 // ensureSAMLSPCertificate rotates generated keys before they expire. It keeps

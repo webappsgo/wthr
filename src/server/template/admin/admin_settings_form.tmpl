@@ -6,7 +6,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
 <div class="content-header">
-  <h1>{{t $lang "admin.settings_form.title"}}</h1>
+  <header class="page-header"><h1 class="page-title">{{t $lang "admin.settings_form.title"}}</h1></header>
 </div>
 
 {{template "flash" .}}

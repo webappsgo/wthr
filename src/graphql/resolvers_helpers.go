@@ -474,8 +474,8 @@ func buildGraphQLServerAdmin(admin *models.Admin) *ServerAdmin {
 }
 func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, error) {
 	var task ScheduledTask
-	var lastRun sql.NullTime
-	var nextRun sql.NullTime
+	var lastRun sql.NullInt64
+	var nextRun sql.NullInt64
 
 	err := scan(
 		&task.Name,
@@ -491,10 +491,12 @@ func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, err
 	}
 
 	if lastRun.Valid {
-		task.LastRun = &lastRun.Time
+		lastRunTime := time.Unix(lastRun.Int64, 0).UTC()
+		task.LastRun = &lastRunTime
 	}
 	if nextRun.Valid {
-		task.NextRun = &nextRun.Time
+		nextRunTime := time.Unix(nextRun.Int64, 0).UTC()
+		task.NextRun = &nextRunTime
 	}
 
 	return &task, nil

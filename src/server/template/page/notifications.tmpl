@@ -1,9 +1,13 @@
 {{template "head" .}}
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
 
-<div class="weather-container page-container">
-    <div class="notifications-container">
-        <h1 class="text-purple">{{t .server.Lang "notifications.title"}}</h1>
+
+<div>
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "notifications.title"}}</h1></header>
+    <section class="section-card" aria-labelledby="notifications-list-title">
+        <h2 id="notifications-list-title" class="sr-only">{{t .server.Lang "notifications.title"}}</h2>
         <div class="top-actions">
             <div class="filter-tabs">
                 <button class="filter-tab active" data-filter="all">{{t .server.Lang "notifications.filter_all"}}</button>
@@ -12,12 +16,10 @@
             <button id="mark-all-read" class="btn btn-secondary btn-sm">✅ {{t .server.Lang "notifications.mark_all_read"}}</button>
         </div>
 
-        <div id="notifications-list"></div>
-    </div>
+        <div id="notifications-list" data-api-path="{{.api_path}}"></div>
+    </section>
 </div>
 
-<script type="application/json" id="notifications-list-data">
-{"apiPath": "{{.api_path}}"}
-</script>
-
+  </div>
+</main>
 {{template "footer" .}}

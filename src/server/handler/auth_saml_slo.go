@@ -135,11 +135,12 @@ func (h *SAMLAuthHandler) SAMLLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Form.Get("SAMLRequest") != "" {
 		logout, err := sp.ValidateLogoutRequest(r)
-		if err != nil || logout.NameID == nil || logout.NameID.Value == "" {
+		identity, identityErr := service.ParseSAMLLogoutRequestIdentity(r)
+		if err != nil || identityErr != nil || logout == nil || identity == nil || logout.NameID == nil || logout.NameID.Value == "" || logout.ID != identity.ID || logout.NameID.Value != identity.NameID {
 			http.Error(w, "Invalid signed SAML LogoutRequest", http.StatusBadRequest)
 			return
 		}
-		if err := h.endSAMLNameIDSessions(r, provider, logout.NameID.Value, samlSessionIndexStrings(logout.AllSessionIndexes())); err != nil {
+		if err := h.endSAMLNameIDSessions(r, provider, identity.NameID, samlSessionIndexStrings(logout.AllSessionIndexes())); err != nil {
 			http.Error(w, "Could not end SAML sessions", http.StatusInternalServerError)
 			return
 		}

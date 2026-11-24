@@ -2,13 +2,14 @@
 
 {{template "navbar" .}}
 
-<div class="weather-container">
+<main id="main-content">
+ <div class="container container-md">
     <article class="privacy-policy">
-        <h1 class="text-purple">{{t .server.Lang "privacy.page_heading"}}</h1>
+        <header class="page-header"><h1 class="page-title">{{t .server.Lang "privacy.page_heading"}}</h1></header>
         <p class="text-comment"><small>{{t .server.Lang "privacy.last_updated_label"}} {{.server.BuildDate}}</small></p>
 
-        <section class="card margin-y-lg" id="summary">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.page_heading"}}</h2>
+        <section class="section-card" id="summary" aria-labelledby="privacy-section-11">
+            <h2 class="text-cyan" id="privacy-section-11">{{t .server.Lang "privacy.page_heading"}}</h2>
             {{if .Privacy.Data.StoredOnServer}}<p>{{t .server.Lang "privacy.data_stored_yes"}}</p>{{else}}<p>{{t .server.Lang "privacy.data_stored_no"}}</p>{{end}}
             {{if .Privacy.Data.Sold}}
             <p>{{t .server.Lang "privacy.data_sold_notice"}} <a href="#ccpa-opt-out">{{t .server.Lang "privacy.opt_out_sales_link"}}</a>.</p>
@@ -17,13 +18,14 @@
             {{end}}
         </section>
 
-        <section class="card margin-y-lg" id="cookies">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.cookies_heading"}}</h2>
+        <section class="section-card" id="cookies" aria-labelledby="privacy-section-10">
+            <h2 class="text-cyan" id="privacy-section-10">{{t .server.Lang "privacy.cookies_heading"}}</h2>
             <h3>{{t .server.Lang "privacy.essential_cookie_heading"}}</h3><p>{{.Privacy.Cookies.Essential.Description}}</p>
             <h3>{{t .server.Lang "privacy.preferences_label"}}</h3><p>{{.Privacy.Cookies.Preferences.Description}}</p>
             <h3>{{t .server.Lang "privacy.analytics_heading"}}</h3><p>{{.AnalyticsDescription}}</p>
             {{if .TrackingEnabled}}<p>{{t .server.Lang "privacy.analytics_provider_label"}} {{.Tracking.Type}}</p>{{else}}<p>{{t .server.Lang "privacy.no_analytics_provider"}}</p>{{end}}
             <form method="post" action="/server/consent" id="cookie-preferences">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <input type="hidden" name="choice" value="save">
                 <label><input type="checkbox" checked disabled> {{t .server.Lang "privacy.essential_cookies_label"}}</label>
                 <label><input type="checkbox" name="preferences" {{if .ConsentPreferences}}checked{{end}}> {{t .server.Lang "preferences.cookie_preferences"}}</label>
@@ -32,23 +34,23 @@
             </form>
         </section>
 
-        <section class="card margin-y-lg" id="data-collection">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.data_collection_heading"}}</h2>
+        <section class="section-card" id="data-collection" aria-labelledby="privacy-section-9">
+            <h2 class="text-cyan" id="privacy-section-9">{{t .server.Lang "privacy.data_collection_heading"}}</h2>
             <pre>{{.Privacy.Content.DataCollection}}</pre>
         </section>
 
-        <section class="card margin-y-lg" id="data-usage">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.data_use_heading"}}</h2>
+        <section class="section-card" id="data-usage" aria-labelledby="privacy-section-8">
+            <h2 class="text-cyan" id="privacy-section-8">{{t .server.Lang "privacy.data_use_heading"}}</h2>
             <pre>{{.DataUsage}}</pre>
         </section>
 
-        <section class="card margin-y-lg" id="data-security">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.security_heading"}}</h2>
+        <section class="section-card" id="data-security" aria-labelledby="privacy-section-7">
+            <h2 class="text-cyan" id="privacy-section-7">{{t .server.Lang "privacy.security_heading"}}</h2>
             <pre>{{.Privacy.Content.DataSecurity}}</pre>
         </section>
 
-        <section class="card margin-y-lg" id="data-storage">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.third_party_heading"}}</h2>
+        <section class="section-card" id="data-storage" aria-labelledby="privacy-section-6">
+            <h2 class="text-cyan" id="privacy-section-6">{{t .server.Lang "privacy.third_party_heading"}}</h2>
             <ul>
                 {{range .Privacy.Data.Sharing}}
                 <li><strong>{{.Condition}}:</strong> {{.When}} — {{.Data}}</li>
@@ -56,8 +58,8 @@
             </ul>
         </section>
 
-        <section class="card margin-y-lg" id="data-retention">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.data_retention_heading"}}</h2>
+        <section class="section-card" id="data-retention" aria-labelledby="privacy-section-5">
+            <h2 class="text-cyan" id="privacy-section-5">{{t .server.Lang "privacy.data_retention_heading"}}</h2>
             <p>{{.Privacy.Retention.Period}}</p>
             <ul>
                 {{if .Privacy.Retention.ExportAvailable}}<li>{{t .server.Lang "privacy.right_export_text"}}</li>{{end}}
@@ -65,8 +67,8 @@
             </ul>
         </section>
 
-        <section class="card margin-y-lg" id="third-parties">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.third_party_heading"}}</h2>
+        <section class="section-card" id="third-parties" aria-labelledby="privacy-section-4">
+            <h2 class="text-cyan" id="privacy-section-4">{{t .server.Lang "privacy.third_party_heading"}}</h2>
             {{if .Privacy.ThirdParty.Services}}
             <ul>
                 {{range .Privacy.ThirdParty.Services}}
@@ -78,34 +80,34 @@
             {{end}}
         </section>
 
-        <section class="card margin-y-lg" id="your-rights">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.your_rights_heading"}}</h2>
+        <section class="section-card" id="your-rights" aria-labelledby="privacy-section-3">
+            <h2 class="text-cyan" id="privacy-section-3">{{t .server.Lang "privacy.your_rights_heading"}}</h2>
             {{if .Privacy.Retention.ExportAvailable}}<p>{{t .server.Lang "privacy.right_export_text"}}</p>{{end}}
             {{if .Privacy.Retention.DeletionAvailable}}<p>{{t .server.Lang "privacy.right_delete_text"}}</p>{{end}}
             <a href="/server/preferences#cookie-preferences">{{t .server.Lang "privacy.preferences_label"}}</a>
         </section>
 
         {{if .Privacy.Data.Sold}}
-        <section class="card margin-y-lg" id="ccpa-opt-out">
-            <h2>{{t .server.Lang "privacy.ccpa_heading"}}</h2>
+        <section class="section-card" id="ccpa-opt-out" aria-labelledby="privacy-section-2">
+            <h2 id="privacy-section-2">{{t .server.Lang "privacy.ccpa_heading"}}</h2>
             <p>{{t .server.Lang "privacy.ccpa_intro"}}</p>
             {{if .CCPAOptedOut}}
             <p>{{t .server.Lang "privacy.ccpa_opted_out"}}</p>
-            <form method="post" action="/server/ccpa"><input type="hidden" name="choice" value="opt-in"><button type="submit">{{t .server.Lang "privacy.ccpa_opt_in"}}</button></form>
+            <form method="post" action="/server/ccpa"><input type="hidden" name="csrf_token" value="{{.csrf_token}}"><input type="hidden" name="choice" value="opt-in"><button type="submit">{{t .server.Lang "privacy.ccpa_opt_in"}}</button></form>
             {{else}}
-            <form method="post" action="/server/ccpa"><input type="hidden" name="choice" value="opt-out"><button class="btn btn-primary" type="submit">{{t .server.Lang "privacy.ccpa_opt_out"}}</button></form>
+            <form method="post" action="/server/ccpa"><input type="hidden" name="csrf_token" value="{{.csrf_token}}"><input type="hidden" name="choice" value="opt-out"><button class="btn btn-primary" type="submit">{{t .server.Lang "privacy.ccpa_opt_out"}}</button></form>
             {{end}}
         </section>
         {{end}}
 
         {{if .operator_privacy}}<section class="operator-content" aria-label="{{t .server.Lang "privacy.page_heading"}}">{{.operator_privacy}}</section>{{end}}
 
-        <section class="card margin-y-lg" id="contact">
-            <h2 class="text-cyan">{{t .server.Lang "privacy.contact_heading"}}</h2>
+        <section class="section-card" id="contact" aria-labelledby="privacy-section-1">
+            <h2 class="text-cyan" id="privacy-section-1">{{t .server.Lang "privacy.contact_heading"}}</h2>
             {{if .DPOEmail}}<p>{{if .DPOName}}{{.DPOName}}: {{end}}<a href="mailto:{{.DPOEmail}}">{{.DPOEmail}}</a></p>{{else}}<p>{{t .server.Lang "privacy.privacy_requests_contact"}} <a href="/server/security">{{t .server.Lang "privacy.contact_form_link"}}</a>.</p>{{end}}
             {{if .GPCReceived}}<p>{{t .server.Lang "privacy.gpc_notice"}}</p>{{end}}
         </section>
     </article>
-</div>
+</div></main>
 
 {{template "footer" .}}

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -34,6 +35,7 @@ func securityTestEnv(t *testing.T) (*config.AppConfig, string) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, newTestUsersDB(t))
 	cfg := &config.AppConfig{}
+	cfg.Server.Pages.Contact.Enabled = true
 	cfg.Server.Security.EncryptionKey = base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
 	config.SetGlobalConfig(cfg)
 	t.Cleanup(func() { config.SetGlobalConfig(nil) })
@@ -182,8 +184,16 @@ func TestSecurityReportSubmissionStoresEncryptedReport(t *testing.T) {
 
 func TestSecurityReportAPISubmission(t *testing.T) {
 	cfg, id := securityTestEnv(t)
+	manager, err := getContactAntispam(nil, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	formToken, err := manager.NewContactFormToken(time.Now().Add(-5 * time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
 	captchaID, a, b := contactCaptcha.New()
-	body := map[string]interface{}{"security_id": id, "captcha_id": captchaID, "captcha_answer": strconv.Itoa(a + b), "cve_requested": true}
+	body := map[string]interface{}{"security_id": id, "form_token": formToken, "step": "submit", "captcha_id": captchaID, "captcha_answer": strconv.Itoa(a + b), "cve_requested": true}
 	for k, v := range validSecurityValues() {
 		body[k] = v
 	}
@@ -195,6 +205,30 @@ func TestSecurityReportAPISubmission(t *testing.T) {
 	HandleContactFormSubmission(nil, cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var review struct {
+		Data struct {
+			Status      string `json:"status"`
+			FormToken   string `json:"form_token"`
+			ReviewToken string `json:"review_token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &review); err != nil || review.Data.Status != "review" || review.Data.FormToken == "" || review.Data.ReviewToken == "" {
+		t.Fatalf("review response = %s", w.Body.String())
+	}
+	confirm := map[string]interface{}{"security_id": id, "form_token": review.Data.FormToken, "review_token": review.Data.ReviewToken, "step": "confirm", "confirmed": true}
+	confirm["cve_requested"] = true
+	for k, v := range validSecurityValues() {
+		confirm[k] = v
+	}
+	raw, _ = json.Marshal(confirm)
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodPost, "/api/v1/server/contact", bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Accept", "application/json")
+	HandleContactFormSubmission(nil, cfg)(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("confirm status=%d body=%s", w.Code, w.Body.String())
 	}
 	var out struct {
 		OK   bool `json:"ok"`
@@ -233,7 +267,7 @@ func TestSecurityReportAPISubmission(t *testing.T) {
 		w = httptest.NewRecorder()
 		r = httptest.NewRequest(http.MethodGet, "/api/v1/server/contact"+query, nil)
 		r.Header.Set("Accept", "application/json")
-		GetContactFormAPI(cfg)(w, r)
+		GetContactFormAPI(&database.DB{DB: database.GetServerDB()}, cfg)(w, r)
 		if got := strings.Contains(w.Body.String(), "credit_preference"); got != wantSecurity {
 			t.Errorf("fields for %q include security fields = %v, want %v", query, got, wantSecurity)
 		}

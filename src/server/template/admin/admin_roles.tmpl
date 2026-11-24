@@ -5,7 +5,7 @@
 {{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
-    <h1>{{t $lang "admin.roles.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.roles.title"}}</h1></header>
     <p class="admin-page-intro">{{t $lang "admin.roles.intro"}}</p>
   </div>
   {{if .flash}}<div class="alert alert-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</div>{{end}}
@@ -32,7 +32,7 @@
   </section>
   <section class="admin-section" aria-labelledby="roles-list-heading">
     <div class="section-header"><h2 id="roles-list-heading">{{t $lang "admin.roles.list_heading"}}</h2></div>
-    {{if .roles}}<div class="table-responsive"><table class="admin-table">
+    {{if .roles}}<div class="table-responsive"><div class="table-wrapper"><table class="admin-table data-table">
       <thead><tr><th>{{t $lang "admin.roles.name_label"}}</th><th>{{t $lang "admin.roles.user_count"}}</th><th>{{t $lang "admin.roles.permissions_heading"}}</th><th>{{t $lang "admin.roles.actions"}}</th></tr></thead>
       <tbody>{{range .roles}}<tr>
         <td>{{.Name}}{{if .IsDefault}} <span class="badge">{{t $lang "admin.roles.default_badge"}}</span>{{end}}{{if .BuiltIn}} <span class="text-muted">({{t $lang "admin.roles.builtin"}})</span>{{end}}</td>
@@ -53,6 +53,6 @@
           <button class="btn btn-danger" type="submit">{{t $lang "admin.roles.delete_action"}}</button>
         </form>{{else}}{{t $lang "admin.roles.builtin_locked"}}{{end}}</td>
       </tr>{{end}}</tbody>
-    </table></div>{{else}}<p>{{t $lang "admin.roles.empty_message"}}</p>{{end}}
+    </table></div></div>{{else}}<p>{{t $lang "admin.roles.empty_message"}}</p>{{end}}
   </section>
 {{template "admin_footer" .}}

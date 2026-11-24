@@ -3,6 +3,7 @@
 package privilege
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,10 @@ import (
 
 // accountComment is the gecos field of the service account (AI.md PART 24).
 const accountComment = " service account"
+
+// ErrAccountToolsUnavailable marks a platform without the account tools required
+// to create or remove the dedicated service account (AI.md PART 24).
+var ErrAccountToolsUnavailable = errors.New("required service account tools are unavailable")
 
 // isUIDTaken reports whether a UID is already assigned on this system.
 func isUIDTaken(id int) bool {
@@ -57,12 +62,15 @@ func loginShellPath() string {
 // accountCommands lists the commands that create the service group and user with the
 // same numeric ID on the given OS (AI.md PART 24 "Platform-Specific Commands").
 // hasCommand reports whether an executable is on PATH; shell is the no-login shell.
-func accountCommands(goos, name string, id int, home, shell string, hasCommand func(string) bool) [][]string {
+func accountCommands(goos, name string, id int, home, shell string, hasCommand func(string) bool) ([][]string, error) {
 	idText := strconv.Itoa(id)
 	comment := name + accountComment
 
-	switch {
-	case goos == "darwin":
+	switch goos {
+	case "darwin":
+		if !hasCommand("dscl") {
+			return nil, unsupportedAccountTools(goos, "dscl")
+		}
 		return [][]string{
 			{"dscl", ".", "-create", "/Groups/" + name},
 			{"dscl", ".", "-create", "/Groups/" + name, "PrimaryGroupID", idText},
@@ -75,24 +83,35 @@ func accountCommands(goos, name string, id int, home, shell string, hasCommand f
 			{"dscl", ".", "-create", "/Users/" + name, "NFSHomeDirectory", home},
 			{"dscl", ".", "-create", "/Users/" + name, "Password", "*"},
 			{"dscl", ".", "-create", "/Users/" + name, "IsHidden", "1"},
+		}, nil
+	case "freebsd":
+		if !hasCommand("pw") {
+			return nil, unsupportedAccountTools(goos, "pw")
 		}
-	case hasCommand("pw"):
 		return [][]string{
 			{"pw", "groupadd", "-n", name, "-g", idText},
 			{"pw", "useradd", "-n", name, "-u", idText, "-g", idText, "-d", home, "-s", shell, "-c", comment},
-		}
-	case hasCommand("groupadd") && hasCommand("useradd"):
+		}, nil
+	default:
+		if hasCommand("groupadd") && hasCommand("useradd") {
 		return [][]string{
 			{"groupadd", "--system", "--gid", idText, name},
-			{"useradd", "--system", "--uid", idText, "--gid", idText, "--home-dir", home, "--shell", shell, "--comment", comment, name},
+			{"useradd", "--system", "--uid", idText, "--gid", idText, "--home-dir", home, "--no-create-home", "--shell", shell, "--comment", comment, name},
+		}, nil
 		}
-	default:
-		// BusyBox (Alpine runtime image) ships addgroup and adduser instead of the shadow tools
-		return [][]string{
+		if hasCommand("addgroup") && hasCommand("adduser") {
+			// BusyBox systems use these tools in place of the shadow package.
+			return [][]string{
 			{"addgroup", "-S", "-g", idText, name},
 			{"adduser", "-S", "-D", "-H", "-u", idText, "-G", name, "-h", home, "-s", shell, "-g", comment, name},
+			}, nil
 		}
+		return nil, unsupportedAccountTools(goos, "groupadd/useradd or addgroup/adduser")
 	}
+}
+
+func unsupportedAccountTools(goos, tools string) error {
+	return fmt.Errorf("%w for %s (need %s)", ErrAccountToolsUnavailable, goos, tools)
 }
 
 // hasCommandOnPath reports whether an executable is found on PATH.
@@ -109,10 +128,6 @@ func EnsureAccount(name, home string) (*Account, error) {
 		return existing, nil
 	}
 
-	if err := os.MkdirAll(home, 0o755); err != nil {
-		return nil, fmt.Errorf("creating home directory %s: %w", home, err)
-	}
-
 	high, low := systemIDHigh, systemIDLow
 	if runtime.GOOS == "darwin" {
 		high, low = macOSIDHigh, macOSIDLow
@@ -122,7 +137,16 @@ func EnsureAccount(name, home string) (*Account, error) {
 		return nil, err
 	}
 
-	for _, command := range accountCommands(runtime.GOOS, name, id, home, loginShellPath(), hasCommandOnPath) {
+	commands, err := accountCommands(runtime.GOOS, name, id, home, loginShellPath(), hasCommandOnPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		return nil, fmt.Errorf("creating home directory %s: %w", home, err)
+	}
+
+	for _, command := range commands {
 		if output, err := exec.Command(command[0], command[1:]...).CombinedOutput(); err != nil {
 			return nil, fmt.Errorf("creating service account with %s: %w: %s", command[0], err, output)
 		}
@@ -134,29 +158,39 @@ func EnsureAccount(name, home string) (*Account, error) {
 // accountRemoveCommands lists the commands that delete the service user and group on the
 // given OS, user first so the group is empty when it is removed. hasCommand reports whether
 // an executable is on PATH.
-func accountRemoveCommands(goos, name string, hasCommand func(string) bool) [][]string {
-	switch {
-	case goos == "darwin":
+func accountRemoveCommands(goos, name string, hasCommand func(string) bool) ([][]string, error) {
+	switch goos {
+	case "darwin":
+		if !hasCommand("dscl") {
+			return nil, unsupportedAccountTools(goos, "dscl")
+		}
 		return [][]string{
 			{"dscl", ".", "-delete", "/Users/" + name},
 			{"dscl", ".", "-delete", "/Groups/" + name},
+		}, nil
+	case "freebsd":
+		if !hasCommand("pw") {
+			return nil, unsupportedAccountTools(goos, "pw")
 		}
-	case hasCommand("pw"):
 		return [][]string{
 			{"pw", "userdel", "-n", name},
 			{"pw", "groupdel", "-n", name},
-		}
-	case hasCommand("userdel") && hasCommand("groupdel"):
+		}, nil
+	default:
+		if hasCommand("userdel") && hasCommand("groupdel") {
 		return [][]string{
 			{"userdel", name},
 			{"groupdel", name},
+		}, nil
 		}
-	default:
-		// BusyBox (Alpine) deluser removes the user; delgroup removes the now-empty group
+		if hasCommand("deluser") && hasCommand("delgroup") {
+			// BusyBox deluser removes the user; delgroup removes the now-empty group.
 		return [][]string{
 			{"deluser", name},
 			{"delgroup", name},
+			}, nil
 		}
+		return nil, unsupportedAccountTools(goos, "userdel/groupdel or deluser/delgroup")
 	}
 }
 
@@ -169,8 +203,12 @@ func RemoveAccount(name string) error {
 		return nil
 	}
 
+	commands, err := accountRemoveCommands(runtime.GOOS, name, hasCommandOnPath)
+	if err != nil {
+		return err
+	}
 	var failures []string
-	for _, command := range accountRemoveCommands(runtime.GOOS, name, hasCommandOnPath) {
+	for _, command := range commands {
 		if output, err := exec.Command(command[0], command[1:]...).CombinedOutput(); err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v: %s", command[0], err, strings.TrimSpace(string(output))))
 		}

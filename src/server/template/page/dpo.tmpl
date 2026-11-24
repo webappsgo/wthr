@@ -2,10 +2,12 @@
 
 {{template "navbar" .}}
 
-<main id="main-content" class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "dpo.title"}}</h1>
+<main id="main-content">
+  <div class="container container-sm">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "dpo.title"}}</h1></header>
 
-    <section class="card margin-y-lg">
+    <section class="section-card" aria-labelledby="dpo-details">
+        <h2 id="dpo-details" class="sr-only">{{t .server.Lang "dpo.title"}}</h2>
         <p>{{t .server.Lang "dpo.intro"}}</p>
         {{if .name}}
         <p><strong>{{t .server.Lang "dpo.name_label"}}:</strong> {{.name}}</p>
@@ -20,6 +22,7 @@
             <a href="{{path "/server/privacy"}}" class="btn btn-secondary">{{t .server.Lang "dpo.privacy_link"}}</a>
         </div>
     </section>
+  </div>
 </main>
 
 {{template "footer" .}}

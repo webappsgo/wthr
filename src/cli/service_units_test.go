@@ -10,6 +10,7 @@ func TestServiceTemplatesHaveNoUnresolvedPlaceholders(t *testing.T) {
 		"systemd": systemdUnitTemplate,
 		"openrc":  openRCScriptTemplate,
 		"sysv":    sysVScriptTemplate,
+		"freebsd": rcdScriptTemplate,
 		"runit":   runitRunTemplate,
 		"runit-l": runitLogRunTemplate,
 	}
@@ -78,5 +79,27 @@ func TestOpenRCScriptCreatesRunParentFirst(t *testing.T) {
 	child := strings.Index(out, "-o wthr:wthr /var/run/webappsgo/wthr")
 	if parent < 0 || child < 0 || parent > child {
 		t.Errorf("start_pre must create /var/run/webappsgo before /var/run/webappsgo/wthr:\n%s", out)
+	}
+}
+
+func TestSupervisorPIDFilesAreDistinctFromServerPIDFile(t *testing.T) {
+	serverPID := "/var/run/webappsgo/wthr/wthr.pid"
+	supervisorPID := "/var/run/webappsgo-wthr.pid"
+	for name, template := range map[string]string{
+		"openrc":  openRCScriptTemplate,
+		"sysv":    sysVScriptTemplate,
+		"freebsd": rcdScriptTemplate,
+	} {
+		out := serviceTemplate(template)
+		if !strings.Contains(out, supervisorPID) {
+			t.Errorf("%s supervisor PID file missing %q:\n%s", name, supervisorPID, out)
+		}
+		if strings.Contains(out, "pidfile=\""+serverPID+"\"") || strings.Contains(out, "PIDFILE="+serverPID) {
+			t.Errorf("%s supervisor PID file overlaps server PID file %q", name, serverPID)
+		}
+	}
+	freebsd := serviceTemplate(rcdScriptTemplate)
+	if !strings.Contains(freebsd, "command=\"/usr/sbin/daemon\"") || !strings.Contains(freebsd, "command_args=\"-P ${pidfile} -r -f /usr/local/bin/wthr\"") {
+		t.Errorf("FreeBSD service must supervise the foreground server with daemon(8):\n%s", freebsd)
 	}
 }

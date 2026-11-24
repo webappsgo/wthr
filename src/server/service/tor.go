@@ -40,21 +40,23 @@ func torBinaryFound() bool {
 
 // TorService manages the Tor hidden service
 type TorService struct {
-	tor             *tor.Tor
-	onionServiceID  string
-	dataDir         string
-	db              *database.DB
-	ctx             context.Context
-	cancel          context.CancelFunc
-	onionAddress    string
-	isRunning       bool
-	mu              sync.RWMutex
-	startTime       time.Time
-	lastHealthCheck time.Time
-	healthStatus    string
-	restartCount    int
-	monitorEnabled  bool
-	monitorStop     chan struct{}
+	tor               *tor.Tor
+	onionServiceID    string
+	dataDir           string
+	db                *database.DB
+	ctx               context.Context
+	cancel            context.CancelFunc
+	onionAddress      string
+	isRunning         bool
+	mu                sync.RWMutex
+	startTime         time.Time
+	lastHealthCheck   time.Time
+	healthStatus      string
+	restartCount      int
+	monitorEnabled    bool
+	monitorStop       chan struct{}
+	monitorStopClosed bool
+	stopMu            sync.Mutex
 	// lifecycle is idle (never launched), starting, running or failed; it feeds Status()
 	lifecycle string
 	// httpPort is the local HTTP port the hidden service forwards to, kept for Restart
@@ -86,6 +88,10 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 // StartTorService initializes and starts the Tor hidden service
 func (ts *TorService) StartTorService(httpPort int) error {
 	ts.mu.Lock()
+	if ts.monitorStopClosed && ts.monitorEnabled {
+		ts.monitorStop = make(chan struct{})
+		ts.monitorStopClosed = false
+	}
 	ts.httpPort = httpPort
 	ts.mu.Unlock()
 	if !torBinaryFound() {
@@ -243,43 +249,64 @@ func (ts *TorService) startTorService(httpPort int) error {
 
 // StopTorService shuts down the Tor service gracefully
 func (ts *TorService) StopTorService() error {
-	if ts.tor == nil {
+	ts.stopMu.Lock()
+	defer ts.stopMu.Unlock()
+
+	ts.mu.Lock()
+	torInstance := ts.tor
+	if torInstance == nil {
+		cancel := ts.cancel
+		ts.mu.Unlock()
 		// Nothing runs yet; cancelling also stops a start that is still launching the process
-		if ts.cancel != nil {
-			ts.cancel()
+		if cancel != nil {
+			cancel()
 		}
 		return nil
 	}
+	if ts.monitorEnabled {
+		ts.stopMonitorLocked()
+	}
+	onionServiceID := ts.onionServiceID
+	ts.onionServiceID = ""
+	ts.mu.Unlock()
 
 	log.Println("INFO: Stopping Tor hidden service...")
 
-	// Stop monitoring
-	if ts.monitorEnabled {
-		close(ts.monitorStop)
+	if onionServiceID != "" {
+		_ = torInstance.Control.DelOnion(onionServiceID)
 	}
 
-	if ts.onionServiceID != "" && ts.tor != nil {
-		_ = ts.tor.Control.DelOnion(ts.onionServiceID)
-		ts.onionServiceID = ""
-	}
-
-	if err := ts.tor.Close(); err != nil {
+	err := torInstance.Close()
+	if err != nil {
 		log.Printf("WARNING: Error stopping Tor: %v", err)
-		return err
 	}
-
-	ts.cancel()
 
 	ts.mu.Lock()
+	if ts.tor == torInstance {
+		ts.tor = nil
+	}
 	ts.isRunning = false
 	ts.healthStatus = "stopped"
 	if ts.lifecycle == torLifecycleRunning {
 		ts.lifecycle = torLifecycleFailed
 	}
+	cancel := ts.cancel
 	ts.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 
 	log.Println("OK: Tor hidden service stopped")
-	return nil
+	return err
+}
+
+// stopMonitorLocked closes the monitor signal at most once. The caller must
+// hold ts.mu; startup failure and server shutdown can stop Tor concurrently.
+func (ts *TorService) stopMonitorLocked() {
+	if ts.monitorStop != nil && !ts.monitorStopClosed {
+		close(ts.monitorStop)
+		ts.monitorStopClosed = true
+	}
 }
 
 // GetOnionAddress returns the current .onion address
@@ -425,6 +452,7 @@ func (ts *TorService) EnableMonitoring() {
 	if !ts.monitorEnabled {
 		ts.monitorEnabled = true
 		ts.monitorStop = make(chan struct{})
+		ts.monitorStopClosed = false
 		if ts.isRunning {
 			go ts.monitorHealth()
 		}
@@ -438,7 +466,7 @@ func (ts *TorService) DisableMonitoring() {
 
 	if ts.monitorEnabled {
 		ts.monitorEnabled = false
-		close(ts.monitorStop)
+		ts.stopMonitorLocked()
 	}
 }
 

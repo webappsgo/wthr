@@ -9,12 +9,15 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" role="main">
+<main id="main-content">
+  <div class="container container-sm">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "error.title"}}</h1></header>
     <div class="error-container">
         <div class="error-icon">⚠️</div>
-        <h1 class="error-title">{{t .server.Lang "error.title"}}</h1>
         <div class="error-message">
             {{ if .error }}
                 {{ .error }}
@@ -23,10 +26,9 @@
             {{ end }}
         </div>
         <div class="error-actions">
-            <a href="javascript:history.back()" class="btn btn-secondary">{{t .server.Lang "error.go_back"}}</a>
             <a href="/" class="btn btn-primary">{{t .server.Lang "error.go_home"}}</a>
         </div>
     </div>
+  </div>
 </main>
 {{template "footer" .}}
-

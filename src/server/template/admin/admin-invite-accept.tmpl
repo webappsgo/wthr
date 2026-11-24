@@ -1,10 +1,12 @@
 {{template "head" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<main class="admin-standalone" id="main-content" role="main">
-  <section class="card admin-standalone__card" aria-labelledby="invite-accept-heading">
-    <h1 class="admin-standalone__title" id="invite-accept-heading">{{t $lang "admin.invite_accept.title"}}</h1>
-    <p class="admin-page-intro">{{t $lang "admin.invite_accept.intro"}}</p>
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-sm">
+    <header class="page-header"><h1 class="page-title">{{t $lang "admin.invite_accept.title"}}</h1></header>
+  <section class="section-card" aria-labelledby="invite-accept-heading">
+    <h2 id="invite-accept-heading">{{t $lang "admin.invite_accept.intro"}}</h2>
 
     <dl class="admin-detail-list">
       <dt class="admin-detail-list__term">{{t $lang "admin.invite_accept.email_label"}}</dt>
@@ -34,5 +36,6 @@
       </div>
     </form>
   </section>
+  </div>
 </main>
 {{template "footer" .}}

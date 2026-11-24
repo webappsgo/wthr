@@ -5,12 +5,12 @@
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 
             <div class="content-header">
-                <h1>⚙️ {{t $lang "admin.system.title"}}</h1>
+                <header class="page-header"><h1 class="page-title">⚙️ {{t $lang "admin.system.title"}}</h1></header>
                 <p class="subtitle">{{t $lang "admin.system.subtitle"}}</p>
             </div>
 
             <!-- System Status Section -->
-            <section class="admin-card" aria-labelledby="status-heading">
+            <section class="admin-section-card" aria-labelledby="status-heading">
                 <div class="card-header">
                     <h2 id="status-heading">{{t $lang "admin.system.status_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.status_desc"}}</p>
@@ -46,7 +46,7 @@
             </section>
 
             <!-- Server Information Section -->
-            <section class="admin-card" aria-labelledby="server-info-heading">
+            <section class="admin-section-card" aria-labelledby="server-info-heading">
                 <div class="card-header">
                     <h2 id="server-info-heading">{{t $lang "admin.system.server_info_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.server_info_desc"}}</p>
@@ -82,7 +82,7 @@
             </section>
 
             <!-- Resource Usage Section -->
-            <section class="admin-card" aria-labelledby="resources-heading">
+            <section class="admin-section-card" aria-labelledby="resources-heading">
                 <div class="card-header">
                     <h2 id="resources-heading">{{t $lang "admin.system.resources_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.resources_desc"}}</p>
@@ -123,7 +123,7 @@
             </section>
 
             <!-- Network Information Section -->
-            <section class="admin-card" aria-labelledby="network-heading">
+            <section class="admin-section-card" aria-labelledby="network-heading">
                 <div class="card-header">
                     <h2 id="network-heading">{{t $lang "admin.system.network_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.network_desc"}}</p>
@@ -159,7 +159,7 @@
             </section>
 
             <!-- Environment Section -->
-            <section class="admin-card" aria-labelledby="env-heading">
+            <section class="admin-section-card" aria-labelledby="env-heading">
                 <div class="card-header">
                     <h2 id="env-heading">{{t $lang "admin.system.env_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.env_desc"}}</p>
@@ -195,7 +195,7 @@
             </section>
 
             <!-- Actions Section -->
-            <section class="admin-card" aria-labelledby="actions-heading">
+            <section class="admin-section-card" aria-labelledby="actions-heading">
                 <div class="card-header">
                     <h2 id="actions-heading">{{t $lang "admin.system.actions_heading"}}</h2>
                     <p class="card-description">{{t $lang "admin.system.actions_desc"}}</p>
@@ -221,7 +221,7 @@
                 </div>
             </section>
 
-    <script type="application/json" id="admin-system-data">{"adminApiPath": {{.admin_api_path}}}</script>
+    <textarea hidden id="admin-system-data">{"adminApiPath": {{.admin_api_path}}}</textarea>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

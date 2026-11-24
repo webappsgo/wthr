@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/webappsgo/wthr/src/server/middleware"
 )
 
 // routeMethodPaths collects the "METHOD PATH" pairs currently registered on
@@ -123,10 +124,17 @@ func TestRegisterGraphQLRoutes(t *testing.T) {
 
 	r := chi.NewRouter()
 	registerGraphQLRoutes(r, "/api/v1", query, playground, assets)
+	previousRenderer := middleware.RenderHTML
+	middleware.RenderHTML = func(w http.ResponseWriter, _ *http.Request, status int, template string, _ map[string]interface{}) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(template))
+	}
+	t.Cleanup(func() { middleware.RenderHTML = previousRenderer })
 	registered := routeMethodPaths(r)
 
 	for _, want := range []string{
 		"GET /server/docs/graphql",
+		"GET /server/docs/graphql/ui",
 		"GET /server/docs/graphql/assets/*",
 		"POST /api/v1/server/graphql",
 		"POST /api/graphql",
@@ -146,6 +154,16 @@ func TestRegisterGraphQLRoutes(t *testing.T) {
 	if w.Code != http.StatusOK || w.Body.String() != "query" {
 		t.Fatalf("POST /api/graphql = %d %q, want the query handler (alias must not redirect)", w.Code, w.Body.String())
 	}
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/server/docs/graphql", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "page/docs_graphql.tmpl" {
+		t.Fatalf("GET /server/docs/graphql = %d %q, want the shared-shell GraphQL page", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/server/docs/graphql/ui", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "playground" {
+		t.Fatalf("GET /server/docs/graphql/ui = %d %q, want the embedded GraphiQL tool", w.Code, w.Body.String())
+	}
 }
 
 // TestRegisterSwaggerRoutes covers AI.md PART 14: the spec alias serves the same handler.
@@ -155,6 +173,12 @@ func TestRegisterSwaggerRoutes(t *testing.T) {
 
 	r := chi.NewRouter()
 	registerSwaggerRoutes(r, "/api/v1", spec, ui)
+	previousRenderer := middleware.RenderHTML
+	middleware.RenderHTML = func(w http.ResponseWriter, _ *http.Request, status int, template string, _ map[string]interface{}) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(template))
+	}
+	t.Cleanup(func() { middleware.RenderHTML = previousRenderer })
 	registered := routeMethodPaths(r)
 
 	for _, want := range []string{"GET /server/docs/swagger", "GET /api/v1/server/swagger", "GET /api/swagger"} {
@@ -162,11 +186,24 @@ func TestRegisterSwaggerRoutes(t *testing.T) {
 			t.Fatalf("route %q not registered, got %v", want, registered)
 		}
 	}
+	if !registered["GET /server/docs/swagger/*"] {
+		t.Fatalf("Swagger UI asset route is not registered, got %v", registered)
+	}
 	for _, path := range []string{"/api/swagger", "/api/v1/server/swagger"} {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != http.StatusOK || w.Body.String() != "spec" {
 			t.Fatalf("GET %s = %d %q, want the spec handler", path, w.Code, w.Body.String())
 		}
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/server/docs/swagger", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "page/docs_swagger.tmpl" {
+		t.Fatalf("GET /server/docs/swagger = %d %q, want the shared-shell Swagger page", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/server/docs/swagger/index.html", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "ui" {
+		t.Fatalf("GET /server/docs/swagger/index.html = %d %q, want the Swagger tool", w.Code, w.Body.String())
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"github.com/webappsgo/wthr/src/swagger"
 )
 
@@ -17,14 +16,7 @@ func GetOpenAPIJSON() http.HandlerFunc {
 // GetSwaggerUIAuto returns the auto-generated Swagger UI using swaggo/http-swagger
 // Serves Swagger UI at /openapi per AI.md PART 14
 func GetSwaggerUIAuto(apiPath string) http.HandlerFunc {
-	// Swagger UI inherits the shared theme system per AI.md PART 16
-	ui := httpSwagger.Handler(
-		// The spec is fetched from the versioned canonical route (AI.md PART 14)
-		httpSwagger.URL(apiPath+"/server/swagger"),
-		httpSwagger.DocExpansion("list"),
-		httpSwagger.DeepLinking(true),
-		httpSwagger.PersistAuthorization(true),
-	)
+	ui := swagger.GetSwaggerUIWithURL(apiPath + "/server/swagger")
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSuffix(r.URL.Path, "/") == "/server/docs/swagger" {

@@ -184,15 +184,13 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Enabled       *bool   `json:"enabled"`
-		Schedule      *string `json:"schedule"`
-		RetryOnFail   *bool   `json:"retry_on_fail"`
-		RetryDelay    *string `json:"retry_delay"`
-		MaxAge        *string `json:"max_age"`
-		MaxSize       *string `json:"max_size"`
-		Compress      *bool   `json:"compress"`
-		Verify        *bool   `json:"verify"`
-		RestartOnFail *bool   `json:"restart_on_fail"`
+		Enabled     *bool   `json:"enabled"`
+		Schedule    *string `json:"schedule"`
+		RetryOnFail *bool   `json:"retry_on_fail"`
+		RetryDelay  *string `json:"retry_delay"`
+		MaxAge      *string `json:"max_age"`
+		MaxSize     *string `json:"max_size"`
+		Compress    *bool   `json:"compress"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.common.invalid_request_body"))
@@ -226,13 +224,6 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	if req.Compress != nil {
 		task.Compress = *req.Compress
 	}
-	if req.Verify != nil {
-		task.Verify = *req.Verify
-	}
-	if req.RestartOnFail != nil {
-		task.RestartOnFail = *req.RestartOnFail
-	}
-
 	if errs := config.UpdateSchedulerTask(taskName, task, scheduler.ValidSchedule); len(errs) > 0 {
 		details := make(map[string]string, len(errs))
 		for _, e := range errs {

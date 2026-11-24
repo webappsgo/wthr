@@ -1,12 +1,14 @@
 {{template "head" .}}
 
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+
 
 <div class="profile-container">
-    <div class="page-header">
-        <h1 class="profile-page-header-title">👤 {{t .server.Lang "profile.title"}}</h1>
+    <header class="page-header"><h1 class="page-title">👤 {{t .server.Lang "profile.title"}}</h1>
         <p class="text-comment">{{t .server.Lang "profile.subtitle"}}</p>
-    </div>
+    </header>
 
     <!-- Profile Information Card -->
     <div class="card profile-card">
@@ -211,9 +213,9 @@
     </div>
 
     <!-- Account Information (Read-only) -->
-    <div class="card">
+    <section class="section-card" aria-labelledby="profile-card-1">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "profile.account_details"}}</h2>
+            <h2 class="profile-card-header-title" id="profile-card-1">{{t .server.Lang "profile.account_details"}}</h2>
         </div>
         <div class="card-body">
             <div class="info-grid">
@@ -239,13 +241,15 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 </div>
 
-<script type="application/json" id="profile-data">
+<textarea hidden id="profile-data">
 {"apiPath": "{{.api_path}}"}
-</script>
+</textarea>
 
+  </div>
+</main>
 {{template "footer" .}}
 </body>
 </html>

@@ -70,6 +70,13 @@ type SessionModel struct {
 	DB *sql.DB
 }
 
+// ShouldUpdateLastUsed reports whether a stored activity timestamp is old
+// enough to queue another database write. The in-memory writer flushes at
+// 30-second intervals, so this one-minute threshold bounds writes per row.
+func ShouldUpdateLastUsed(lastUsed *time.Time, now time.Time) bool {
+	return lastUsed == nil || !now.Before(lastUsed.Add(time.Minute))
+}
+
 // getDB returns the users.db handle this model was constructed with. The only
 // table SessionModel touches (user_sessions) is declared in
 // database.UsersSchema, so the injected handle is the correct database for
@@ -213,9 +220,14 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 
 // Touch records activity without extending the absolute session lifetime.
 func (m *SessionModel) Touch(rawToken string) error {
-	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite,
-		`UPDATE user_sessions SET last_used_at = ? WHERE token_hash = ?`, sqlTimestamp(time.Now()), hashToken(rawToken))
-	return err
+	db := m.getDB()
+	hash := hashToken(rawToken)
+	query := `UPDATE user_sessions SET last_used_at = ? WHERE token_hash = ?`
+	if database.IsRemoteDatabase(db) {
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), hash)
+		return err
+	}
+	return database.QueueHotCounterUpdate(db, "user_session:"+hash, query, sqlTimestamp(time.Now()), hash)
 }
 
 // UpdateData stores arbitrary key-value data on the session (used for 2FA

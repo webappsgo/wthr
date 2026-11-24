@@ -1,0 +1,39 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+<div class="admin-header">
+  <header class="page-header"><h1 class="page-title">{{t .lang "admin.notify.title"}}</h1></header>
+  <p class="admin-page-intro">{{t .lang "admin.notify.intro"}}</p>
+</div>
+{{if .flash}}
+<div class="admin-alert admin-alert-{{.flash.Kind}}" role="status">{{t .lang .flash.Key}}</div>
+{{end}}
+{{range .roles}}
+{{$role := .}}
+<section class="admin-section" aria-labelledby="notify-{{.Key}}-heading">
+  <div class="section-header">
+    <h2 id="notify-{{.Key}}-heading">{{t $.lang .TitleKey}}</h2>
+  </div>
+  <form class="settings-form" method="post" action="{{$.admin_path}}/notify">
+    <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+    <input type="hidden" name="role" value="{{.Key}}">
+    <div class="form-group">
+      <label class="form-label" for="notify-{{.Key}}-email">{{t $.lang "contact.email_label"}}</label>
+      <input class="form-control" id="notify-{{.Key}}-email" name="email" type="email" value="{{.Email}}" autocomplete="email">
+    </div>
+    {{range .Transports}}
+    <div class="form-group">
+      <label class="form-label" for="notify-{{$role.Key}}-{{.Name}}">{{.Name}} {{t $.lang "admin.notifications.webhook_url_label"}}</label>
+      <input class="form-control" id="notify-{{$role.Key}}-{{.Name}}" name="webhook_{{.Name}}" type="url" value="{{.URL}}" autocomplete="url">
+    </div>
+    {{end}}
+    <p class="form-hint">{{t $.lang "admin.notify.secret_help"}}</p>
+    <button class="btn btn-primary" type="submit">{{t $.lang "admin.common.save_settings"}}</button>
+  </form>
+  <form method="post" action="{{$.admin_path}}/notify/test">
+    <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+    <input type="hidden" name="role" value="{{.Key}}">
+    <button class="btn btn-secondary" type="submit">{{t $.lang "admin.notify.test_action"}}</button>
+  </form>
+</section>
+{{end}}
+{{template "admin_footer" .}}

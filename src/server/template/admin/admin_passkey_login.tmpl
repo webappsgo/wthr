@@ -12,10 +12,14 @@
     <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
 </head>
 <body>
-    <main id="main-content" class="auth-container">
-        <div class="auth-card">
+<a href="#main-content" class="skip-link">{{t $lang "aria.skip_to_main"}}</a>
+<a href="#passkeyStatus" class="skip-link">{{t $lang "aria.skip_to_nav"}}</a>
+    <main id="main-content">
+      <div class="container container-sm">
+        <header class="page-header"><h1 class="page-title">{{t $lang "admin.passkey_login.heading"}}</h1></header>
+        <section class="section-card" aria-labelledby="admin-passkey-login-description">
+            <h2 class="sr-only" id="admin-passkey-login-description">{{t $lang "admin.passkey_login.subtitle"}}</h2>
             <div class="auth-icon" aria-hidden="true">🔑</div>
-            <h1>{{t $lang "admin.passkey_login.heading"}}</h1>
             <p class="auth-subtitle">{{t $lang "admin.passkey_login.subtitle"}}</p>
 
             {{if .error}}
@@ -31,11 +35,11 @@
                 <a href="/server/auth/login">← {{t $lang "admin.passkey_login.back_link"}}</a>
             </div>
 
-            <script type="application/json" id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</script>
+            <textarea hidden id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</textarea>
             <script src="{{asset "/static/js/app.js"}}"></script>
             {{end}}
-        </div>
+        </section>
+      </div>
     </main>
-</body>
-</html>
+<footer class="admin-login-footer">{{t $lang "admin.footer.version"}} {{if .server}}{{.server.Version}}{{end}}</footer>
 {{end}}

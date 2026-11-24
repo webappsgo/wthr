@@ -24,6 +24,8 @@ type ServerContext struct {
 	Tagline     string
 	Description string
 	Version     string
+	GitOrg      string
+	GitRepo     string
 	// Current user language (AI.md PART 31)
 	Lang string
 	// Resolved theme class for <html> (AI.md PART 16): theme-dark/theme-light/theme-auto
@@ -68,6 +70,15 @@ type ServerContext struct {
 	// unless tracking is configured, consent is given and the request is clearnet
 	TrackingHTML     template.HTML
 	TrackingNoscript template.HTML
+	HasConsentCookie bool
+	ConsentMessage   string
+	ConsentPolicyURL string
+	ConsentPolicyText string
+	ConsentDeclineText string
+	ConsentAcceptText string
+	ConsentShowPreferences bool
+	ConsentPreferencesText string
+	ConsentDataSold bool
 }
 
 // analyticsConsentGiven reports whether the visitor opted in to analytics. Tracking is
@@ -176,6 +187,16 @@ func InjectServerContext(db *sql.DB, version string, buildDate ...string) func(h
 
 			// Resolve theme per AI.md PART 16 Theme Detection Flow
 			themeMode := resolveThemeFromRequest(r)
+			privacy := config.DefaultPrivacyConfig()
+			if cfg != nil {
+				privacy = cfg.Server.Privacy
+			}
+			consentMessage := privacy.Consent.Message
+			if privacy.Data.Sold && privacy.Consent.MessageIfSold != "" {
+				consentMessage = privacy.Consent.MessageIfSold
+			}
+			_, consentCookieErr := r.Cookie("cookie_consent")
+			hasConsentCookie := consentCookieErr == nil
 
 			// Create server context
 			serverCtx := ServerContext{
@@ -183,6 +204,8 @@ func InjectServerContext(db *sql.DB, version string, buildDate ...string) func(h
 				Tagline:         tagline,
 				Description:     description,
 				Version:         version,
+				GitOrg:          "webappsgo",
+				GitRepo:         "wthr",
 				Lang:            lang.(string),
 				ThemeClass:      server.ThemeClass(themeMode),
 				Theme:           themeMode,
@@ -217,6 +240,15 @@ func InjectServerContext(db *sql.DB, version string, buildDate ...string) func(h
 				VerifyBaidu:     verifyBaidu,
 				VerifyPinterest: verifyPinterest,
 				VerifyFacebook:  verifyFacebook,
+				HasConsentCookie: hasConsentCookie,
+				ConsentMessage: consentMessage,
+				ConsentPolicyURL: privacy.Consent.Policy.URL,
+				ConsentPolicyText: privacy.Consent.Policy.Text,
+				ConsentDeclineText: privacy.Consent.Buttons.Decline,
+				ConsentAcceptText: privacy.Consent.Buttons.Accept,
+				ConsentShowPreferences: privacy.Consent.ShowPreferences,
+				ConsentPreferencesText: privacy.Consent.PreferencesText,
+				ConsentDataSold: privacy.Data.Sold,
 			}
 
 			if cfg != nil && cfg.Server.SEO.Noindex {
@@ -275,6 +307,8 @@ func GetServerContext(ctx context.Context) (ServerContext, bool) {
 			Tagline:     "",
 			Description: "",
 			Version:     "unknown",
+			GitOrg:      "webappsgo",
+			GitRepo:     "wthr",
 			Lang:        "en",
 			ThemeClass:  server.ThemeClass(server.DefaultTheme),
 			Theme:       server.DefaultTheme,

@@ -1,12 +1,14 @@
 {{template "head" .}}
 
 {{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+
 
 <div class="profile-container">
-    <div class="page-header">
-        <h1 class="profile-page-header-title">{{t .server.Lang "settings.notifications_title"}}</h1>
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "settings.notifications_title"}}</h1>
         <p class="text-comment">{{t .server.Lang "settings.notifications_subtitle"}}</p>
-    </div>
+    </header>
 
     {{template "flash" .}}
 
@@ -98,6 +100,8 @@
 </div>
 
 
+  </div>
+</main>
 {{template "footer" .}}
 </body>
 </html>

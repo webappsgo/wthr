@@ -1314,6 +1314,45 @@ func (ws *WeatherService) ParseAndResolveLocation(location string, clientIP stri
 	return coords, nil
 }
 
+// HasKnownLocation checks locally available location data without geocoding or fetching remote data.
+func (ws *WeatherService) HasKnownLocation(location string) bool {
+	if ws == nil {
+		return false
+	}
+	location = strings.TrimSpace(location)
+	if location == "" {
+		return false
+	}
+	if IsZipcode(location) {
+		zip, err := ParseZipcode(location)
+		if err != nil || ws.zipcodeService == nil {
+			return false
+		}
+		_, err = ws.zipcodeService.LookupZipcode(zip)
+		return err == nil
+	}
+	if ws.isCoordinates(location) {
+		return true
+	}
+	if ws.locationEnhancer == nil {
+		return false
+	}
+	normalize := func(value string) string {
+		value = strings.ToLower(strings.TrimSpace(value))
+		value = strings.NewReplacer("-", " ", ",", " ", ".", " ").Replace(value)
+		return strings.Join(strings.Fields(value), " ")
+	}
+	target := normalize(location)
+	for _, city := range ws.locationEnhancer.GetCitiesData() {
+		for _, name := range []string{city.Name, city.Name + " " + city.State, city.Name + " " + city.Country} {
+			if target == normalize(name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GetCoordinatesFromIP gets location coordinates from IP address
 func (ws *WeatherService) GetCoordinatesFromIP(ip string) (*Coordinates, error) {
 	// For localhost/private IPs, use default location

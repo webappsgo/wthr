@@ -1,0 +1,23 @@
+{{define "cookie_consent"}}
+{{if not .server.HasConsentCookie}}
+<aside class="cookie-banner" id="cookie-consent" role="dialog" aria-label="{{.server.ConsentMessage}}" data-sold="{{.server.ConsentDataSold}}">
+  <p class="cookie-message">
+    {{.server.ConsentMessage}}
+    <a class="cookie-policy-link" href="{{.server.ConsentPolicyURL}}">{{.server.ConsentPolicyText}}</a>
+    {{if .server.ConsentShowPreferences}}<a class="cookie-preferences-link" href="/server/preferences">{{.server.ConsentPreferencesText}}</a>{{end}}
+  </p>
+  <div class="cookie-buttons">
+    <form method="post" action="/server/consent">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <input type="hidden" name="choice" value="decline">
+      <button class="btn-decline" type="submit">{{.server.ConsentDeclineText}}</button>
+    </form>
+    <form method="post" action="/server/consent">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <input type="hidden" name="choice" value="accept">
+      <button class="btn-accept" type="submit">{{.server.ConsentAcceptText}}</button>
+    </form>
+  </div>
+</aside>
+{{end}}
+{{end}}

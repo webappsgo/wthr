@@ -11,11 +11,14 @@
     <link rel="stylesheet" href="{{asset "/static/vendor/leaflet/leaflet.css"}}">
 </head>
 <body>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
     {{template "header" .}}
     {{template "navbar" .}}
 
-    <main class="weather-container" id="main-content" role="main">
-        <h1 class="text-purple">{{t .server.Lang "earthquake.title"}}</h1>
+    <main id="main-content">
+  <div class="container container-md">
+        <header class="page-header"><h1 class="page-title">{{t .server.Lang "earthquake.title"}}</h1></header>
 
         <!-- Location Search Form -->
         <form action="/earthquakes" method="get" id="earthquake-form" class="search-form" role="form" aria-label="{{t .server.Lang "earthquake.search_filters_aria"}}">
@@ -230,12 +233,12 @@
                 {{t .server.Lang "earthquake.detail_updated_frequently"}}
             </p>
         </div>
-    </main>
+      </div>
+</main>
 
-    <script src="{{asset "/static/vendor/leaflet/leaflet.js"}}"></script>
 
-    <script type="application/json" id="earthquake-page-data">
+    <textarea hidden id="earthquake-page-data">
     {"centerLat": {{.CenterLat}}, "centerLon": {{.CenterLon}}, "hasLocation": {{if .Location}}true{{else}}false{{end}}, "earthquakes": [{{range $i, $e := .Earthquakes}}{{if $i}},{{end}}{"lat": {{$e.Latitude}}, "lng": {{$e.Longitude}}, "mag": {{$e.Magnitude}}, "place": {{$e.Place | printf "%q"}}, "time": {{$e.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{$e.Depth}}, "tsunami": {{$e.Tsunami}}, "url": {{$e.URL | printf "%q"}}}{{end}}]}
-    </script>
+    </textarea>
 
 {{template "footer" .}}

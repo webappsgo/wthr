@@ -19,6 +19,15 @@ func memDSN(prefix string) string {
 	return fmt.Sprintf("file:%s_%d?mode=memory&cache=shared", prefix, time.Now().UnixNano())
 }
 
+func setDatabaseTestConfig(t *testing.T) {
+	t.Helper()
+	configDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated server config: %v", err)
+	}
+	t.Setenv("CONFIG_DIR", configDir)
+}
+
 // TestInitServerDB_NewDatabase exercises initServerDB directly against an
 // in-memory DSN (avoids real disk files) and verifies pool settings, schema
 // creation, and idempotent schema updates.
@@ -220,6 +229,7 @@ func TestIsColumnExistsError(t *testing.T) {
 }
 
 func TestInitDualDB(t *testing.T) {
+	setDatabaseTestConfig(t)
 	dataDir := t.TempDir()
 
 	ddb, err := InitDualDB(dataDir)

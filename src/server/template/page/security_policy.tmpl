@@ -2,30 +2,34 @@
 
 {{template "navbar" .}}
 
-<main id="main-content" class="weather-container">
-    <p><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></p>
-    <h1 class="text-purple">{{t .server.Lang "security.policy.title"}}</h1>
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></nav>
+      <h1 class="page-title">{{t .server.Lang "security.policy.title"}}</h1>
+    </header>
 
     {{if .Policy}}
-    <section class="card margin-y-lg"><div class="pre-wrap">{{.Policy}}</div></section>
+    <section class="section-card" aria-labelledby="security-policy-content"><h2 id="security-policy-content" class="sr-only">{{t .server.Lang "security.policy.title"}}</h2><div class="pre-wrap">{{.Policy}}</div></section>
     {{else}}
-    <section class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "security.policy.window.heading"}}</h2>
+    <section class="section-card" aria-labelledby="policy-window">
+        <h2 id="policy-window">{{t .server.Lang "security.policy.window.heading"}}</h2>
         <p>{{t .server.Lang "security.policy.window.text"}}</p>
     </section>
-    <section class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "security.policy.scope.heading"}}</h2>
+    <section class="section-card" aria-labelledby="policy-scope">
+        <h2 id="policy-scope">{{t .server.Lang "security.policy.scope.heading"}}</h2>
         <p>{{t .server.Lang "security.policy.scope.text"}}</p>
     </section>
-    <section class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "security.policy.out_of_scope.heading"}}</h2>
+    <section class="section-card" aria-labelledby="policy-out-of-scope">
+        <h2 id="policy-out-of-scope">{{t .server.Lang "security.policy.out_of_scope.heading"}}</h2>
         <p>{{t .server.Lang "security.policy.out_of_scope.text"}}</p>
     </section>
-    <section class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "security.policy.safe_harbor.heading"}}</h2>
+    <section class="section-card" aria-labelledby="policy-safe-harbor">
+        <h2 id="policy-safe-harbor">{{t .server.Lang "security.policy.safe_harbor.heading"}}</h2>
         <p>{{t .server.Lang "security.policy.safe_harbor.text"}}</p>
     </section>
     {{end}}
+  </div>
 </main>
 
 {{template "footer" .}}

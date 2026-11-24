@@ -28,6 +28,21 @@ func TestRandomPort(t *testing.T) {
 	}
 }
 
+func TestComplianceConfigEnablesModeForAnyStandard(t *testing.T) {
+	if (ComplianceConfig{}).Enabled() {
+		t.Fatal("compliance mode enabled with no standards configured")
+	}
+	standards := []ComplianceConfig{
+		{GDPR: true}, {CCPA: true}, {HIPAA: true}, {SOC2: true}, {PCIDSS: true},
+		{ISO27001: true}, {FedRAMP: true}, {LGPD: true}, {PIPEDA: true}, {APPI: true}, {PDPA: true},
+	}
+	for _, standard := range standards {
+		if !standard.Enabled() {
+			t.Errorf("Enabled() = false for standard %+v", standard)
+		}
+	}
+}
+
 func TestGetDefaultFQDN(t *testing.T) {
 	got := getDefaultFQDN()
 	if got == "" {

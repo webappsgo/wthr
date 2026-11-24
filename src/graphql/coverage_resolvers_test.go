@@ -24,7 +24,7 @@ func graphQLCoverageFixture[T any]() T {
 }
 
 func fixtureGraphQLValue(value reflect.Value, depth int) {
-	if !value.IsValid() || !value.CanSet() || depth > 4 {
+	if !value.IsValid() || !value.CanSet() || depth > 8 {
 		return
 	}
 	switch value.Kind() {

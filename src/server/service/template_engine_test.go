@@ -2,6 +2,8 @@ package service
 
 import (
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +12,38 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestLanguageSelectorIsLimitedToPublicPreferencesPage(t *testing.T) {
+	templateDir := filepath.Join("..", "template")
+	preferences, err := os.ReadFile(filepath.Join(templateDir, "page", "preferences.tmpl"))
+	if err != nil {
+		t.Fatalf("read public preferences template: %v", err)
+	}
+	if !strings.Contains(string(preferences), "<select id=\"preferences-lang\" name=\"lang\"") {
+		t.Fatal("public preferences page does not contain the language selector")
+	}
+	if !strings.Contains(string(preferences), "id=\"language\"") {
+		t.Fatal("public preferences page does not provide the language anchor")
+	}
+
+	for _, name := range []string{"partial/nav.tmpl", "admin/admin_preferences.tmpl"} {
+		content, err := os.ReadFile(filepath.Join(templateDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if strings.Contains(string(content), `name="lang"`) || strings.Contains(string(content), `data-action="switch-language"`) {
+			t.Errorf("%s contains a language selector outside the public preferences page", name)
+		}
+	}
+
+	footer, err := os.ReadFile(filepath.Join(templateDir, "partial", "footer.tmpl"))
+	if err != nil {
+		t.Fatalf("read footer template: %v", err)
+	}
+	if !strings.Contains(string(footer), `href="/server/preferences#language"`) {
+		t.Fatal("footer does not link the active language to public preferences")
+	}
+}
 
 // setupTemplateEngineTestDB creates an in-memory server SQLite database with
 // the real production ServerSchema applied, which is the only definition of

@@ -20,6 +20,29 @@ func newTestEarthquakeService(baseURL string) *EarthquakeService {
 	}
 }
 
+func TestHasCachedEarthquakeDoesNotFetch(t *testing.T) {
+	fetched := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetched = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	es := newTestEarthquakeService(server.URL)
+	if es.HasCachedEarthquake("all_week", "event-1") || fetched {
+		t.Fatal("an uncached event must not trigger a feed request")
+	}
+	es.cache.Set("earthquakes_all_week", &EarthquakeCollection{Earthquakes: []Earthquake{{ID: "event-1"}}}, cache.DefaultExpiration)
+	if !es.HasCachedEarthquake("all_week", "event-1") {
+		t.Fatal("a cached event was not found")
+	}
+	if es.HasCachedEarthquake("all_week", "missing") || es.HasCachedEarthquake("invalid_feed", "event-1") {
+		t.Fatal("accepted an unknown cached event or invalid feed")
+	}
+	if fetched {
+		t.Fatal("cached existence checks must not fetch a feed")
+	}
+}
+
 const usgsFixtureJSON = `{
   "type": "FeatureCollection",
   "metadata": {

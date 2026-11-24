@@ -3,17 +3,18 @@
 
 {{template "navbar" .}}
 
-<main class="weather-container" id="main-content" role="main">
-    <h1 class="text-purple">{{t .server.Lang "about.heading"}}</h1>
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "about.heading"}}</h1></header>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.what_is_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-8">
+        <h2 class="text-cyan" id="about-card-8">{{t .server.Lang "about.what_is_heading"}}</h2>
         <p>{{t .server.Lang "about.what_is_description"}}</p>
         <p class="text-comment margin-top-1">{{t .server.Lang "about.free_apis_note"}}</p>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.app_info_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-7">
+        <h2 class="text-cyan" id="about-card-7">{{t .server.Lang "about.app_info_heading"}}</h2>
         <div class="stat-box margin-y-md">
             <div class="stat-box__label">{{t .server.Lang "admin.system.version_label"}}</div>
             <div class="stat-box__value">{{.server.Version}}</div>
@@ -26,10 +27,10 @@
             <div class="stat-box__label">{{t .server.Lang "admin.system.mode_label"}}</div>
             <div class="stat-box__value">{{.server.Mode}}</div>
         </div>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.features_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-6">
+        <h2 class="text-cyan" id="about-card-6">{{t .server.Lang "about.features_heading"}}</h2>
         <ul class="feature-list">
             <li>🌤️ <strong>{{t .server.Lang "about.feature_forecasts_title"}}</strong> - {{t .server.Lang "about.feature_forecasts_desc"}}</li>
             <li>⚠️ <strong>{{t .server.Lang "about.feature_alerts_title"}}</strong> - {{t .server.Lang "about.feature_alerts_desc"}}</li>
@@ -44,10 +45,10 @@
             <li>🔗 <strong>{{t .server.Lang "about.feature_graphql_title"}}</strong> - {{t .server.Lang "about.feature_graphql_desc"}}</li>
             <li>📱 <strong>{{t .server.Lang "about.feature_mobile_title"}}</strong> - {{t .server.Lang "about.feature_mobile_desc"}}</li>
         </ul>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.data_sources_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-5">
+        <h2 class="text-cyan" id="about-card-5">{{t .server.Lang "about.data_sources_heading"}}</h2>
         <ul class="feature-list">
             <li>🌤️ <strong>{{t .server.Lang "about.datasource_weather_title"}}</strong> {{t .server.Lang "about.datasource_weather_desc"}}</li>
             <li>⚠️ <strong>{{t .server.Lang "about.datasource_severe_title"}}</strong> {{t .server.Lang "about.datasource_severe_desc"}}</li>
@@ -60,10 +61,10 @@
             <h2>{{t .server.Lang "about.attribution_heading"}}</h2>
             <p><a href="https://db-ip.com/">{{t .server.Lang "about.attribution_geoip_link"}}</a></p>
         </section>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.who_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-4">
+        <h2 class="text-cyan" id="about-card-4">{{t .server.Lang "about.who_heading"}}</h2>
         <ul class="feature-list">
             <li>👩‍💻 <strong>{{t .server.Lang "about.who_developers_title"}}</strong> - {{t .server.Lang "about.who_developers_desc"}}</li>
             <li>🖥️ <strong>{{t .server.Lang "about.who_sysadmins_title"}}</strong> - {{t .server.Lang "about.who_sysadmins_desc"}}</li>
@@ -72,23 +73,23 @@
             <li>🏠 <strong>{{t .server.Lang "about.who_iot_title"}}</strong> - {{t .server.Lang "about.who_iot_desc"}}</li>
             <li>👤 <strong>{{t .server.Lang "about.who_public_title"}}</strong> - {{t .server.Lang "about.who_public_desc"}}</li>
         </ul>
-    </div>
+    </section>
 
     {{if .server.Tor.Enabled}}
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">🧅 {{t .server.Lang "about.tor_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-3">
+        <h2 class="text-cyan" id="about-card-3">🧅 {{t .server.Lang "about.tor_heading"}}</h2>
         <p>{{t .server.Lang "about.tor_description"}}</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code onion-address">{{.server.Tor.OnionAddress}}</code>
             <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
         <p class="text-comment"><small>{{t .server.Lang "about.tor_browser_note"}}</small></p>
-    </div>
+    </section>
     {{end}}
 
     {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">🔗 {{t .server.Lang "about.i2p_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-2">
+        <h2 class="text-cyan" id="about-card-2">🔗 {{t .server.Lang "about.i2p_heading"}}</h2>
         <p>{{t .server.Lang "about.i2p_description"}}</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code i2p-address">{{.server.I2P.Address}}</code>
@@ -96,11 +97,11 @@
         </div>
         <p class="text-comment"><small>{{t .server.Lang "about.i2p_router_note"}}</small></p>
         <p class="text-comment"><small>{{t .server.Lang "about.i2p_help_link_text"}} <a href="/server/help#i2p-access" class="text-cyan">{{t .server.Lang "about.i2p_help_link_label"}}</a></small></p>
-    </div>
+    </section>
     {{end}}
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about.links_heading"}}</h2>
+    <section class="section-card" aria-labelledby="about-card-1">
+        <h2 class="text-cyan" id="about-card-1">{{t .server.Lang "about.links_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile">
             <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}" target="_blank" class="btn btn-primary">
                 {{t .server.Lang "about.github_repository"}}
@@ -112,8 +113,9 @@
                 {{t .server.Lang "about.help_support"}}
             </a>
         </div>
-    </div>
+    </section>
     {{if .operator_about}}<section class="operator-content" aria-label="{{t .server.Lang "about.heading"}}">{{.operator_about}}</section>{{end}}
+  </div>
 </main>
 
 {{template "footer" .}}

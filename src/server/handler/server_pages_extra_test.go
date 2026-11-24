@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -210,23 +211,36 @@ func TestServeTrackingScript(t *testing.T) {
 }
 
 func TestContactAPIRequiresCaptcha(t *testing.T) {
-	cfg := &config.AppConfig{}
-	post := func(body map[string]string) *httptest.ResponseRecorder {
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", body)
-		HandleContactFormSubmission(nil, cfg).ServeHTTP(w, r)
-		return w
+	db := newServerPagesTestDB(t)
+	cfg := newServerPagesTestConfig()
+	cfg.Server.Pages.Contact.Antispam.MinFillSeconds = 0
+	manager, err := getContactAntispam(db, cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	w := post(map[string]string{"name": "A", "email": "a@example.com", "subject": "S", "message": "M"})
+	formToken, err := manager.NewContactFormToken(time.Now().Add(-5 * time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := validContactBody()
+	delete(body, "captcha_id")
+	delete(body, "captcha_answer")
+	body["form_token"] = formToken
+	r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", body)
+	HandleContactFormSubmission(db, cfg).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("missing captcha status = %d, want 400", w.Code)
 	}
-	body := decodeBody(t, w)
-	if body["ok"] != false || body["error"] != "CAPTCHA_FAILED" {
-		t.Errorf("error body = %v", body)
+	response := decodeBody(t, w)
+	if response["ok"] != false || response["error"] != "VALIDATION_FAILED" {
+		t.Errorf("error body = %v", response)
 	}
 
-	w = post(map[string]string{"name": "", "email": "bad", "subject": "S", "message": "M"})
+	invalid := validContactBody()
+	delete(invalid, "name")
+	invalid["form_token"] = formToken
+	r, w = newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", invalid)
+	HandleContactFormSubmission(db, cfg).ServeHTTP(w, r)
 	if got := decodeBody(t, w)["error"]; got != "VALIDATION_FAILED" {
 		t.Errorf("invalid form error = %v", got)
 	}

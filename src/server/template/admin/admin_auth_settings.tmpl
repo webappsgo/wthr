@@ -2,13 +2,13 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<div class="admin-header"><h1>🔐 {{t $lang "admin.auth.title"}}</h1></div>
+<div class="admin-header"><header class="page-header"><h1 class="page-title">🔐 {{t $lang "admin.auth.title"}}</h1></header></div>
 {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status" aria-live="polite">{{t $lang .flash.Key}}</p>{{end}}
 <form id="authSettingsForm" method="post" action="{{.admin_path}}/security/auth"
     data-msg-saved="{{t $lang "admin.common.settings_saved"}}"
     data-msg-error="{{t $lang "admin.common.settings_save_error"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>{{t $lang "admin.auth.oidc_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_auth_settings-section-1"><h2 id="admin_auth_settings-section-1">{{t $lang "admin.auth.oidc_heading"}}</h2>
 <label><input type="checkbox" name="oidc_enabled" value="true" {{if .OIDCEnabled}}checked{{end}}> {{t $lang "admin.auth.oidc_enable"}}</label>
 <div id="oidcProviders"
     data-label-name="{{t $lang "admin.auth.oidc_provider_name_label"}}"
@@ -32,7 +32,7 @@
 <p>{{t $lang "admin.auth.oidc_secret_saved_hint"}}</p>
 <button type="submit" name="action" value="save">{{t $lang "admin.common.save_settings"}}</button>
 </section>
-<section class="card"><h2>{{t $lang "admin.auth.ldap_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_auth_settings-section-2"><h2 id="admin_auth_settings-section-2">{{t $lang "admin.auth.ldap_heading"}}</h2>
 <label><input type="checkbox" name="ldap_enabled" value="true" {{if .LDAPEnabled}}checked{{end}}> {{t $lang "admin.auth.ldap_enable"}}</label>
 <label>{{t $lang "admin.auth.ldap_server_label"}} <input type="text" name="ldap_server" value="{{.LDAPServer}}"></label>
 <label>{{t $lang "admin.auth.ldap_port_label"}} <input type="number" name="ldap_port" value="{{.LDAPPort}}" min="1" max="65535"></label>
@@ -42,20 +42,20 @@
 <label>{{t $lang "admin.auth.ldap_base_dn_label"}} <input type="text" name="ldap_base_dn" value="{{.LDAPBaseDN}}"></label>
 <label>{{t $lang "admin.auth.ldap_user_filter_label"}} <input type="text" name="ldap_user_filter" value="{{.LDAPUserFilter}}"></label>
 </section>
-<section class="card"><h2>{{t $lang "admin.auth.totp_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_auth_settings-section-3"><h2 id="admin_auth_settings-section-3">{{t $lang "admin.auth.totp_heading"}}</h2>
 <label><input type="checkbox" name="totp_enabled" value="true" {{if .TOTPEnabled}}checked{{end}}> {{t $lang "admin.auth.totp_enable"}}</label>
 <label>{{t $lang "admin.auth.totp_issuer_label"}} <input type="text" name="totp_issuer" value="{{.TOTPIssuer}}"></label>
 <label>{{t $lang "admin.auth.totp_digits_label"}} <input type="number" name="totp_digits" value="{{.TOTPDigits}}" min="6" max="8"></label>
 <label>{{t $lang "admin.auth.totp_period_label"}} <input type="number" name="totp_period" value="{{.TOTPPeriod}}" min="15" max="120"></label>
 </section>
-<section class="card"><h2>{{t $lang "admin.auth.passkeys_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_auth_settings-section-4"><h2 id="admin_auth_settings-section-4">{{t $lang "admin.auth.passkeys_heading"}}</h2>
 <label><input type="checkbox" name="passkeys_enabled" value="true" {{if .PasskeysEnabled}}checked{{end}}> {{t $lang "admin.auth.passkeys_enable"}}</label>
 <label>{{t $lang "admin.auth.passkeys_rp_id_label"}} <input type="text" name="passkeys_rp_id" value="{{.PasskeysRPID}}"></label>
 <label>{{t $lang "admin.auth.passkeys_rp_name_label"}} <input type="text" name="passkeys_rp_name" value="{{.PasskeysRPName}}"></label>
 </section>
 <button type="submit" name="action" value="save" data-label-save="{{t $lang "admin.common.save_settings"}}" data-label-saving="{{t $lang "admin.common.saving"}}">{{t $lang "admin.common.save_settings"}}</button>
 </form>
-<section class="card"><h2>{{t $lang "admin.auth.saml_heading"}}</h2>
+<section class="section-card" aria-labelledby="admin_auth_settings-section-5"><h2 id="admin_auth_settings-section-5">{{t $lang "admin.auth.saml_heading"}}</h2>
 <label><input type="checkbox" name="saml_enabled" value="true" {{if .SAMLEnabled}}checked{{end}}> {{t $lang "admin.auth.saml_enable"}}</label>
 {{range .SAMLProviders}}
 <fieldset><legend>{{t $lang "admin.auth.saml_provider"}}</legend>

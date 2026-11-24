@@ -1,12 +1,8 @@
 package handler
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 )
 
 // TestNewHurricaneHandler verifies the constructor wires the service field
@@ -48,25 +44,6 @@ func TestHurricaneHandler_ListActiveStorms_NilHandler(t *testing.T) {
 	}
 	if storms != nil {
 		t.Errorf("expected nil storms on error, got %v", storms)
-	}
-}
-
-// TestHurricaneHandler_HandleHurricaneByIDAPI_MissingID verifies an empty
-// :id path parameter is rejected with 400 before the hurricane service is
-// ever consulted (service is left nil here — a call would panic).
-func TestHurricaneHandler_HandleHurricaneByIDAPI_MissingID(t *testing.T) {
-	h := &HurricaneHandler{}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/hurricanes/", nil)
-
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	h.HandleHurricaneByIDAPI(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -127,10 +127,15 @@ type ServerConfig struct {
 	Pages PagesConfig `yaml:"pages"`
 	// AI.md PART 12: privacy disclosure and consent banner settings
 	Privacy PrivacyConfig `yaml:"privacy"`
+	// AI.md PART 11: compliance standards are enabled individually; backup
+	// encryption is mandatory whenever any standard is enabled (PART 22).
+	Compliance ComplianceConfig `yaml:"compliance"`
 	// AI.md PART 12: cache backend settings
 	Cache CacheConfig `yaml:"cache"`
 	// AI.md PART 21: Prometheus metrics exposition settings
 	Metrics MetricsConfig `yaml:"metrics"`
+	// AI.md PART 11: audit log rotation and retention policy.
+	Logs LogsConfig `yaml:"logs"`
 }
 
 type UpdateConfig struct {
@@ -916,6 +921,7 @@ func DefaultAppConfig() *AppConfig {
 			Scheduler:   DefaultSchedulerConfig(),
 			RateLimit:   DefaultRateLimitConfig(),
 			Metrics:     DefaultMetricsConfig(),
+			Logs:        DefaultLogsConfig(),
 			Limits:      DefaultLimitsConfig(),
 			Compression: DefaultCompressionConfig(),
 			Session:     DefaultSessionConfig(),
@@ -1093,6 +1099,10 @@ func loadConfig(strict bool) (*AppConfig, error) {
 	}
 
 	applyEnvOverrides(cfg)
+	removeWebhookSecretValues(&cfg.Server.Contact)
+	if err := EnsureContactWebhookSecrets(cfg); err != nil {
+		return cfg, fmt.Errorf("initialize contact webhook secrets: %w", err)
+	}
 	return cfg, nil
 }
 

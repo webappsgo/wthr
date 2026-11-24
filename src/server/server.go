@@ -2,6 +2,7 @@ package server
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"strings"
@@ -68,5 +69,25 @@ func LoadTemplates() (*template.Template, error) {
 			return key
 		},
 	}
-	return template.New("").Funcs(funcMap).ParseFS(templatesFS, "template/**/*.tmpl")
+	tmpl := template.New("").Funcs(funcMap)
+	err := fs.WalkDir(templatesFS, "template", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(name, ".tmpl") {
+			return walkErr
+		}
+		content, err := fs.ReadFile(templatesFS, name)
+		if err != nil {
+			return err
+		}
+		templateName := strings.TrimPrefix(name, "template/")
+		text := string(content)
+		if !strings.Contains(text, "{{define ") {
+			text = fmt.Sprintf("{{define %q}}%s{{end}}", templateName, text)
+		}
+		_, err = tmpl.Parse(text)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tmpl, nil
 }

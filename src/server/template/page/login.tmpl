@@ -1,10 +1,11 @@
 {{template "head" .}}
 {{template "header" .}}
 {{template "navbar" .}}
-<main id="main-content" class="auth-container" role="main">
+<main id="main-content">
+  <div class="container container-md">
     <div class="login-container">
         <div class="login-header">
-            <h1>🌤️ {{t .server.Lang "login.brand_heading"}}</h1>
+            <header class="page-header"><h1 class="page-title">🌤️ {{t .server.Lang "login.brand_heading"}}</h1></header>
             <p>{{t .server.Lang "login.sign_in_subtitle"}}</p>
         </div>
 
@@ -82,10 +83,11 @@
             <a href="/">← {{t .server.Lang "login.back_to_weather_link"}}</a>
         </div>
     </div>
+  </div>
 </main>
 
     {{if .require_2fa}}
-    <script type="application/json" id="login-data">
+    <textarea hidden id="login-data">
         {
             "twoFactorCodeLabel": "{{t .server.Lang "login.2fa_code_label"}}",
             "recoveryKeyLabel": "{{t .server.Lang "login.recovery_key_label"}}",
@@ -94,6 +96,6 @@
             "useRecoveryKeyLink": "{{t .server.Lang "login.use_recovery_key_link"}}",
             "useAuthenticatorCodeLink": "{{t .server.Lang "login.use_authenticator_code_link"}}"
         }
-    </script>
+    </textarea>
     {{end}}
 {{template "footer" .}}

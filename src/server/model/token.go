@@ -182,6 +182,18 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 	return err
 }
 
+// QueueLastUsed coalesces an authenticated token activity write until the
+// database hot-counter flusher runs.
+func (m *TokenModel) QueueLastUsed(tokenID int) error {
+	db := m.getDB()
+	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
+	if database.IsRemoteDatabase(db) {
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
+		return err
+	}
+	return database.QueueHotCounterUpdate(db, fmt.Sprintf("token:%d", tokenID), query, sqlTimestamp(time.Now()), tokenID)
+}
+
 // DeleteAPIToken deletes a token
 func (m *TokenModel) DeleteAPIToken(id int) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM tokens WHERE id = ? AND owner_type = 'user'", id)

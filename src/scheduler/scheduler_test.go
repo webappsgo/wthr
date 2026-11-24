@@ -421,7 +421,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		}
 		var lockedBy, schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by, schedule FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+			"SELECT locked_by, schedule FROM scheduler_tasks WHERE id = ?", "backup_daily",
 		).Scan(&lockedBy, &schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -439,9 +439,9 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		newSchedulerTestDBs(t)
 		s := NewScheduler(nil)
 		_, err := database.GetServerDB().Exec(
-			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
-			 VALUES (?, ?, ?, ?, ?, 1)`,
-			"backup_daily", "backup_daily", testLockSchedule, "other-node", time.Now(),
+			`INSERT INTO scheduler_tasks (id, name, schedule, task_type, locked_by, locked_at, enabled)
+			 VALUES (?, ?, ?, ?, ?, ?, 1)`,
+			"backup_daily", "backup_daily", testLockSchedule, "global", "other-node", time.Now().Unix(),
 		)
 		if err != nil {
 			t.Fatalf("seed lock row: %v", err)
@@ -457,9 +457,9 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		s := NewScheduler(nil)
 		expiredAt := time.Now().Add(-LockTimeout - time.Minute)
 		_, err := database.GetServerDB().Exec(
-			`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
-			 VALUES (?, ?, ?, ?, ?, 1)`,
-			"backup_daily", "backup_daily", testLockSchedule, "other-node", expiredAt,
+			`INSERT INTO scheduler_tasks (id, name, schedule, task_type, locked_by, locked_at, enabled)
+			 VALUES (?, ?, ?, ?, ?, ?, 1)`,
+			"backup_daily", "backup_daily", testLockSchedule, "global", "other-node", expiredAt.Unix(),
 		)
 		if err != nil {
 			t.Fatalf("seed lock row: %v", err)
@@ -470,7 +470,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		}
 		var lockedBy string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE id = ?", "backup_daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -493,7 +493,7 @@ func TestScheduler_AcquireTaskLock(t *testing.T) {
 		// leaving the old expression behind.
 		var schedule string
 		if err := database.GetServerDB().QueryRow(
-			"SELECT schedule FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+			"SELECT schedule FROM scheduler_tasks WHERE id = ?", "backup_daily",
 		).Scan(&schedule); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -509,9 +509,9 @@ func seedTaskLock(t *testing.T, taskName, holder string, lockedAt interface{}) {
 	t.Helper()
 
 	if _, err := database.GetServerDB().Exec(
-		`INSERT INTO scheduler_tasks (task_id, task_name, schedule, locked_by, locked_at, enabled)
-		 VALUES (?, ?, ?, ?, ?, 1)`,
-		taskName, taskName, testLockSchedule, holder, lockedAt,
+		`INSERT INTO scheduler_tasks (id, name, schedule, task_type, locked_by, locked_at, enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, 1)`,
+		taskName, taskName, testLockSchedule, "global", holder, lockedAt,
 	); err != nil {
 		t.Fatalf("seed lock row: %v", err)
 	}
@@ -523,7 +523,7 @@ func lockHolder(t *testing.T, taskName string) sql.NullString {
 
 	var holder sql.NullString
 	if err := database.GetServerDB().QueryRow(
-		"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", taskName,
+		"SELECT locked_by FROM scheduler_tasks WHERE id = ?", taskName,
 	).Scan(&holder); err != nil {
 		t.Fatalf("query lock row: %v", err)
 	}
@@ -551,7 +551,7 @@ func TestScheduler_AcquireTaskLock_MixedTimestampLayouts(t *testing.T) {
 			// value, which is why the old SQL comparison never expired it -
 			// this case fails against the old code on every host.
 			name:     "stale lock whose +13:00 RFC3339 text sorts newer is stolen",
-			lockedAt: time.Now().Add(-2 * time.Hour).In(tokenZoneEast).Format(time.RFC3339Nano),
+			lockedAt: time.Now().Add(-2 * time.Hour).In(tokenZoneEast).Unix(),
 			steal:    true,
 		},
 		{
@@ -559,7 +559,7 @@ func TestScheduler_AcquireTaskLock_MixedTimestampLayouts(t *testing.T) {
 			// behind UTC, which a text comparison mistakes for an expired lock
 			// and steals out from under the node still running the task.
 			name:     "fresh lock whose -11:00 text reads eleven hours old is kept",
-			lockedAt: time.Now().In(tokenZoneWest).Format("2006-01-02 15:04:05.999999999 -0700"),
+			lockedAt: time.Now().In(tokenZoneWest).Unix(),
 			steal:    false,
 		},
 		{
@@ -567,12 +567,12 @@ func TestScheduler_AcquireTaskLock_MixedTimestampLayouts(t *testing.T) {
 			// writes, and the one case the old comparison got right on a
 			// UTC host. Behaviour must be unchanged.
 			name:     "stale canonical UTC text is stolen",
-			lockedAt: time.Now().UTC().Add(-2 * time.Hour).Format(sqlTimestampLayout),
+			lockedAt: time.Now().UTC().Add(-2 * time.Hour).Unix(),
 			steal:    true,
 		},
 		{
 			name:     "fresh canonical UTC text is kept",
-			lockedAt: time.Now().UTC().Format(sqlTimestampLayout),
+			lockedAt: time.Now().UTC().Unix(),
 			steal:    false,
 		},
 		{
@@ -614,10 +614,9 @@ func TestScheduler_AcquireTaskLock_MixedTimestampLayouts(t *testing.T) {
 	}
 }
 
-// TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp proves the lock writes
-// canonical UTC text, so the column never accumulates a second encoding that a
-// later reader would have to guess at.
-func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
+// TestScheduler_AcquireTaskLock_WritesUnixSeconds proves locks use integer
+// Unix timestamps, independent of the host's time zone.
+func TestScheduler_AcquireTaskLock_WritesUnixSeconds(t *testing.T) {
 	newSchedulerTestDBs(t)
 	s := NewScheduler(nil)
 
@@ -625,30 +624,27 @@ func TestScheduler_AcquireTaskLock_WritesCanonicalTimestamp(t *testing.T) {
 		t.Fatal("acquire should succeed on a fresh row")
 	}
 
-	// CAST keeps the driver from re-rendering the column as a time.Time on the
-	// way out, so the assertion sees the bytes actually stored.
-	var stored string
+	var stored int64
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+		"SELECT locked_at FROM scheduler_tasks WHERE id = ?", "backup_daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query locked_at: %v", err)
 	}
-
-	if _, err := time.Parse(sqlTimestampLayout, stored); err != nil {
-		t.Errorf("locked_at = %q, want canonical %q text", stored, sqlTimestampLayout)
+	if delta := time.Now().Unix() - stored; delta < 0 || delta > 2 {
+		t.Errorf("locked_at = %d, expected a current Unix-second timestamp", stored)
 	}
 
-	// The refresh path has to keep the same encoding.
+	// The refresh path must keep the same integer representation.
 	if !s.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Fatal("refresh of our own lock should succeed")
 	}
 	if err := database.GetServerDB().QueryRow(
-		"SELECT CAST(locked_at AS TEXT) FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+		"SELECT locked_at FROM scheduler_tasks WHERE id = ?", "backup_daily",
 	).Scan(&stored); err != nil {
 		t.Fatalf("query refreshed locked_at: %v", err)
 	}
-	if _, err := time.Parse(sqlTimestampLayout, stored); err != nil {
-		t.Errorf("refreshed locked_at = %q, want canonical %q text", stored, sqlTimestampLayout)
+	if delta := time.Now().Unix() - stored; delta < 0 || delta > 2 {
+		t.Errorf("refreshed locked_at = %d, expected a current Unix-second timestamp", stored)
 	}
 }
 
@@ -664,7 +660,7 @@ func TestScheduler_AcquireTaskLock_StealIsConditional(t *testing.T) {
 	winner := NewScheduler(nil)
 	winner.nodeID = "node-winner"
 
-	seedTaskLock(t, "backup_daily", "other-node", time.Now().UTC().Add(-2*time.Hour).Format(sqlTimestampLayout))
+	seedTaskLock(t, "backup_daily", "other-node", time.Now().UTC().Add(-2*time.Hour).Unix())
 
 	if !winner.acquireTaskLock("backup_daily", testLockSchedule) {
 		t.Fatal("the first node to steal an expired lock should win it")
@@ -697,7 +693,7 @@ func TestScheduler_ReleaseTaskLock(t *testing.T) {
 
 		var lockedBy sql.NullString
 		if err := database.GetServerDB().QueryRow(
-			"SELECT locked_by FROM scheduler_tasks WHERE task_id = ?", "backup_daily",
+			"SELECT locked_by FROM scheduler_tasks WHERE id = ?", "backup_daily",
 		).Scan(&lockedBy); err != nil {
 			t.Fatalf("query lock row: %v", err)
 		}
@@ -1139,7 +1135,8 @@ func TestParseStoredTimestamp(t *testing.T) {
 		{name: "nil", value: nil, ok: false},
 		{name: "empty string", value: "   ", ok: false},
 		{name: "unparseable text", value: "not-a-timestamp", ok: false},
-		{name: "unsupported type", value: 12345, ok: false},
+		{name: "Unix seconds", value: int64(12345), want: time.Unix(12345, 0).UTC(), ok: true},
+		{name: "unsupported type", value: true, ok: false},
 	}
 
 	for _, tt := range tests {
@@ -1591,9 +1588,10 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 			t.Fatalf("AddTask: %v", err)
 		}
 
-		var schedule, nextRun string
+		var schedule string
+		var nextRun int64
 		if err := serverDB.QueryRow(
-			"SELECT schedule, next_run FROM scheduler_tasks WHERE task_id = ?",
+			"SELECT schedule, next_run FROM scheduler_tasks WHERE id = ?",
 			"regression-task",
 		).Scan(&schedule, &nextRun); err != nil {
 			t.Fatalf("expected a scheduler_tasks row on the server DB: %v", err)
@@ -1601,7 +1599,7 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 		if schedule != "@daily" {
 			t.Errorf("schedule = %q, want %q", schedule, "@daily")
 		}
-		if nextRun == "" {
+		if nextRun == 0 {
 			t.Error("next_run is empty, want a scheduled timestamp")
 		}
 	})
@@ -1617,7 +1615,7 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 		var lastStatus string
 		var runCount, failCount int
 		if err := serverDB.QueryRow(
-			"SELECT last_status, run_count, fail_count FROM scheduler_tasks WHERE task_id = ?",
+			"SELECT last_status, run_count, fail_count FROM scheduler_tasks WHERE id = ?",
 			"persist-task",
 		).Scan(&lastStatus, &runCount, &failCount); err != nil {
 			t.Fatalf("expected the run outcome to be persisted: %v", err)

@@ -393,6 +393,10 @@ func initServerDB(path string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to rename legacy server tables: %w", err)
 	}
+	if err := migrateSchedulerSchema(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to migrate scheduler schema: %w", err)
+	}
 
 	// Create server schema
 	if _, err := ExecContext(context.Background(), db, TimeoutMigration, ServerSchema); err != nil {

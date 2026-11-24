@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -108,6 +109,11 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 					return
 				}
+				if model.ShouldUpdateLastUsed(admin.APITokenLastUsedAt, time.Now()) {
+					if err := adminModel.QueueAPITokenLastUsed(admin.APITokenID); err != nil {
+						util.LogError("Unable to queue admin API token last-used time: %v", err)
+					}
+				}
 				ctx = reqctx.SetValue(ctx, "admin", admin)
 				ctx = reqctx.SetValue(ctx, "admin_id", int(admin.ID))
 				ctx = reqctx.SetValue(ctx, "db", serverDB)
@@ -130,12 +136,11 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 					return
 				}
 
-				// Update last used timestamp
-				go func(tokenID int64) {
-					if err := tokenModelV2.UpdateLastUsed(tokenID); err != nil {
-						util.LogError("Unable to update API token last-used time: %v", err)
+				if model.ShouldUpdateLastUsed(validatedToken.LastUsedAt, time.Now()) {
+					if err := tokenModelV2.QueueLastUsed(validatedToken.ID); err != nil {
+						util.LogError("Unable to queue API token last-used time: %v", err)
 					}
-				}(validatedToken.ID)
+				}
 
 				ctx = reqctx.SetValue(ctx, UserContextKey, user)
 				// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert

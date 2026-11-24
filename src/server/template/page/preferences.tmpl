@@ -2,16 +2,19 @@
 
 {{template "navbar" .}}
 
-<div class="weather-container">
-  <h1 class="text-purple">{{t .lang "preferences.heading"}}</h1>
-  <p>{{t .lang "preferences.description"}}</p>
+<main id="main-content">
+ <div class="container container-md">
+  <header class="page-header">
+    <h1 class="page-title">{{t .lang "preferences.heading"}}</h1>
+    <p class="page-lead">{{t .lang "preferences.description"}}</p>
+  </header>
 
   {{if .gpc_received}}
   <p class="notice notice-info" role="status" aria-live="polite">{{t .lang "privacy.gpc_notice"}}</p>
   {{end}}
 
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.theme_heading"}}</h2>
+  <section class="section-card" aria-labelledby="preferences-card-6">
+    <h2 class="text-cyan" id="preferences-card-6">{{t .lang "preferences.theme_heading"}}</h2>
     <p class="preferences-current">{{t .lang "preferences.current_theme"}} <strong>{{t .lang (printf "theme.%s" .theme)}}</strong></p>
 
     <form action="/server/preferences" method="post" class="preferences-form">
@@ -57,10 +60,10 @@
 
       <button type="submit" class="btn btn-primary preferences-save">{{t .lang "preferences.save"}}</button>
     </form>
-  </div>
+  </section>
 
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.language_heading"}}</h2>
+  <section class="section-card" id="language" aria-labelledby="preferences-card-5">
+    <h2 class="text-cyan" id="preferences-card-5">{{t .lang "preferences.language_heading"}}</h2>
     <form action="/server/preferences" method="post" class="preferences-form">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       <label class="preferences-label" for="preferences-lang">{{t .lang "common.select_language"}}</label>
@@ -71,22 +74,22 @@
       </select>
       <button type="submit" class="btn btn-primary preferences-save">{{t .lang "preferences.save"}}</button>
     </form>
-  </div>
+  </section>
 
   {{if .preferences_url}}
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.share_heading"}}</h2>
+  <section class="section-card" aria-labelledby="preferences-card-4">
+    <h2 class="text-cyan" id="preferences-card-4">{{t .lang "preferences.share_heading"}}</h2>
     <label for="preferences-share-url">{{t .lang "preferences.full_url"}}</label>
     <input id="preferences-share-url" type="text" value="{{.preferences_url}}" readonly>
     <button type="button" class="btn btn-secondary" data-action="copy-to-clipboard" data-text="{{.preferences_url}}">{{t .lang "preferences.copy_url"}}</button>
     <label for="preferences-share-code">{{t .lang "preferences.short_code"}}</label>
     <input id="preferences-share-code" type="text" value="{{.preferences_code}}" readonly>
     <button type="button" class="btn btn-secondary" data-action="copy-to-clipboard" data-text="{{.preferences_code}}">{{t .lang "preferences.copy_code"}}</button>
-  </div>
+  </section>
   {{end}}
 
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.cookie_heading"}}</h2>
+  <section class="section-card" aria-labelledby="preferences-card-3">
+    <h2 class="text-cyan" id="preferences-card-3">{{t .lang "preferences.cookie_heading"}}</h2>
     <p>{{t .lang "preferences.cookie_intro"}}</p>
     <form action="/server/consent" method="post">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
@@ -95,11 +98,11 @@
       <label><input type="checkbox" name="analytics" {{if .cookie_preferences.Analytics}}checked{{end}}> {{t .lang "preferences.cookie_analytics"}}</label>
       <button type="submit" class="btn btn-primary">{{t .lang "preferences.cookie_save"}}</button>
     </form>
-  </div>
+  </section>
 
   {{if .ccpa_enabled}}
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.ccpa_heading"}}</h2>
+  <section class="section-card" aria-labelledby="preferences-card-2">
+    <h2 class="text-cyan" id="preferences-card-2">{{t .lang "preferences.ccpa_heading"}}</h2>
     <p>{{t .lang "preferences.ccpa_intro"}}</p>
     <form action="/server/ccpa" method="post">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
@@ -111,17 +114,17 @@
       <button type="submit" class="btn btn-primary">{{t .lang "preferences.ccpa_opt_out"}}</button>
       {{end}}
     </form>
-  </div>
+  </section>
   {{end}}
 
-  <div class="card margin-y-lg">
-    <h2 class="text-cyan">{{t .lang "preferences.import_heading"}}</h2>
+  <section class="section-card" aria-labelledby="preferences-card-1">
+    <h2 class="text-cyan" id="preferences-card-1">{{t .lang "preferences.import_heading"}}</h2>
     <form action="/server/preferences/import" method="get">
       <label for="preferences-import-code">{{t .lang "preferences.import_label"}}</label>
       <input id="preferences-import-code" name="code" type="text" maxlength="2048" autocomplete="off">
       <button type="submit" class="btn btn-primary">{{t .lang "preferences.import_button"}}</button>
     </form>
-  </div>
-</div>
+  </section>
+</div></main>
 
 {{template "footer" .}}

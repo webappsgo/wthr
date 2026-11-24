@@ -11,12 +11,13 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
 </head>
 <body>
-{{template "header" .}}
-<main id="main-content" role="main">
-    {{template "navbar" .}}
-
-    <div class="history-container">
-        <h1>📊 {{t .server.Lang "history.page_heading"}}</h1>
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria.skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria.skip_to_nav"}}</a>
+{{template "navbar" .}}
+<main id="main-content">
+  <div class="container container-md">
+    <div>
+        <header class="page-header"><h1 class="page-title">📊 {{t .server.Lang "history.page_heading"}}</h1></header>
         <p>{{t .server.Lang "history.page_intro"}}</p>
 
         {{if .Error}}
@@ -164,7 +165,8 @@
             <!-- Year-by-Year Data Table -->
             <div role="region" aria-labelledby="yearly-data-heading">
                 <h2 id="yearly-data-heading">📋 {{t .server.Lang "history.yearly_data_heading"}}</h2>
-                <table class="year-data-table" role="table" aria-label="{{t .server.Lang "history.yearly_data_table_aria"}}">
+                <div class="table-wrapper table-scroll">
+                <table class="year-data-table data-table" role="table" aria-label="{{t .server.Lang "history.yearly_data_table_aria"}}">
                     <thead>
                         <tr role="row">
                             <th role="columnheader" scope="col">{{t .server.Lang "history.th_year"}}</th>
@@ -211,6 +213,6 @@
         {{end}}
     </div>
 
-    </main>
+      </div>
+</main>
 {{template "footer" .}}
-

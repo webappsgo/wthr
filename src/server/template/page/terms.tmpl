@@ -2,24 +2,25 @@
 
 {{template "navbar" .}}
 
-<div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "terms.page_title"}}</h1>
+<main id="main-content">
+  <div class="container container-md">
+    <header class="page-header"><h1 class="page-title">{{t .server.Lang "terms.page_title"}}</h1></header>
 
     {{if .operator_terms}}
     <section class="operator-content">{{.operator_terms}}</section>
     {{else}}
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.acceptance_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-8">
+        <h2 class="text-cyan" id="terms-card-8">{{t .server.Lang "terms.acceptance_title"}}</h2>
         <p>{{t .server.Lang "terms.acceptance_text"}}</p>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.description_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-7">
+        <h2 class="text-cyan" id="terms-card-7">{{t .server.Lang "terms.description_title"}}</h2>
         <p>{{t .server.Lang "terms.description_text"}}</p>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.acceptable_use_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-6">
+        <h2 class="text-cyan" id="terms-card-6">{{t .server.Lang "terms.acceptable_use_title"}}</h2>
         <p>{{t .server.Lang "terms.acceptable_use_intro"}}</p>
         <ul>
             <li>{{t .server.Lang "terms.acceptable_use_disrupt"}}</li>
@@ -28,26 +29,26 @@
             <li>{{t .server.Lang "terms.acceptable_use_scrape"}}</li>
             <li>{{t .server.Lang "terms.acceptable_use_misrepresent"}}</li>
         </ul>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.api_usage_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-5">
+        <h2 class="text-cyan" id="terms-card-5">{{t .server.Lang "terms.api_usage_title"}}</h2>
         <p>{{t .server.Lang "terms.api_usage_intro"}}</p>
         <ul>
             <li><strong>{{t .server.Lang "terms.api_rate_limits_label"}}</strong> {{t .server.Lang "terms.api_rate_limits_text"}}</li>
             <li><strong>{{t .server.Lang "terms.api_fair_use_label"}}</strong> {{t .server.Lang "terms.api_fair_use_text"}}</li>
             <li><strong>{{t .server.Lang "terms.api_attribution_label"}}</strong> {{t .server.Lang "terms.api_attribution_text"}}</li>
         </ul>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.data_accuracy_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-4">
+        <h2 class="text-cyan" id="terms-card-4">{{t .server.Lang "terms.data_accuracy_title"}}</h2>
         <p>{{t .server.Lang "terms.data_accuracy_text"}}</p>
         <p><strong>{{t .server.Lang "terms.data_accuracy_warning"}}</strong> {{t .server.Lang "terms.data_accuracy_advice"}}</p>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.liability_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-3">
+        <h2 class="text-cyan" id="terms-card-3">{{t .server.Lang "terms.liability_title"}}</h2>
         <p>{{t .server.Lang "terms.liability_intro"}}</p>
         <ul>
             <li>{{t .server.Lang "terms.liability_use"}}</li>
@@ -55,25 +56,23 @@
             <li>{{t .server.Lang "terms.liability_interruptions"}}</li>
             <li>{{t .server.Lang "terms.liability_decisions"}}</li>
         </ul>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.changes_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-2">
+        <h2 class="text-cyan" id="terms-card-2">{{t .server.Lang "terms.changes_title"}}</h2>
         <p>{{t .server.Lang "terms.changes_text"}}</p>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "terms.contact_title"}}</h2>
+    <section class="section-card" aria-labelledby="terms-card-1">
+        <h2 class="text-cyan" id="terms-card-1">{{t .server.Lang "terms.contact_title"}}</h2>
         <p>{{t .server.Lang "terms.contact_text"}}</p>
         <div class="margin-y-md">
             <a href="{{path "/server/security"}}" class="btn btn-primary">{{t .server.Lang "terms.contact_form_button"}}</a>
         </div>
-    </div>
+    </section>
 
-    <div class="card margin-y-lg">
-        <p class="text-comment"><small>{{t .server.Lang "terms.last_updated_label"}} {{.server.BuildDate}}</small></p>
-    </div>
+    <p class="text-comment"><small>{{t .server.Lang "terms.last_updated_label"}} {{.server.BuildDate}}</small></p>
     {{end}}
-</div>
+</div></main>
 
 {{template "footer" .}}

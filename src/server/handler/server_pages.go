@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -49,6 +49,8 @@ func pageServerData(r *http.Request, extra map[string]interface{}) map[string]in
 		"Tagline":          ctx.Tagline,
 		"Description":      ctx.Description,
 		"Version":          ctx.Version,
+		"GitOrg":           ctx.GitOrg,
+		"GitRepo":          ctx.GitRepo,
 		"Lang":             ctx.Lang,
 		"ThemeClass":       ctx.ThemeClass,
 		"Theme":            ctx.Theme,
@@ -126,8 +128,6 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				"Version":     Version,
 				"BuildDate":   BuildDate,
 				"Mode":        cfg.Server.Mode,
-				"GitOrg":      "webappsgo",
-				"GitRepo":     "wthr",
 				"Tor": map[string]interface{}{
 					"Enabled":      torEnabled,
 					"OnionAddress": onionAddress,
@@ -195,30 +195,78 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowContactPage renders the contact form page with content negotiation (AI.md PART 14)
 func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		provider := cfg.Server.Pages.Contact.EffectiveCaptcha(util.OverlayHostFromRequest(r) != "")
-		captcha := map[string]interface{}{"Provider": provider}
-		if provider == config.CaptchaSimple {
-			id, a, b := contactCaptcha.New()
-			captcha["ID"], captcha["A"], captcha["B"] = id, a, b
-		} else {
-			captcha["SiteKey"] = cfg.Server.Pages.Contact.CaptchaSiteKey
+		if cfg == nil {
+			cfg = config.GetGlobalConfig()
 		}
-		if securityID := securityIDFromRequest(r, r.URL.Query().Get("security_id")); securityID != "" {
+		if cfg == nil || !cfg.Server.Pages.Contact.Enabled {
+			http.NotFound(w, r)
+			return
+		}
+		contactType := r.URL.Query().Get("type")
+		securityID := securityIDFromRequest(r, r.URL.Query().Get("security_id"))
+		isSecurity := securityID != ""
+		if !isSecurity && contactType != "" && !validReportType(contactType) {
+			http.Error(w, "Unknown report type", http.StatusBadRequest)
+			return
+		}
+		captcha := map[string]interface{}{}
+		formToken := ""
+		mode := "chooser"
+		if contactType != "" || isSecurity {
+			antispam, err := getContactAntispam(db, cfg)
+			if err != nil {
+				http.Error(w, "Contact form is unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			token, tokenErr := antispam.NewContactFormToken(time.Now())
+			if tokenErr != nil {
+				http.Error(w, "Contact form is unavailable", http.StatusInternalServerError)
+				return
+			}
+			formToken = token
+			mode = "form"
+			provider := cfg.Server.Pages.Contact.EffectiveCaptcha(util.OverlayHostFromRequest(r) != "")
+			captcha = map[string]interface{}{"Provider": provider}
+			if provider == config.CaptchaSimple {
+				id, a, b := contactCaptcha.New()
+				captcha["ID"], captcha["A"], captcha["B"] = id, a, b
+			} else {
+				captcha["SiteKey"] = cfg.Server.Pages.Contact.CaptchaSiteKey
+				id, a, b := contactCaptcha.New()
+				captcha["Fallback"] = map[string]interface{}{"Provider": config.CaptchaSimple, "ID": id, "A": a, "B": b}
+			}
+		}
+		if isSecurity {
 			w.Header().Set("Referrer-Policy", "no-referrer")
 			w.Header().Set("Cache-Control", "no-store")
-			NegotiateResponse(w, r, "page/security_report.tmpl", securityReportFormData(w, r, cfg, securityID, captcha))
+			data := securityReportFormData(w, r, cfg, securityID, captcha)
+			data["Mode"] = "form"
+			data["Type"] = "security"
+			data["FormToken"] = formToken
+			data["HoneypotEnabled"] = cfg.Server.Pages.Contact.EffectiveAntispam().Honeypot == nil || *cfg.Server.Pages.Contact.EffectiveAntispam().Honeypot
+			data["Values"] = map[string]string{}
+			data["SnapshotFields"] = []map[string]string{}
+			NegotiateResponse(w, r, "page/security_report.tmpl", data)
 			return
 		}
 		data := map[string]interface{}{
 			"page": "contact",
 			"server": pageServerData(r, map[string]interface{}{
-				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "webappsgo",
-				"GitRepo": "wthr",
+				"Title": cfg.Server.Branding.Title,
 			}),
-			"HostInfo": util.GetHostInfo(r),
-			"flash":    TakeFlash(w, r),
-			"Captcha":  captcha,
+			"HostInfo":           util.GetHostInfo(r),
+			"flash":              TakeFlash(w, r),
+			"Captcha":            captcha,
+			"FormToken":          formToken,
+			"Mode":               mode,
+			"Type":               contactType,
+			"Values":             map[string]string{},
+			"SnapshotFields":     []map[string]string{},
+			"FQDN":               cfg.Server.FQDN,
+			"AbuseEmail":         cfg.Server.Contact.Abuse.Email,
+			"ReasonOptions":      contactReasonOptions(),
+			"RequestKindOptions": contactRequestKindOptions(),
+			"HoneypotEnabled":    cfg.Server.Pages.Contact.EffectiveAntispam().Honeypot == nil || *cfg.Server.Pages.Contact.EffectiveAntispam().Honeypot,
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -232,10 +280,8 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"page": "help",
 			"server": pageServerData(r, map[string]interface{}{
-				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "webappsgo",
-				"GitRepo": "wthr",
-				"I2P":     buildI2PPageData(cfg),
+				"Title": cfg.Server.Branding.Title,
+				"I2P":   buildI2PPageData(cfg),
 			}),
 			"HostInfo":   util.GetHostInfo(r),
 			"MCPEnabled": mcpEnabled(cfg),
@@ -561,10 +607,23 @@ var contactCaptcha = service.NewSimpleCaptcha()
 
 // contactForm is one contact submission after trimming.
 type contactForm struct {
-	Name    string
-	Email   string
-	Subject string
-	Message string
+	Type            string
+	Name            string
+	Email           string
+	Subject         string
+	Message         string
+	ReportedURL     string
+	Reason          string
+	CopyrightedWork string
+	GoodFaith       bool
+	Accuracy        bool
+	Signature       string
+	RequestKind     string
+	Website         string
+	FormToken       string
+	ReviewToken     string
+	Step            string
+	Confirmed       bool
 	// Built-in captcha answer and challenge id
 	CaptchaID     string
 	CaptchaAnswer string
@@ -593,6 +652,47 @@ const (
 // invalidContactField trims every field and returns the name of the first field
 // that is missing, too long or malformed, or "" when the form is valid.
 func invalidContactField(f *contactForm) string {
+	f.Name, f.Email = strings.TrimSpace(f.Name), strings.TrimSpace(f.Email)
+	f.Subject, f.Message = strings.TrimSpace(f.Subject), strings.TrimSpace(f.Message)
+	if field := invalidContactIdentity(f); field != "" {
+		return field
+	}
+	if !validReportType(f.Type) {
+		return "type"
+	}
+	switch f.Type {
+	case "abuse":
+		if f.ReportedURL == "" || utf8.RuneCountInString(f.ReportedURL) > 2048 {
+			return "reported_url"
+		}
+		if !containsContactString([]string{"illegal_content", "terms_violation", "harassment", "malware_phishing", "other"}, f.Reason) {
+			return "reason"
+		}
+	case "dmca":
+		if f.ReportedURL == "" || utf8.RuneCountInString(f.ReportedURL) > 2048 {
+			return "reported_url"
+		}
+		if f.CopyrightedWork == "" || utf8.RuneCountInString(f.CopyrightedWork) > 2000 {
+			return "copyrighted_work"
+		}
+		if !f.GoodFaith {
+			return "good_faith"
+		}
+		if !f.Accuracy {
+			return "accuracy"
+		}
+		if f.Signature == "" || utf8.RuneCountInString(f.Signature) > 100 {
+			return "signature"
+		}
+	case "privacy":
+		if !containsContactString([]string{"access", "export", "deletion", "correction", "opt_out", "other"}, f.RequestKind) {
+			return "request_kind"
+		}
+	}
+	return ""
+}
+
+func invalidContactIdentity(f *contactForm) string {
 	f.Name, f.Email = strings.TrimSpace(f.Name), strings.TrimSpace(f.Email)
 	f.Subject, f.Message = strings.TrimSpace(f.Subject), strings.TrimSpace(f.Message)
 	// AI.md PART 16 "/server/contact": required fields, and limits that count
@@ -647,18 +747,41 @@ func deliverContact(r *http.Request, cfg *config.AppConfig, f contactForm) strin
 	if !validateContactForm(&f) {
 		return contactInvalid
 	}
-	if result := checkContactCaptcha(r, cfg, f); result != "" {
-		return result
+	var contact config.ContactConfig
+	if cfg != nil {
+		contact = cfg.Server.Contact
+	} else if global := config.GetGlobalConfig(); global != nil {
+		contact = global.Server.Contact
 	}
+	role := "general"
+	if f.Type == "abuse" || f.Type == "dmca" {
+		role = "abuse"
+	}
+	webhookBody := fmt.Sprintf("Type: %s\n%s: %s <%s>\n%s: %s\n\n%s:\n%s\nReported URL: %s\nReason: %s\nCopyrighted work: %s\nGood-faith statement: %t\nAccuracy statement: %t\nSignature: %s\nRequest kind: %s",
+		f.Type,
+		Translate(r, "email.contact_notification.label_from"), f.Name, f.Email,
+		Translate(r, "email.contact_notification.label_subject"), f.Subject,
+		Translate(r, "email.contact_notification.label_message"), f.Message,
+		f.ReportedURL, f.Reason, f.CopyrightedWork, f.GoodFaith, f.Accuracy, f.Signature, f.RequestKind)
+	webhookMessage := service.ContactWebhookMessage{
+		Event: role + ".contact_received", Subject: f.Subject, Body: webhookBody, Severity: "info",
+		ProjectName: "wthr", ProjectVersion: Version, AppURL: util.BuildURL(r, "/"),
+		FailureRateKey: util.TrustedGetClientIP(r),
+	}
+	webhookSent, _ := service.DispatchContactWebhooksWithRetry(r.Context(), contact, role, webhookMessage)
 
 	smtpService := GetSMTPService(r)
 	recipient := ""
-	if cfg != nil {
-		recipient = cfg.Server.Contact.ResolveContactEmail("general")
-	}
+	recipient = contact.ResolveContactEmail(role)
 	if smtpService == nil || recipient == "" {
 		if err := saveContactToDB(r, f.Name, f.Email, f.Subject, f.Message); err != nil {
+			if webhookSent > 0 {
+				return contactSent
+			}
 			return contactFailed
+		}
+		if webhookSent > 0 {
+			return contactSent
 		}
 		return contactSaved
 	}
@@ -671,9 +794,17 @@ func deliverContact(r *http.Request, cfg *config.AppConfig, f contactForm) strin
 		Translate(r, "email.contact_notification.label_ip"), util.TrustedGetClientIP(r),
 		Translate(r, "email.contact_notification.label_user_agent"), r.UserAgent(),
 		Translate(r, "email.contact_notification.label_time"), time.Now().Format("2006-01-02 15:04:05"))
+	emailBody += fmt.Sprintf("\n\nType: %s\nReported URL: %s\nReason: %s\nCopyrighted work: %s\nGood-faith statement: %t\nAccuracy statement: %t\nSignature: %s\nRequest kind: %s",
+		f.Type, f.ReportedURL, f.Reason, f.CopyrightedWork, f.GoodFaith, f.Accuracy, f.Signature, f.RequestKind)
 	if err := smtpService.SendEmail(recipient, Translate(r, "email.contact_notification.subject_prefix")+f.Subject, emailBody); err != nil {
 		if err := saveContactToDB(r, f.Name, f.Email, f.Subject, f.Message); err != nil {
+			if webhookSent > 0 {
+				return contactSent
+			}
 			return contactFailed
+		}
+		if webhookSent > 0 {
+			return contactSent
 		}
 		return contactSaved
 	}
@@ -684,52 +815,47 @@ func deliverContact(r *http.Request, cfg *config.AppConfig, f contactForm) strin
 // POST /api/{api_version}/server/contact
 func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			Name          string `json:"name"`
-			Email         string `json:"email"`
-			Subject       string `json:"subject"`
-			Message       string `json:"message"`
-			CaptchaID     string `json:"captcha_id"`
-			CaptchaAnswer string `json:"captcha_answer"`
-			CaptchaToken  string `json:"captcha_response"`
-			SecurityID    string `json:"security_id"`
-		}
-		raw, ok := decodeSecurityBody(w, r)
-		if !ok {
+		raw, err := contactRawFromRequest(w, r, true)
+		if err != nil {
+			if _, ok := err.(*http.MaxBytesError); ok {
+				writeContactFlowError(w, r, cfg, db, contactFlowResult{Kind: "shape"})
+				return
+			}
 			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "BAD_REQUEST", "message": Translate(r, "errors.contact.invalid")})
 			return
 		}
-		if rawID, present := raw["security_id"]; present {
-			if securityID := securityIDFromRequest(r, fmt.Sprint(rawID)); securityID != "" {
-				handleSecurityFormAPI(w, r, cfg, securityID, raw)
+		if rawID := raw["security_id"]; rawID != "" {
+			if securityID := securityIDFromRequest(r, rawID); securityID != "" {
+				handleSecurityContactFlowAPI(w, r, db, cfg, securityID, raw)
 				return
 			}
 		}
-		encoded, _ := json.Marshal(raw)
-		if err := json.Unmarshal(encoded, &body); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "BAD_REQUEST", "message": Translate(r, "errors.contact.invalid")})
+		flow := processContactFlow(r, db, cfg, raw, false)
+		if flow.FormToken == "" {
+			if manager, err := getContactAntispam(db, cfg); err == nil {
+				flow.FormToken, _ = manager.NewContactFormToken(time.Now())
+			}
+		}
+		if flow.Kind == "review" {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{
+				"status": "review", "review_token": flow.ReviewToken, "form_token": flow.FormToken,
+				"confirm_after_seconds": cfg.Server.Pages.Contact.EffectiveAntispam().ReviewMinSeconds,
+				"review":                map[string]string{"type": flow.Form.Type, "email": flow.Form.Email, "subject": flow.Form.Subject},
+			}})
 			return
 		}
-		result := deliverContact(r, cfg, contactForm{Name: body.Name, Email: body.Email, Subject: body.Subject, Message: body.Message,
-			CaptchaID: body.CaptchaID, CaptchaAnswer: body.CaptchaAnswer, CaptchaToken: body.CaptchaToken})
-		switch result {
-		case contactSent:
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_sent")}})
-		case contactSaved:
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_saved")}})
-		case contactInvalid:
-			// field-level VALIDATION_FAILED: name the first offending field
-			probe := contactForm{Name: body.Name, Email: body.Email, Subject: body.Subject, Message: body.Message}
-			details := map[string]interface{}{"field": invalidContactField(&probe), "rule": "invalid"}
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": Translate(r, "errors.contact.invalid"), "details": details})
-		case contactCaptchaFailed:
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "CAPTCHA_FAILED", "message": Translate(r, "errors.contact.captcha_failed")})
-		case contactCaptchaOffline:
-			w.Header().Set("Retry-After", "30")
-			writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"ok": false, "error": "CAPTCHA_UNAVAILABLE", "message": Translate(r, "errors.contact.captcha_unavailable")})
-		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR", "message": Translate(r, "errors.contact.failed_to_send_message")})
+		if flow.Kind == "dropped" || flow.Kind == "delivered" {
+			if flow.Kind == "dropped" || flow.DeliverResult == contactSent {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_sent"), "form_token": flow.FormToken}})
+				return
+			}
+			if flow.DeliverResult == contactSaved {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_saved"), "form_token": flow.FormToken}})
+				return
+			}
+			flow.Kind = "delivery_failed"
 		}
+		writeContactFlowError(w, r, cfg, db, flow)
 	}
 }
 
@@ -737,36 +863,48 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 // POST /server/contact
 func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
-		if err := r.ParseForm(); err != nil {
+		raw, err := contactRawFromRequest(w, r, false)
+		if err != nil {
+			if maxErr, ok := err.(*http.MaxBytesError); ok {
+				_ = maxErr
+				http.Error(w, "Contact submission is too large", http.StatusRequestEntityTooLarge)
+				return
+			}
 			SetFlash(w, r, "error", "flash.contact_invalid")
 			http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
 			return
 		}
-		if securityID := securityIDFromRequest(r, r.PostFormValue("security_id")); securityID != "" {
-			handleSecurityFormWeb(w, r, cfg, securityID)
+		if securityID := securityIDFromRequest(r, raw["security_id"]); securityID != "" {
+			handleSecurityContactFlowWeb(w, r, db, cfg, securityID, raw)
 			return
 		}
-		result := deliverContact(r, cfg, contactForm{
-			Name: r.PostFormValue("name"), Email: r.PostFormValue("email"), Subject: r.PostFormValue("subject"), Message: r.PostFormValue("message"),
-			CaptchaID: r.PostFormValue("captcha_id"), CaptchaAnswer: r.PostFormValue("captcha_answer"),
-			CaptchaToken: firstNonEmpty(r.PostFormValue("g-recaptcha-response"), r.PostFormValue("h-captcha-response")),
-		})
-		kind, key := "error", "flash.contact_failed"
-		switch result {
-		case contactSent:
-			kind, key = "success", "flash.contact_sent"
-		case contactSaved:
-			kind, key = "success", "flash.contact_saved"
-		case contactInvalid:
-			key = "flash.contact_invalid"
-		case contactCaptchaFailed:
-			key = "flash.contact_captcha_failed"
-		case contactCaptchaOffline:
-			key = "flash.contact_captcha_unavailable"
+		flow := processContactFlow(r, db, cfg, raw, true)
+		if flow.Kind == "review" || flow.Kind == "edit" {
+			mode := "form"
+			if flow.Kind == "review" {
+				mode = "review"
+			}
+			data := contactPageData(w, r, cfg, flow.Form.Type, mode, flow.Values, flow.FormToken, flow.ReviewToken)
+			NegotiateResponse(w, r, "page/contact.tmpl", data)
+			return
+		}
+		kind, key := "success", "flash.contact_sent"
+		if flow.Kind == "delivered" && flow.DeliverResult != contactSent && flow.DeliverResult != contactSaved {
+			flow.Kind = "delivery_failed"
+		}
+		if flow.Kind == "delivered" && flow.DeliverResult == contactSaved {
+			key = "flash.contact_saved"
+		}
+		if flow.Kind != "delivered" && flow.Kind != "dropped" {
+			renderContactFlowFailure(w, r, cfg, db, flow, "")
+			return
 		}
 		SetFlash(w, r, kind, key)
-		http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
+		redirect := "/server/contact"
+		if flow.Form.Type != "" {
+			redirect += "?type=" + url.QueryEscape(flow.Form.Type)
+		}
+		http.Redirect(w, r, redirect, http.StatusSeeOther)
 	}
 }
 

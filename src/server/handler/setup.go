@@ -576,28 +576,36 @@ func (h *SetupHandler) ProcessServerConfig(w http.ResponseWriter, r *http.Reques
 // AI.md: Setup wizard Step 4 - Security Settings
 func (h *SetupHandler) ShowSecurity(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.CurrentConfig()
+	backupPasswordRequired := cfg != nil && cfg.Server.Compliance.Enabled()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
 
 	// Check for skip parameter
-	if r.URL.Query().Get("skip") == "true" {
+	if r.URL.Query().Get("skip") == "true" && !backupPasswordRequired {
 		basePath := strings.TrimSuffix(r.URL.Path, "/security")
 		http.Redirect(w, r, basePath+"/services", http.StatusFound)
 		return
 	}
 
-	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": Translate(r, "setup.security_settings") + " - " + title,
-	}))
+	data := map[string]interface{}{
+		"Title":                    Translate(r, "setup.security_settings") + " - " + title,
+		"backup_password_required": backupPasswordRequired,
+	}
+	if r.URL.Query().Get("skip") == "true" && backupPasswordRequired {
+		data["error"] = Translate(r, "errors.setup.compliance_backup_password_required")
+	}
+	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_security.tmpl", util.TemplateData(r, data))
 }
 
 // ProcessSecurity handles security settings submission (Step 4 → Step 5)
 func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
+	cfg := config.GetGlobalConfig()
+	backupPasswordRequired := cfg != nil && cfg.Server.Compliance.Enabled()
 	if err := r.ParseForm(); err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.invalid_form_data")}))
+			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.invalid_form_data"), "backup_password_required": backupPasswordRequired}))
 		return
 	}
 
@@ -618,8 +626,17 @@ func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
 	// Validate backup password match
 	if input.BackupPassword != "" && input.BackupPassword != input.BackupPasswordConfirm {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.backup_passwords_do_not_match")}))
+			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.backup_passwords_do_not_match"), "backup_password_required": backupPasswordRequired}))
 		return
+	}
+	if input.BackupPassword == "" {
+		cfg := config.GetGlobalConfig()
+		if cfg != nil && cfg.Server.Compliance.Enabled() {
+			middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
+				"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.compliance_backup_password_required"), "backup_password_required": true,
+			}))
+			return
+		}
 	}
 
 	// Save backup encryption password if provided

@@ -2,9 +2,8 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-<main class="admin-page">
     <div class="admin-header">
-        <h1>{{t $lang "admin.firewall.title"}}</h1>
+        <header class="page-header"><h1 class="page-title">{{t $lang "admin.firewall.title"}}</h1></header>
         <p class="admin-page-intro">{{t $lang "admin.firewall.intro"}}</p>
     </div>
     {{if .flash}}<p class="flash flash-{{.flash.Kind}}" role="status">{{t $lang .flash.Key}}</p>{{end}}
@@ -73,5 +72,4 @@
             <button type="submit">{{t $lang "admin.firewall.add_block"}}</button>
         </form>
     </section>
-</main>
 {{template "admin_footer" .}}

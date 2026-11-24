@@ -27,12 +27,17 @@ import (
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/privilege"
 	"github.com/webappsgo/wthr/src/util"
 )
 
 // manifestEntryName is the archive member holding the backup manifest
 const manifestEntryName = "manifest.json"
+
+// ErrComplianceEncryptionRequired reports that compliance mode blocks an
+// unencrypted backup until an encryption password is supplied.
+var ErrComplianceEncryptionRequired = errors.New("compliance mode requires an encryption password for backups")
 
 // ResolveDir returns the directory that holds backup archives for a given data dir
 // (AI.md PART 8 GetBackupDir): BACKUP_DIR, then the system backup directory when writable,
@@ -118,6 +123,10 @@ func New(configDir, dataDir string) *BackupService {
 // retention sweep (AI.md PART 22's "backup.retention_cleanup" audit event) -
 // callers with DB access log it, callers without (the CLI) may discard it.
 func (s *BackupService) CreateBackupArchive(opts BackupOptions) (string, []string, error) {
+	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.Server.Compliance.Enabled() && opts.Password == "" {
+		return "", nil, ErrComplianceEncryptionRequired
+	}
+
 	// Set defaults
 	if opts.ConfigDir == "" {
 		opts.ConfigDir = s.configDir

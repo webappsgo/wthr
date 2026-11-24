@@ -237,6 +237,27 @@ func validUSGSFeedType(feedType string) bool {
 	}
 }
 
+// HasCachedEarthquake checks an event without making a network request.
+func (es *EarthquakeService) HasCachedEarthquake(feedType, id string) bool {
+	if es == nil || es.cache == nil || !validUSGSFeedType(feedType) || id == "" {
+		return false
+	}
+	cached, ok := es.cache.Get(fmt.Sprintf("earthquakes_%s", feedType))
+	if !ok {
+		return false
+	}
+	collection, ok := cached.(*EarthquakeCollection)
+	if !ok || collection == nil {
+		return false
+	}
+	for _, earthquake := range collection.Earthquakes {
+		if earthquake.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // GetEarthquakesByLocation filters earthquakes within radius of location
 // and calculates distance from user location for each earthquake
 func (es *EarthquakeService) GetEarthquakesByLocation(latitude, longitude, radiusKm float64, feedType string) (*EarthquakeCollection, error) {

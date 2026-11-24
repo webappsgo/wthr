@@ -347,12 +347,13 @@ func TestTorAdminHandler_NonHandlerMethods(t *testing.T) {
 	if status := h.GetVanityGenerationStatus(); status != nil {
 		t.Fatalf("expected nil status before Start, got %+v", status)
 	}
-	if err := h.StartVanityGeneration("ab"); err != nil {
+	if err := h.StartVanityGeneration("aaaaaa"); err != nil {
 		t.Fatalf("StartVanityGeneration: unexpected error: %v", err)
 	}
 	if err := h.CancelVanityGeneration(); err != nil {
 		t.Fatalf("CancelVanityGeneration: unexpected error: %v", err)
 	}
+	h.vanityGenerator.Wait()
 	if _, err := h.ApplyVanityKeys(8080); err == nil {
 		t.Fatal("ApplyVanityKeys: expected error (no keys)")
 	}

@@ -56,7 +56,14 @@ func TestUpdateCommand_Dispatch(t *testing.T) {
 }
 
 func TestUpdateBranchPersistsCanonicalChannel(t *testing.T) {
-	t.Setenv("CONFIG_DIR", t.TempDir())
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server:\n  update:\n    branch: stable\n"), 0600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
+	previous := config.GetGlobalConfig()
+	config.SetGlobalConfig(nil)
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 	if err := UpdateCommand([]string{"branch", "daily"}); err != nil {
 		t.Fatalf("UpdateCommand(branch daily) error = %v", err)
 	}

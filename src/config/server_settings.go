@@ -2,6 +2,32 @@ package config
 
 import "strings"
 
+// LogsConfig contains shared log settings from AI.md PART 11.
+type LogsConfig struct {
+	Audit AuditLogConfig `yaml:"audit"`
+}
+
+// AuditLogConfig controls structured audit history retention.
+type AuditLogConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Filename string `yaml:"filename"`
+	Format   string `yaml:"format"`
+	Rotate   string `yaml:"rotate"`
+	Keep     string `yaml:"keep"`
+	Compress bool   `yaml:"compress"`
+}
+
+// DefaultLogsConfig returns AI.md PART 11 audit log defaults.
+func DefaultLogsConfig() LogsConfig {
+	return LogsConfig{Audit: AuditLogConfig{
+		Enabled:  true,
+		Filename: "audit.log",
+		Format:   "json",
+		Rotate:   "daily",
+		Keep:     "none",
+	}}
+}
+
 // This file holds the server.yml settings trees defined by AI.md PART 12:
 // base URL, request limits, response compression, session, rate limiting,
 // i18n, contact roles, analytics tracking, privacy/consent, and cache.
@@ -161,12 +187,35 @@ type PagesHelpConfig struct {
 
 // PagesContactConfig holds the contact form captcha settings (AI.md PART 16 "Captcha providers").
 type PagesContactConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	SuccessMessage string `yaml:"success_message"`
 	// simple (built-in, default), recaptcha, hcaptcha
 	Captcha string `yaml:"captcha"`
 	// Public provider key, rendered in the page; ignored for simple
 	CaptchaSiteKey string `yaml:"captcha_site_key"`
 	// Server-side provider secret; never returned in a response or logged; ignored for simple
-	CaptchaSecretKey string `yaml:"captcha_secret_key"`
+	CaptchaSecretKey string                `yaml:"captcha_secret_key"`
+	Antispam         ContactAntispamConfig `yaml:"antispam"`
+}
+
+// ContactAntispamConfig controls the server-side contact form defenses in AI.md PART 16.
+type ContactAntispamConfig struct {
+	Honeypot             *bool    `yaml:"honeypot"`
+	MinFillSeconds       int      `yaml:"min_fill_seconds"`
+	MaxAgeSeconds        int      `yaml:"max_age_seconds"`
+	PerIP                int      `yaml:"per_ip"`
+	PerEmail             int      `yaml:"per_email"`
+	Global               int      `yaml:"global"`
+	Window               string   `yaml:"window"`
+	MaxLinks             int      `yaml:"max_links"`
+	RejectMarkup         *bool    `yaml:"reject_markup"`
+	BlockedWords         []string `yaml:"blocked_words"`
+	BlockedEmailDomains  []string `yaml:"blocked_email_domains"`
+	Strikes              int      `yaml:"strikes"`
+	BanHours             int      `yaml:"ban_hours"`
+	ReviewMinSeconds     int      `yaml:"review_min_seconds"`
+	ReviewMaxSeconds     int      `yaml:"review_max_seconds"`
+	DuplicateWindowHours int      `yaml:"duplicate_window_hours"`
 }
 
 // Captcha provider names (AI.md PART 16).
@@ -178,7 +227,22 @@ const (
 
 // DefaultPagesConfig returns the AI.md PART 16 page defaults.
 func DefaultPagesConfig() PagesConfig {
-	return PagesConfig{Contact: PagesContactConfig{Captcha: CaptchaSimple}}
+	return PagesConfig{Contact: PagesContactConfig{Enabled: true, SuccessMessage: "Thank you for your message. We'll respond soon.", Captcha: CaptchaSimple, Antispam: DefaultContactAntispamConfig()}}
+}
+
+// DefaultContactAntispamConfig returns the documented AI.md PART 16 defaults.
+func DefaultContactAntispamConfig() ContactAntispamConfig {
+	honeypot, rejectMarkup := true, true
+	return ContactAntispamConfig{Honeypot: &honeypot, MinFillSeconds: 3, MaxAgeSeconds: 43200,
+		PerIP: 5, PerEmail: 3, Global: 60, Window: "1h", MaxLinks: 10, RejectMarkup: &rejectMarkup,
+		Strikes: 3, BanHours: 24, ReviewMinSeconds: 2, ReviewMaxSeconds: 900, DuplicateWindowHours: 24}
+}
+
+// EffectiveAntispam returns the loaded settings. DefaultAppConfig seeds the
+// defaults before yaml overlays are applied, so explicit zero values remain
+// meaningful as documented.
+func (p PagesContactConfig) EffectiveAntispam() ContactAntispamConfig {
+	return p.Antispam
 }
 
 // EffectiveCaptcha returns the provider in force: simple unless a valid hcaptcha/recaptcha choice
@@ -201,6 +265,17 @@ func (p PagesContactConfig) EffectiveCaptcha(overlay bool) string {
 type ContactRoleConfig struct {
 	Email    string            `yaml:"email"`
 	Webhooks map[string]string `yaml:"webhooks"`
+}
+
+func removeWebhookSecretValues(contact *ContactConfig) {
+	roles := []*ContactRoleConfig{&contact.Admin, &contact.Security, &contact.Abuse, &contact.General}
+	for _, role := range roles {
+		for key := range role.Webhooks {
+			if strings.HasSuffix(key, "_secret") {
+				delete(role.Webhooks, key)
+			}
+		}
+	}
 }
 
 // DefaultContactConfig returns the AI.md PART 12 contact defaults for a given
@@ -295,6 +370,29 @@ type PrivacyConfig struct {
 	Cookies    PrivacyCookiesConfig    `yaml:"cookies"`
 	ThirdParty PrivacyThirdPartyConfig `yaml:"third_party"`
 	Content    PrivacyContentConfig    `yaml:"content"`
+}
+
+// ComplianceConfig exposes the individual server.compliance standards
+// documented in AI.md PART 11. Backup encryption is mandatory when any
+// standard is enabled (PART 22).
+type ComplianceConfig struct {
+	GDPR     bool `yaml:"gdpr"`
+	CCPA     bool `yaml:"ccpa"`
+	HIPAA    bool `yaml:"hipaa"`
+	SOC2     bool `yaml:"soc2"`
+	PCIDSS   bool `yaml:"pci_dss"`
+	ISO27001 bool `yaml:"iso27001"`
+	FedRAMP  bool `yaml:"fedramp"`
+	LGPD     bool `yaml:"lgpd"`
+	PIPEDA   bool `yaml:"pipeda"`
+	APPI     bool `yaml:"appi"`
+	PDPA     bool `yaml:"pdpa"`
+}
+
+// Enabled reports whether any compliance standard is active.
+func (c ComplianceConfig) Enabled() bool {
+	return c.GDPR || c.CCPA || c.HIPAA || c.SOC2 || c.PCIDSS || c.ISO27001 ||
+		c.FedRAMP || c.LGPD || c.PIPEDA || c.APPI || c.PDPA
 }
 
 // PrivacyDataConfig represents the data-handling disclosure per AI.md PART 12
