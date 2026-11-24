@@ -254,17 +254,30 @@ Private ranges, link-local addresses and the same /24 as the listen address are 
 ### Notifications
 
 ```yaml
-notifications:
-  websocket:
+server:
+  notifications:
     enabled: true
-
-email:
-  enabled: false
-  smtp:
-    host: smtp.example.com
-    port: 587
-    username: wthr@example.com
+    email_enabled: true
+    database_error:
+      enabled: true
+      failures: 3
+      check_interval: 1m
+      repeat: 24h
+    disk_low:
+      enabled: true
+      threshold_percent: 85
+      check_interval: 5m
+      repeat: 24h
 ```
+
+`database_error` runs direct database health probes and emails Server Admins
+after the configured number of consecutive failures. A successful probe
+logs recovery and resets the alert state. `disk_low` checks the filesystems
+containing the data, log, and backup directories; it alerts at the configured
+usage threshold, repeats at most once per interval, and clears after usage is
+five percentage points below the threshold. These checks run through the
+built-in `database_check` and `disk_check` scheduler tasks.
+
 
 ### Metrics
 

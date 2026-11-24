@@ -107,6 +107,11 @@ Rate limits use the AI.md PART 11/12 defaults (reads 120/min, writes 10/min, hea
 
 **Stored data:** application configuration, admin accounts, regular user accounts, saved locations, alert subscriptions, sessions, the audit log and scheduler state (storage layout: AI.md PART 10).
 
+Scheduled infrastructure alerts monitor database connectivity and disk capacity.
+Database probes alert Server Admins after consecutive failures and log recovery;
+disk alerts deduplicate paths by filesystem, repeat at most daily, and clear
+after usage falls five percentage points below the configured threshold.
+
 **Sensitive data:**
 - Admin and user passwords and session tokens are never stored or shown in plaintext (AI.md PART 11)
 - SMTP password: stored encrypted

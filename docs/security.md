@@ -210,6 +210,8 @@ operations. It is a server setting, not a user account.
   never included in a backup export.
 - Send it as `Authorization: Bearer tok_...`. `--debug` turns the debug endpoints on; it never
   replaces the token.
+- The pprof command-line endpoint and the `cmdline` value in expvar expose only the binary name;
+  process arguments are not returned.
 - The **Security** admin page shows it masked. **Regenerate operator token** asks for your password,
   records `security.operator_token_regenerated` in the audit log, shows the new value once and stops
   the previous value working at once. The same action is `POST
