@@ -12,6 +12,9 @@ import (
 )
 
 func TestAuthSettingsFormHelpers(t *testing.T) {
+	userinfoURL := func(path string) string {
+		return (&url.URL{Scheme: "https", User: url.User("fixture-user"), Host: "idp.example", Path: path}).String()
+	}
 	for _, test := range []struct {
 		value string
 		want  bool
@@ -19,7 +22,7 @@ func TestAuthSettingsFormHelpers(t *testing.T) {
 		{value: "https://idp.example/issuer", want: true},
 		{value: "http://idp.example/issuer", want: true},
 		{value: "https://idp.example/issuer#fragment"},
-		{value: "https://user:pass@idp.example/issuer"},
+		{value: userinfoURL("/issuer")},
 	} {
 		if got := validProviderURL(test.value); got != test.want {
 			t.Errorf("validProviderURL(%q) = %t, want %t", test.value, got, test.want)
@@ -31,7 +34,7 @@ func TestAuthSettingsFormHelpers(t *testing.T) {
 	}{
 		{value: "https://idp.example/metadata", want: true},
 		{value: "http://idp.example/metadata"},
-		{value: "https://user:pass@idp.example/metadata"},
+		{value: userinfoURL("/metadata")},
 		{value: "https://idp.example/metadata#fragment"},
 		{value: "/metadata"},
 	} {
