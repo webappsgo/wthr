@@ -117,7 +117,7 @@ func contactFields() []contactFieldSpec {
 // the configured provider, the security reporting URL and the abuse address.
 // Nothing else about recipients is exposed.
 // GET /api/{api_version}/server/contact
-func GetContactFormAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func GetContactFormAPI(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
 			cfg = config.GetGlobalConfig()

@@ -24,7 +24,7 @@ import (
 func newNotificationPreferencesTestHandler(t *testing.T) *NotificationPreferencesHandler {
 	t.Helper()
 	db := newNotificationPreferencesTestDB(t)
-	return &NotificationPreferencesHandler{DB: db}
+	return &NotificationPreferencesHandler{DB: storeForDB(db)}
 }
 
 // newNotificationPreferencesTestDB opens a fresh in-memory users database.
@@ -143,7 +143,7 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
 		// Closing the pool makes the SELECT fail deterministically without
 		// touching the schema or needing a live database server.
-		if err := h.DB.Close(); err != nil {
+		if err := h.DB.DB().Close(); err != nil {
 			t.Fatalf("close db: %v", err)
 		}
 
@@ -433,7 +433,7 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 
 	t.Run("query failure returns canonical DATABASE_ERROR", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		if err := h.DB.Close(); err != nil {
+		if err := h.DB.DB().Close(); err != nil {
 			t.Fatalf("close db: %v", err)
 		}
 

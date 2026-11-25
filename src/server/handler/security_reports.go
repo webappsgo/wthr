@@ -44,7 +44,7 @@ var securityKeyDir = func() string { return filepath.Join(paths.GetConfigDir(), 
 
 // newSecurityStore builds the report store over the server database.
 func newSecurityStore() *service.SecurityReportStore {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return nil
 	}
@@ -52,7 +52,7 @@ func newSecurityStore() *service.SecurityReportStore {
 	if cfg := config.GetGlobalConfig(); cfg != nil {
 		key = cfg.Server.Security.EncryptionKey
 	}
-	return &service.SecurityReportStore{DB: db, EncryptionKey: key, PGP: service.NewPGPKeyManager(db, securityKeyDir())}
+	return &service.SecurityReportStore{Store: db, EncryptionKey: key, PGP: service.NewPGPKeyManager(db, securityKeyDir())}
 }
 
 // securityIDFromRequest returns the supplied security_id when it is currently valid, else "".
@@ -63,7 +63,7 @@ func securityIDFromRequest(r *http.Request, supplied string) string {
 	if supplied == "" {
 		return ""
 	}
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db != nil && service.ValidSecurityID(db, supplied) {
 		return supplied
 	}
@@ -236,8 +236,8 @@ func dispatchSecurityReportWebhooks(r *http.Request, cfg *config.AppConfig, trac
 	_, _ = service.DispatchContactWebhooksWithRetry(r.Context(), cfg.Server.Contact, "admin", adminMessage)
 
 	publicKey := strings.TrimSpace(researcherKey)
-	if publicKey == "" && database.GetUsersDB() != nil {
-		rows, err := database.GetUsersDB().QueryContext(r.Context(), `SELECT personal_pgp_public_key FROM admins WHERE is_active = 1 AND personal_pgp_public_key IS NOT NULL AND trim(personal_pgp_public_key) <> '' ORDER BY id`)
+	if publicKey == "" && database.GetUsersStore() != nil {
+		rows, err := database.GetUsersStore().QueryContext(r.Context(), `SELECT personal_pgp_public_key FROM admins WHERE is_active = 1 AND personal_pgp_public_key IS NOT NULL AND trim(personal_pgp_public_key) <> '' ORDER BY id`)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			if rows.Next() {
@@ -286,8 +286,8 @@ func notifySecurityReport(r *http.Request, cfg *config.AppConfig, tracking, toke
 	if smtp == nil {
 		return
 	}
-	if cfg != nil && database.GetUsersDB() != nil {
-		rows, err := database.GetUsersDB().Query(`SELECT email, COALESCE(personal_pgp_public_key, '') FROM admins WHERE is_active = 1`)
+	if cfg != nil && database.GetUsersStore() != nil {
+		rows, err := database.GetUsersStore().QueryContext(r.Context(), `SELECT email, COALESCE(personal_pgp_public_key, '') FROM admins WHERE is_active = 1`)
 		if err == nil {
 			defer func() { _ = rows.Close() }()
 			content, _ := json.Marshal(struct {

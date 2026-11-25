@@ -1,13 +1,14 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
-	"github.com/webappsgo/wthr/src/server/middleware"
-	"github.com/webappsgo/wthr/src/server/model"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -15,7 +16,7 @@ import (
 // AdminNotificationsHandler handles notification preferences
 type AdminNotificationsHandler struct {
 	ConfigPath string
-	UsersDB    *sql.DB
+	UsersDB    *database.Store
 }
 
 // ShowNotificationSettings displays notification settings page
@@ -40,7 +41,7 @@ func (h *AdminNotificationsHandler) ShowNotificationSettings(w http.ResponseWrit
 	adminID := int(AdminID(r))
 	prefs := &model.NotificationPreferences{AdminID: &adminID, EnableToast: true, EnableBanner: true, EnableCenter: true, ToastDurationSuccess: 5, ToastDurationInfo: 5, ToastDurationWarning: 10}
 	if id := AdminID(r); id > 0 {
-		if stored, err := (&model.NotificationPreferencesModel{UserDB: h.UsersDB}).GetAdminPreferences(int(id)); err == nil && stored != nil {
+		if stored, err := (&model.NotificationPreferencesModel{UserStore: h.UsersDB}).GetAdminPreferences(int(id)); err == nil && stored != nil {
 			prefs = stored
 		}
 	}
@@ -69,7 +70,7 @@ func (h *AdminNotificationsHandler) SaveAdminPreferencesForm(w http.ResponseWrit
 			AdminID: &adminIDInt, EnableToast: true, EnableBanner: true, EnableCenter: true,
 			EnableSound: false, ToastDurationSuccess: 5, ToastDurationInfo: 5, ToastDurationWarning: 10,
 		}
-		err := (&model.NotificationPreferencesModel{UserDB: h.UsersDB}).UpdateAdminPreferences(int(adminID), prefs)
+		err := (&model.NotificationPreferencesModel{UserStore: h.UsersDB}).UpdateAdminPreferences(int(adminID), prefs)
 		redirectAdminForm(w, r, target, "flash.settings_saved", "flash.settings_save_failed", err)
 		return
 	}
@@ -86,7 +87,7 @@ func (h *AdminNotificationsHandler) SaveAdminPreferencesForm(w http.ResponseWrit
 	}
 	prefs := &model.NotificationPreferences{AdminID: new(int), EnableToast: r.FormValue("enable_toast") == "true", EnableBanner: r.FormValue("enable_banner") == "true", EnableCenter: r.FormValue("enable_center") == "true", EnableSound: r.FormValue("enable_sound") == "true", ToastDurationSuccess: success, ToastDurationInfo: info, ToastDurationWarning: warning}
 	*prefs.AdminID = int(adminID)
-	err := (&model.NotificationPreferencesModel{UserDB: h.UsersDB}).UpdateAdminPreferences(int(adminID), prefs)
+	err := (&model.NotificationPreferencesModel{UserStore: h.UsersDB}).UpdateAdminPreferences(int(adminID), prefs)
 	redirectAdminForm(w, r, target, "flash.settings_saved", "flash.settings_save_failed", err)
 }
 

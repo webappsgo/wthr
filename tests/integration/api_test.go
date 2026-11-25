@@ -28,7 +28,7 @@ func setupIntegrationTest(t *testing.T) (chi.Router, *database.DB) {
 	})
 
 	r := chi.NewRouter()
-	locationEnhancer := service.NewLocationEnhancer(db.DB)
+	locationEnhancer := service.NewLocationEnhancer(database.NewStore(db.DB))
 	weatherService := service.NewWeatherService(locationEnhancer, nil)
 	apiHandler := handler.NewAPIHandler(weatherService, locationEnhancer)
 

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,7 +70,7 @@ func DispatchContactWebhooksWithRetry(ctx context.Context, contact config.Contac
 	var failures []error
 	for _, transport := range contactWebhookTransports(contact, role) {
 		if err := dispatchContactWebhook(ctx, contact, role, transport, message, deps); err != nil {
-			if queueErr := enqueueContactWebhookRetry(ctx, database.GetServerDB(), role, transport, message, time.Now().UTC()); queueErr != nil {
+			if queueErr := enqueueContactWebhookRetry(ctx, database.GetServerStore(), role, transport, message, time.Now().UTC()); queueErr != nil {
 				failures = append(failures, fmt.Errorf("%s webhook failed and retry could not be queued: %w", transport, queueErr))
 			} else {
 				failures = append(failures, fmt.Errorf("%s webhook delivery failed; retry queued", transport))
@@ -83,7 +82,7 @@ func DispatchContactWebhooksWithRetry(ctx context.Context, contact config.Contac
 	return sent, errors.Join(failures...)
 }
 
-func enqueueContactWebhookRetry(ctx context.Context, db *sql.DB, role, transport string, message ContactWebhookMessage, now time.Time) error {
+func enqueueContactWebhookRetry(ctx context.Context, db *database.Store, role, transport string, message ContactWebhookMessage, now time.Time) error {
 	if db == nil {
 		return errors.New("server database is unavailable")
 	}
@@ -119,7 +118,7 @@ func enqueueContactWebhookRetry(ctx context.Context, db *sql.DB, role, transport
 
 // ProcessContactWebhookRetries delivers due webhook retries. It is registered
 // as a built-in scheduler task so retry timing survives restarts.
-func ProcessContactWebhookRetries(ctx context.Context, db *sql.DB) error {
+func ProcessContactWebhookRetries(ctx context.Context, db *database.Store) error {
 	if db == nil {
 		return errors.New("server database is unavailable")
 	}

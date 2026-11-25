@@ -167,7 +167,7 @@ func (h *AdminAuthSettingsHandler) DeleteSAMLProvider(w http.ResponseWriter, r *
 }
 
 func revokeSAMLProviderState(ctx context.Context, provider string) error {
-	usersDB, serverDB := database.GetUsersDB(), database.GetServerDB()
+	usersDB, serverDB := database.GetUsersStore(), database.GetServerStore()
 	userRows, err := database.QueryContext(ctx, usersDB, database.TimeoutSimpleSelect, `SELECT session_id FROM user_saml_sessions WHERE provider_name=?`, provider)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func (h *AdminAuthSettingsHandler) storeSAMLSettings(ctx context.Context, enable
 	if err := config.WriteSetting("server.auth.saml.providers", providers); err != nil {
 		return err
 	}
-	model := &models.SettingsModel{DB: database.GetServerDB()}
+	model := &models.SettingsModel{Store: database.GetServerStore()}
 	if err := model.SetBool("server.auth.saml.enabled", enabled); err != nil {
 		return err
 	}

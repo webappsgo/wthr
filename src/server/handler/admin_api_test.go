@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
@@ -40,7 +41,7 @@ func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}
 	} else {
 		r, w = newTestRequestPlain(method, target)
 	}
-	r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
+	r = r.WithContext(reqctx.SetValue(r.Context(), "db", storeForDB(db)))
 	return db, r, w
 }
 
@@ -214,9 +215,16 @@ func TestOptimizeDatabase(t *testing.T) {
 func TestVacuumDatabase(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
+		store := newVacuumTestStore(t)
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", store))
+		trigger := &recordingMaintenanceScheduler{}
+		r = r.WithContext(reqctx.SetValue(r.Context(), "maintenance_scheduler", trigger))
 		VacuumDatabase(w, r)
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want 202; body=%s", w.Code, w.Body.String())
+		}
+		if trigger.task != "database_vacuum" {
+			t.Fatalf("triggered task = %q, want database_vacuum", trigger.task)
 		}
 	})
 
@@ -228,16 +236,39 @@ func TestVacuumDatabase(t *testing.T) {
 		}
 	})
 
-	t.Run("closed db returns 500", func(t *testing.T) {
-		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
-		if err := db.Close(); err != nil {
-			t.Fatalf("close test database: %v", err)
-		}
+	t.Run("missing scheduler returns unsupported", func(t *testing.T) {
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", newVacuumTestStore(t)))
 		VacuumDatabase(w, r)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusNotImplemented {
+			t.Fatalf("status = %d, want 501; body=%s", w.Code, w.Body.String())
 		}
 	})
+
+}
+
+func newVacuumTestStore(t *testing.T) *database.Store {
+	t.Helper()
+	store, err := database.OpenSQLite(filepath.Join(t.TempDir(), "vacuum.db"), 1)
+	if err != nil {
+		t.Fatalf("open SQLite test store: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close SQLite test store: %v", err)
+		}
+	})
+	if _, err := store.ExecContext(context.Background(), database.ServerSchema); err != nil {
+		t.Fatalf("apply server schema: %v", err)
+	}
+	return store
+}
+
+type recordingMaintenanceScheduler struct{ task string }
+
+func (s *recordingMaintenanceScheduler) TriggerTask(task string) error {
+	s.task = task
+	return nil
 }
 
 func TestClearCache(t *testing.T) {
@@ -255,6 +286,16 @@ func TestClearCache(t *testing.T) {
 		ClearCache(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("non SQLite store returns unsupported", func(t *testing.T) {
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", storeForDB(db)))
+		r = r.WithContext(reqctx.SetValue(r.Context(), "maintenance_scheduler", &recordingMaintenanceScheduler{}))
+		VacuumDatabase(w, r)
+		if w.Code != http.StatusNotImplemented {
+			t.Fatalf("status = %d, want 501; body=%s", w.Code, w.Body.String())
 		}
 	})
 }
@@ -541,7 +582,7 @@ func TestBackupSchedule(t *testing.T) {
 		}
 
 		readReq, readRec := newTestRequestPlain(http.MethodGet, "/admin/backup/schedule")
-		readReq = readReq.WithContext(reqctx.SetValue(readReq.Context(), "db", db))
+		readReq = readReq.WithContext(reqctx.SetValue(readReq.Context(), "db", storeForDB(db)))
 		GetBackupSchedule(readRec, readReq)
 		var schedule struct {
 			Enabled   bool `json:"enabled"`

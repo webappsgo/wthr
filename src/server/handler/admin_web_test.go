@@ -51,7 +51,7 @@ func withTestGlobalConfig(t *testing.T) {
 // and is not covered here (see report coverage gaps).
 func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	h := NewAdminWebHandler(newTestDatabaseDB(t))
-	setGlobalTestDualDB(t, h.db.DB, newTestUsersDB(t))
+	setGlobalTestDualDB(t, h.db.DB(), newTestUsersDB(t))
 
 	t.Run("missing admin_id", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/server/administration/web")

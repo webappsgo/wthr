@@ -13,7 +13,7 @@ func TestUserNotificationModel_GetUnreadDismissDelete(t *testing.T) {
 			t.Errorf("close notification test database: %v", err)
 		}
 	})
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	a, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "A", "msg a", nil)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 			t.Errorf("close notification test database: %v", err)
 		}
 	})
-	model := &AdminNotificationModel{DB: db}
+	model := &AdminNotificationModel{testDB: db}
 
 	created, err := model.CreateAdminNotification(5, NotificationTypeError, NotificationDisplayCenter, "Admin Alert", "msg", &NotificationAction{Label: "View", URL: "/x"})
 	if err != nil {
@@ -277,7 +277,7 @@ func TestNotificationPreferencesModel_AdminPreferences(t *testing.T) {
 	defer func() { _ = userDB.Close() }()
 	serverDB := setupTestDB(t)
 	defer func() { _ = serverDB.Close() }()
-	model := &NotificationPreferencesModel{UserDB: userDB}
+	model := &NotificationPreferencesModel{testUserDB: userDB}
 
 	t.Run("defaults when no record exists", func(t *testing.T) {
 		prefs, err := model.GetAdminPreferences(1)

@@ -45,7 +45,7 @@ type TaskInfo struct {
 // a fatal startup condition: it turns "the schema was never applied to this
 // database" into a clear error instead of a stream of failed inserts later.
 func (s *Scheduler) InitTaskHistoryTable() error {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return fmt.Errorf("server database unavailable")
 	}
@@ -73,7 +73,7 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 
 	// Scheduler history timestamps are Unix seconds, so they sort identically
 	// across hosts and time zones.
-	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, dbErr := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO scheduler_history (task_id, started_at, finished_at, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, taskName, startTime.Unix(), endTime.Unix(), duration, status, errorMsg)
@@ -90,7 +90,7 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskRun, error) {
 	// id DESC only breaks ties between runs that share a start instant; the
 	// real ordering is applied below.
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), database.GetServerStore(), database.TimeoutComplexSelect, `
 		SELECT id, task_id, started_at, finished_at, duration_ms, status, COALESCE(error, '')
 		FROM scheduler_history
 		WHERE task_id = ?
@@ -168,7 +168,7 @@ func (s *Scheduler) GetLastTaskRun(taskName string) (*TaskRun, error) {
 
 // GetTaskStats returns statistics for a task
 func (s *Scheduler) GetTaskStats(taskName string) (total, success, errors int, err error) {
-	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err = database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, `
 		SELECT
 			COUNT(*) as total,
 			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
@@ -232,7 +232,7 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 	// independent of the server's local time zone.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk,
+	result, err := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutBulk,
 		"DELETE FROM scheduler_history WHERE started_at < ?", cutoff.Unix())
 	if err != nil {
 		return err

@@ -172,7 +172,8 @@ type NotificationStatistics struct {
 
 // UserNotificationModel handles user notification database operations
 type UserNotificationModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the DB handle this model was constructed with. user_notifications
@@ -181,12 +182,15 @@ type UserNotificationModel struct {
 // (unit tests, or construction before the global dual DB is wired) the
 // process-global users handle is used instead, so a nil handle degrades to the
 // previous behavior rather than panicking.
-func (m *UserNotificationModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserNotificationModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateUserNotification creates a new user notification
@@ -505,7 +509,8 @@ func (m *UserNotificationModel) scanUnexpiredNotifications(rows *sql.Rows, now t
 
 // AdminNotificationModel handles admin notification database operations
 type AdminNotificationModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the DB handle this model was constructed with.
@@ -514,12 +519,15 @@ type AdminNotificationModel struct {
 // the injected handle is nil (unit tests, or construction before the global dual
 // DB is wired) the process-global users handle is used instead, so a nil handle
 // degrades to the previous behavior rather than panicking.
-func (m *AdminNotificationModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *AdminNotificationModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateUserNotification creates a new admin notification
@@ -831,9 +839,10 @@ func (m *AdminNotificationModel) scanUnexpiredNotifications(rows *sql.Rows, now 
 
 // NotificationPreferencesModel handles notification preferences
 type NotificationPreferencesModel struct {
+	UserStore *database.Store
 	// UserDB is the users.db handle holding both user_notification_preferences and
 	// admin_notification_preferences (Server Admins live in users.db, AI.md PART 12)
-	UserDB *sql.DB
+	testUserDB *sql.DB
 }
 
 // getUserDB returns the users.db handle this model was constructed with.
@@ -841,12 +850,15 @@ type NotificationPreferencesModel struct {
 // injected handle is the correct database for the user-scoped queries below.
 // Fallback: when the injected handle is nil (unit tests, or construction before
 // the global dual DB is wired) the process-global users handle is used instead.
-func (m *NotificationPreferencesModel) getUserDB() *sql.DB {
-	if m.UserDB != nil {
-		return m.UserDB
+func (m *NotificationPreferencesModel) getUserDB() *database.Store {
+	if m.UserStore != nil {
+		return m.UserStore
+	}
+	if m.testUserDB != nil {
+		return database.NewStore(m.testUserDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GetUserPreferences retrieves notification preferences for a user

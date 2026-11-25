@@ -7,11 +7,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/oklog/ulid/v2"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/oklog/ulid/v2"
 
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
@@ -244,13 +245,12 @@ func adminRecoverySetup(setupToken string) (retErr error) {
 		return fmt.Errorf("users database not found at %s", usersDBPath)
 	}
 
-	// Import database package is already imported via database initialization
-	// We'll use direct SQL connection for CLI tool
-	db, err := openDatabase(usersDBPath)
+	store, err := openDatabase(usersDBPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer func() { retErr = errors.Join(retErr, db.Close()) }()
+	defer func() { retErr = errors.Join(retErr, store.Close()) }()
+	db := store
 
 	// Check if database is empty (first-run)
 	var adminCount int
@@ -356,24 +356,32 @@ func adminRecoverySetup(setupToken string) (retErr error) {
 // users.db handle; the admin sessions live in server.db at serverDBPath. Regular
 // users, their data and the configuration are not touched. The action is written
 // to the audit log when server.db is available.
-func clearAdminCredentials(usersDB *sql.DB, serverDBPath string) error {
+func clearAdminCredentials(usersDB *database.Store, serverDBPath string) error {
 	ctx := context.Background()
-	for _, statement := range []string{
-		"DELETE FROM tokens WHERE owner_type = 'admin'",
-		"DELETE FROM passkeys WHERE user_type = 'admin'",
-		"DELETE FROM admins",
-	} {
-		if _, err := database.ExecContext(ctx, usersDB, database.TimeoutWrite, statement); err != nil {
-			return err
+	if usersDB == nil {
+		return errors.New("users database is unavailable")
+	}
+	if err := usersDB.Write(ctx, func(tx *sql.Tx) error {
+		for _, statement := range []string{
+			"DELETE FROM tokens WHERE owner_type = 'admin'",
+			"DELETE FROM passkeys WHERE user_type = 'admin'",
+			"DELETE FROM admins",
+		} {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	serverDB, err := openDatabase(serverDBPath)
+	serverStore, err := openDatabase(serverDBPath)
 	if err != nil {
 		return nil
 	}
-	defer func() { _ = serverDB.Close() }()
-
+	defer func() { _ = serverStore.Close() }()
+	serverDB := serverStore
 	if _, err := database.ExecContext(ctx, serverDB, database.TimeoutWrite, "DELETE FROM admin_sessions"); err != nil {
 		return err
 	}
@@ -386,21 +394,20 @@ func clearAdminCredentials(usersDB *sql.DB, serverDBPath string) error {
 }
 
 // openDatabase opens a SQLite database connection
-func openDatabase(dbPath string) (*sql.DB, error) {
+func openDatabase(dbPath string) (*database.Store, error) {
 	// Driver name must be "sqlite" (modernc.org/sqlite, the mandated CGO-free
 	// driver per AI.md PART 3) — "sqlite3" is only registered by the CGO
 	// mattn/go-sqlite3 driver, which this project never imports.
-	db, err := sql.Open("sqlite", dbPath)
+	store, err := database.OpenSQLite(dbPath, 1)
 	if err != nil {
 		return nil, err
 	}
-
 	// Test connection with a timeout per AI.md PART 10 (Query Timeouts)
-	if err := database.PingWithTimeout(db); err != nil {
-		return nil, errors.Join(err, db.Close())
+	if err := store.Probe(context.Background()); err != nil {
+		return nil, errors.Join(err, store.Close())
 	}
 
-	return db, nil
+	return store, nil
 }
 
 // hashPasswordArgon2id hashes a password using Argon2id
@@ -551,14 +558,13 @@ func verifyDatabaseFile(dbPath string) (retErr error) {
 	}
 
 	// Try to open it
-	db, err := sql.Open("sqlite", dbPath)
+	store, err := database.OpenSQLite(dbPath, 1)
 	if err != nil {
 		return fmt.Errorf("cannot open: %w", err)
 	}
-	defer func() { retErr = errors.Join(retErr, db.Close()) }()
-
+	defer func() { retErr = errors.Join(retErr, store.Close()) }()
 	// Try to ping, with a timeout per AI.md PART 10 (Query Timeouts)
-	if err := database.PingWithTimeout(db); err != nil {
+	if err := store.Probe(context.Background()); err != nil {
 		return fmt.Errorf("database corrupted: %w", err)
 	}
 
@@ -604,14 +610,13 @@ func verifyDirectoryWritable(dirPath string) error {
 
 // verifyAdminExists checks if at least one admin account exists
 func verifyAdminExists(usersDBPath string) (retErr error) {
-	db, err := sql.Open("sqlite", usersDBPath)
+	store, err := database.OpenSQLite(usersDBPath, 1)
 	if err != nil {
 		return fmt.Errorf("cannot open database: %w", err)
 	}
-	defer func() { retErr = errors.Join(retErr, db.Close()) }()
-
+	defer func() { retErr = errors.Join(retErr, store.Close()) }()
 	var count int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
+	err = database.QueryRowContext(context.Background(), store, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("cannot query: %w", err)
 	}

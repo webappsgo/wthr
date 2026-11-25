@@ -37,6 +37,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/cli"
 	"github.com/webappsgo/wthr/src/cluster"
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -104,6 +105,141 @@ func writeText(w http.ResponseWriter, status int, format string, args ...interfa
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = fmt.Fprintf(w, format, args...)
+}
+
+// sendInfrastructureAlert emails all active Server Admins using the named
+// editable email template. It is a no-op when SMTP email notifications are off.
+func sendInfrastructureAlert(smtp *service.SMTPService, usersStore *database.Store, templateName string, values map[string]any) error {
+	if smtp == nil || !smtp.IsEnabled() {
+		return nil
+	}
+	admins, err := (&model.AdminModel{Store: usersStore}).GetAll()
+	if err != nil {
+		return fmt.Errorf("load Server Admins for %s alert: %w", templateName, err)
+	}
+	for _, admin := range admins {
+		if !admin.IsActive || strings.TrimSpace(admin.Email) == "" {
+			continue
+		}
+		preferences := getAdminEmailPreferences(usersStore, admin.ID)
+		if !preferences.EmailNotifications {
+			continue
+		}
+		emailValues := make(map[string]any, len(values)+1)
+		for key, value := range values {
+			emailValues[key] = value
+		}
+		if _, exists := emailValues["app_name"]; !exists {
+			appName := "Weather"
+			if translations := i18n.GetGlobalI18n(); translations != nil {
+				if translated := translations.T(preferences.Language, "app.name"); translated != "app.name" {
+					appName = translated
+				}
+			}
+			emailValues["app_name"] = appName
+		}
+		subject, body, err := service.RenderEmailTemplate(templateName, preferences.Language, emailValues)
+		if err != nil {
+			return fmt.Errorf("render %s alert email: %w", templateName, err)
+		}
+		if err := smtp.SendEmail(admin.Email, subject, body); err != nil {
+			return fmt.Errorf("send %s alert to Server Admin: %w", templateName, err)
+		}
+	}
+	return nil
+}
+
+func getAdminEmailPreferences(store *database.Store, adminID int64) model.AdminPreferences {
+	preferences := model.AdminPreferences{Language: "en", EmailNotifications: true}
+	if store == nil {
+		return preferences
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutSimpleSelect)
+	defer cancel()
+	reader, err := store.Read(ctx)
+	if err != nil {
+		return preferences
+	}
+	defer func() { _ = reader.Close() }()
+	var encoded string
+	if err := reader.QueryRowContext(ctx, "SELECT preferences FROM admin_preferences WHERE admin_id = ?", adminID).Scan(&encoded); err != nil {
+		return preferences
+	}
+	var stored struct {
+		Language           string `json:"language"`
+		EmailNotifications *bool  `json:"email_notifications"`
+	}
+	if err := json.Unmarshal([]byte(encoded), &stored); err != nil {
+		return preferences
+	}
+	if stored.Language != "" {
+		preferences.Language = stored.Language
+	}
+	if stored.EmailNotifications != nil {
+		preferences.EmailNotifications = *stored.EmailNotifications
+	}
+	return preferences
+}
+
+func redactDatabaseError(err error, cfg config.DatabaseConfig) string {
+	if err == nil {
+		return "unknown database error"
+	}
+	message := err.Error()
+	for _, secret := range []string{cfg.URL, cfg.Password, cfg.Username} {
+		if secret != "" {
+			message = strings.ReplaceAll(message, secret, "[redacted]")
+		}
+	}
+	return message
+}
+
+func humanReadableBytes(value int64) string {
+	const unit = 1024
+	if value < unit {
+		return fmt.Sprintf("%d B", value)
+	}
+	amount := float64(value)
+	exponent := 0
+	for amount >= unit && exponent < 5 {
+		amount /= unit
+		exponent++
+	}
+	return fmt.Sprintf("%.1f %s", amount, []string{"", "KiB", "MiB", "GiB", "TiB", "PiB"}[exponent])
+}
+
+type infrastructureAlertState struct {
+	first    time.Time
+	failures int
+	lastSent time.Time
+	active   bool
+}
+
+func (s *infrastructureAlertState) RecordFailure(now time.Time, threshold int, repeat time.Duration) bool {
+	if s.failures == 0 {
+		s.first = now
+	}
+	s.failures++
+	return s.failures >= threshold && (!s.active || now.Sub(s.lastSent) >= repeat)
+}
+
+func (s *infrastructureAlertState) MarkSent(now time.Time) {
+	s.active = true
+	s.lastSent = now
+}
+
+func (s *infrastructureAlertState) Recover() bool {
+	hadFailures := s.failures > 0
+	*s = infrastructureAlertState{}
+	return hadFailures
+}
+
+func diskAlertRecovered(usedPercent, thresholdPercent int) bool {
+	return usedPercent <= thresholdPercent-5
+}
+
+func diskAlertDue(usedPercent, thresholdPercent int, lastSent, now time.Time, repeat time.Duration) bool {
+	return usedPercent >= thresholdPercent && (lastSent.IsZero() || now.Sub(lastSent) >= repeat)
 }
 
 func validCLIBinaryName(name, projectName string) bool {
@@ -249,6 +385,36 @@ func registerSwaggerRoutes(r chi.Router, apiPath string, spec, ui http.HandlerFu
 	r.Get("/server/docs/swagger/*", ui)
 	r.Get(apiPath+"/server/swagger", spec)
 	r.Get("/api/swagger", spec)
+}
+
+// registerAPIRoot exposes the endpoint catalog at the versioned API root.
+func registerAPIRoot(api chi.Router, apiVersion, apiPath, adminAPIPath string) {
+	api.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		hostInfo := util.GetHostInfo(r)
+		apiBase := hostInfo.FullHost + apiPath
+		adminBase := hostInfo.FullHost + adminAPIPath
+		handler.RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
+			"version": apiVersion,
+			"endpoints": []string{
+				apiBase + "/users",
+				apiBase + "/locations",
+				apiBase + "/users/notifications",
+				adminBase,
+				apiBase + "/weather",
+				apiBase + "/weather/{location}",
+				apiBase + "/forecasts",
+				apiBase + "/forecasts/{location}",
+				apiBase + "/ip",
+				apiBase + "/locations",
+				apiBase + "/docs",
+				apiBase + "/blocklist",
+				apiBase + "/earthquakes",
+				apiBase + "/severe-weather",
+				apiBase + "/moon",
+			},
+			"documentation": hostInfo.FullHost + "/docs",
+		})
+	})
 }
 
 // interactiveDocsPage renders the project's shared page shell around a local API tool.
@@ -519,12 +685,8 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// AI.md PART 8 steps 8a-8i: service account, ownership, privileged ports, privilege drop
 	hooks.runRootPhase(dirPaths, startupPorts, startupSettings.Address)
 
-	// Load shared logging settings after privilege drop so the audit file uses
-	// its configured path and retention from the first entry onward.
-	cfg, configErr := config.CurrentConfig()
-	config.SetGlobalConfig(cfg)
-
-	// Initialize logger
+	// Initialize logging before the early PID check; the full configuration is
+	// loaded only after the PID file has prevented a duplicate server process.
 	appLogger, err := util.NewLogger(dirPaths.Log)
 	if err != nil {
 		// General startup failure (AI.md PART 8: exit code 1).
@@ -532,6 +694,29 @@ func runServerWithHooks(hooks serverRunHooks) {
 		hooks.exitProcess(1)
 	}
 	handler.SetSecurityLogger(appLogger)
+	startTime := time.Now()
+	appLogger.Printf("Server starting, version %s", Version)
+	appLogger.Printf("%s", startTime.Format("2006-01-02 at 15:04:05"))
+	fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), commonformat.Timestamp(startTime))
+
+	// AI.md PART 8 steps 11-12: PID configuration comes from the early merged
+	// view; the CLI/environment path still takes precedence in StartPIDFile.
+	if runtime.GOOS != "windows" && !util.IsContainer() && pidFileEnabled(startupSettings.PIDFile) {
+		pidFile, pidErr := util.StartPIDFile(dirPaths.Data)
+		if pidErr != nil {
+			appLogger.Error("PID file: %v", pidErr)
+			fmt.Fprintf(os.Stderr, "%v\n", pidErr)
+			hooks.exitProcess(1)
+		}
+		if pidFile != nil {
+			defer func() { _ = pidFile.Remove() }()
+		}
+	}
+
+	// Load the full merged configuration after the PID check. Audit settings
+	// are then applied without delaying startup logging or duplicate detection.
+	cfg, configErr := config.CurrentConfig()
+	config.SetGlobalConfig(cfg)
 	if configErr != nil {
 		appLogger.Error("Warning: Could not load server.yml: %v (using defaults)", configErr)
 		fmt.Printf("%s Warning: Could not load server.yml: %v (using defaults)\n", display.Emoji("⚠️", "WARNING:"), configErr)
@@ -547,11 +732,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 	config.SetSecretGeneratedAuditHook(func(key string) {
 		appLogger.Audit("system", "config.secret_generated", "configuration", "", key, "", "", true, "")
 	})
-
-	// Print startup timestamp
-	startTime := time.Now()
-	appLogger.Printf("%s", startTime.Format("2006-01-02 at 15:04:05"))
-	fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), commonformat.Timestamp(startTime))
 
 	// TEMPLATE.md PART 1: First Run Detection and Auto-Configuration
 	isFirstRun := util.DetectFirstRun(dirPaths.Data)
@@ -614,14 +794,14 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Set global instance for handler access
 	database.SetGlobalDualDB(dualDB)
-	if err := (&model.SettingsModel{DB: dualDB.Server}).MigrateLegacyDatabaseSettings(); err != nil {
+	if err := (&model.SettingsModel{Store: dualDB.GetServerStore()}).MigrateLegacyDatabaseSettings(); err != nil {
 		appLogger.Error("Failed to migrate legacy settings into YAML config files: %v", err)
 		hooks.exitProcess(3)
 	}
 
 	// AI.md PART 11 "Cryptographic Keys": installation_secret, cookie_signing_key and csrf_token_secret
 	// are generated on first start, before the setup token is shown
-	secretStore := secret.NewStore(dualDB.Server)
+	secretStore := secret.NewStore(dualDB.GetServerStore())
 	if err := secretStore.EnsureAll(); err != nil {
 		appLogger.Error("Failed to initialize the project secrets: %v", err)
 		hooks.exitProcess(3)
@@ -631,7 +811,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Create wrapper for handlers that use database.DB struct
 	// Uses Users database for user-related operations
-	db := &database.DB{DB: dualDB.Users}
+	db := dualDB.GetUsersStore()
 
 	// Check if setup is complete
 	setupValue, setupExists, setupConfigErr := config.ReadSetting("setup.completed")
@@ -659,7 +839,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	if clusterConfigErr != nil {
 		appLogger.Printf("WARNING: Could not read cluster mode setting: %v", clusterConfigErr)
 	}
-	remoteClusterMode := database.IsRemoteDatabase(database.GetServerDB())
+	remoteClusterMode := !database.GetServerStore().IsSQLite()
 	if config.IsTruthy(fmt.Sprint(clusterEnabledSetting)) && !remoteClusterMode {
 		appLogger.Error("Cluster mode requires a configured PostgreSQL or MySQL database")
 		hooks.exitProcess(3)
@@ -681,7 +861,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		if cfg != nil && cfg.Server.Port != nil {
 			nodePort = strings.TrimSpace(fmt.Sprint(cfg.Server.Port))
 		}
-		manager := cluster.NewClusterManager(database.GetServerDB(), nodeID, net.JoinHostPort(nodeHost, nodePort), true)
+		manager := cluster.NewClusterManager(database.GetServerStore(), nodeID, net.JoinHostPort(nodeHost, nodePort), true)
 		if err := manager.StartClusterManager(); err != nil {
 			appLogger.Error("Failed to start cluster manager: %v", err)
 			hooks.exitProcess(3)
@@ -698,7 +878,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// AI.md PART 11 "Rotation contract": during the 30 day grace period at-rest reads fall back to the
 	// previous encryption key, and a re-encryption that a crash interrupted is finished at start
-	encryptionRotator := &service.EncryptionKeyRotator{ServerDB: dualDB.Server, UsersDB: dualDB.Users}
+	encryptionRotator := &service.EncryptionKeyRotator{ServerDB: dualDB.GetServerStore(), UsersDB: dualDB.GetUsersStore()}
 	encryptionRotator.InstallGraceReads()
 	if err := encryptionRotator.FinishUnfinishedRebase(); err != nil {
 		appLogger.Error("Failed to finish the encryption key re-encryption: %v", err)
@@ -749,7 +929,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Note: Version and BuildDate are embedded in binary via LDFLAGS, not in config file
 
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 
 	// Cluster and remote-database deployments require a shared Valkey/Redis
 	// backend. Do not report a local memory cache as healthy in those modes.
@@ -772,16 +952,16 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// LDAP authentication service per AI.md PART 11
 	ldapService := service.NewLDAPService()
-	ldapAuthHandler := &handler.LDAPAuthHandler{DB: db.DB, LDAPService: ldapService}
+	ldapAuthHandler := &handler.LDAPAuthHandler{DB: db, LDAPService: ldapService}
 
 	oidcService := service.NewOIDCService()
-	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db.DB, OIDCService: oidcService}
+	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db, OIDCService: oidcService}
 	samlService := service.NewSAMLService()
-	samlAuthHandler := &handler.SAMLAuthHandler{DB: db.DB, Service: samlService, OIDC: oidcAuthHandler}
+	samlAuthHandler := &handler.SAMLAuthHandler{DB: db, Service: samlService, OIDC: oidcAuthHandler}
 
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
 	// SMTP settings are loaded from canonical YAML config and secrets files.
-	smtpService := service.SharedSMTPService(dualDB.Server)
+	smtpService := service.SharedSMTPService(dualDB.GetServerStore())
 	if err := smtpService.LoadConfig(); err == nil {
 		// Check if SMTP is not already configured
 		smtpHost := settingsModel.GetString("smtp.host", "")
@@ -888,7 +1068,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.Use(cacheContextMiddleware(cacheManager))
 
 	// Honor Sec-GPC throughout every request and record compliance events.
-	r.Use(middleware.GlobalPrivacyControl(db.DB))
+	r.Use(middleware.GlobalPrivacyControl(db))
 
 	// Access logging middleware (writes to log files)
 	r.Use(middleware.AccessLogger(appLogger))
@@ -1001,11 +1181,11 @@ func runServerWithHooks(hooks serverRunHooks) {
 	})
 
 	// AI.md PART 12: valid Bearer tokens are limited per token, not per IP
-	middleware.SetRateLimitTokenDBs(database.GetServerDB(), database.GetUsersDB())
+	middleware.SetRateLimitTokenDBs(database.GetServerStore(), database.GetUsersStore())
 	// AI.md PART 12: allowlisted IPs bypass network blocklists and rate limits,
 	// but continue through GeoIP's deny-only layer and every authentication check.
 	r.Use(middleware.AllowlistMiddleware())
-	r.Use(middleware.BlocklistMiddleware(database.GetServerDB()))
+	r.Use(middleware.BlocklistMiddleware(database.GetServerStore()))
 
 	// Global rate limiting middleware (100 req/s)
 	r.Use(middleware.GlobalRateLimitMiddleware())
@@ -1034,7 +1214,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.Use(middleware.ContentNegotiation)
 
 	// Server context middleware - injects server title/tagline/description
-	r.Use(middleware.InjectServerContext(db.DB, Version, BuildDate))
+	r.Use(middleware.InjectServerContext(db, Version, BuildDate))
 
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
 	// AdminSetupRequired middleware applied to admin routes only (see admin route group below)
@@ -1103,7 +1283,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.Handle("/static/*", staticFileServer)
 	r.Get("/sw.js", pwa.ServiceWorker)
 	r.Get("/manifest.json", pwa.Manifest)
-	r.Get("/offline.html", pwa.Offline)
 	r.Get("/locales/{file}", serveLocale)
 
 	// Load embedded templates with custom functions from server package
@@ -1255,7 +1434,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	}
 
 	// Initialize location enhancer
-	locationEnhancer := service.NewLocationEnhancer(db.DB)
+	locationEnhancer := service.NewLocationEnhancer(dualDB.GetUsersStore())
 
 	// Set callback to mark initialization complete
 	locationEnhancer.SetOnInitComplete(func(countries, cities bool) {
@@ -1289,9 +1468,9 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// ChannelManager owns server_notification_channels, TemplateEngine owns the notification
 	// template table and DeliverySystem owns notification_queue/notification_history - every
 	// one of those tables is declared in database.ServerSchema, so they all take server.db
-	channelManager := service.NewChannelManager(dualDB.Server)
-	templateEngine := service.NewTemplateEngine(dualDB.Server)
-	deliverySystem := service.NewDeliverySystem(dualDB.Server, channelManager, templateEngine)
+	channelManager := service.NewChannelManager(dualDB.GetServerStore())
+	templateEngine := service.NewTemplateEngine(dualDB.GetServerStore())
+	deliverySystem := service.NewDeliverySystem(dualDB.GetServerStore(), channelManager, templateEngine)
 
 	// Load delivery system settings from database
 	_ = deliverySystem.LoadSettings()
@@ -1303,7 +1482,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	_ = channelManager.InitializeChannels()
 
 	// Register email channel with the channel manager
-	smtpService = service.SharedSMTPService(dualDB.Server)
+	smtpService = service.SharedSMTPService(dualDB.GetServerStore())
 	_ = smtpService.LoadConfig()
 	emailChannel := service.NewEmailChannel(smtpService)
 	channelManager.RegisterChannel(emailChannel)
@@ -1314,14 +1493,14 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// Create weather notification service - it reads notification_subscriptions,
 	// user_notification_channel_preferences, user_saved_locations, users and
 	// user_weather_alert_history, all declared in database.UsersSchema
-	weatherNotifications := service.NewWeatherNotificationService(dualDB.Users, weatherService, deliverySystem, templateEngine)
+	weatherNotifications := service.NewWeatherNotificationService(dualDB.GetUsersStore(), weatherService, deliverySystem, templateEngine)
 
 	// Initialize notification metrics service - notification_metrics and notification_queue
 	// are declared in database.ServerSchema
-	notificationMetrics := service.NewNotificationMetrics(dualDB.Server)
+	notificationMetrics := service.NewNotificationMetrics(dualDB.GetServerStore())
 
 	// Initialize Tor hidden service (TEMPLATE.md PART 32 - NON-NEGOTIABLE)
-	torService := service.NewTorService(db, dirPaths.Data)
+	torService := service.NewTorService(dualDB.GetServerStore(), dirPaths.Data)
 
 	// Set Tor status provider for health checks (AI.md PART 32)
 	handler.SetTorStatusProvider(torService)
@@ -1411,14 +1590,29 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// Initialize scheduler for periodic tasks
 	// AI.md PART 19: task state persists in server.db, so the scheduler must hold
 	// the server handle - the users handle created above has no server_* tables.
-	taskScheduler = scheduler.NewScheduler(dualDB.Server)
+	taskScheduler = scheduler.NewScheduler(dualDB.GetServerStore())
 	scheduler.SetAppVersion(Version)
+	if cfg.Server.Scheduler.Tasks == nil {
+		cfg.Server.Scheduler.Tasks = make(map[string]config.SchedulerTask)
+	}
+	if cfg.Server.Notifications.DatabaseError.CheckInterval != "" {
+		task := cfg.Server.Scheduler.Tasks["database_check"]
+		task.Schedule = "@every " + cfg.Server.Notifications.DatabaseError.CheckInterval
+		cfg.Server.Scheduler.Tasks["database_check"] = task
+	}
+	if cfg.Server.Notifications.DiskLow.CheckInterval != "" {
+		task := cfg.Server.Scheduler.Tasks["disk_check"]
+		task.Schedule = "@every " + cfg.Server.Notifications.DiskLow.CheckInterval
+		cfg.Server.Scheduler.Tasks["disk_check"] = task
+	}
 	// AI.md PART 19: timezone, catch-up window and every task's schedule and enabled state come from server.scheduler
 	taskScheduler.Configure(cfg.Server.Scheduler)
 	if err := scheduler.RegisterContactWebhookRetryTask(taskScheduler); err != nil {
 		log.Printf("WARNING: Failed to schedule contact webhook retries: %v", err)
 	}
 	var notificationService *service.NotificationService
+	var databaseAlert infrastructureAlertState
+	diskAlerts := map[string]time.Time{}
 
 	// addScheduledTask registers a built-in task under its AI.md PART 19 id; the schedule
 	// and enabled state come from server.scheduler.tasks, falling back to the built-in default
@@ -1428,6 +1622,129 @@ func runServerWithHooks(hooks serverRunHooks) {
 			log.Printf("WARNING: Failed to schedule task '%s': %v", name, err)
 		}
 	}
+	addScheduledTask("database_vacuum", func() error {
+		foundSQLite := false
+		for _, store := range []*database.Store{dualDB.GetServerStore(), dualDB.GetUsersStore()} {
+			if store == nil || !store.IsSQLite() {
+				continue
+			}
+			foundSQLite = true
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			err := store.Vacuum(ctx)
+			cancel()
+			if err != nil {
+				return fmt.Errorf("vacuum SQLite database: %w", err)
+			}
+		}
+		if !foundSQLite {
+			return nil
+		}
+		return nil
+	})
+	// The database probe checks both SQLite pools and gives each configured
+	// database its own five-second deadline.
+	databaseCheckSchedule := cfg.Server.Notifications.DatabaseError.CheckInterval
+	if databaseCheckSchedule == "" {
+		databaseCheckSchedule = "1m"
+	}
+	addScheduledTaskWithSchedule := func(name, schedule string, fn func() error) {
+		if err := taskScheduler.AddTask(name, "@every "+schedule, fn); err != nil {
+			log.Printf("WARNING: Failed to schedule task '%s': %v", name, err)
+		}
+	}
+	addScheduledTaskWithSchedule("database_check", databaseCheckSchedule, func() error {
+		if !cfg.Server.Notifications.Enabled || !cfg.Server.Notifications.DatabaseError.Enabled {
+			return nil
+		}
+		var probeErr error
+		for _, store := range []*database.Store{dualDB.GetServerStore(), dualDB.GetUsersStore()} {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := store.Probe(ctx)
+			cancel()
+			if err != nil {
+				probeErr = err
+				break
+			}
+		}
+		if probeErr == nil {
+			if databaseAlert.Recover() {
+				log.Printf("INFO: Database connection recovered")
+			}
+			return nil
+		}
+		now := time.Now()
+		threshold := cfg.Server.Notifications.DatabaseError.Failures
+		if threshold <= 0 {
+			threshold = 3
+		}
+		repeat, err := time.ParseDuration(cfg.Server.Notifications.DatabaseError.Repeat)
+		if err != nil || repeat <= 0 {
+			repeat = 24 * time.Hour
+		}
+		if !databaseAlert.RecordFailure(now, threshold, repeat) {
+			return nil
+		}
+		safeError := redactDatabaseError(probeErr, cfg.Server.Database)
+		log.Printf("WARN: database connection unavailable since %s: %s", databaseAlert.first.Format(time.RFC3339), safeError)
+		if err := sendInfrastructureAlert(smtpService, dualDB.GetUsersStore(), "database_error", map[string]any{"since": databaseAlert.first.Format(time.RFC3339), "error": safeError}); err != nil {
+			return err
+		}
+		databaseAlert.MarkSent(now)
+		return nil
+	})
+	diskCheckSchedule := cfg.Server.Notifications.DiskLow.CheckInterval
+	if diskCheckSchedule == "" {
+		diskCheckSchedule = "5m"
+	}
+	addScheduledTaskWithSchedule("disk_check", diskCheckSchedule, func() error {
+		if !cfg.Server.Notifications.Enabled || !cfg.Server.Notifications.DiskLow.Enabled {
+			return nil
+		}
+		threshold := cfg.Server.Notifications.DiskLow.ThresholdPercent
+		if threshold <= 0 {
+			threshold = 85
+		}
+		repeat, err := time.ParseDuration(cfg.Server.Notifications.DiskLow.Repeat)
+		if err != nil || repeat <= 0 {
+			repeat = 24 * time.Hour
+		}
+		volumePaths := []string{path.GetDataDir(), path.GetLogDir(), path.GetBackupDir()}
+		seen := make(map[string]bool)
+		for _, dir := range volumePaths {
+			volume, err := scheduler.DiskVolumeID(dir)
+			if err != nil {
+				continue
+			}
+			if seen[volume] {
+				continue
+			}
+			seen[volume] = true
+			total, totalErr := backup.VolumeTotalBytes(dir)
+			free, freeErr := backup.VolumeFreeBytes(dir)
+			if totalErr != nil || freeErr != nil || total <= 0 {
+				continue
+			}
+			percent := int(float64(total-free) / float64(total) * 100)
+			if diskAlertRecovered(percent, threshold) {
+				if _, active := diskAlerts[volume]; active {
+					delete(diskAlerts, volume)
+					log.Printf("INFO: Disk space recovered on %s", dir)
+				}
+				continue
+			}
+			now := time.Now()
+			last := diskAlerts[volume]
+			if !diskAlertDue(percent, threshold, last, now, repeat) {
+				continue
+			}
+			log.Printf("WARN: disk space low on %s: %d%% used, %d bytes free", dir, percent, free)
+			if err := sendInfrastructureAlert(smtpService, dualDB.GetUsersStore(), "disk_low", map[string]any{"path": dir, "used_percent": percent, "free": humanReadableBytes(free), "threshold_percent": threshold}); err != nil {
+				return err
+			}
+			diskAlerts[volume] = now
+		}
+		return nil
+	})
 
 	// Register log rotation task - AI.md PART 19: daily at midnight
 	addScheduledTask("log_rotation", func() error {
@@ -1470,17 +1787,17 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Closed security reports are deleted server.security.reports.retention_days after closing (PART 11)
 	addScheduledTask("security_report_cleanup", func() error {
-		serverDB := database.GetServerDB()
+		serverDB := database.GetServerStore()
 		if serverDB == nil {
 			return nil
 		}
-		days := (&model.SettingsModel{DB: serverDB}).GetInt("server.security.reports.retention_days", 365)
+		days := (&model.SettingsModel{Store: serverDB}).GetInt("server.security.reports.retention_days", 365)
 		_, err := handler.PurgeSecurityReports(serverDB, days)
 		return err
 	})
 
 	addScheduledTask("keyserver_retry", func() error {
-		serverDB := database.GetServerDB()
+		serverDB := database.GetServerStore()
 		if serverDB == nil {
 			return nil
 		}
@@ -1495,13 +1812,13 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Expire stale weather alerts from user_weather_alerts every 5 minutes
 	addScheduledTask("weather_alert_expire", func() error {
-		usersDB := database.GetUsersDB()
+		usersDB := database.GetUsersStore()
 		if usersDB == nil {
 			return nil
 		}
 		// Comparing expires_at against datetime('now') in SQL silently matches nothing when a
 		// row was written in a non-UTC or non-canonical layout, so the cutoff is applied in Go
-		_, err := dbtime.DeleteRowsWithTimestampBefore(usersDB, "user_weather_alerts", "id", "expires_at", time.Now().UTC(), false)
+		_, err := dbtime.DeleteRowsWithTimestampBefore(context.Background(), usersDB, "user_weather_alerts", "id", "expires_at", time.Now().UTC(), false)
 		return err
 	})
 
@@ -1559,7 +1876,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// Register weather cache refresh - run every 15 minutes per IDEA.md
 	// Proactively fetches weather for all saved user locations to warm the in-process cache.
 	addScheduledTask("weather_cache_refresh", func() error {
-		usersDB := database.GetUsersDB()
+		usersDB := database.GetUsersStore()
 		if usersDB == nil {
 			return nil
 		}
@@ -1622,14 +1939,14 @@ func runServerWithHooks(hooks serverRunHooks) {
 		if notificationService == nil {
 			return fmt.Errorf("update notification service is not initialized")
 		}
-		admins, err := (&model.AdminModel{DB: dualDB.Users}).GetAll()
+		admins, err := (&model.AdminModel{Store: dualDB.GetUsersStore()}).GetAll()
 		if err != nil {
 			return err
 		}
 		title := "Update available"
 		for _, admin := range admins {
 			var exists int
-			err := dualDB.Users.QueryRow(`SELECT COUNT(*) FROM admin_notifications WHERE admin_id = ? AND title = ? AND message = ?`, admin.ID, title, release.TagName).Scan(&exists)
+			err := dualDB.GetUsersStore().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM admin_notifications WHERE admin_id = ? AND title = ? AND message = ?`, admin.ID, title, release.TagName).Scan(&exists)
 			if err != nil {
 				return err
 			}
@@ -1700,22 +2017,22 @@ func runServerWithHooks(hooks serverRunHooks) {
 	historyHandler := handler.NewHistoryHandler(weatherService, settingsModel)
 
 	// Create auth handlers
-	authHandler := &handler.AuthHandler{DB: db.DB, SAML: samlAuthHandler}
-	authAPIHandler := handler.NewAuthAPIHandler(db.DB)
-	twoFAHandler := &handler.TwoFactorHandler{DB: db.DB}
-	passkeyHandler := handler.NewPasskeyHandler(db.DB)
-	setupHandler := &handler.SetupHandler{DB: db.DB}
-	dashboardHandler := &handler.DashboardHandler{DB: db.DB}
-	adminHandler := &handler.AdminHandler{DB: db.DB}
-	serverDB := database.GetServerDB()
+	authHandler := &handler.AuthHandler{DB: db, SAML: samlAuthHandler}
+	authAPIHandler := handler.NewAuthAPIHandler(db)
+	twoFAHandler := &handler.TwoFactorHandler{DB: db}
+	passkeyHandler := handler.NewPasskeyHandler(db)
+	setupHandler := &handler.SetupHandler{DB: db}
+	dashboardHandler := &handler.DashboardHandler{DB: db}
+	adminHandler := &handler.AdminHandler{DB: db}
+	serverDB := database.GetServerStore()
 	// Server Admin accounts, preferences, invites and passkeys live in users.db (AI.md PART 12)
-	adminAccountsDB := database.GetUsersDB()
+	adminAccountsDB := database.GetUsersStore()
 	adminPasskeyHandler := handler.NewAdminPasskeyHandler(adminAccountsDB)
 	adminTOTPHandler := handler.NewAdminTOTPHandler(adminAccountsDB)
 	adminInviteService := service.NewAdminInviteService(adminAccountsDB, "", smtpService)
-	userInviteModel := &model.UserInviteModel{DB: database.GetUsersDB()}
+	userInviteModel := &model.UserInviteModel{Store: database.GetUsersStore()}
 	locationHandler := &handler.LocationHandler{
-		DB:               db.DB,
+		DB:               db,
 		WeatherService:   weatherService,
 		LocationEnhancer: locationEnhancer,
 	}
@@ -1727,12 +2044,12 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Initialize Notification Service (TEMPLATE.md Part 25 - WebUI Notifications)
 	notificationService = &service.NotificationService{
-		UserDB:     dualDB.Users,
-		ServerDB:   dualDB.Server,
+		UserDB:     dualDB.GetUsersStore(),
+		ServerDB:   dualDB.GetServerStore(),
 		WSHub:      wsHub,
-		UserNotif:  &model.UserNotificationModel{DB: dualDB.Users},
-		AdminNotif: &model.AdminNotificationModel{DB: dualDB.Users},
-		Prefs:      &model.NotificationPreferencesModel{UserDB: dualDB.Users},
+		UserNotif:  &model.UserNotificationModel{Store: dualDB.GetUsersStore()},
+		AdminNotif: &model.AdminNotificationModel{Store: dualDB.GetUsersStore()},
+		Prefs:      &model.NotificationPreferencesModel{UserStore: dualDB.GetUsersStore()},
 	}
 
 	// Create WebUI notification API handlers (TEMPLATE.md Part 25)
@@ -1742,20 +2059,20 @@ func runServerWithHooks(hooks serverRunHooks) {
 	}
 
 	adminSettingsHandler := &handler.AdminSettingsHandler{
-		DB:                  db.DB,
+		DB:                  db,
 		NotificationService: notificationService,
 	}
 
 	// Legacy notification handler (for email notifications only) - reads per-user notification
 	// rows, which live in users.db
-	notificationHandler := &handler.NotificationHandler{DB: dualDB.Users}
+	notificationHandler := &handler.NotificationHandler{DB: dualDB.GetUsersStore()}
 
 	// Create notification system handlers - channels/queue/history/templates are all declared
 	// in database.ServerSchema, while the per-user channel preferences and subscriptions the
 	// preferences handler edits are declared in database.UsersSchema
-	channelHandler := handler.NewNotificationChannelHandler(dualDB.Server)
-	preferencesHandler := handler.NewNotificationPreferencesHandler(dualDB.Users)
-	templateHandler := handler.NewNotificationTemplateHandler(dualDB.Server)
+	channelHandler := handler.NewNotificationChannelHandler(dualDB.GetServerStore())
+	preferencesHandler := handler.NewNotificationPreferencesHandler(dualDB.GetUsersStore())
+	templateHandler := handler.NewNotificationTemplateHandler(dualDB.GetServerStore())
 	metricsHandler := handler.NewNotificationMetricsHandler(notificationMetrics)
 
 	// Initialize WebUI Notification Cleanup Scheduler (TEMPLATE.md Part 25)
@@ -1784,14 +2101,14 @@ func runServerWithHooks(hooks serverRunHooks) {
 	adminUsersHandler := &handler.AdminUsersHandler{ConfigPath: configPath}
 	adminAuthHandler := &handler.AdminAuthSettingsHandler{ConfigPath: configPath}
 	adminWeatherHandler := &handler.AdminWeatherHandler{ConfigPath: configPath}
-	adminNotificationsHandler := &handler.AdminNotificationsHandler{ConfigPath: configPath, UsersDB: database.GetUsersDB()}
+	adminNotificationsHandler := &handler.AdminNotificationsHandler{ConfigPath: configPath, UsersDB: database.GetUsersStore()}
 	adminGeoIPHandler := &handler.AdminGeoIPHandler{DataDir: dirPaths.Data, Scheduler: taskScheduler}
 
 	// Create user settings handler (AI.md PART 34: Multi-user support)
-	userSettingsHandler := handler.NewUserSettingsHandler(db.DB)
+	userSettingsHandler := handler.NewUserSettingsHandler(db)
 
 	// Create user public handler (AI.md PART 34: Public profiles, avatars)
-	userPublicHandler := handler.NewUserPublicHandler(db.DB)
+	userPublicHandler := handler.NewUserPublicHandler(db)
 
 	// AI.md PART 8 step 8e: the ports were decided before the privilege drop
 	httpPortInt, httpsPortInt := startupPorts.HTTP, startupPorts.HTTPS
@@ -1875,12 +2192,12 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Initialize SSL manager
 	sslCertsDir := util.GetCertsPath(dirPaths)
-	sslManager := util.NewSSLManager(db.DB, sslCertsDir)
+	sslManager := util.NewSSLManager(sslCertsDir)
 	httpsPort := securePort
 
 	// Create SSL handler with runtime-detected HTTPS address
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", securePort)
-	sslHandler := handler.NewSSLHandler(sslCertsDir, db.DB, httpsAddr)
+	sslHandler := handler.NewSSLHandler(sslCertsDir, db, httpsAddr)
 
 	// Create the admin metrics handler over the process registry
 	metricsConfigHandler := handler.NewAdminMetricsHandler(prometheus.DefaultGatherer)
@@ -1909,7 +2226,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 			hooks.exitProcess(2)
 		}
 		runtime := newTLSRuntime(sslManager, sslSettings, tlsFQDN)
-		runtime.SetServerDB(dualDB.Server)
+		runtime.SetServerDB(dualDB.GetServerStore())
 		activeTLSRuntime.Store(runtime)
 		sslHandler.SetCertificateHooks(sslManager, func() {
 			if _, err := sslManager.CheckExistingCerts(tlsFQDN); err != nil {
@@ -2025,14 +2342,14 @@ func runServerWithHooks(hooks serverRunHooks) {
 		requireOperator := middleware.RequireOperatorToken()
 
 		r.With(requireOperator).Route("/debug", func(debug chi.Router) {
-			debugHandlers := handler.NewDebugHandlers(db.DB, r)
+			debugHandlers := handler.NewDebugHandlers(db, r)
 			debugHandlers.RegisterDebugRoutes(debug)
 		})
 
 		// pprof + expvar endpoints per AI.md PART 6's canonical chi debug pattern
 		r.With(requireOperator).Route("/debug/pprof", func(r chi.Router) {
 			r.HandleFunc("/", pprof.Index)
-			r.HandleFunc("/cmdline", pprof.Cmdline)
+			r.HandleFunc("/cmdline", redactedPPROFCmdline)
 			r.HandleFunc("/profile", pprof.Profile)
 			r.HandleFunc("/symbol", pprof.Symbol)
 			r.Handle("/trace", http.HandlerFunc(pprof.Trace))
@@ -2045,7 +2362,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		})
 
 		// expvar endpoint per AI.md PART 6
-		r.With(requireOperator).Handle("/debug/vars", http.DefaultServeMux)
+		r.With(requireOperator).Handle("/debug/vars", redactedExpvarHandler())
 
 		log.Println("INFO: Debug endpoints enabled:")
 		log.Println("   GET  /debug/routes  - List all routes")
@@ -2065,9 +2382,9 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
 	// AI.md: Step 4: Redirect to /server/{admin_path}/setup (setup wizard) after token verified
 	adminSetupRoutes := chi.NewRouter()
-	r.Mount("/server/"+cfg.GetAdminPath()+"/setup", adminSetupRoutes)
 	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
+	r.Mount("/server/"+cfg.GetAdminPath()+"/setup", adminSetupRoutes)
 	{
 		// Setup wizard pages - user has already verified token at /admin
 		// AI.md: 6 steps: Admin Account → API Token → Server Config → Security → Services → Complete
@@ -2089,7 +2406,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.With(middleware.LoginRateLimitMiddleware()).Post("/server/auth/login", authHandler.HandleLogin)
 	r.Get("/server/auth/register", authHandler.ShowRegisterPage)
 	r.Post("/server/auth/register", authHandler.HandleRegister)
-	r.Get("/server/auth/logout", authHandler.HandleLogout)
 	r.Post("/server/auth/logout", authHandler.HandleLogout)
 	r.Post("/server/auth/impersonation/stop", handler.StopUserImpersonation)
 
@@ -2117,41 +2433,27 @@ func runServerWithHooks(hooks serverRunHooks) {
 		code := chi.URLParam(r, "code")
 		if code == "" {
 			middleware.RenderHTML(w, r, http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
-				"title": "Verify Email",
-				"error": "Missing verification code",
+				"title": handler.Translate(r, "verify.email_heading"),
+				"error": handler.Translate(r, "verify.missing_email_verification_code"),
 			}))
 			return
 		}
 
-		verificationID, userID, valid := lookupEmailVerification(db.DB, code, time.Now())
+		_, valid, verifyErr := verifyAndConsumeEmailVerification(db, code, time.Now())
+		if verifyErr != nil {
+			log.Printf("WARNING: verify-email: failed to verify code: %v", verifyErr)
+			middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
+				"title": handler.Translate(r, "verify.email_heading"),
+				"error": handler.Translate(r, "verify.email_verification_failed"),
+			}))
+			return
+		}
 		if !valid {
 			middleware.RenderHTML(w, r, http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
-				"title": "Verify Email",
-				"error": "Invalid or expired verification link. Please request a new one.",
+				"title": handler.Translate(r, "verify.email_heading"),
+				"error": handler.Translate(r, "verify.invalid_email_verification"),
 			}))
 			return
-		}
-
-		// Mark email as verified
-		// updated_at is bound as canonical UTC text rather than written by the SQL
-		// CURRENT_TIMESTAMP literal, which yields a different type and zone on
-		// PostgreSQL, MySQL and SQL Server than it does on SQLite.
-		_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
-			UPDATE users
-			SET email_verified = 1, updated_at = ?
-			WHERE id = ?
-		`, dbtime.FormatSQLTimestamp(time.Now()), userID)
-		if err != nil {
-			middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
-				"title": "Verify Email",
-				"error": "Failed to verify email. Please try again.",
-			}))
-			return
-		}
-
-		// Delete used token
-		if _, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM email_verifications WHERE id = ?`, verificationID); err != nil {
-			log.Printf("WARNING: verify-email: failed to delete used verification token %d: %v", verificationID, err)
 		}
 
 		http.Redirect(w, r, "/server/auth/login?verified=1", http.StatusFound)
@@ -2390,7 +2692,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 			return
 		}
 
-		userModel := &model.UserModel{DB: db.DB}
+		userModel := &model.UserModel{Store: db}
 		user, err := userModel.CreateUserAccount(username, invite.Email, req.Password, invite.Role)
 		if err != nil {
 			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
@@ -2406,7 +2708,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 		// updated_at is bound as canonical UTC text so every driver stores the same
 		// layout the rest of the project reads back.
-		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
+		if _, err := database.ExecContext(context.Background(), database.GetUsersStore(), database.TimeoutWrite, `UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
 			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
@@ -2430,7 +2732,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 			return
 		}
 
-		sessionModel := &model.SessionModel{DB: db.DB}
+		sessionModel := &model.SessionModel{Store: db}
 		session, err := sessionModel.CreateSession(user.ID, 2592000)
 		if err != nil {
 			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
@@ -2467,9 +2769,9 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// User routes (require authentication) - per AI.md PART 14: /users/ is plural
 	usersRoutes := chi.NewRouter()
-	r.Mount("/users", usersRoutes)
-	usersRoutes.Use(middleware.RequireAuth(db.DB))
+	usersRoutes.Use(middleware.RequireAuth(db))
 	usersRoutes.Use(middleware.BlockAdminFromUserRoutes())
+	r.Mount("/users", usersRoutes)
 	{
 		// /users -> user dashboard (current user)
 		usersRoutes.Get("/", dashboardHandler.ShowDashboard)
@@ -2522,20 +2824,20 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// Admin routes (require admin role + stricter rate limiting)
 	// AI.md: Admin panel at /server/{admin_path} (configurable, default: "admin")
 	adminRoutes := chi.NewRouter()
-	r.Mount("/server/"+cfg.GetAdminPath(), adminRoutes)
 	// AI.md: Show setup token entry at /admin when no admin exists
 	adminRoutes.Use(middleware.SetupTokenRequired(cfg))
 	adminRoutes.Use(middleware.RequireAdminAuth())
 	// Log all admin actions
-	adminRoutes.Use(middleware.AuditLogger(db.DB))
+	adminRoutes.Use(middleware.AuditLogger(db))
+	r.Mount("/server/"+cfg.GetAdminPath(), adminRoutes)
 	{
 		// /{admin_path} -> admin dashboard (root level)
 		adminRoutes.Get("/", dashboardHandler.ShowAdminPanel)
 		// AI.md PART 17: every server-management page lives under /{admin_path}/
 		// and the admin's own account lives under /{admin_path}/{admin_username}/
 		adminSelfRoutes := chi.NewRouter()
-		adminRoutes.Mount("/{admin_username}", adminSelfRoutes)
 		adminSelfRoutes.Use(handler.RequireAdminSelf())
+		adminRoutes.Mount("/{admin_username}", adminSelfRoutes)
 
 		// AI.md PART 17 header spec: global search over settings, logs and the
 		// other data the admin panel manages
@@ -2561,7 +2863,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		})
 
 		adminRoutes.Get("/email", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			adminEmail := ""
 			if adminValue, ok := reqctx.GetValue(r.Context(), "admin"); ok {
 				if admin, ok := adminValue.(*model.Admin); ok {
@@ -2601,10 +2903,10 @@ func runServerWithHooks(hooks serverRunHooks) {
 		adminRoutes.Post("/email/autodetect", handler.AutoDetectSMTPForm)
 
 		adminRoutes.Get("/database", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			databaseStatus := "Unavailable"
-			if db := database.GetServerDB(); db != nil {
-				if err := db.Ping(); err == nil {
+			if db := database.GetServerStore(); db != nil {
+				if err := db.Probe(context.Background()); err == nil {
 					databaseStatus = "Connected"
 				} else {
 					databaseStatus = "Connection failed"
@@ -2641,7 +2943,10 @@ func runServerWithHooks(hooks serverRunHooks) {
 			}))
 		})
 		adminRoutes.Post("/database", handler.SaveDatabaseForm)
-		adminRoutes.Post("/database/action", handler.DatabaseActionForm)
+		adminRoutes.Post("/database/action", func(w http.ResponseWriter, r *http.Request) {
+			ctx := reqctx.SetValue(r.Context(), "maintenance_scheduler", taskScheduler)
+			handler.DatabaseActionForm(w, r.WithContext(ctx))
+		})
 		adminRoutes.Post("/database/test-config", handler.TestDatabaseConfigForm)
 
 		adminRoutes.Get("/info", handler.ShowAdminSystemInfo)
@@ -2876,7 +3181,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		adminSelfRoutes.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 			var registered bool
 			var publicKey sql.NullString
-			if err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect,
+			if err := database.QueryRowContext(r.Context(), database.GetUsersStore(), database.TimeoutSimpleSelect,
 				"SELECT personal_pgp_public_key FROM admins WHERE id = ?", handler.AdminID(r)).Scan(&publicKey); err == nil {
 				registered = publicKey.Valid && strings.TrimSpace(publicKey.String) != ""
 			}
@@ -2887,7 +3192,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				"flash":          handler.TakeFlash(w, r),
 			}))
 		})
-		adminPGPFormHandler := handler.AdminPGPKeyHandler{DB: database.GetUsersDB()}
+		adminPGPFormHandler := handler.AdminPGPKeyHandler{DB: database.GetUsersStore()}
 		adminSelfRoutes.Post("/profile/security/pgp", adminPGPFormHandler.SaveForm)
 		adminSelfRoutes.Post("/profile/security/pgp/remove", adminPGPFormHandler.RemoveForm)
 		adminSelfRoutes.Get("/profile/security", adminTOTPHandler.ShowSecurityPage)
@@ -3080,7 +3385,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				return
 			}
 
-			userModel := &model.UserModel{DB: db.DB}
+			userModel := &model.UserModel{Store: db}
 			if _, err := userModel.GetByUsername(username); err == nil {
 				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": "Username is already in use",
@@ -3188,10 +3493,10 @@ func runServerWithHooks(hooks serverRunHooks) {
 			}))
 		})
 	}
-	r.With(middleware.RequireAuth(db.DB)).Get("/notifications", notificationHandler.ShowNotificationsPage)
+	r.With(middleware.RequireAuth(db)).Get("/notifications", notificationHandler.ShowNotificationsPage)
 
 	// User profile page (per AI.md PART 14: /users/ is plural)
-	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/profile", func(w http.ResponseWriter, r *http.Request) {
+	r.With(middleware.RequireAuth(db), middleware.BlockAdminFromUserRoutes()).Get("/users/profile", func(w http.ResponseWriter, r *http.Request) {
 		handler.NegotiateResponse(w, r, "page/user/profile.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Profile",
 			"page":  "profile",
@@ -3199,22 +3504,22 @@ func runServerWithHooks(hooks serverRunHooks) {
 	})
 
 	// User security settings page (per AI.md PART 14: /users/ is plural)
-	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security", twoFAHandler.ShowSecurityPage)
-	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/passkeys", twoFAHandler.ShowSecurityPage)
-	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/password", twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db), middleware.BlockAdminFromUserRoutes()).Get("/users/security", twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db), middleware.BlockAdminFromUserRoutes()).Get("/users/security/passkeys", twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db), middleware.BlockAdminFromUserRoutes()).Get("/users/security/password", twoFAHandler.ShowSecurityPage)
 
 	// Removed - moved to adminRoutes group above
 
 	// Location management pages
-	r.With(middleware.RequireAuth(db.DB)).Get("/users/locations/new", locationHandler.ShowAddLocationPage)
-	r.With(middleware.RequireAuth(db.DB)).Get("/users/locations/{id}/edit", locationHandler.ShowEditLocationPage)
+	r.With(middleware.RequireAuth(db)).Get("/users/locations/new", locationHandler.ShowAddLocationPage)
+	r.With(middleware.RequireAuth(db)).Get("/users/locations/{id}/edit", locationHandler.ShowEditLocationPage)
 
 	// API routes - all API endpoints under /api/{api_version}
 	// AI.md: API version prefix is configurable (default: "v1")
 	apiV1 := chi.NewRouter()
 	r.Mount(cfg.GetAPIPath(), apiV1)
-	mcpServer := mcp.NewServer(r, cfg, database.GetServerDB(), Version)
-	mcpAccess := middleware.OptionalAuth(db.DB)(mcpServer)
+	mcpServer := mcp.NewServer(r, cfg, database.GetServerStore(), Version)
+	mcpAccess := middleware.OptionalAuth(db)(mcpServer)
 	mcpEndpoint := http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		request = request.Clone(request.Context())
 		request.Header = request.Header.Clone()
@@ -3227,7 +3532,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.Get("/server/help/mcp", handler.ShowMCPHelpPage(cfg, mcpHelp))
 	r.Handle("/api/mcp", mcpEndpoint)
 	r.Handle("/mcp", mcpEndpoint)
-	themePrefsHandler := handler.NewPreferencesHandler(db.DB)
+	themePrefsHandler := handler.NewPreferencesHandler(db)
 	apiV1.Get("/server/preferences", themePrefsHandler.ExportCurrentPreferences)
 	apiV1.Post("/server/preferences", themePrefsHandler.SavePreferences)
 	apiV1.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
@@ -3237,9 +3542,10 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Weather API routes (optional auth + API rate limiting)
 	weatherAPI := chi.NewRouter()
-	apiV1.Mount("/", weatherAPI)
-	weatherAPI.Use(middleware.OptionalAuth(db.DB))
+	weatherAPI.Use(middleware.OptionalAuth(db))
 	weatherAPI.Use(middleware.APIRateLimitMiddleware())
+	apiV1.Mount("/", weatherAPI)
+	registerAPIRoot(weatherAPI, cfg.GetAPIVersion(), cfg.GetAPIPath(), cfg.GetAdminAPIPath())
 	{
 		// Weather endpoints per AI.md PART 36
 		weatherAPI.Get("/weather", apiHandler.GetWeather)
@@ -3268,34 +3574,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 		weatherAPI.Get("/weather/moon", moonHandler.HandleMoonAPI)
 		weatherAPI.Get("/weather/history", apiHandler.GetHistoricalWeather)
 
-		// Root /api/{api_version} endpoint - return all endpoints
-		// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
-		weatherAPI.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			hostInfo := util.GetHostInfo(r)
-			apiBase := hostInfo.FullHost + cfg.GetAPIPath()
-			adminBase := hostInfo.FullHost + cfg.GetAdminAPIPath()
-			handler.RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
-				"version": cfg.GetAPIVersion(),
-				"endpoints": []string{
-					apiBase + "/users",
-					apiBase + "/locations",
-					apiBase + "/users/notifications",
-					adminBase,
-					apiBase + "/weather",
-					apiBase + "/weather/{location}",
-					apiBase + "/forecasts",
-					apiBase + "/forecasts/{location}",
-					apiBase + "/ip",
-					apiBase + "/locations",
-					apiBase + "/docs",
-					apiBase + "/blocklist",
-					apiBase + "/earthquakes",
-					apiBase + "/severe-weather",
-					apiBase + "/moon",
-				},
-				"documentation": hostInfo.FullHost + "/docs",
-			})
-		})
 	}
 
 	// Public blocklist endpoint (no auth required)
@@ -3329,7 +3607,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		authAPI.Get("/saml/{provider}", samlAuthHandler.StartAPILogin)
 		authAPI.Post("/saml/{provider}/exchange", samlAuthHandler.ExchangeAPILogin)
 		authAPI.With(samlAuthHandler.APIAuthMiddleware).Post("/saml/{provider}/slo", samlAuthHandler.StartAPISAMLLogout)
-		authAPI.Get("/check", handler.HandleAuthCheck(database.GetServerDB(), database.GetUsersDB(), cfg))
+		authAPI.Get("/check", handler.HandleAuthCheck(database.GetServerStore(), database.GetUsersStore(), cfg))
 		authAPI.Post("/register", authAPIHandler.HandleAPIRegister)
 		authAPI.Post("/login", authAPIHandler.HandleAPILogin)
 		authAPI.Post("/2fa", authAPIHandler.HandleAPI2FA)
@@ -3354,15 +3632,15 @@ func runServerWithHooks(hooks serverRunHooks) {
 		authAPI.Post("/invite/server/{token}", authAPIHandler.HandleAPIServerInviteComplete)
 
 		// Protected auth endpoints (require auth)
-		authAPI.With(middleware.RequireAuth(db.DB)).Post("/logout", authAPIHandler.HandleAPILogout)
-		authAPI.With(middleware.RequireAuth(db.DB)).Post("/refresh", authAPIHandler.HandleAPIRefresh)
+		authAPI.With(middleware.RequireAuth(db)).Post("/logout", authAPIHandler.HandleAPILogout)
+		authAPI.With(middleware.RequireAuth(db)).Post("/refresh", authAPIHandler.HandleAPIRefresh)
 	}
 
 	// Users API routes per AI.md PART 33 (spec uses /api/v1/users not /api/v1/user)
 	usersAPI := chi.NewRouter()
-	apiV1.Mount("/users", usersAPI)
-	usersAPI.Use(middleware.RequireAuth(db.DB))
+	usersAPI.Use(middleware.RequireAuth(db))
 	usersAPI.Use(middleware.BlockAdminFromUserRoutes())
+	apiV1.Mount("/users", usersAPI)
 	{
 		usersAPI.Get("/", authHandler.GetCurrentUser)
 		usersAPI.Patch("/", authHandler.UpdateProfile)
@@ -3419,7 +3697,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 	// Public user profile endpoint per AI.md PART 34
 	// Uses OptionalAuth to support both authenticated and anonymous requests
 	// Private profiles return 404 to prevent existence leakage
-	apiV1.With(middleware.OptionalAuth(db.DB)).Get("/public/users/{username}", userPublicHandler.GetPublicProfile)
+	apiV1.With(middleware.OptionalAuth(db)).Get("/public/users/{username}", userPublicHandler.GetPublicProfile)
 
 	// Location API routes (require auth)
 	// Public location endpoints (no auth required)
@@ -3429,9 +3707,9 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Protected location endpoints (require auth)
 	locationAPI := chi.NewRouter()
-	apiV1.Mount("/users/locations", locationAPI)
-	locationAPI.Use(middleware.RequireAuth(db.DB))
+	locationAPI.Use(middleware.RequireAuth(db))
 	locationAPI.Use(middleware.BlockAdminFromUserRoutes())
+	apiV1.Mount("/users/locations", locationAPI)
 	{
 		locationAPI.Get("/", locationHandler.ListLocations)
 		locationAPI.Get("/{id}", locationHandler.GetLocation)
@@ -3443,9 +3721,9 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// WebUI Notification API routes - User (per AI.md PART 14: /users/ is plural)
 	usersNotificationAPI := chi.NewRouter()
-	apiV1.Mount("/users/notifications", usersNotificationAPI)
-	usersNotificationAPI.Use(middleware.RequireAuth(db.DB))
+	usersNotificationAPI.Use(middleware.RequireAuth(db))
 	usersNotificationAPI.Use(middleware.BlockAdminFromUserRoutes())
+	apiV1.Mount("/users/notifications", usersNotificationAPI)
 	{
 		usersNotificationAPI.Get("/", notificationAPIHandler.GetUserNotifications)
 		usersNotificationAPI.Get("/unread", notificationAPIHandler.GetUserUnreadNotifications)
@@ -3461,26 +3739,26 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// Admin API routes (require admin role + stricter rate limiting)
 	// AI.md: Admin API at /api/{api_version}/server/{admin_path}/
-	apiV1.Post("/server/"+cfg.GetAdminPath()+"/nodes/join", cluster.JoinHandler(database.GetServerDB()))
+	apiV1.Post("/server/"+cfg.GetAdminPath()+"/nodes/join", cluster.JoinHandler(database.GetServerStore()))
 	adminAPI := chi.NewRouter()
-	apiV1.Mount("/server/"+cfg.GetAdminPath(), adminAPI)
-	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerDB(), db.DB))
+	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerStore(), db))
 	// TokenAuthMiddleware accepts admin and regular-user tokens alike, so the
 	// admin group must additionally require an admin token or a usr_ token
 	// would reach every admin config, scheduler and restart route.
 	adminAPI.Use(middleware.RequireAdminToken())
 	// Log all admin API actions
-	adminAPI.Use(middleware.AuditLogger(db.DB))
+	adminAPI.Use(middleware.AuditLogger(db))
+	apiV1.Mount("/server/"+cfg.GetAdminPath(), adminAPI)
 	{
 		adminAPI.Post("/nodes/token", handler.GenerateClusterJoinTokenAPI)
 		adminAPI.Post("/nodes/leave", handler.LeaveClusterAPI)
-		adminModel := &model.AdminModel{DB: adminAccountsDB}
+		adminModel := &model.AdminModel{Store: adminAccountsDB}
 
 		// AI.md PART 17: the admin's own account API lives under
 		// /api/{api_version}/server/{admin_path}/{admin_username}/
 		adminSelfAPI := chi.NewRouter()
-		adminAPI.Mount("/{admin_username}", adminSelfAPI)
 		adminSelfAPI.Use(handler.RequireAdminSelfAPI())
+		adminAPI.Mount("/{admin_username}", adminSelfAPI)
 		getCurrentAdmin := func(w http.ResponseWriter, req *http.Request) (*model.Admin, bool) {
 			adminValue, exists := reqctx.GetValue(req.Context(), "admin")
 			if !exists {
@@ -3697,12 +3975,12 @@ func runServerWithHooks(hooks serverRunHooks) {
 				return
 			}
 
-			if _, err := (&model.UserModel{DB: db.DB}).GetByUsername(username); err == nil {
+			if _, err := (&model.UserModel{Store: db}).GetByUsername(username); err == nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "CONFLICT", handler.Translate(r, "errors.admin.admins.username_in_use"))
 				return
 			}
 
-			if _, err := (&model.UserModel{DB: db.DB}).GetByEmail(email); err == nil {
+			if _, err := (&model.UserModel{Store: db}).GetByEmail(email); err == nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "CONFLICT", handler.Translate(r, "errors.admin.admins.email_in_use"))
 				return
 			}
@@ -3832,7 +4110,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 		// Email settings per spec: /api/{api_version}/{admin_path}/email/
 		adminAPI.Get("/email", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
 				"provider": settingsModel.GetString("email.provider", ""),
@@ -3847,7 +4125,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
@@ -3869,7 +4147,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 		// Pages per spec: /api/{api_version}/{admin_path}/pages/
 		adminAPI.Get("/pages", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"about":   map[string]interface{}{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
 				"privacy": map[string]interface{}{"enabled": settingsModel.GetBool("pages.privacy.enabled", true)},
@@ -3880,7 +4158,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 		})
 		adminAPI.Get("/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"name":    name,
 				"enabled": settingsModel.GetBool("pages."+name+".enabled", true),
@@ -3894,7 +4172,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
@@ -3906,7 +4184,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 		// Web settings per spec: /api/{api_version}/{admin_path}/web/
 		adminAPI.Get("/web", func(w http.ResponseWriter, r *http.Request) {
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
@@ -3918,7 +4196,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
@@ -4128,7 +4406,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				return
 			}
 
-			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+			sessionModel := &model.AdminSessionModel{Store: database.GetServerStore()}
 			sessions, err := sessionModel.GetActiveSessions(admin.ID)
 			if err != nil {
 				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_sessions"))
@@ -4143,7 +4421,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 				return
 			}
 
-			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+			sessionModel := &model.AdminSessionModel{Store: database.GetServerStore()}
 			if err := sessionModel.DeleteAllSessionsForAdmin(admin.ID); err != nil {
 				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_logout_sessions"))
 				return
@@ -4507,7 +4785,10 @@ func runServerWithHooks(hooks serverRunHooks) {
 		adminAPI.Post("/database/test", handler.TestDatabaseConnection)
 		adminAPI.Post("/database/test-config", handler.TestDatabaseConfigConnection)
 		adminAPI.Post("/database/optimize", handler.OptimizeDatabase)
-		adminAPI.Post("/database/vacuum", handler.VacuumDatabase)
+		adminAPI.Post("/database/vacuum", func(w http.ResponseWriter, r *http.Request) {
+			ctx := reqctx.SetValue(r.Context(), "maintenance_scheduler", taskScheduler)
+			handler.VacuumDatabase(w, r.WithContext(ctx))
+		})
 		adminAPI.Post("/settings/cache/clear", handler.ClearCache)
 
 		// Backup management per spec: /api/{api_version}/{admin_path}/backup/
@@ -4660,23 +4941,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// API routes are now consolidated under /api/v1 above
 
-	// Main /api endpoint - API version information
-	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIVersion()
-	r.Get("/api", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"service": "Weather API",
-			"version": "2.0.0",
-			"api_versions": []string{
-				cfg.GetAPIVersion(),
-			},
-			"current_version": cfg.GetAPIVersion(),
-			"documentation":   "http://" + r.Host + "/docs",
-			"openapi":         "http://" + r.Host + cfg.GetAPIPath() + "/server/swagger",
-			"swagger":         "http://" + r.Host + "/server/docs/swagger",
-			"graphql":         "http://" + r.Host + cfg.GetAPIPath() + "/server/graphql",
-		})
-	})
-
 	// /api/autodiscover - Client/Agent auto-configuration endpoint
 	// AI.md PART 33/34: Non-versioned endpoint for CLI/agent self-configuration
 	// SECURITY: NEVER include admin_path, secrets, or internal IPs
@@ -4702,7 +4966,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 			http.ServeFile(w, r, binaryPath)
 		})
 		if cfg.CLI.BinaryDownload.RequireAuth {
-			middleware.TokenAuthMiddleware(database.GetServerDB(), database.GetUsersDB())(serve).ServeHTTP(w, r)
+			middleware.TokenAuthMiddleware(database.GetServerStore(), database.GetUsersStore())(serve).ServeHTTP(w, r)
 			return
 		}
 		serve.ServeHTTP(w, r)
@@ -4780,8 +5044,8 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// GraphQL API (AI.md PART 14)
 	graphqlResolver := appgraphql.NewResolver(
-		dualDB.Server,
-		dualDB.Users,
+		dualDB.GetServerStore(),
+		dualDB.GetUsersStore(),
 		weatherService,
 		apiHandler,
 		authHandler,
@@ -4813,7 +5077,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 	// WebSocket endpoint for real-time notifications (TEMPLATE.md Part 25)
 	// Requires authentication for both users and admins
-	r.With(middleware.OptionalAuth(db.DB)).Get("/ws/notifications", notificationAPIHandler.HandleWebSocketConnection)
+	r.With(middleware.OptionalAuth(db)).Get("/ws/notifications", notificationAPIHandler.HandleWebSocketConnection)
 
 	// Public /server/ pages (AI.md PART 14: /server/* are public, no auth required)
 	r.Get("/server", func(w http.ResponseWriter, r *http.Request) {
@@ -4834,8 +5098,8 @@ func runServerWithHooks(hooks serverRunHooks) {
 	r.Get("/server/tracking.js", handler.ServeTrackingScript)
 
 	// Preferences (AI.md PART 16): theme + language, works with JS disabled
-	r.With(middleware.OptionalAuth(db.DB)).Get("/server/preferences", themePrefsHandler.ShowPreferences)
-	r.With(middleware.OptionalAuth(db.DB)).Post("/server/preferences", themePrefsHandler.SavePreferences)
+	r.With(middleware.OptionalAuth(db)).Get("/server/preferences", themePrefsHandler.ShowPreferences)
+	r.With(middleware.OptionalAuth(db)).Post("/server/preferences", themePrefsHandler.SavePreferences)
 	r.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
 	r.Get("/server/preferences/import", themePrefsHandler.ImportPreferences)
 	r.Get("/server/preferences/sync", themePrefsHandler.ExportPreferences)
@@ -4959,20 +5223,6 @@ func runServerWithHooks(hooks serverRunHooks) {
 		secureServer = newServer(strconv.Itoa(securePort), r)
 		secureServer.TLSConfig = tlsConfig
 		servers = append(servers, secureServer)
-	}
-
-	// AI.md PART 8: PID file with stale-PID detection; containers and Windows
-	// (service control manager) skip it, and server.pidfile: false disables it.
-	if runtime.GOOS != "windows" && pidFileEnabled(cfg.Server.PIDFile) {
-		pidFile, pidErr := util.StartPIDFile(dirPaths.Data)
-		if pidErr != nil {
-			log.Printf("PID file: %v", pidErr)
-			fmt.Fprintf(os.Stderr, "%v\n", pidErr)
-			hooks.exitProcess(1)
-		}
-		if pidFile != nil {
-			defer func() { _ = pidFile.Remove() }()
-		}
 	}
 
 	// bindListener returns the socket for a port: a port below 1024 was bound while the
@@ -5208,7 +5458,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 			default:
 				// Handle platform-specific signals (SIGHUP, SIGUSR1, SIGUSR2, SIGRTMIN+3 on Unix)
 				// Returns true if shutdown requested (e.g., SIGRTMIN+3 Docker signal)
-				if handlePlatformSignal(sig, db, appLogger, dirPaths) {
+				if handlePlatformSignal(sig, appLogger, dirPaths) {
 					log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
 					shutdownGracefully()
 					return
@@ -5220,7 +5470,7 @@ func runServerWithHooks(hooks serverRunHooks) {
 
 // showServerStatus displays comprehensive server status information
 // Per AI.md PART 8: Returns true if healthy, false if unhealthy
-func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
+func showServerStatus(db *database.Store, dbPath string, isFirstRun bool) bool {
 	// Get configuration values - AI.md PART 5: Environment Variables
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -5268,16 +5518,16 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Get database statistics
 	var userCount, locationCount, tokenCount int
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM users").Scan(&userCount); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM users").Scan(&userCount); err != nil {
 		log.Printf("WARNING: showServerStatus: failed to count users: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount); err != nil {
 		log.Printf("WARNING: showServerStatus: failed to count saved locations: %v", err)
 	}
 	// tokens.expires_at may hold the canonical UTC layout or a legacy local-zone value, and
 	// SQLite's datetime() returns NULL for the latter, so an SQL comparison would silently count
 	// zero. The candidate rows are read instead and compared in Go via dbtime.
-	tokenRows, tokenErr := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT expires_at FROM tokens WHERE expires_at IS NOT NULL")
+	tokenRows, tokenErr := database.QueryContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT expires_at FROM tokens WHERE expires_at IS NOT NULL")
 	if tokenErr != nil {
 		log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", tokenErr)
 	} else {
@@ -5375,9 +5625,8 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	return isHealthy
 }
 
-// lookupEmailVerification returns the id and user id of the pending
-// email_verifications row identified by token, reporting false when no
-// such token exists or when the row has already expired at instant now.
+// verifyAndConsumeEmailVerification verifies an email and consumes its token
+// atomically so the same link cannot succeed twice.
 //
 // email_verifications.expires_at has more than one producer, so it can
 // hold the canonical UTC text this project writes or a legacy local-zone
@@ -5386,31 +5635,45 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 // token by the writer's UTC offset rather than by the instant the value means.
 // The row is fetched by token alone and its expiry judged in Go through dbtime,
 // which reports false for a value it cannot parse so an uninterpretable row
-// fails closed instead of verifying an address forever.
+// fails closed instead of verifying an address forever. The lookup, expiry
+// check, user update, and token deletion share one Store.Write transaction.
 //
 // token is the raw value from the emailed link. It is hashed before the lookup
 // because email_verifications.token stores only model.HashAPIToken(token)
 // — PART 11 forbids keeping a usable token at rest — so matching on the raw
 // value found no row at all and no verification link could be redeemed here.
-func lookupEmailVerification(db *sql.DB, token string, now time.Time) (int64, int64, bool) {
-	var verificationID int64
+func verifyAndConsumeEmailVerification(db *database.Store, token string, now time.Time) (int64, bool, error) {
 	var userID int64
-	var storedExpiry interface{}
-
-	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT id, user_id, expires_at
-		FROM email_verifications
-		WHERE token = ?
-	`, model.HashAPIToken(token)).Scan(&verificationID, &userID, &storedExpiry)
+	err := db.Write(context.Background(), func(tx *sql.Tx) error {
+		var verificationID int64
+		var storedExpiry interface{}
+		if err := database.QueryRowContext(context.Background(), tx, database.TimeoutSimpleSelect, `
+			SELECT id, user_id, expires_at
+			FROM email_verifications
+			WHERE token = ?
+		`, model.HashAPIToken(token)).Scan(&verificationID, &userID, &storedExpiry); err != nil {
+			return err
+		}
+		if !dbtime.IsAfter(storedExpiry, now.UTC()) {
+			return sql.ErrNoRows
+		}
+		if _, err := tx.ExecContext(context.Background(), `
+			UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?
+		`, dbtime.FormatSQLTimestamp(now), userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(context.Background(), `DELETE FROM email_verifications WHERE id = ?`, verificationID); err != nil {
+			return err
+		}
+		return nil
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
 	if err != nil {
-		return 0, 0, false
+		return 0, false, err
 	}
-
-	if !dbtime.IsAfter(storedExpiry, now.UTC()) {
-		return 0, 0, false
-	}
-
-	return verificationID, userID, true
+	return userID, true, nil
 }
 
 // defaultAdminPreferencesJSON encodes the preference defaults a new admin
@@ -5432,7 +5695,7 @@ func defaultAdminPreferencesJSON(adminID int64) (string, error) {
 
 // loadAdminPreferencesRow returns the stored preferences for adminID, creating
 // the default row on first access.
-func loadAdminPreferencesRow(db *sql.DB, adminID int64) (*model.AdminPreferences, error) {
+func loadAdminPreferencesRow(db *database.Store, adminID int64) (*model.AdminPreferences, error) {
 	defaultJSON, err := defaultAdminPreferencesJSON(adminID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
@@ -5498,6 +5761,9 @@ func (m mcpHelpSource) PublicToolList() []handler.MCPToolInfo {
 // default (unset) is true, and any value config.ParseBool reads as false
 // disables it.
 func pidFileEnabled(value interface{}) bool {
+	if strings.TrimSpace(os.Getenv("PID_FILE")) != "" {
+		return true
+	}
 	if value == nil {
 		return true
 	}

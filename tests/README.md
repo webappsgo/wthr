@@ -8,15 +8,6 @@ Comprehensive test suite for the Weather Service including unit tests, integrati
 # Run all tests
 ./tests/run_tests.sh
 
-# Run with coverage report
-./tests/run_tests.sh --coverage
-
-# Run with verbose output
-./tests/run_tests.sh --verbose
-
-# Run benchmarks
-./tests/run_tests.sh --bench
-
 # Start test server for manual testing
 ./tests/test-server.sh
 ```
@@ -26,11 +17,10 @@ Comprehensive test suite for the Weather Service including unit tests, integrati
 ```
 tests/
 ├── README.md                           # This file
-├── run_tests.sh                        # Phase 2 entrypoint (Incus preferred, Docker fallback)
-├── incus.sh                            # Phase 2 in Incus ([systemd|openrc|all]: debian/trixie + alpine, service lifecycle, Tor, I2P)
+├── run_tests.sh                        # Docker basic-suite entrypoint
+├── incus.sh                            # Incus containers ([systemd|openrc|all]: Debian trixie + latest stable Alpine, service lifecycle, Tor, I2P)
 ├── docker.sh                           # Phase 2 in Docker (alpine:latest)
-├── e2e.sh                              # Browser E2E: layout review matrix in headless Chromium (Playwright image)
-├── e2e/layout.mjs                      # Viewports x themes x LTR/RTL x pages checks used by e2e.sh
+├── e2e.sh                              # On-demand Docker-run chromedp E2E suite
 ├── test-server.sh                      # Isolated manual dev server
 ├── lib/
 │   └── matrix.sh                       # Shared in-container route/header/auth/CLI matrix
@@ -44,17 +34,17 @@ tests/
 │   ├── api_test.go                    # API endpoint tests
 │   └── notification_api_test.go       # Notification API tests
 └── e2e/                               # End-to-end tests
-    └── setup_flow_test.go             # Complete setup flow
+    └── browser_test.go                 # SSR, no-JS, and browser interaction tiers
 
 ```
 
 ## Test Scripts
 
-### `run_tests.sh` - Phase 2 Entrypoint
+### `run_tests.sh` - Docker Basic-Suite Entrypoint
 
-Dispatches the Phase 2 binary-validation suite: Incus when `incus` is available
-(preferred, full systemd), otherwise Docker. It takes no options and exits
-non-zero when neither runtime is present.
+Runs the Docker basic binary-validation suite. Incus full-app validation and
+browser E2E are separate, explicit script invocations. The runner takes no
+options and exits with status 69 when Docker is unavailable.
 
 **Usage:**
 ```bash
@@ -66,8 +56,8 @@ via `make test`, not through this script.
 
 ### `lib/matrix.sh` - Shared Container Matrix
 
-Both `incus.sh` and `docker.sh` build the binaries in `casjaysdev/go:latest`,
-push this one script into the test container, and run it with
+Both `incus.sh` and `docker.sh` build through the Makefile's `build` target in
+`casjaysdev/go:latest`, push this one script into the test container, and run it with
 `matrix.sh {project_name} {project_org}`. Keeping the matrix in a single file is
 what stops the Incus and Docker suites from drifting apart. It covers version
 and `--help` output, binary-rename behaviour for the server and the CLI, the
@@ -76,6 +66,14 @@ rejection, invalid-credential rejection, the public/user/admin frontend and API
 route matrices with every applicable `Accept` header, the `.txt` extension
 endpoints, and CLI commands run against the live server. It counts failures and
 exits non-zero if any check fails.
+
+The Docker basic suite uses the platform-suffixed Linux amd64 server and CLI
+artifacts from the Makefile build, then gives the CLI the unsuffixed name the
+matrix expects inside Alpine.
+
+The API route matrix follows the endpoints listed in `IDEA.md`, including
+`/api/v1/severe-weather`; it does not add a standalone hurricanes API or a
+hurricanes `.txt` route that the API inventory does not define.
 
 The user-auth flow enables multi-user open registration and disables email
 verification in its isolated fixture, then fetches the login form as HTML and
@@ -91,9 +89,9 @@ It also runs the two PART 31 matrices:
   auth, user, admin) it verifies that a skip link exists and is the first
   focusable element, that every `<img>` carries an `alt` attribute, that every
   visible form control is labelled (`<label for>`, `aria-label`, or
-  `aria-labelledby`), that the page has exactly one `<h1>` and skips no heading
-  level, and that the banner, navigation, main, and contentinfo landmarks are
-  all present.
+  `aria-labelledby`; hidden and `aria-hidden` controls are excluded), that the
+  page has exactly one `<h1>` and skips no heading level, and that the banner,
+  navigation, main, and contentinfo landmarks are all present.
 - **Language and direction** — every supported language (`en`, `es`, `zh`,
   `fr`, `ar`, `de`, `ja`) is requested via `?lang=`, `<html lang>` must match,
   Arabic must render `dir="rtl"` and no other language may, and an unsupported
@@ -148,21 +146,35 @@ make test
 # Incus integration matrix
 ./tests/incus.sh
 
-# Browser layout review matrix (AI.md PART 29)
+# Optional browser E2E suite (AI.md PART 29)
 ./tests/e2e.sh
 ```
 
+Run `tests/e2e.sh` on demand for beta testing, before a release, or after major
+frontend changes. It requires Docker and runs the Go tests tagged `e2e` inside
+`casjaysdev/go:latest`, with a `chromedp/headless-shell` sidecar on an isolated
+internal network. The suite covers SSR responses, no-JavaScript forms, browser
+admin and user login/logout flows, responsive layout, themes, language, and
+browser JavaScript errors. It is separate from `run_tests.sh` and `make test`.
+Failure artifacts are retained in the script's scoped temp directory, whose path
+is printed to stderr; successful runs remove the directory.
+
+`tests/incus.sh` accepts `systemd`, `openrc`, or `all` (the default). It runs
+the selected modes one at a time in Debian trixie and/or the latest stable
+Alpine release. It builds through the Makefile into a scoped temporary
+directory and removes its Incus containers and build artifacts on exit.
+
+Resource and timeout defaults can be overridden with `INCUS_CPUS` (2),
+`INCUS_MEM` (`4GiB`), `INCUS_CPU_PRIORITY` (2), `INCUS_OP_TIMEOUT` (60
+seconds), `INCUS_INSTALL_TIMEOUT` (900 seconds), `INCUS_RUN_TIMEOUT` (3600
+seconds), and `DOCKER_TIMEOUT` (3600 seconds).
+
 ### End-to-End Tests
 
+The browser E2E suite is an explicit, on-demand run:
+
 ```bash
-# All e2e tests
-./tests/run_tests.sh
-
-# Full Incus-backed end-to-end matrix
-./tests/incus.sh
-
-# Docker-backed end-to-end matrix
-./tests/docker.sh
+./tests/e2e.sh
 ```
 
 ## Manual Testing
@@ -248,9 +260,12 @@ func TestMyFunction(t *testing.T) {
 
 ## Test Data
 
-- All test data stored in `/tmp/webappsgo/wthr-XXXXXX/`
-- Automatically cleaned up on exit
-- Use `KEEP_TEMP=1` to inspect after test run
+- Test data uses `${TMPDIR:-/tmp}/webappsgo/wthr-XXXXXX/`
+- Temporary artifacts are removed on success; `tests/docker.sh` retains its
+  build output and diagnostic logs there on failure and prints the directory
+  path to stderr
+- `KEEP_TEMP=1` is for `tests/test-server.sh`; the Docker suite retains artifacts
+  automatically after failure
 - Never commit test databases or temp files
 
 ## Troubleshooting
@@ -267,10 +282,9 @@ func TestMyFunction(t *testing.T) {
 PORT=3054 ./tests/test-server.sh
 ```
 
-### Neither Incus nor Docker available
-`run_tests.sh` exits non-zero when neither runtime is installed. Install
-`incus` (preferred) or `docker` — there is no host-toolchain fallback, because
-the host is never expected to have Go installed.
+### Docker unavailable
+`run_tests.sh` exits with status 69 when Docker is unavailable. Install Docker;
+the basic suite has no host-toolchain fallback.
 
 ## Notes
 

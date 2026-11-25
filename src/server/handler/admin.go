@@ -24,13 +24,13 @@ import (
 )
 
 type AdminHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // User Management APIs
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	users, err := userModel.GetAll()
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_users"))
@@ -62,7 +62,7 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, req.Role)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_create_user"))
@@ -110,7 +110,7 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	if err := userModel.UpdateUserProfile(id, username, req.Email, req.Role); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_user"))
 		return
@@ -137,7 +137,7 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	if err := userModel.DeleteUserAccount(id); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_delete_user"))
 		return
@@ -167,7 +167,7 @@ func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	if err := userModel.UpdatePassword(id, req.Password); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_password"))
 		return
@@ -240,7 +240,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 
 	if userID != "" {
 		uid, _ := strconv.Atoi(userID)
-		tokenModel := &model.TokenModel{DB: h.DB}
+		tokenModel := &model.TokenModel{Store: h.DB}
 		tokens, err := tokenModel.GetByUserID(uid)
 		if err != nil {
 			InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
@@ -251,7 +251,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get all tokens for admin view - tokens lives in users.db (real UsersSchema)
-	rows, err = database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err = database.QueryContext(context.Background(), database.GetUsersStore(), database.TimeoutComplexSelect, `
 		SELECT t.id, t.owner_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
 		FROM tokens t
 		LEFT JOIN users u ON t.owner_id = u.id
@@ -332,7 +332,7 @@ func (h *AdminHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenModel := &model.TokenModel{DB: h.DB}
+	tokenModel := &model.TokenModel{Store: h.DB}
 	token, err := tokenModel.CreateAPIToken(req.UserID, req.Name)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_generate_token"))
@@ -352,7 +352,7 @@ func (h *AdminHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenModel := &model.TokenModel{DB: h.DB}
+	tokenModel := &model.TokenModel{Store: h.DB}
 	if err := tokenModel.DeleteAPIToken(id); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_revoke_token"))
 		return
@@ -373,7 +373,7 @@ func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	// audit_log's real columns are actor_id/resource_type/resource_id/timestamp
 	// per src/database/server_schema.go, not user_id/resource/created_at.
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, `
 		SELECT a.id, a.actor_type, a.actor_id, a.action, a.resource_type, a.resource_id,
 		       a.details, a.ip_address, a.user_agent, a.timestamp
 		FROM audit_log a
@@ -433,7 +433,7 @@ func (h *AdminHandler) ClearAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, "DELETE FROM audit_log WHERE timestamp < ?", cutoff)
+	result, err := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutBulk, "DELETE FROM audit_log WHERE timestamp < ?", cutoff)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_clear_logs"))
 		return
@@ -452,16 +452,16 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 
 	// audit_log's real columns are status/timestamp (server_schema.go),
 	// not success/created_at. Scan errors must be propagated, not swallowed.
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&totalLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&totalLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count total audit logs: %w", err).Error())
 		return
 	}
 
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count error audit logs: %w", err).Error())
 		return
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
 		InternalError(w, r, fmt.Errorf("count success audit logs: %w", err).Error())
 		return
 	}
@@ -471,7 +471,7 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	// returns NULL for the local-zone layout the driver writes for a bound
 	// time.Time, so those rows never counted as recent, and the function does
 	// not exist on PostgreSQL or MySQL.
-	recentRows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	recentRows, err := database.QueryContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, `
 		SELECT timestamp
 		FROM audit_log
 		WHERE timestamp IS NOT NULL
@@ -520,18 +520,18 @@ func (h *AdminHandler) GetTasksStats(w http.ResponseWriter, r *http.Request) {
 	var totalTasks, enabledTasks, disabledTasks, failedTasks int64
 
 	// Get total count
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&totalTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks").Scan(&totalTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count total tasks: %v", err)
 	}
 
 	// Get counts by status
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 1").Scan(&enabledTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 1").Scan(&enabledTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count enabled tasks: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 0").Scan(&disabledTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE enabled = 0").Scan(&disabledTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count disabled tasks: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE last_status = 'failed'").Scan(&failedTasks); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM scheduler_tasks WHERE last_status = 'failed'").Scan(&failedTasks); err != nil {
 		log.Printf("ERROR: GetTasksStats: failed to count failed tasks: %v", err)
 	}
 
@@ -546,22 +546,22 @@ func (h *AdminHandler) GetTasksStats(w http.ResponseWriter, r *http.Request) {
 // System Stats APIs
 
 func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 
 	totalUsers, _ := userModel.Count()
 	adminCount, _ := userModel.CountByRole("admin")
 
 	var totalLocations, totalTokens, totalSessions, totalNotifications int
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count saved locations: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens").Scan(&totalTokens); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM tokens").Scan(&totalTokens); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count tokens: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_sessions").Scan(&totalSessions); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_sessions").Scan(&totalSessions); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count sessions: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications); err != nil {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications); err != nil {
 		log.Printf("ERROR: GetSystemStats: failed to count notifications: %v", err)
 	}
 
@@ -581,7 +581,7 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 // GetScheduledTasks returns status of all scheduled tasks
 func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request) {
 	// The scheduler registers every task in scheduler_tasks (src/database/server_schema.go) on start
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, `
 		SELECT name, schedule, enabled, last_run, next_run, last_status
 		FROM scheduler_tasks
 		ORDER BY name
@@ -660,7 +660,7 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)
@@ -668,7 +668,7 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Load all settings
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 	settings := make(map[string]interface{})
 
 	// Server settings

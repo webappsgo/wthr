@@ -48,7 +48,7 @@ func TestEnqueueContactWebhookRetryPersistsStableIDAndPayload(t *testing.T) {
 		Event: "security.report_received", Subject: "New report", Body: "Summary only", Severity: "high",
 		Timestamp: now, TrackingID: "tracking-123", WebhookID: webhookID,
 	}
-	if err := enqueueContactWebhookRetry(context.Background(), db, "security", "generic", message, now); err != nil {
+	if err := enqueueContactWebhookRetry(context.Background(), database.NewStore(db), "security", "generic", message, now); err != nil {
 		t.Fatalf("enqueue contact webhook retry: %v", err)
 	}
 

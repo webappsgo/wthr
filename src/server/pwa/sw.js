@@ -1,5 +1,6 @@
 const CACHE_VERSION = '{asset_stamp}';
 const CACHE_NAME = '{app_name}-cache-' + CACHE_VERSION;
+const STRINGS_CACHE = '{app_name}-offline-strings';
 
 const PRECACHE_ASSETS = [
   '/static/css/common.css?v={asset_stamp}',
@@ -7,8 +8,7 @@ const PRECACHE_ASSETS = [
   '/static/css/public.css?v={asset_stamp}',
   '/static/js/app.js?v={asset_stamp}',
   '/static/icons/icon-192.png',
-  '/static/icons/icon-512.png',
-  '/offline.html'
+  '/static/icons/icon-512.png'
 ];
 
 // No skipWaiting() on install: an updated worker waits for the update prompt (SKIP_WAITING), a first install activates by itself
@@ -59,18 +59,25 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(
       withTimeout(fetch(request), NAV_TIMEOUT_MS)
-        .then(response => {
-          if (response.ok && !response.redirected) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+        .then(async response => {
+          const cache = await caches.open(CACHE_NAME);
+          if (response.ok && !response.redirected && response.headers.get('X-Offline-Cache') === 'public') {
+            try {
+              await cache.put(request, response.clone());
+            } catch (error) {
+              console.warn('Could not cache public page for offline use', error);
+            }
+          } else {
+            try {
+              await cache.delete(request);
+            } catch (error) {
+              console.warn('Could not remove a private page from the offline cache', error);
+            }
           }
           return response;
         })
-        .catch(async () =>
-          (await caches.match(request))
-            || (await caches.match('/offline.html'))
-            || offlineFallbackResponse()
-        )
+        .catch(() => offlineNavigationFallback(request))
+        .catch(() => offlineFallbackResponse())
     );
     return;
   }
@@ -99,13 +106,39 @@ self.addEventListener('fetch', event => {
   );
 });
 
-function offlineFallbackResponse() {
+async function offlineNavigationFallback(request) {
+  try {
+    const cached = await caches.match(request, { cacheName: CACHE_NAME });
+    if (cached) return cached;
+  } catch (error) {
+    console.warn('Could not read the cached public page', error);
+  }
+  return offlineFallbackResponse();
+}
+
+const DEFAULT_STRINGS = {
+  lang: 'en', dir: 'ltr', title: 'Offline', heading: 'You are offline',
+  message: 'This page could not be loaded and no cached copy is available. Check your connection and try again.'
+};
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>\"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
+}
+
+async function offlineFallbackResponse() {
+  let strings = DEFAULT_STRINGS;
+  try {
+    const cache = await caches.open(STRINGS_CACHE);
+    const stored = await cache.match('/offline-strings.json');
+    if (stored) strings = Object.assign({}, DEFAULT_STRINGS, await stored.json());
+  } catch (error) {
+    console.warn('Could not read translated offline strings', error);
+  }
   return new Response(
-    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    '<!doctype html><html lang="' + escapeHtml(strings.lang) + '" dir="' + escapeHtml(strings.dir) + '"><head><meta charset="utf-8">'
       + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-      + '<title>Offline</title></head><body><main>'
-      + '<h1>You are offline</h1><p>This page could not be loaded and no '
-      + 'cached copy is available. Check your connection and try again.</p>'
+      + '<title>' + escapeHtml(strings.title) + '</title></head><body><main>'
+      + '<h1>' + escapeHtml(strings.heading) + '</h1><p>' + escapeHtml(strings.message) + '</p>'
       + '</main></body></html>',
     { status: 503, statusText: 'Service Unavailable',
       headers: { 'Content-Type': 'text/html; charset=utf-8' } }

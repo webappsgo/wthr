@@ -102,7 +102,7 @@ func itoaMetrics(n int) string {
 // zero should occur in the rate calculations.
 func TestNotificationMetrics_GetSummary_Empty(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	summary, err := nm.GetSummary()
 	if err != nil {
@@ -130,7 +130,7 @@ func TestNotificationMetrics_GetSummary_Empty(t *testing.T) {
 // rate math.
 func TestNotificationMetrics_GetSummary_Populated(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertQueueRow(t, db, "delivered", "email", 1, "", nil, nil)
 	insertQueueRow(t, db, "delivered", "email", 2, "", nil, nil)
@@ -177,7 +177,7 @@ func TestNotificationMetrics_GetSummary_Populated(t *testing.T) {
 // included, exercising the created_at >= cutoff boundary.
 func TestNotificationMetrics_GetTimePeriodMetrics_WindowBoundary(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	recent := 60     // 1 minute ago: inside a 24h window
 	old := 2 * 86400 // 2 days ago: outside a 24h window
@@ -208,7 +208,7 @@ func TestNotificationMetrics_GetTimePeriodMetrics_WindowBoundary(t *testing.T) {
 // no rows in the window at all.
 func TestNotificationMetrics_GetTimePeriodMetrics_Empty(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	metrics, err := nm.GetTimePeriodMetrics(7 * 24 * time.Hour)
 	if err != nil {
@@ -223,7 +223,7 @@ func TestNotificationMetrics_GetTimePeriodMetrics_Empty(t *testing.T) {
 // and an unknown channel that must yield all-zero metrics rather than error.
 func TestNotificationMetrics_GetChannelMetrics(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertQueueRow(t, db, "delivered", "email", 1, "", nil, nil)
 	insertQueueRow(t, db, "delivered", "email", 1, "", nil, nil)
@@ -268,7 +268,7 @@ func TestNotificationMetrics_GetChannelMetrics(t *testing.T) {
 // filter, and the limit boundary.
 func TestNotificationMetrics_GetRecentErrors(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertQueueRow(t, db, "failed", "email", 1, "smtp timeout", nil, nil)
 	insertQueueRow(t, db, "dead_letter", "sms", 1, "carrier rejected", nil, nil)
@@ -320,7 +320,7 @@ func TestNotificationMetrics_GetRecentErrors(t *testing.T) {
 // succeed without error - i.e. repeating the operation is safe.
 func TestNotificationMetrics_RecordMetric_Idempotent(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	for i := 0; i < 2; i++ {
 		if err := nm.RecordMetric("latency", "email", 1.5); err != nil {
@@ -341,7 +341,7 @@ func TestNotificationMetrics_RecordMetric_Idempotent(t *testing.T) {
 // a zero value is recorded without error (not treated as "unset").
 func TestNotificationMetrics_RecordMetric_ZeroValue(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	if err := nm.RecordMetric("queue_depth", "sms", 0); err != nil {
 		t.Fatalf("RecordMetric(0) error = %v", err)
@@ -360,7 +360,7 @@ func TestNotificationMetrics_RecordMetric_ZeroValue(t *testing.T) {
 // an empty queue: healthy stays true and no warning key is set.
 func TestNotificationMetrics_GetHealthStatus_Healthy(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	status := nm.GetHealthStatus()
 	healthy, _ := status["healthy"].(bool)
@@ -380,7 +380,7 @@ func TestNotificationMetrics_GetHealthStatus_Healthy(t *testing.T) {
 // flip healthy to false and report the stuck count.
 func TestNotificationMetrics_GetHealthStatus_StuckNotifications(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	twoHoursAgo := 2 * 3600
 	insertQueueRow(t, db, "queued", "email", 1, "", &twoHoursAgo, nil)
@@ -400,7 +400,7 @@ func TestNotificationMetrics_GetHealthStatus_StuckNotifications(t *testing.T) {
 // error-rate warning branch (>50% failures within the last hour).
 func TestNotificationMetrics_GetHealthStatus_HighErrorRate(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	recent := 60
 	insertQueueRow(t, db, "failed", "email", 1, "err", &recent, nil)
@@ -444,7 +444,7 @@ func insertQueueRowAt(t *testing.T, db *sql.DB, state, channel, createdAt string
 // test fails against the old implementation on any host timezone.
 func TestNotificationMetrics_GetTimePeriodMetrics_CountsByInstant(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 	now := time.Now()
 
 	insertQueueRowAt(t, db, "delivered", "email", now.Add(-time.Minute).In(serviceZoneWest).Format(serviceLocalLayout))
@@ -475,7 +475,7 @@ func TestNotificationMetrics_GetTimePeriodMetrics_CountsByInstant(t *testing.T) 
 // written in a zone whose text reads later than UTC was never reported stuck.
 func TestNotificationMetrics_GetHealthStatus_StuckDetectionByInstant(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertQueueRowAt(t, db, "queued", "email", time.Now().Add(-3*time.Hour).In(serviceZoneEast).Format(serviceLocalLayout))
 
@@ -495,7 +495,7 @@ func TestNotificationMetrics_GetHealthStatus_StuckDetectionByInstant(t *testing.
 // rate.
 func TestNotificationMetrics_GetHealthStatus_UnparseableCreatedAtIgnored(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertQueueRowAt(t, db, "queued", "email", "not-a-timestamp")
 
@@ -534,7 +534,7 @@ const deliveryTolerance = 0.001
 // instead of the true 60. The unparseable row must be skipped either way.
 func TestNotificationMetrics_GetSummary_AvgDeliveryByInstant(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 	now := time.Now()
 
 	// 30 seconds of true latency, both ends written in a zone 11 hours behind
@@ -575,7 +575,7 @@ func TestNotificationMetrics_GetSummary_AvgDeliveryByInstant(t *testing.T) {
 // large negative latency; parsed as instants the gap is ten seconds.
 func TestNotificationMetrics_GetChannelMetrics_AvgDeliveryAcrossZones(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	created := time.Now().Add(-30 * time.Minute)
 	insertDeliveredQueueRowAt(t, db, "sms",
@@ -616,7 +616,7 @@ func insertFailedQueueRowAt(t *testing.T, db *sql.DB, subject, errMsg, createdAt
 // value must come back as an empty string rather than leaked raw text.
 func TestNotificationMetrics_GetRecentErrors_CanonicalTimestamps(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	canonicalInstant := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	legacyInstant := time.Date(2026, 3, 5, 6, 30, 0, 0, time.UTC)
@@ -673,7 +673,7 @@ func TestNotificationMetrics_GetRecentErrors_CanonicalTimestamps(t *testing.T) {
 // still reports 0 rather than a NaN from dividing by a zero row count.
 func TestNotificationMetrics_AvgDeliveryTime_NoUsableRows(t *testing.T) {
 	db := setupNotificationMetricsTestDB(t)
-	nm := NewNotificationMetrics(db)
+	nm := NewNotificationMetrics(serviceStoreForDB(db))
 
 	insertDeliveredQueueRowAt(t, db, "email", "not-a-timestamp", "not-a-timestamp")
 

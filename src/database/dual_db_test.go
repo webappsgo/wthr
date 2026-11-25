@@ -28,15 +28,16 @@ func setDatabaseTestConfig(t *testing.T) {
 	t.Setenv("CONFIG_DIR", configDir)
 }
 
-// TestInitServerDB_NewDatabase exercises initServerDB directly against an
-// in-memory DSN (avoids real disk files) and verifies pool settings, schema
+// TestInitServerDB_NewDatabase exercises initServerDB directly against a
+// temporary file and verifies pool settings, schema
 // creation, and idempotent schema updates.
 func TestInitServerDB_NewDatabase(t *testing.T) {
-	db, err := initServerDB(memDSN("initserver"))
+	store, err := initServerDB(filepath.Join(t.TempDir(), "server.db"))
 	if err != nil {
 		t.Fatalf("initServerDB: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() { _ = store.Close() })
+	db := store.DB()
 
 	stats := db.Stats()
 	if stats.MaxOpenConnections != poolMaxOpen {
@@ -119,11 +120,12 @@ func TestInitServerDB_InvalidPath(t *testing.T) {
 }
 
 func TestInitUsersDB_NewDatabase(t *testing.T) {
-	db, err := initUsersDB(memDSN("initusers"))
+	store, err := initUsersDB(filepath.Join(t.TempDir(), "users.db"))
 	if err != nil {
 		t.Fatalf("initUsersDB: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() { _ = store.Close() })
+	db := store.DB()
 
 	stats := db.Stats()
 	if stats.MaxOpenConnections != poolMaxOpen {

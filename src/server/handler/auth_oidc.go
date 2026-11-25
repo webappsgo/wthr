@@ -24,7 +24,7 @@ import (
 
 // OIDCAuthHandler handles OIDC-based authentication per AI.md PART 34.
 type OIDCAuthHandler struct {
-	DB          *sql.DB
+	DB          *database.Store
 	OIDCService *service.OIDCService
 	pendingMu   sync.Mutex
 	pending     map[string]pendingOIDCIdentity
@@ -227,7 +227,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 
 	// Look up existing user by external identity mapping
 	var userID int64
@@ -300,7 +300,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create session
-	sessionModel := &models.UserSessionModel{DB: usersDB}
+	sessionModel := &models.UserSessionModel{Store: usersDB}
 	session, err := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(r, map[string]interface{}{
@@ -322,7 +322,7 @@ func (h *OIDCAuthHandler) ShowExternalUsername(w http.ResponseWriter, r *http.Re
 		http.Redirect(w, r, "/server/auth/login", http.StatusSeeOther)
 		return
 	}
-	username := suggestOIDCUsername(r.Context(), database.GetUsersDB(), deriveUsernameFromClaims(&pending.claims, pending.provider))
+	username := suggestOIDCUsername(r.Context(), database.GetUsersStore(), deriveUsernameFromClaims(&pending.claims, pending.provider))
 	h.renderExternalUsername(w, r, pending, username, "", http.StatusOK)
 }
 
@@ -334,7 +334,7 @@ func (h *OIDCAuthHandler) CompleteExternalUsername(w http.ResponseWriter, r *htt
 		return
 	}
 	username := strings.TrimSpace(r.PostFormValue("username"))
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 	if err := util.ValidateUsername(username); err != nil {
 		h.renderExternalUsername(w, r, pending, suggestOIDCUsername(r.Context(), usersDB, username), Translate(r, "errors.auth.external_username_invalid"), http.StatusBadRequest)
 		return
@@ -384,41 +384,39 @@ func (h *OIDCAuthHandler) CompleteExternalUsername(w http.ResponseWriter, r *htt
 		verified = 1
 	}
 	now := dbtime.FormatSQLTimestamp(time.Now())
-	tx, err := usersDB.BeginTx(r.Context(), nil)
+	var userID int64
+	writeStage := "user"
+	err = usersDB.Write(r.Context(), func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(r.Context(), `
+			INSERT INTO users (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
+		`, username, email, displayName, pwHash, verified, now, now)
+		if err != nil {
+			return err
+		}
+		userID, err = result.LastInsertId()
+		if err != nil {
+			writeStage = "id"
+			return err
+		}
+		writeStage = "mapping"
+		_, err = tx.ExecContext(r.Context(), `
+			INSERT INTO user_oidc_mappings (user_id, provider_name, provider_user_id, issuer, email, name, created_at, updated_at, last_login_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, userID, pending.provider, claims.Sub, pending.issuer, claims.Email, claims.Name, now, now, now)
+		return err
+	})
+	if err != nil && writeStage == "user" {
+		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_taken"), http.StatusConflict)
+		return
+	}
 	if err != nil {
-		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_create_failed"), http.StatusInternalServerError)
-		return
-	}
-	result, err := tx.ExecContext(r.Context(), `
-		INSERT INTO users (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
-	`, username, email, displayName, pwHash, verified, now, now)
-	if err != nil {
-		_ = tx.Rollback()
-		h.renderExternalUsername(w, r, pending, suggestOIDCUsername(r.Context(), usersDB, username), Translate(r, "errors.auth.external_username_taken"), http.StatusConflict)
-		return
-	}
-	userID, err := result.LastInsertId()
-	if err != nil {
-		_ = tx.Rollback()
-		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_create_failed"), http.StatusInternalServerError)
-		return
-	}
-	if _, err = tx.ExecContext(r.Context(), `
-		INSERT INTO user_oidc_mappings (user_id, provider_name, provider_user_id, issuer, email, name, created_at, updated_at, last_login_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, userID, pending.provider, claims.Sub, pending.issuer, claims.Email, claims.Name, now, now, now); err != nil {
-		_ = tx.Rollback()
-		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_create_failed"), http.StatusInternalServerError)
-		return
-	}
-	if err := tx.Commit(); err != nil {
 		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_create_failed"), http.StatusInternalServerError)
 		return
 	}
 	h.consumePendingIdentity(r)
 	http.SetCookie(w, &http.Cookie{Name: oidcPendingCookie, Value: "", Path: "/server/auth/external/username", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode})
-	sessionModel := &models.UserSessionModel{DB: usersDB}
+	sessionModel := &models.UserSessionModel{Store: usersDB}
 	session, err := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge)
 	if err != nil {
 		h.renderExternalUsername(w, r, pending, username, Translate(r, "errors.auth.external_username_session_failed"), http.StatusInternalServerError)
@@ -459,7 +457,7 @@ func (h *OIDCAuthHandler) renderExternalUsername(w http.ResponseWriter, r *http.
 	}))
 }
 
-func suggestOIDCUsername(ctx context.Context, db *sql.DB, raw string) string {
+func suggestOIDCUsername(ctx context.Context, db *database.Store, raw string) string {
 	base := normalizeOIDCUsernameCandidate(raw)
 	if oidcUsernameAvailable(ctx, db, base) {
 		return base
@@ -503,7 +501,7 @@ func normalizeOIDCUsernameCandidate(raw string) string {
 	return base
 }
 
-func oidcUsernameAvailable(ctx context.Context, db *sql.DB, username string) bool {
+func oidcUsernameAvailable(ctx context.Context, db *database.Store, username string) bool {
 	if util.ValidateUsername(username) != nil {
 		return false
 	}

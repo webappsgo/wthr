@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -175,7 +176,7 @@ func TestAdminSessionExpired(t *testing.T) {
 
 // newAdminTestDB creates an in-memory server DB with ServerSchema applied
 // and wires it as the global server DB for AdminModel/AdminInviteModel/
-// AdminSessionModel, all of which read via database.GetServerDB().
+// AdminSessionModel, all of which read via database.GetServerStore().
 func newAdminTestDB(t *testing.T) {
 	t.Helper()
 	// admins live in users.db and admin_sessions in server.db (AI.md PART 12)
@@ -579,7 +580,7 @@ func TestAdminSessionModel(t *testing.T) {
 			t.Fatalf("row id = %q, want a UUID: %v", sess.ID, err)
 		}
 		var storedHash string
-		if err := database.GetServerDB().QueryRow(`SELECT token_hash FROM admin_sessions WHERE id = ?`, sess.ID).Scan(&storedHash); err != nil {
+		if err := database.GetServerStore().QueryRowContext(context.Background(), `SELECT token_hash FROM admin_sessions WHERE id = ?`, sess.ID).Scan(&storedHash); err != nil {
 			t.Fatalf("read stored token hash: %v", err)
 		}
 		if storedHash != HashAdminSessionToken(sess.SessionID) {

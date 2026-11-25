@@ -51,7 +51,10 @@
                         <span class="theme-toggle-label">{{t .lang "theme.label"}}</span>
                         <button type="submit" class="theme-btn">{{t .lang (printf "theme.%s" (or .server.Theme "dark"))}}</button>
                     </form>
-                    <a href="/server/auth/logout" class="profile-dropdown-item" role="menuitem">{{t .lang "nav.logout"}}</a>
+                    <form action="/server/auth/logout" method="post" class="profile-dropdown-item logout-form">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <button type="submit" class="nav-logout" role="menuitem">{{t .lang "nav.logout"}}</button>
+                    </form>
                 </nav>
             </div>
         </div>

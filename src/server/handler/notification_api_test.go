@@ -25,7 +25,7 @@ func newNotificationAPIHandlers(t *testing.T) *NotificationAPIHandlers {
 	t.Helper()
 	usersDB := newTestUsersDB(t)
 	serverDB := newTestServerDB(t)
-	svc := service.NewNotificationService(usersDB, serverDB, service.NewWebSocketHub())
+	svc := service.NewNotificationService(storeForDB(usersDB), storeForDB(serverDB), service.NewWebSocketHub())
 	return NewNotificationAPIHandlers(svc, nil)
 }
 

@@ -117,7 +117,7 @@ func TestUserSessionGetRowIDByTokenHonorsStoredZone(t *testing.T) {
 	fixtures := userSessionExpiryFixtures(now)
 	insertUserSessionFixtures(t, usersDB, userID, fixtures)
 
-	model := &UserSessionModel{DB: usersDB}
+	model := &UserSessionModel{testDB: usersDB}
 	for _, fixture := range fixtures {
 		rowID, err := model.GetRowIDByToken(fixture.rawToken)
 		if err != nil {
@@ -171,7 +171,7 @@ func TestUserSessionGetActiveSessionsHonorsStoredZone(t *testing.T) {
 		},
 	})
 
-	model := &UserSessionModel{DB: usersDB}
+	model := &UserSessionModel{testDB: usersDB}
 	sessions, err := model.GetActiveSessions(userID)
 	if err != nil {
 		t.Fatalf("GetActiveSessions: %v", err)
@@ -240,7 +240,7 @@ func TestUserSessionGetActiveSessionsOrdersByInstant(t *testing.T) {
 	}
 	insertUserSessionFixtures(t, usersDB, userID, fixtures)
 
-	model := &UserSessionModel{DB: usersDB}
+	model := &UserSessionModel{testDB: usersDB}
 	sessions, err := model.GetActiveSessions(userID)
 	if err != nil {
 		t.Fatalf("GetActiveSessions: %v", err)
@@ -291,7 +291,7 @@ func TestSessionModelGetByIDFailsClosedOnStoredZone(t *testing.T) {
 	fixtures := userSessionExpiryFixtures(now)
 	insertUserSessionFixtures(t, usersDB, userID, fixtures)
 
-	model := &SessionModel{DB: usersDB}
+	model := &SessionModel{testDB: usersDB}
 	for _, fixture := range fixtures {
 		session, err := model.GetByID(fixture.rawToken)
 		if fixture.wantActive {

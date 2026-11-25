@@ -15,7 +15,7 @@ import (
 
 func seedGraphQLNotification(t *testing.T, ddb *database.DualDB, userID int64) *models.Notification {
 	t.Helper()
-	notification, err := (&models.UserNotificationModel{DB: ddb.Users}).CreateUserNotification(
+	notification, err := (&models.UserNotificationModel{Store: ddb.GetUsersStore()}).CreateUserNotification(
 		int(userID),
 		models.NotificationTypeInfo,
 		models.NotificationDisplayToast,

@@ -39,7 +39,7 @@ func securityTestEnv(t *testing.T) (*config.AppConfig, string) {
 	cfg.Server.Security.EncryptionKey = base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
 	config.SetGlobalConfig(cfg)
 	t.Cleanup(func() { config.SetGlobalConfig(nil) })
-	id, err := service.CurrentSecurityID(serverDB)
+	id, err := service.CurrentSecurityID(storeForDB(serverDB))
 	if err != nil {
 		t.Fatalf("CurrentSecurityID: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestSecurityReportSubmissionStoresEncryptedReport(t *testing.T) {
 		t.Fatalf("Body = %+v %+v %v", report, contact, err)
 	}
 	var stored string
-	_ = store.DB.QueryRow(`SELECT body_enc FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&stored)
+	_ = store.Store.QueryRow(`SELECT body_enc FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&stored)
 	if strings.Contains(stored, "reflected xss") || strings.Contains(stored, "ada@example.com") {
 		t.Error("plaintext must never be persisted")
 	}
@@ -267,7 +267,7 @@ func TestSecurityReportAPISubmission(t *testing.T) {
 		w = httptest.NewRecorder()
 		r = httptest.NewRequest(http.MethodGet, "/api/v1/server/contact"+query, nil)
 		r.Header.Set("Accept", "application/json")
-		GetContactFormAPI(&database.DB{DB: database.GetServerDB()}, cfg)(w, r)
+		GetContactFormAPI(database.GetServerStore(), cfg)(w, r)
 		if got := strings.Contains(w.Body.String(), "credit_preference"); got != wantSecurity {
 			t.Errorf("fields for %q include security fields = %v, want %v", query, got, wantSecurity)
 		}
@@ -410,7 +410,7 @@ func TestSecurityKeypairActions(t *testing.T) {
 	securityKeyDir = func() string { return dir }
 	t.Cleanup(func() { securityKeyDir = oldDir })
 	db := database.GetServerDB()
-	settings := &model.SettingsModel{DB: db}
+	settings := &model.SettingsModel{Store: storeForDB(db)}
 	_ = settings.SetString("web.security.keyservers", " ")
 	hash, err := model.HashPassword("correct horse battery")
 	if err != nil {
@@ -479,7 +479,7 @@ func TestSecurityKeypairActions(t *testing.T) {
 	if !verifyAdminPassword(adminReq("ops"), "correct horse battery") || verifyAdminPassword(adminReq("ops"), "nope") || verifyAdminPassword(adminReq(""), "x") {
 		t.Error("verifyAdminPassword")
 	}
-	if n, err := PurgeSecurityReports(db, 0); err != nil || n != 0 {
+	if n, err := PurgeSecurityReports(storeForDB(db), 0); err != nil || n != 0 {
 		t.Errorf("PurgeSecurityReports = %d %v", n, err)
 	}
 }

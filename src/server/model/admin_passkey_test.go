@@ -9,7 +9,7 @@ import (
 // models don't cross-contaminate storage.
 func TestAdminPasskeyModel_CreateListCountDelete(t *testing.T) {
 	db := newModelUsersDB(t)
-	model := &AdminPasskeyModel{DB: db}
+	model := &AdminPasskeyModel{testDB: db}
 	adminID := int64(1)
 
 	t.Run("empty before creation", func(t *testing.T) {
@@ -124,14 +124,14 @@ func TestAdminPasskeyModel_CreateListCountDelete(t *testing.T) {
 // fallback test for the users DB accessor.
 func TestAdminPasskeyModel_GetDB_FallsBackToGlobal(t *testing.T) {
 	db := newModelUsersDB(t)
-	model := &AdminPasskeyModel{DB: db}
-	if model.getDB() != db {
+	model := &AdminPasskeyModel{testDB: db}
+	if model.getDB().DB() != db {
 		t.Error("getDB() should return the injected DB")
 	}
 
 	setModelGlobalDualDB(t, nil, db)
 	fallback := &AdminPasskeyModel{}
-	if fallback.getDB() != db {
-		t.Error("getDB() should fall back to database.GetUsersDB() when DB field is nil")
+	if fallback.getDB().DB() != db {
+		t.Error("getDB() should fall back to database.GetUsersStore() when DB field is nil")
 	}
 }

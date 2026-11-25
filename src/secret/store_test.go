@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
 )
 
@@ -27,7 +28,7 @@ func newTestStore(t *testing.T) (*Store, *time.Time) {
 		t.Fatal(err)
 	}
 	clock := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	store := NewStore(db)
+	store := NewStore(database.NewStore(db))
 	store.now = func() time.Time { return clock }
 	return store, &clock
 }

@@ -23,11 +23,11 @@ import (
 
 // AuthAPIHandler handles auth API endpoints per AI.md PART 33
 type AuthAPIHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // NewAuthAPIHandler creates a new auth API handler
-func NewAuthAPIHandler(db *sql.DB) *AuthAPIHandler {
+func NewAuthAPIHandler(db *database.Store) *AuthAPIHandler {
 	return &AuthAPIHandler{DB: db}
 }
 
@@ -154,8 +154,8 @@ func validateAuthUser(user *models.User) error {
 	return nil
 }
 
-func createFullAuthSession(db *sql.DB, user *models.User) (*AuthLoginResponse, error) {
-	sessionModel := &models.SessionModel{DB: db}
+func createFullAuthSession(db *database.Store, user *models.User) (*AuthLoginResponse, error) {
+	sessionModel := &models.SessionModel{Store: db}
 	session, err := sessionModel.CreateSession(user.ID, authSessionTTLSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -184,13 +184,13 @@ func setUserSessionCookie(w http.ResponseWriter, r *http.Request, token string, 
 	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountUser, token, time.Duration(maxAge)*time.Second))
 }
 
-func userHasPasskeys(db *sql.DB, userID int64) (bool, error) {
-	passkeyModel := &models.UserPasskeyModel{DB: db}
+func userHasPasskeys(db *database.Store, userID int64) (bool, error) {
+	passkeyModel := &models.UserPasskeyModel{Store: db}
 	return passkeyModel.HasPasskeys(userID)
 }
 
-func createPendingTwoFactorSession(db *sql.DB, userID int64) (*models.Session, error) {
-	sessionModel := &models.SessionModel{DB: db}
+func createPendingTwoFactorSession(db *database.Store, userID int64) (*models.Session, error) {
+	sessionModel := &models.SessionModel{Store: db}
 	session, err := sessionModel.CreateSession(userID, authPendingSessionTTLSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pending session: %w", err)
@@ -213,8 +213,8 @@ func createPendingTwoFactorSession(db *sql.DB, userID int64) (*models.Session, e
 	return session, nil
 }
 
-func loadPendingTwoFactorSession(db *sql.DB, sessionToken string) (*models.Session, error) {
-	sessionModel := &models.SessionModel{DB: db}
+func loadPendingTwoFactorSession(db *database.Store, sessionToken string) (*models.Session, error) {
+	sessionModel := &models.SessionModel{Store: db}
 	session, err := sessionModel.GetByID(strings.TrimSpace(sessionToken))
 	if err != nil {
 		return nil, fmt.Errorf("invalid session token")
@@ -232,14 +232,14 @@ func loadPendingTwoFactorSession(db *sql.DB, sessionToken string) (*models.Sessi
 	return session, nil
 }
 
-func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLoginResponse, error) {
+func LoginAPIUser(db *database.Store, req *APILoginRequest, clientIP string) (*AuthLoginResponse, error) {
 	req.Identifier = strings.TrimSpace(req.Identifier)
 
 	if req.Password != strings.TrimSpace(req.Password) {
 		return nil, fmt.Errorf("password cannot start or end with whitespace")
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid credentials")
@@ -288,7 +288,7 @@ func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLogin
 	return response, nil
 }
 
-func loginWithTwoFactorCode(db *sql.DB, user *models.User, code string, clientIP string) (*AuthLoginResponse, error) {
+func loginWithTwoFactorCode(db *database.Store, user *models.User, code string, clientIP string) (*AuthLoginResponse, error) {
 	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
 	if err != nil {
 		return nil, fmt.Errorf("invalid two-factor code")
@@ -304,13 +304,13 @@ func loginWithTwoFactorCode(db *sql.DB, user *models.User, code string, clientIP
 		return nil, err
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	_ = userModel.UpdateLastLogin(user.ID, clientIP)
 	return response, nil
 }
 
-func loginWithRecoveryKey(db *sql.DB, user *models.User, recoveryKey string, clientIP string) (*AuthLoginResponse, error) {
-	recoveryKeyModel := &models.RecoveryKeyModel{DB: db}
+func loginWithRecoveryKey(db *database.Store, user *models.User, recoveryKey string, clientIP string) (*AuthLoginResponse, error) {
+	recoveryKeyModel := &models.RecoveryKeyModel{Store: db}
 	verified, err := recoveryKeyModel.VerifyAndUseRecoveryKey(int(user.ID), recoveryKey)
 	if err != nil || !verified {
 		return nil, fmt.Errorf("invalid recovery key")
@@ -327,18 +327,18 @@ func loginWithRecoveryKey(db *sql.DB, user *models.User, recoveryKey string, cli
 	}
 	response.RemainingKeys = &remainingKeys
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	_ = userModel.UpdateLastLogin(user.ID, clientIP)
 	return response, nil
 }
 
-func CompleteAPIUserTwoFactor(db *sql.DB, req *API2FARequest, clientIP string) (*AuthLoginResponse, error) {
+func CompleteAPIUserTwoFactor(db *database.Store, req *API2FARequest, clientIP string) (*AuthLoginResponse, error) {
 	pendingSession, err := loadPendingTwoFactorSession(db, req.SessionToken)
 	if err != nil {
 		return nil, err
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.GetByID(int64(pendingSession.UserID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid session token")
@@ -353,19 +353,19 @@ func CompleteAPIUserTwoFactor(db *sql.DB, req *API2FARequest, clientIP string) (
 		return nil, err
 	}
 
-	sessionModel := &models.SessionModel{DB: db}
+	sessionModel := &models.SessionModel{Store: db}
 	_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	return response, nil
 }
 
-func UseAPIUserRecoveryKey(db *sql.DB, req *APIRecoveryUseRequest, clientIP string) (*AuthLoginResponse, error) {
+func UseAPIUserRecoveryKey(db *database.Store, req *APIRecoveryUseRequest, clientIP string) (*AuthLoginResponse, error) {
 	pendingSession, err := loadPendingTwoFactorSession(db, req.SessionToken)
 	if err != nil {
 		return nil, err
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.GetByID(int64(pendingSession.UserID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid session token")
@@ -380,13 +380,13 @@ func UseAPIUserRecoveryKey(db *sql.DB, req *APIRecoveryUseRequest, clientIP stri
 		return nil, err
 	}
 
-	sessionModel := &models.SessionModel{DB: db}
+	sessionModel := &models.SessionModel{Store: db}
 	_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	return response, nil
 }
 
-func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse, error) {
+func RegisterAPIUser(db *database.Store, req *APIRegisterRequest) (*AuthRegisterResponse, error) {
 	if !config.IsMultiUserEnabled() {
 		return nil, fmt.Errorf("registration is not available")
 	}
@@ -410,7 +410,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 		return nil, fmt.Errorf("password must be at least 8 characters")
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, "user")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
@@ -440,12 +440,12 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	return response, nil
 }
 
-func LogoutCurrentUserSession(db *sql.DB, session *models.Session) error {
+func LogoutCurrentUserSession(db *database.Store, session *models.Session) error {
 	if session == nil {
 		return fmt.Errorf("session authentication required")
 	}
 
-	sessionModel := &models.SessionModel{DB: db}
+	sessionModel := &models.SessionModel{Store: db}
 	if err := sessionModel.DeleteSession(session.ID); err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
@@ -453,12 +453,12 @@ func LogoutCurrentUserSession(db *sql.DB, session *models.Session) error {
 	return nil
 }
 
-func RefreshCurrentUserSession(db *sql.DB, session *models.Session, user *models.User) (*AuthLoginResponse, error) {
+func RefreshCurrentUserSession(db *database.Store, session *models.Session, user *models.User) (*AuthLoginResponse, error) {
 	if session == nil || user == nil {
 		return nil, fmt.Errorf("session authentication required")
 	}
 
-	sessionModel := &models.SessionModel{DB: db}
+	sessionModel := &models.SessionModel{Store: db}
 	if err := sessionModel.DeleteSession(session.ID); err != nil {
 		return nil, fmt.Errorf("failed to refresh session")
 	}
@@ -471,7 +471,7 @@ func RefreshCurrentUserSession(db *sql.DB, session *models.Session, user *models
 	return response, nil
 }
 
-func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
+func VerifyAPIUserEmail(db *database.Store, req *APIVerifyEmailRequest) error {
 	var verification struct {
 		ID        int64
 		UserID    int64
@@ -491,34 +491,40 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 	// stores models.HashAPIToken(token) — PART 11 forbids keeping a usable
 	// token at rest. Querying the raw value here matched nothing, so no
 	// emailed verification link could ever be redeemed through this endpoint.
-	var storedExpiresAt interface{}
-	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT id, user_id, email, expires_at
-		FROM email_verifications
-		WHERE token = ?
-	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&verification.ID, &verification.UserID, &verification.Email, &storedExpiresAt)
+	lookupStage := true
+	err := db.Write(context.Background(), func(tx *sql.Tx) error {
+		var storedExpiresAt interface{}
+		if err := tx.QueryRowContext(context.Background(), `
+			SELECT id, user_id, email, expires_at
+			FROM email_verifications
+			WHERE token = ?
+		`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&verification.ID, &verification.UserID, &verification.Email, &storedExpiresAt); err != nil {
+			return err
+		}
+		if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
+			return fmt.Errorf("verification token expired")
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+			verification.ExpiresAt = parsed
+		}
+		lookupStage = false
+		// updated_at is canonical UTC text, matching the stored timestamp contract.
+		if _, err := tx.ExecContext(context.Background(), `
+			UPDATE users
+			SET email_verified = 1, updated_at = ?
+			WHERE id = ?
+		`, dbtime.FormatSQLTimestamp(time.Now()), verification.UserID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(context.Background(), `DELETE FROM email_verifications WHERE id = ?`, verification.ID)
+		return err
+	})
 	if err != nil {
-		return fmt.Errorf("invalid or expired verification token")
-	}
-	if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
-		return fmt.Errorf("invalid or expired verification token")
-	}
-	if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
-		verification.ExpiresAt = parsed
-	}
-
-	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
-	// which the SQLite driver would serialize in the host's LOCAL zone.
-	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE users
-		SET email_verified = 1, updated_at = ?
-		WHERE id = ?
-	`, dbtime.FormatSQLTimestamp(time.Now()), verification.UserID)
-	if err != nil {
+		if lookupStage {
+			return fmt.Errorf("invalid or expired verification token")
+		}
 		return fmt.Errorf("failed to verify email")
 	}
-
-	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM email_verifications WHERE id = ?`, verification.ID)
 	return nil
 }
 
@@ -538,7 +544,7 @@ func SetPasswordResetGoroutineDoneHookForTesting(hook func()) {
 	passwordResetGoroutineDone = hook
 }
 
-func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, resetContext *APIPasswordResetContext) error {
+func RequestAPIUserPasswordReset(db *database.Store, req *APIPasswordForgotRequest, resetContext *APIPasswordResetContext) error {
 	email := strings.TrimSpace(req.Email)
 	if err := util.ValidateEmail(email); err != nil {
 		return fmt.Errorf("invalid email format")
@@ -607,7 +613,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		// one, and it is what the password_resets insert above writes to -
 		// so passing it made the service look for its configuration in the wrong
 		// database and silently find no SMTP settings at all.
-		smtpService := service.SharedSMTPService(database.GetServerDB())
+		smtpService := service.SharedSMTPService(database.GetServerStore())
 		if err := smtpService.LoadConfig(); err == nil {
 			appName := "Weather"
 			if inst := i18n.GetGlobalI18n(); inst != nil {
@@ -639,7 +645,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 	return nil
 }
 
-func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
+func ResetAPIUserPassword(db *database.Store, req *APIPasswordResetRequest) error {
 	if len(req.Password) < 8 {
 		return fmt.Errorf("invalid request format")
 	}
@@ -657,50 +663,57 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 	//
 	// Looked up by SHA-256 hash, matching what both writers of this table
 	// store; see RequestAPIUserPasswordReset above.
-	var storedExpiresAt interface{}
-	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT id, user_id, expires_at
-		FROM password_resets
-		WHERE token = ?
-	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&reset.ID, &reset.UserID, &storedExpiresAt)
-	if err != nil {
-		return fmt.Errorf("invalid or expired reset token")
-	}
-	if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
-		return fmt.Errorf("invalid or expired reset token")
-	}
-	if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
-		reset.ExpiresAt = parsed
-	}
-
 	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
 		return fmt.Errorf("failed to process password")
 	}
 
-	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
-	// which the SQLite driver would serialize in the host's LOCAL zone.
-	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE users
-		SET password_hash = ?, updated_at = ?
-		WHERE id = ?
-	`, hashedPassword, dbtime.FormatSQLTimestamp(time.Now()), reset.UserID)
+	lookupStage := true
+	err = db.Write(context.Background(), func(tx *sql.Tx) error {
+		var storedExpiresAt interface{}
+		if err := tx.QueryRowContext(context.Background(), `
+			SELECT id, user_id, expires_at
+			FROM password_resets
+			WHERE token = ?
+		`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&reset.ID, &reset.UserID, &storedExpiresAt); err != nil {
+			return err
+		}
+		if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
+			return fmt.Errorf("reset token expired")
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+			reset.ExpiresAt = parsed
+		}
+		lookupStage = false
+		if _, err := tx.ExecContext(context.Background(), `
+			UPDATE users
+			SET password_hash = ?, updated_at = ?
+			WHERE id = ?
+		`, hashedPassword, dbtime.FormatSQLTimestamp(time.Now()), reset.UserID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(context.Background(), `DELETE FROM password_resets WHERE id = ?`, reset.ID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(context.Background(), `DELETE FROM user_sessions WHERE user_id = ?`, reset.UserID)
+		return err
+	})
 	if err != nil {
+		if lookupStage {
+			return fmt.Errorf("invalid or expired reset token")
+		}
 		return fmt.Errorf("failed to reset password")
 	}
-
-	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM password_resets WHERE id = ?`, reset.ID)
-	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_sessions WHERE user_id = ?`, reset.UserID)
 	return nil
 }
 
-func ValidateAPIUserInvite(db *sql.DB, token string) (*UserInviteValidationResponse, error) {
+func ValidateAPIUserInvite(db *database.Store, token string) (*UserInviteValidationResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteModel := &models.UserInviteModel{DB: db}
+	inviteModel := &models.UserInviteModel{Store: db}
 	invite, err := inviteModel.VerifyInvite(token)
 	if err != nil {
 		return nil, err
@@ -714,13 +727,13 @@ func ValidateAPIUserInvite(db *sql.DB, token string) (*UserInviteValidationRespo
 	}, nil
 }
 
-func CompleteAPIUserInvite(db *sql.DB, token string, username string, password string) (*UserInviteCompletionResponse, error) {
+func CompleteAPIUserInvite(db *database.Store, token string, username string, password string) (*UserInviteCompletionResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteModel := &models.UserInviteModel{DB: db}
+	inviteModel := &models.UserInviteModel{Store: db}
 	invite, err := inviteModel.VerifyInvite(token)
 	if err != nil {
 		return nil, err
@@ -739,7 +752,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 		return nil, fmt.Errorf("invite is missing an email address")
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.CreateUserAccount(username, invite.Email, password, invite.Role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create account")
@@ -756,7 +769,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 		return nil, fmt.Errorf("failed to finalize invite")
 	}
 
-	sessionModel := &models.SessionModel{DB: db}
+	sessionModel := &models.SessionModel{Store: db}
 	session, err := sessionModel.CreateSession(user.ID, authSessionTTLSeconds)
 	if err != nil {
 		return &UserInviteCompletionResponse{
@@ -776,7 +789,7 @@ func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, err
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetUsersDB(), "", nil)
+	inviteService := service.NewAdminInviteService(database.GetUsersStore(), "", nil)
 	invite, err := inviteService.VerifyInvite(token)
 	if err != nil {
 		return nil, err
@@ -794,7 +807,7 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 		return nil, fmt.Errorf("token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetUsersDB(), "", nil)
+	inviteService := service.NewAdminInviteService(database.GetUsersStore(), "", nil)
 	admin, err := inviteService.AcceptInvite(token, username, password)
 	if err != nil {
 		return nil, err

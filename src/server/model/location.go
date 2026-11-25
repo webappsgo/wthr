@@ -24,18 +24,22 @@ type SavedLocation struct {
 
 // LocationModel handles saved location database operations
 type LocationModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the DB handle this model was constructed with. Fallback to
-// database.GetUsersDB() when the injected handle is nil (unit tests, or
+// database.GetUsersStore() when the injected handle is nil (unit tests, or
 // construction before the global dual DB is wired).
-func (m *LocationModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *LocationModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateSavedLocation creates a new saved location

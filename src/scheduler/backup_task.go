@@ -61,7 +61,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 		password, err := scheduledBackupPassword()
 		if err != nil {
 			if errors.Is(err, backup.ErrComplianceEncryptionRequired) {
-				logBackupSkippedComplianceAudit(database.GetServerDB(), "hourly")
+				logBackupSkippedComplianceAudit(database.GetServerStore(), "hourly")
 				return nil
 			}
 			return err
@@ -91,7 +91,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 			return fmt.Errorf("hourly backup failed: %w", err)
 		}
 
-		logBackupRetentionAudit(database.GetServerDB(), "scheduler", "hourly", backupPath, deleted)
+		logBackupRetentionAudit(database.GetServerStore(), "scheduler", "hourly", backupPath, deleted)
 
 		log.Printf("OK: Hourly backup completed: %s", backupPath)
 		return nil

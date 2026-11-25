@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -171,7 +170,7 @@ func (s *LetsEncryptService) SetDNSSolver(solver challenge.Provider) {
 }
 
 // DNSValidatedAt returns when a certificate was last issued through the DNS provider, or false.
-func DNSValidatedAt(db *sql.DB) (time.Time, bool) {
+func DNSValidatedAt(db *database.Store) (time.Time, bool) {
 	if db == nil {
 		return time.Time{}, false
 	}
@@ -189,7 +188,7 @@ func DNSValidatedAt(db *sql.DB) (time.Time, bool) {
 }
 
 // MarkDNSValidated records a successful issuance or renewal through the DNS provider.
-func MarkDNSValidated(db *sql.DB) error {
+func MarkDNSValidated(db *database.Store) error {
 	if db == nil {
 		return errors.New("no database")
 	}
@@ -201,7 +200,7 @@ func MarkDNSValidated(db *sql.DB) error {
 }
 
 // ClearDNSValidated forgets the validation after the provider or a credential changed.
-func ClearDNSValidated(db *sql.DB) error {
+func ClearDNSValidated(db *database.Store) error {
 	if db == nil {
 		return nil
 	}

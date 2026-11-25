@@ -14,7 +14,7 @@ import (
 const hotCounterFlushInterval = 30 * time.Second
 
 type hotCounterKey struct {
-	db  *sql.DB
+	db  *Store
 	key string
 }
 
@@ -42,7 +42,7 @@ var hotCounterFlusher = struct {
 // QueueHotCounterUpdate coalesces a bookkeeping update in memory until the
 // periodic writer flushes it. The key must identify one row within db and must
 // not contain a secret or raw bearer token.
-func QueueHotCounterUpdate(db *sql.DB, key, query string, args ...interface{}) error {
+func QueueHotCounterUpdate(db *Store, key, query string, args ...interface{}) error {
 	if db == nil {
 		return errors.New("hot-counter database is required")
 	}
@@ -73,7 +73,7 @@ func FlushHotCounterUpdates(ctx context.Context) error {
 		return nil
 	}
 
-	byDB := make(map[*sql.DB][]struct {
+	byDB := make(map[*Store][]struct {
 		key    hotCounterKey
 		update hotCounterUpdate
 	})
@@ -87,7 +87,7 @@ func FlushHotCounterUpdates(ctx context.Context) error {
 	var flushErrors []error
 	for db, batch := range byDB {
 		sort.Slice(batch, func(i, j int) bool { return batch[i].key.key < batch[j].key.key })
-		err := WithTransaction(ctx, db, func(tx *sql.Tx) error {
+		err := db.Write(ctx, func(tx *sql.Tx) error {
 			for _, item := range batch {
 				if _, err := tx.ExecContext(ctx, item.update.query, item.update.args...); err != nil {
 					return fmt.Errorf("flush hot-counter update: %w", err)

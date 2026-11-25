@@ -14,7 +14,7 @@ import (
 // ShowServerAdminsPage renders only the signed-in admin's details and the
 // aggregate account count, matching the admin privacy rules in AI.md PART 17.
 func ShowServerAdminsPage(w http.ResponseWriter, r *http.Request) {
-	admins := &model.AdminModel{DB: database.GetUsersDB()}
+	admins := &model.AdminModel{Store: database.GetUsersStore()}
 	admin, err := admins.GetByID(AdminID(r))
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", AdminTemplateData(r, map[string]interface{}{

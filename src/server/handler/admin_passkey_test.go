@@ -8,11 +8,11 @@ import (
 // as passed.
 func TestNewAdminPasskeyHandler(t *testing.T) {
 	db := newTestServerDB(t)
-	h := NewAdminPasskeyHandler(db)
+	h := NewAdminPasskeyHandler(storeForDB(db))
 	if h == nil {
 		t.Fatal("expected non-nil handler")
 	}
-	if h.DB != db {
+	if h.DB.DB() != db {
 		t.Error("expected DB field to be the passed *sql.DB")
 	}
 }
@@ -23,7 +23,7 @@ func TestNewAdminPasskeyHandler(t *testing.T) {
 func TestLogAdminPasskeyAudit_InsertsRow(t *testing.T) {
 	db := newTestServerDB(t)
 
-	logAdminPasskeyAudit(db, "admin.passkey_added", 7, 42, "yubikey-1", "203.0.113.5", "test-agent")
+	logAdminPasskeyAudit(storeForDB(db), "admin.passkey_added", 7, 42, "yubikey-1", "203.0.113.5", "test-agent")
 
 	var action, actorID, resourceID, ipAddress string
 	err := db.QueryRow(`

@@ -111,10 +111,10 @@ func buildI2PPageData(cfg *config.AppConfig) map[string]interface{} {
 }
 
 // ShowAboutPage renders the about page with content negotiation (AI.md PART 14)
-func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func ShowAboutPage(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get server configuration
-		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+		settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 
 		// Get Tor configuration if available
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
@@ -143,7 +143,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 }
 
 // ShowPrivacyPage renders the privacy policy page with content negotiation (AI.md PART 14)
-func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func ShowPrivacyPage(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		privacy := config.DefaultPrivacyConfig()
 		var tracking config.TrackingConfig
@@ -193,7 +193,7 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 }
 
 // ShowContactPage renders the contact form page with content negotiation (AI.md PART 14)
-func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func ShowContactPage(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
 			cfg = config.GetGlobalConfig()
@@ -275,7 +275,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 }
 
 // ShowHelpPage renders the help & documentation page with content negotiation (AI.md PART 14)
-func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func ShowHelpPage(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := map[string]interface{}{
 			"page": "help",
@@ -293,7 +293,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 }
 
 // ShowTermsPage renders the terms of service page with content negotiation (AI.md PART 16)
-func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func ShowTermsPage(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := map[string]interface{}{
 			"page": "terms",
@@ -389,9 +389,9 @@ func geoipAttribution(r *http.Request) map[string]interface{} {
 }
 
 // GetAboutAPI returns about information as JSON (AI.md PART 14: /api/v1/server/about)
-func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func GetAboutAPI(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+		settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 
@@ -428,7 +428,7 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 }
 
 // GetPrivacyAPI returns the privacy policy as JSON (AI.md PART 14: /api/v1/server/privacy)
-func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func GetPrivacyAPI(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		privacy := config.DefaultPrivacyConfig()
 		var tracking config.TrackingConfig
@@ -511,9 +511,9 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 
 // GetHelpAPI returns help content as JSON (AI.md PART 14: /api/v1/server/help).
 // Every human-readable string comes from the locale files, like the HTML page.
-func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func GetHelpAPI(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+		settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 		hostInfo := util.GetHostInfo(r)
@@ -568,7 +568,7 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 
 // GetTermsAPI returns terms of service as JSON (AI.md PART 14: /api/v1/server/terms).
 // The sections mirror the HTML page and come from the locale files.
-func GetTermsAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func GetTermsAPI(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 			"title":        Translate(r, "terms.page_title"),
@@ -813,7 +813,7 @@ func deliverContact(r *http.Request, cfg *config.AppConfig, f contactForm) strin
 
 // HandleContactFormSubmission handles the contact form POST request (API endpoint).
 // POST /api/{api_version}/server/contact
-func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func HandleContactFormSubmission(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw, err := contactRawFromRequest(w, r, true)
 		if err != nil {
@@ -861,7 +861,7 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 
 // HandleContactFormWeb is the no-JavaScript form handler: POST, then redirect back with a flash message.
 // POST /server/contact
-func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+func HandleContactFormWeb(db *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw, err := contactRawFromRequest(w, r, false)
 		if err != nil {
@@ -924,7 +924,7 @@ func saveContactToDB(r *http.Request, name, email, subject, message string) erro
 	if !exists {
 		return fmt.Errorf("database not available")
 	}
-	db, ok := dbInterface.(*database.DB)
+	db, ok := dbInterface.(*database.Store)
 	if !ok || db == nil {
 		return fmt.Errorf("database not available")
 	}
@@ -939,7 +939,7 @@ func saveContactToDB(r *http.Request, name, email, subject, message string) erro
 	// a database missing the schema fails with a clear error rather than a bare
 	// "no such table" on the insert below.
 	var present int
-	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect,
+	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
 		"SELECT COUNT(*) FROM contact_submissions WHERE 1 = 0",
 	).Scan(&present); err != nil {
 		return fmt.Errorf("contact_submissions is missing from the server database schema: %w", err)
@@ -950,7 +950,7 @@ func saveContactToDB(r *http.Request, name, email, subject, message string) erro
 	// the value that no application-side discipline reaches, and on PostgreSQL and
 	// MySQL it renders in the server's own zone and type instead of the canonical
 	// UTC text every reader in this project parses.
-	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, name, email, subject, message, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))

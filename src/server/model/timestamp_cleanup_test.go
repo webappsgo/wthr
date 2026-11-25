@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // testZone is a fixed non-UTC zone used to build fixtures in the exact layout
@@ -208,7 +210,7 @@ func TestDeleteRowsWithTimestampBeforeMixedLayouts(t *testing.T) {
 			userID := insertTestUser(t, db, "cleanup-user", "cleanup@example.com")
 			insertSessionFixtures(t, db, userID, fixtures)
 
-			deleted, err := deleteRowsWithTimestampBefore(db, "user_sessions", "id", "expires_at", cleanupCutoff, tt.includeEqual)
+			deleted, err := deleteRowsWithTimestampBefore(database.NewStore(db), "user_sessions", "id", "expires_at", cleanupCutoff, tt.includeEqual)
 			if err != nil {
 				t.Fatalf("deleteRowsWithTimestampBefore: %v", err)
 			}
@@ -250,7 +252,7 @@ func TestSessionModelCleanupExpiredKeepsLocalZoneFutureRows(t *testing.T) {
 	}
 	insertSessionFixtures(t, db, userID, fixtures)
 
-	sessions := &SessionModel{DB: db}
+	sessions := &SessionModel{testDB: db}
 	if err := sessions.CleanupExpired(); err != nil {
 		t.Fatalf("CleanupExpired: %v", err)
 	}
@@ -277,10 +279,10 @@ func TestSessionWritersAgreeOnLayout(t *testing.T) {
 
 	userID := insertTestUser(t, db, "layout-user", "layout@example.com")
 
-	if _, err := (&SessionModel{DB: db}).CreateSession(userID, 3600); err != nil {
+	if _, err := (&SessionModel{testDB: db}).CreateSession(userID, 3600); err != nil {
 		t.Fatalf("SessionModel.Create: %v", err)
 	}
-	if _, err := (&UserSessionModel{DB: db}).CreateSession(userID, "127.0.0.1", "test-agent", time.Hour); err != nil {
+	if _, err := (&UserSessionModel{testDB: db}).CreateSession(userID, "127.0.0.1", "test-agent", time.Hour); err != nil {
 		t.Fatalf("UserSessionModel.CreateSession: %v", err)
 	}
 
@@ -385,7 +387,7 @@ func TestNotificationCleanupExpiredMixedLayouts(t *testing.T) {
 			ownerID:     userID,
 			db:          usersDB,
 			cleanup: func() (int64, error) {
-				return (&UserNotificationModel{DB: usersDB}).CleanupExpired()
+				return (&UserNotificationModel{testDB: usersDB}).CleanupExpired()
 			},
 		},
 		{
@@ -395,7 +397,7 @@ func TestNotificationCleanupExpiredMixedLayouts(t *testing.T) {
 			ownerID:     1,
 			db:          usersDB,
 			cleanup: func() (int64, error) {
-				return (&AdminNotificationModel{DB: usersDB}).CleanupExpired()
+				return (&AdminNotificationModel{testDB: usersDB}).CleanupExpired()
 			},
 		},
 	}
@@ -437,7 +439,7 @@ func TestNotificationPreferencesRoundTripUpdatedAt(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	userID := insertTestUser(t, usersDB, "prefs-user", "prefs@example.com")
 
-	prefsModel := &NotificationPreferencesModel{UserDB: usersDB}
+	prefsModel := &NotificationPreferencesModel{testUserDB: usersDB}
 
 	before := time.Now().UTC().Add(-time.Second)
 	if err := prefsModel.UpdateUserPreferences(int(userID), &NotificationPreferences{

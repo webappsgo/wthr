@@ -2,7 +2,6 @@
 package middleware
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -70,7 +69,7 @@ func ValidateTokenPrefix(token string) error {
 }
 
 // TokenAuthMiddleware validates API tokens with proper prefixes per AI.md PART 11
-func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Handler {
+func TokenAuthMiddleware(serverStore, usersStore *database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract token from Authorization header
@@ -103,7 +102,10 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 			switch tokenType {
 			case TokenTypeAdmin:
 				// Validate admin token (adm_)
-				adminModel := &model.AdminModel{DB: database.UsersDBOr(serverDB)}
+				if usersStore == nil {
+					usersStore = serverStore
+				}
+				adminModel := &model.AdminModel{Store: usersStore}
 				admin, err := adminModel.GetByAPIToken(token)
 				if err != nil {
 					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
@@ -116,12 +118,12 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 				}
 				ctx = reqctx.SetValue(ctx, "admin", admin)
 				ctx = reqctx.SetValue(ctx, "admin_id", int(admin.ID))
-				ctx = reqctx.SetValue(ctx, "db", serverDB)
+				ctx = reqctx.SetValue(ctx, "db", serverStore)
 				ctx = reqctx.SetValue(ctx, "auth_type", AuthTypeAdminToken)
 
 			case TokenTypeUser:
 				// Validate user token (usr_) using new token model
-				tokenModelV2 := &model.TokenModelV2{DB: usersDB}
+				tokenModelV2 := &model.TokenModelV2{Store: usersStore}
 				validatedToken, err := tokenModelV2.ValidateToken(token)
 				if err != nil {
 					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
@@ -129,7 +131,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 				}
 
 				// Get user
-				userModel := &model.UserModel{DB: usersDB}
+				userModel := &model.UserModel{Store: usersStore}
 				user, err := userModel.GetByID(validatedToken.OwnerID)
 				if err != nil {
 					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")

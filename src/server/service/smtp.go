@@ -57,7 +57,7 @@ type SMTPConfig struct {
 
 // SMTPService handles email sending
 type SMTPService struct {
-	db     *sql.DB
+	db     *database.Store
 	config *SMTPConfig
 	// verified records whether a working SMTP handshake was confirmed during
 	// this process lifetime. AI.md PART 18 requires email features to be
@@ -139,7 +139,7 @@ var SMTPProviderPresets = []SMTPProviderPreset{
 }
 
 // NewSMTPService creates a new SMTP service
-func NewSMTPService(db *sql.DB) *SMTPService {
+func NewSMTPService(db *database.Store) *SMTPService {
 	return &SMTPService{
 		db: db,
 	}
@@ -157,7 +157,7 @@ var sharedSMTPInstances sync.Map
 // SharedSMTPService returns the single SMTPService bound to db, creating it on
 // first use. Callers must use this instead of NewSMTPService so the verified
 // state computed at startup is visible to every email-dependent feature.
-func SharedSMTPService(db *sql.DB) *SMTPService {
+func SharedSMTPService(db *database.Store) *SMTPService {
 	if existing, ok := sharedSMTPInstances.Load(db); ok {
 		return existing.(*SMTPService)
 	}
@@ -172,11 +172,11 @@ func SharedSMTPService(db *sql.DB) *SMTPService {
 // before the global dual DB is wired) the process-global server handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (s *SMTPService) serverDB() *sql.DB {
+func (s *SMTPService) serverDB() *database.Store {
 	if s.db != nil {
 		return s.db
 	}
-	return database.GetServerDB()
+	return database.GetServerStore()
 }
 
 // GetConfig returns the current SMTP configuration

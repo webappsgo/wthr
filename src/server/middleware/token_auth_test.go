@@ -100,7 +100,7 @@ func TestValidateTokenPrefix(t *testing.T) {
 func TestTokenAuthMiddleware_RejectsMissingAuthHeader(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -116,7 +116,7 @@ func TestTokenAuthMiddleware_RejectsMissingAuthHeader(t *testing.T) {
 func TestTokenAuthMiddleware_RejectsMalformedAuthHeader(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -133,7 +133,7 @@ func TestTokenAuthMiddleware_RejectsMalformedAuthHeader(t *testing.T) {
 func TestTokenAuthMiddleware_RejectsUnknownTokenPrefix(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -152,7 +152,7 @@ func TestTokenAuthMiddleware_RejectsUnknownTokenPrefix(t *testing.T) {
 func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -166,7 +166,7 @@ func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
 
 func TestTokenAuthMiddleware_AdminTokenSetsAdminIDContext(t *testing.T) {
 	serverDB, usersDB := openTokenAuthTestDBs(t)
-	adminModel := &model.AdminModel{DB: usersDB}
+	adminModel := &model.AdminModel{Store: storeForDB(usersDB)}
 	admin, err := adminModel.CreateAdminAccount("contextadmin", "contextadmin@example.com", "StrongPassword123!", true)
 	if err != nil {
 		t.Fatalf("CreateAdminAccount: %v", err)
@@ -177,7 +177,7 @@ func TestTokenAuthMiddleware_AdminTokenSetsAdminIDContext(t *testing.T) {
 	}
 
 	var gotAdminID interface{}
-	handler := TokenAuthMiddleware(serverDB, usersDB)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAdminID, _ = reqctx.GetValue(r.Context(), "admin_id")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -209,7 +209,7 @@ func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
 	for _, tok := range tokens {
 		t.Run(tok, func(t *testing.T) {
 			serverDB, usersDB := openTokenAuthTestDBs(t)
-			handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
+			handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(stubOKHandler)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -252,7 +252,7 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 		t.Fatalf("insert user account: %v", err)
 	}
 
-	tokenModel := &model.TokenModelV2{DB: usersDB}
+	tokenModel := &model.TokenModelV2{Store: storeForDB(usersDB)}
 	created, err := tokenModel.CreateToken(model.OwnerTypeUser, 42, "middleware test", model.ScopeRead, 0)
 	if err != nil {
 		t.Fatalf("CreateToken() error = %v", err)
@@ -264,7 +264,7 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	handler := TokenAuthMiddleware(serverDB, usersDB)(next)
+	handler := TokenAuthMiddleware(storeForDB(serverDB), storeForDB(usersDB))(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)

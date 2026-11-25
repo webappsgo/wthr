@@ -3,7 +3,6 @@ package handler
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"database/sql"
 	"net/http"
 	"strings"
 
@@ -26,7 +25,7 @@ func authCheckUnauthorized(w http.ResponseWriter, r *http.Request, code string) 
 // Admin token and `user` for a regular user token. It has no side effects and
 // never echoes the token.
 // GET /api/{api_version}/server/auth/check
-func HandleAuthCheck(serverDB, usersDB *sql.DB, cfg *config.AppConfig) http.HandlerFunc {
+func HandleAuthCheck(serverDB, usersDB *database.Store, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -51,14 +50,18 @@ func HandleAuthCheck(serverDB, usersDB *sql.DB, cfg *config.AppConfig) http.Hand
 		switch middleware.DetectTokenType(token) {
 		case middleware.TokenTypeAdmin:
 			if serverDB != nil {
-				if admin, err := (&model.AdminModel{DB: database.UsersDBOr(serverDB)}).GetByAPIToken(token); err == nil && admin != nil {
+				adminStore := database.GetUsersStore()
+				if adminStore == nil {
+					adminStore = serverDB
+				}
+				if admin, err := (&model.AdminModel{Store: adminStore}).GetByAPIToken(token); err == nil && admin != nil {
 					RespondData(w, r, map[string]string{"kind": "owner"})
 					return
 				}
 			}
 		case middleware.TokenTypeUser:
 			if usersDB != nil {
-				if valid, err := (&model.TokenModelV2{DB: usersDB}).ValidateToken(token); err == nil && valid != nil {
+				if valid, err := (&model.TokenModelV2{Store: usersDB}).ValidateToken(token); err == nil && valid != nil {
 					RespondData(w, r, map[string]string{"kind": "user"})
 					return
 				}

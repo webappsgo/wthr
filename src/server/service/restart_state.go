@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -12,9 +13,13 @@ import (
 // AI.md PART 0 these are the only settings a live config reload cannot apply,
 // so a change to any of them marks the process as needing a restart.
 type runtimeSettings struct {
-	address        string
-	port           string
-	databaseDriver string
+	address   string
+	port      string
+	daemonize bool
+	pidFile   interface{}
+	ssl       config.SSLConfig
+	database  config.DatabaseConfig
+	tor       config.TorConfig
 }
 
 var (
@@ -25,9 +30,13 @@ var (
 
 func settingsFromConfig(cfg *config.AppConfig) runtimeSettings {
 	return runtimeSettings{
-		address:        cfg.Server.Address,
-		port:           fmt.Sprintf("%v", cfg.Server.Port),
-		databaseDriver: cfg.Server.Database.Driver,
+		address:   cfg.Server.Address,
+		port:      fmt.Sprint(cfg.Server.Port),
+		daemonize: cfg.Server.Daemonize,
+		pidFile:   cfg.Server.PIDFile,
+		ssl:       cfg.Server.SSL,
+		database:  cfg.Server.Database,
+		tor:       cfg.Server.Tor,
 	}
 }
 
@@ -63,17 +72,26 @@ func EvaluateRestartRequired(cfg *config.AppConfig) {
 	}
 
 	reasons := make(map[string]struct{})
-	for _, reason := range restartReasons {
-		reasons[reason] = struct{}{}
-	}
 	if current.address != bootSettings.address {
 		reasons["server.address"] = struct{}{}
 	}
 	if current.port != bootSettings.port {
 		reasons["server.port"] = struct{}{}
 	}
-	if current.databaseDriver != bootSettings.databaseDriver {
-		reasons["database.driver"] = struct{}{}
+	if current.daemonize != bootSettings.daemonize {
+		reasons["server.daemonize"] = struct{}{}
+	}
+	if !reflect.DeepEqual(current.pidFile, bootSettings.pidFile) {
+		reasons["server.pidfile"] = struct{}{}
+	}
+	if !reflect.DeepEqual(current.ssl, bootSettings.ssl) {
+		reasons["server.ssl.*"] = struct{}{}
+	}
+	if !reflect.DeepEqual(current.database, bootSettings.database) {
+		reasons["server.database.*"] = struct{}{}
+	}
+	if !reflect.DeepEqual(current.tor, bootSettings.tor) {
+		reasons["server.tor.*"] = struct{}{}
 	}
 
 	restartReasons = restartReasons[:0]

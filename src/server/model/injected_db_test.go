@@ -12,7 +12,7 @@ import (
 // with an explicit *sql.DB, that handle is the database its methods read and
 // write. The process-global handle is deliberately wired to a SECOND, freshly
 // created database seeded with contradicting rows, so a model that quietly
-// falls back to database.GetUsersDB()/GetServerDB() fails the assertion instead
+// falls back to database.GetUsersStore()/GetServerDB() fails the assertion instead
 // of passing by luck. Both fixture databases are built by executing the real
 // database.UsersSchema / database.ServerSchema constants.
 
@@ -54,11 +54,11 @@ func countRows(t *testing.T, db *sql.DB, table string) int {
 func TestInjectedHandle_UserModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	if _, err := (&UserModel{DB: global}).CreateUserAccount("alice", "global@example.com", "GlobalPassw0rd!"); err != nil {
+	if _, err := (&UserModel{testDB: global}).CreateUserAccount("alice", "global@example.com", "GlobalPassw0rd!"); err != nil {
 		t.Fatalf("seed global user: %v", err)
 	}
 
-	model := &UserModel{DB: injected}
+	model := &UserModel{testDB: injected}
 	if _, err := model.CreateUserAccount("alice", "injected@example.com", "InjectedPassw0rd!"); err != nil {
 		t.Fatalf("create injected user: %v", err)
 	}
@@ -78,11 +78,11 @@ func TestInjectedHandle_UserSessionModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "session-user", "session-user@example.com")
 
-	if _, err := (&UserSessionModel{DB: global}).CreateSession(userID, "10.0.0.1", "global-agent", time.Hour); err != nil {
+	if _, err := (&UserSessionModel{testDB: global}).CreateSession(userID, "10.0.0.1", "global-agent", time.Hour); err != nil {
 		t.Fatalf("seed global session: %v", err)
 	}
 
-	model := &UserSessionModel{DB: injected}
+	model := &UserSessionModel{testDB: injected}
 	created, err := model.CreateSession(userID, "10.0.0.2", "injected-agent", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
@@ -106,11 +106,11 @@ func TestInjectedHandle_SessionModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "cookie-user", "cookie-user@example.com")
 
-	if _, err := (&SessionModel{DB: global}).CreateSession(userID, 3600); err != nil {
+	if _, err := (&SessionModel{testDB: global}).CreateSession(userID, 3600); err != nil {
 		t.Fatalf("seed global session: %v", err)
 	}
 
-	model := &SessionModel{DB: injected}
+	model := &SessionModel{testDB: injected}
 	created, err := model.CreateSession(userID, 3600)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -130,11 +130,11 @@ func TestInjectedHandle_TokenModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "token-user", "token-user@example.com")
 
-	if _, err := (&TokenModel{DB: global}).CreateAPIToken(int(userID), "global-token"); err != nil {
+	if _, err := (&TokenModel{testDB: global}).CreateAPIToken(int(userID), "global-token"); err != nil {
 		t.Fatalf("seed global token: %v", err)
 	}
 
-	model := &TokenModel{DB: injected}
+	model := &TokenModel{testDB: injected}
 	if _, err := model.CreateAPIToken(int(userID), "injected-token"); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -163,11 +163,11 @@ func TestInjectedHandle_RecoveryKeyModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "recovery-user", "recovery-user@example.com")
 
-	if _, err := (&RecoveryKeyModel{DB: global}).GenerateRecoveryKeys(int(userID)); err != nil {
+	if _, err := (&RecoveryKeyModel{testDB: global}).GenerateRecoveryKeys(int(userID)); err != nil {
 		t.Fatalf("seed global recovery keys: %v", err)
 	}
 
-	model := &RecoveryKeyModel{DB: injected}
+	model := &RecoveryKeyModel{testDB: injected}
 	keys, err := model.GenerateRecoveryKeys(int(userID))
 	if err != nil {
 		t.Fatalf("GenerateRecoveryKeys: %v", err)
@@ -197,11 +197,11 @@ func TestInjectedHandle_UserEmailVerificationModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "verify-user", "verify-user@example.com")
 
-	if _, err := (&UserEmailVerificationModel{DB: global}).CreateVerification(userID, "global@example.com"); err != nil {
+	if _, err := (&UserEmailVerificationModel{testDB: global}).CreateVerification(userID, "global@example.com"); err != nil {
 		t.Fatalf("seed global verification: %v", err)
 	}
 
-	model := &UserEmailVerificationModel{DB: injected}
+	model := &UserEmailVerificationModel{testDB: injected}
 	created, err := model.CreateVerification(userID, "injected@example.com")
 	if err != nil {
 		t.Fatalf("CreateVerification: %v", err)
@@ -223,11 +223,11 @@ func TestInjectedHandle_UserPasswordResetModel(t *testing.T) {
 	injectedUserID := insertTestUser(t, injected, "reset-user", "reset-user@example.com")
 	globalUserID := insertTestUser(t, global, "reset-user", "reset-user@example.com")
 
-	if _, err := (&UserPasswordResetModel{DB: global}).CreateReset(globalUserID); err != nil {
+	if _, err := (&UserPasswordResetModel{testDB: global}).CreateReset(globalUserID); err != nil {
 		t.Fatalf("seed global reset: %v", err)
 	}
 
-	model := &UserPasswordResetModel{DB: injected}
+	model := &UserPasswordResetModel{testDB: injected}
 	created, err := model.CreateReset(injectedUserID)
 	if err != nil {
 		t.Fatalf("CreateReset: %v", err)
@@ -251,11 +251,11 @@ func TestInjectedHandle_UserActivityLogModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "activity-user", "activity-user@example.com")
 
-	if err := (&UserActivityLogModel{DB: global}).LogActivity(userID, "login", "10.0.0.1", "global-agent", "global"); err != nil {
+	if err := (&UserActivityLogModel{testDB: global}).LogActivity(userID, "login", "10.0.0.1", "global-agent", "global"); err != nil {
 		t.Fatalf("seed global activity: %v", err)
 	}
 
-	model := &UserActivityLogModel{DB: injected}
+	model := &UserActivityLogModel{testDB: injected}
 	if err := model.LogActivity(userID, "login", "10.0.0.2", "injected-agent", "injected"); err != nil {
 		t.Fatalf("LogActivity: %v", err)
 	}
@@ -274,11 +274,11 @@ func TestInjectedHandle_UserActivityLogModel(t *testing.T) {
 func TestInjectedHandle_UserInviteModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	if _, err := (&UserInviteModel{DB: global}).CreateInvite("bob", "global@example.com", "user", 7); err != nil {
+	if _, err := (&UserInviteModel{testDB: global}).CreateInvite("bob", "global@example.com", "user", 7); err != nil {
 		t.Fatalf("seed global invite: %v", err)
 	}
 
-	model := &UserInviteModel{DB: injected}
+	model := &UserInviteModel{testDB: injected}
 	created, err := model.CreateInvite("bob", "injected@example.com", "user", 7)
 	if err != nil {
 		t.Fatalf("CreateInvite: %v", err)
@@ -299,7 +299,7 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "passkey-user", "passkey-user@example.com")
 
-	globalModel := &UserPasskeyModel{DB: global}
+	globalModel := &UserPasskeyModel{testDB: global}
 	if _, err := globalModel.CreateUserPasskey(userID, "global-1", testCredential(1)); err != nil {
 		t.Fatalf("seed global passkey 1: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 		t.Fatalf("seed global passkey 2: %v", err)
 	}
 
-	model := &UserPasskeyModel{DB: injected}
+	model := &UserPasskeyModel{testDB: injected}
 	if _, err := model.CreateUserPasskey(userID, "injected-1", testCredential(3)); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -326,11 +326,11 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 func TestInjectedHandle_AdminModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	if _, err := (&AdminModel{DB: global}).CreateAdminAccount("root", "global@example.com", "GlobalPassw0rd!", true); err != nil {
+	if _, err := (&AdminModel{testDB: global}).CreateAdminAccount("root", "global@example.com", "GlobalPassw0rd!", true); err != nil {
 		t.Fatalf("seed global admin: %v", err)
 	}
 
-	model := &AdminModel{DB: injected}
+	model := &AdminModel{testDB: injected}
 	if _, err := model.CreateAdminAccount("root", "injected@example.com", "InjectedPassw0rd!", true); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -348,11 +348,11 @@ func TestInjectedHandle_AdminModel(t *testing.T) {
 func TestInjectedHandle_AdminInviteModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	if _, err := (&AdminInviteModel{DB: global}).CreateInvite("global@example.com", 1, time.Hour); err != nil {
+	if _, err := (&AdminInviteModel{testDB: global}).CreateInvite("global@example.com", 1, time.Hour); err != nil {
 		t.Fatalf("seed global invite: %v", err)
 	}
 
-	model := &AdminInviteModel{DB: injected}
+	model := &AdminInviteModel{testDB: injected}
 	created, err := model.CreateInvite("injected@example.com", 1, time.Hour)
 	if err != nil {
 		t.Fatalf("CreateInvite: %v", err)
@@ -372,11 +372,11 @@ func TestInjectedHandle_AdminInviteModel(t *testing.T) {
 func TestInjectedHandle_AdminSessionModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalServerDBs(t)
 
-	if _, err := (&AdminSessionModel{DB: global}).CreateSession(1, "10.0.0.1", "global-agent", time.Hour); err != nil {
+	if _, err := (&AdminSessionModel{testDB: global}).CreateSession(1, "10.0.0.1", "global-agent", time.Hour); err != nil {
 		t.Fatalf("seed global admin session: %v", err)
 	}
 
-	model := &AdminSessionModel{DB: injected}
+	model := &AdminSessionModel{testDB: injected}
 	created, err := model.CreateSession(1, "10.0.0.2", "injected-agent", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
@@ -399,7 +399,7 @@ func TestInjectedHandle_AdminSessionModel(t *testing.T) {
 func TestInjectedHandle_AdminPasskeyModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	globalModel := &AdminPasskeyModel{DB: global}
+	globalModel := &AdminPasskeyModel{testDB: global}
 	if _, err := globalModel.CreateAdminPasskey(1, "global-1", testCredential(1)); err != nil {
 		t.Fatalf("seed global admin passkey 1: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestInjectedHandle_AdminPasskeyModel(t *testing.T) {
 		t.Fatalf("seed global admin passkey 2: %v", err)
 	}
 
-	model := &AdminPasskeyModel{DB: injected}
+	model := &AdminPasskeyModel{testDB: injected}
 	if _, err := model.CreateAdminPasskey(1, "injected-1", testCredential(3)); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -431,40 +431,40 @@ func TestModelHandleAccessors(t *testing.T) {
 
 	usersCases := []struct {
 		name    string
-		resolve func(db *sql.DB) *sql.DB
+		resolve func(db *sql.DB) *database.Store
 	}{
-		{"UserModel", func(db *sql.DB) *sql.DB { return (&UserModel{DB: db}).getDB() }},
-		{"UserSessionModel", func(db *sql.DB) *sql.DB { return (&UserSessionModel{DB: db}).getDB() }},
-		{"UserEmailVerificationModel", func(db *sql.DB) *sql.DB { return (&UserEmailVerificationModel{DB: db}).getDB() }},
-		{"UserPasswordResetModel", func(db *sql.DB) *sql.DB { return (&UserPasswordResetModel{DB: db}).getDB() }},
-		{"UserActivityLogModel", func(db *sql.DB) *sql.DB { return (&UserActivityLogModel{DB: db}).getDB() }},
-		{"UserInviteModel", func(db *sql.DB) *sql.DB { return (&UserInviteModel{DB: db}).getDB() }},
-		{"SessionModel", func(db *sql.DB) *sql.DB { return (&SessionModel{DB: db}).getDB() }},
-		{"TokenModel", func(db *sql.DB) *sql.DB { return (&TokenModel{DB: db}).getDB() }},
-		{"RecoveryKeyModel", func(db *sql.DB) *sql.DB { return (&RecoveryKeyModel{DB: db}).getDB() }},
-		{"UserPasskeyModel", func(db *sql.DB) *sql.DB { return (&UserPasskeyModel{DB: db}).getDB() }},
-		{"AdminModel", func(db *sql.DB) *sql.DB { return (&AdminModel{DB: db}).getDB() }},
-		{"AdminInviteModel", func(db *sql.DB) *sql.DB { return (&AdminInviteModel{DB: db}).getDB() }},
-		{"AdminPasskeyModel", func(db *sql.DB) *sql.DB { return (&AdminPasskeyModel{DB: db}).getDB() }},
-		{"AdminNotificationModel", func(db *sql.DB) *sql.DB { return (&AdminNotificationModel{DB: db}).getDB() }},
+		{"UserModel", func(db *sql.DB) *database.Store { return (&UserModel{testDB: db}).getDB() }},
+		{"UserSessionModel", func(db *sql.DB) *database.Store { return (&UserSessionModel{testDB: db}).getDB() }},
+		{"UserEmailVerificationModel", func(db *sql.DB) *database.Store { return (&UserEmailVerificationModel{testDB: db}).getDB() }},
+		{"UserPasswordResetModel", func(db *sql.DB) *database.Store { return (&UserPasswordResetModel{testDB: db}).getDB() }},
+		{"UserActivityLogModel", func(db *sql.DB) *database.Store { return (&UserActivityLogModel{testDB: db}).getDB() }},
+		{"UserInviteModel", func(db *sql.DB) *database.Store { return (&UserInviteModel{testDB: db}).getDB() }},
+		{"SessionModel", func(db *sql.DB) *database.Store { return (&SessionModel{testDB: db}).getDB() }},
+		{"TokenModel", func(db *sql.DB) *database.Store { return (&TokenModel{testDB: db}).getDB() }},
+		{"RecoveryKeyModel", func(db *sql.DB) *database.Store { return (&RecoveryKeyModel{testDB: db}).getDB() }},
+		{"UserPasskeyModel", func(db *sql.DB) *database.Store { return (&UserPasskeyModel{testDB: db}).getDB() }},
+		{"AdminModel", func(db *sql.DB) *database.Store { return (&AdminModel{testDB: db}).getDB() }},
+		{"AdminInviteModel", func(db *sql.DB) *database.Store { return (&AdminInviteModel{testDB: db}).getDB() }},
+		{"AdminPasskeyModel", func(db *sql.DB) *database.Store { return (&AdminPasskeyModel{testDB: db}).getDB() }},
+		{"AdminNotificationModel", func(db *sql.DB) *database.Store { return (&AdminNotificationModel{testDB: db}).getDB() }},
 	}
 
 	serverCases := []struct {
 		name    string
-		resolve func(db *sql.DB) *sql.DB
+		resolve func(db *sql.DB) *database.Store
 	}{
-		{"AdminSessionModel", func(db *sql.DB) *sql.DB { return (&AdminSessionModel{DB: db}).getDB() }},
+		{"AdminSessionModel", func(db *sql.DB) *database.Store { return (&AdminSessionModel{testDB: db}).getDB() }},
 	}
 
 	injectedUsers := newModelUsersDB(t)
 	for _, tc := range usersCases {
 		t.Run(tc.name+"/injected", func(t *testing.T) {
-			if got := tc.resolve(injectedUsers); got != injectedUsers {
+			if got := tc.resolve(injectedUsers); got.DB() != injectedUsers {
 				t.Error("accessor did not return the injected handle")
 			}
 		})
 		t.Run(tc.name+"/nil falls back", func(t *testing.T) {
-			if got := tc.resolve(nil); got != usersDB {
+			if got := tc.resolve(nil); got.DB() != usersDB {
 				t.Error("accessor did not fall back to the global users handle")
 			}
 		})
@@ -473,12 +473,12 @@ func TestModelHandleAccessors(t *testing.T) {
 	injectedServer := newModelServerDB(t)
 	for _, tc := range serverCases {
 		t.Run(tc.name+"/injected", func(t *testing.T) {
-			if got := tc.resolve(injectedServer); got != injectedServer {
+			if got := tc.resolve(injectedServer); got.DB() != injectedServer {
 				t.Error("accessor did not return the injected handle")
 			}
 		})
 		t.Run(tc.name+"/nil falls back", func(t *testing.T) {
-			if got := tc.resolve(nil); got != serverDB {
+			if got := tc.resolve(nil); got.DB() != serverDB {
 				t.Error("accessor did not fall back to the global server handle")
 			}
 		})
@@ -494,7 +494,7 @@ func TestSettingsModelUsesConfigFiles(t *testing.T) {
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
 	// The DB field is source-compatible only and does not select storage.
-	model := &SettingsModel{DB: serverDB}
+	model := &SettingsModel{testDB: serverDB}
 
 	if err := model.SetSetting("unit.test.key", "from-server-db", "string"); err != nil {
 		t.Fatalf("Set: %v", err)
@@ -525,10 +525,10 @@ func TestGlobalHandlesAreDistinctFromInjected(t *testing.T) {
 	if injected == global {
 		t.Fatal("fixture returned the same handle twice")
 	}
-	if database.GetUsersDB() != global {
+	if database.GetUsersStore().DB() != global {
 		t.Fatal("global users handle is not the decoy database")
 	}
-	if database.GetUsersDB() == injected {
+	if database.GetUsersStore().DB() == injected {
 		t.Fatal("global users handle is the injected database")
 	}
 }

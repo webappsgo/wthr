@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	_ "modernc.org/sqlite"
 )
@@ -25,7 +26,7 @@ func TestLocationEnhancer_FindCityByID(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 
 	// Note: This test will only work if city data is loaded
 	// For now, we'll test the error case
@@ -52,7 +53,7 @@ func TestLocationEnhancer_FindNearestCity(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 
 	t.Run("Valid coordinates", func(t *testing.T) {
 		// New York coordinates
@@ -84,7 +85,7 @@ func TestLocationEnhancer_EnhanceLocation(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 
 	t.Run("Valid coordinates", func(t *testing.T) {
 		coords := &service.Coordinates{

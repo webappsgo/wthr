@@ -2,17 +2,17 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
@@ -27,7 +27,7 @@ import (
 // logAdminPasskeyAudit writes an admin.passkey_added or admin.passkey_removed
 // event to audit_log (server.db). Errors are non-fatal — the passkey
 // operation has already completed; logging failure must not roll it back.
-func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
+func logAdminPasskeyAudit(db *database.Store, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
 	details, _ := json.Marshal(map[string]string{"name": passkeyName})
 
 	// timestamp is bound explicitly rather than left to the column's
@@ -62,19 +62,19 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 // passkey management (registration, listing, and deletion).
 type AdminPasskeyHandler struct {
 	// DB is the users.db handle holding admins and passkeys (AI.md PART 12)
-	DB *sql.DB
+	DB *database.Store
 	// AuditDB is the server.db handle holding audit_log; nil falls back to DB
-	AuditDB *sql.DB
+	AuditDB *database.Store
 }
 
 // NewAdminPasskeyHandler builds the handler around the users.db handle and
 // takes the audit_log handle from the process-global server database.
-func NewAdminPasskeyHandler(usersDB *sql.DB) *AdminPasskeyHandler {
-	return &AdminPasskeyHandler{DB: usersDB, AuditDB: database.GetServerDB()}
+func NewAdminPasskeyHandler(usersDB *database.Store) *AdminPasskeyHandler {
+	return &AdminPasskeyHandler{DB: usersDB, AuditDB: database.GetServerStore()}
 }
 
 // auditDB returns the database audit rows are written to.
-func (h *AdminPasskeyHandler) auditDB() *sql.DB {
+func (h *AdminPasskeyHandler) auditDB() *database.Store {
 	if h.AuditDB != nil {
 		return h.AuditDB
 	}
@@ -103,7 +103,7 @@ func (h *AdminPasskeyHandler) loadAdminFromContext(r *http.Request) (*models.Adm
 		return nil, false
 	}
 
-	adminModel := &models.AdminModel{DB: h.DB}
+	adminModel := &models.AdminModel{Store: h.DB}
 	admin, err := adminModel.GetByID(adminID)
 	if err != nil || admin == nil {
 		return nil, false

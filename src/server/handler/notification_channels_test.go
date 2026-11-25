@@ -51,9 +51,9 @@ func newNotificationChannelsTestHandler(t *testing.T) *NotificationChannelHandle
 	t.Helper()
 	db := newNotificationChannelsTestDB(t)
 	return &NotificationChannelHandler{
-		DB:             db,
-		ChannelManager: service.NewChannelManager(db),
-		SMTP:           service.NewSMTPService(db),
+		DB:             storeForDB(db),
+		ChannelManager: service.NewChannelManager(storeForDB(db)),
+		SMTP:           service.NewSMTPService(storeForDB(db)),
 	}
 }
 
@@ -93,8 +93,8 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 
 	t.Run("returns inserted channels sorted by name", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
-		insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "discord", "Discord", false, "disabled")
 
 		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels", "")
 		h.ListChannels(w, r)
@@ -127,7 +127,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 
 	t.Run("existing channel returns its fields", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
 
 		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack", "")
 		r = withURLParam(r, "type", "slack")
@@ -157,7 +157,7 @@ func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 
 	t.Run("valid body updates enabled and config", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", false, "disabled")
 
 		r, w := newAPIRequest(t, http.MethodPut, "/server/administration/notifications/channels/slack", map[string]interface{}{
 			"enabled": true,
@@ -187,7 +187,7 @@ func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 
 func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
-	insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
+	insertTestNotificationChannel(t, h.DB.DB(), "discord", "Discord", false, "disabled")
 
 	r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/discord/enable", "")
 	r = withURLParam(r, "type", "discord")
@@ -238,7 +238,7 @@ func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 		// "slack" in this test (only "email" is registered in production,
 		// via main.go), so ChannelManager.GetChannel always fails here.
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
 
 		r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/slack/test", map[string]interface{}{
 			"recipient": "someone",
@@ -268,7 +268,7 @@ func TestNotificationChannelHandlerGetChannelStats(t *testing.T) {
 
 	t.Run("existing channel returns stats", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
 
 		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack/stats", "")
 		r = withURLParam(r, "type", "slack")
@@ -519,8 +519,8 @@ func channelStoredConfig(t *testing.T, db *sql.DB, channelType string) string {
 
 func TestNotificationChannelHandlerListChannelRows(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
-	insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
-	insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
+	insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
+	insertTestNotificationChannel(t, h.DB.DB(), "discord", "Discord", false, "disabled")
 
 	rows, err := h.ListChannelRows()
 	if err != nil {
@@ -545,7 +545,7 @@ func TestNotificationChannelHandlerListChannelRows(t *testing.T) {
 func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 	t.Run("redirects with success flash and persists submitted config", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", false, "disabled")
 
 		form := url.Values{}
 		form.Set("enabled", "true")
@@ -568,7 +568,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 			t.Errorf("flash = %q, want success:flash.channel_updated", flash)
 		}
 
-		config := channelStoredConfig(t, h.DB, "slack")
+		config := channelStoredConfig(t, h.DB.DB(), "slack")
 		if !strings.Contains(config, "https://example.com/hook") {
 			t.Errorf("expected stored config to carry webhook_url, got %s", config)
 		}
@@ -576,7 +576,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 
 	t.Run("merges stored config keys the form omitted", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
 		// Seed a stored key the form will not submit.
 		if _, err := h.DB.Exec(`UPDATE server_notification_channels SET config = ? WHERE channel_type = ?`,
 			`{"webhook_url": "https://old.example.com/hook","channel": "#alerts"}`, "slack"); err != nil {
@@ -594,7 +594,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 		}
 
-		config := channelStoredConfig(t, h.DB, "slack")
+		config := channelStoredConfig(t, h.DB.DB(), "slack")
 		// The submitted key overrides the stored one.
 		if !strings.Contains(config, "https://new.example.com/hook") {
 			t.Errorf("expected submitted webhook_url to win, got %s", config)
@@ -609,7 +609,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 	t.Run("enable redirects with enabled flash", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", false, "disabled")
 
 		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack/enable", url.Values{}, "slack")
 		h.EnableChannel(w, r)
@@ -628,7 +628,7 @@ func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 
 	t.Run("disable redirects with disabled flash", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		insertTestNotificationChannel(t, h.DB.DB(), "slack", "Slack", true, "enabled")
 
 		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack/disable", url.Values{}, "slack")
 		h.DisableChannel(w, r)

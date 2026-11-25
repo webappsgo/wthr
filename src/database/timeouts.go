@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -70,7 +71,19 @@ func ApplyPoolConfig(db *sql.DB, cfg PoolConfig) {
 // The row is scanned lazily by the caller (Row.Scan), so cancel must NOT run
 // before this function returns (that would cancel the query before Scan
 // executes) — release the context once the timeout itself elapses instead.
-func QueryRowContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) *sql.Row {
+type rowQueryer interface {
+	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+}
+
+type queryer interface {
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+}
+
+type execer interface {
+	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+}
+
+func QueryRowContext(ctx context.Context, db rowQueryer, timeout time.Duration, query string, args ...interface{}) *sql.Row {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	time.AfterFunc(timeout, cancel)
 	return db.QueryRowContext(ctx, query, args...)
@@ -81,7 +94,7 @@ func QueryRowContext(ctx context.Context, db *sql.DB, timeout time.Duration, que
 // function returns, so cancel must NOT run on return (that would cancel the
 // query before iteration completes, same hazard as QueryRowContext) —
 // release the context once the timeout itself elapses instead.
-func QueryContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) (*sql.Rows, error) {
+func QueryContext(ctx context.Context, db queryer, timeout time.Duration, query string, args ...interface{}) (*sql.Rows, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -93,20 +106,24 @@ func QueryContext(ctx context.Context, db *sql.DB, timeout time.Duration, query 
 }
 
 // ExecContext executes a statement with timeout
-func ExecContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) (sql.Result, error) {
+func ExecContext(ctx context.Context, db execer, timeout time.Duration, query string, args ...interface{}) (sql.Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if !isSQLiteDB(db) {
+	if store, ok := db.(*Store); ok {
+		return store.ExecContext(ctx, query, args...)
+	}
+	sqlDB, ok := db.(*sql.DB)
+	if !ok || !isSQLiteDB(sqlDB) {
 		return db.ExecContext(ctx, query, args...)
 	}
 
 	started := time.Now()
-	result, err := execSQLiteWithRetry(ctx, db, query, args...)
+	result, err := execSQLiteWithRetry(ctx, sqlDB, query, args...)
 	recordSQLiteWriteWait(started)
 	return result, err
 }
 
-const sqliteWriteMaxRetries = 8
+const sqliteWriteMaxRetries = 5
 
 func execSQLiteWithRetry(ctx context.Context, db *sql.DB, query string, args ...interface{}) (sql.Result, error) {
 	for attempt := 0; ; attempt++ {
@@ -201,17 +218,24 @@ func HandleQueryError(err error) error {
 // WithTransaction executes a function within a transaction with timeout
 // AI.md PART 10: Transaction timeout = 30 seconds. On SQLite, the callback is
 // invoked at most once because it may perform non-database side effects.
-func WithTransaction(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+func WithTransaction(ctx context.Context, db interface{}, fn func(*sql.Tx) error) error {
 	ctx, cancel := context.WithTimeout(ctx, TimeoutTransaction)
 	defer cancel()
-	if !isSQLiteDB(db) {
-		return withSingleTransaction(ctx, db, fn)
+	if store, ok := db.(*Store); ok {
+		return store.Write(ctx, fn)
+	}
+	sqlDB, ok := db.(*sql.DB)
+	if !ok || sqlDB == nil {
+		return errors.New("transaction database is unavailable")
+	}
+	if !isSQLiteDB(sqlDB) {
+		return withSingleTransaction(ctx, sqlDB, fn)
 	}
 	started := time.Now()
 	defer recordSQLiteWriteWait(started)
 
 	for attempt := 0; ; attempt++ {
-		tx, err := db.BeginTx(ctx, nil)
+		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
 			if isSQLiteBusyError(err) && attempt < sqliteWriteMaxRetries {
 				metric.RecordDBBusy()

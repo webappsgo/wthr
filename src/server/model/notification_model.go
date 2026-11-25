@@ -10,18 +10,22 @@ import (
 
 // NotificationModel handles notification-related database operations
 type NotificationModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the DB handle this model was constructed with. Fallback to
-// database.GetUsersDB() when the injected handle is nil (unit tests, or
+// database.GetUsersStore() when the injected handle is nil (unit tests, or
 // construction before the global dual DB is wired).
-func (m *NotificationModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *NotificationModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GetUnreadCount returns the count of unread, non-dismissed, non-expired notifications for a user.

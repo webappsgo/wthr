@@ -1,11 +1,12 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/webappsgo/wthr/src/config"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -15,7 +16,7 @@ import (
 
 // AdminSettingsHandler handles admin settings API
 type AdminSettingsHandler struct {
-	DB                  *sql.DB
+	DB                  *database.Store
 	NotificationService *service.NotificationService
 }
 

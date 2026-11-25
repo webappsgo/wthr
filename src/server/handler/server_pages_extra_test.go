@@ -227,7 +227,7 @@ func TestContactAPIRequiresCaptcha(t *testing.T) {
 	delete(body, "captcha_answer")
 	body["form_token"] = formToken
 	r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", body)
-	HandleContactFormSubmission(db, cfg).ServeHTTP(w, r)
+	HandleContactFormSubmission(storeForDB(db), cfg).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("missing captcha status = %d, want 400", w.Code)
 	}
@@ -240,7 +240,7 @@ func TestContactAPIRequiresCaptcha(t *testing.T) {
 	delete(invalid, "name")
 	invalid["form_token"] = formToken
 	r, w = newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", invalid)
-	HandleContactFormSubmission(db, cfg).ServeHTTP(w, r)
+	HandleContactFormSubmission(storeForDB(db), cfg).ServeHTTP(w, r)
 	if got := decodeBody(t, w)["error"]; got != "VALIDATION_FAILED" {
 		t.Errorf("invalid form error = %v", got)
 	}

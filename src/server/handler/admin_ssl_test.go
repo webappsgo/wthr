@@ -13,14 +13,14 @@ import (
 // as passed, along with the other fields.
 func TestNewSSLHandler_ExplicitHTTPSAddr(t *testing.T) {
 	db := newTestServerDB(t)
-	h := NewSSLHandler("/tmp/example/certs", db, "192.0.2.1:8443")
+	h := NewSSLHandler("/tmp/example/certs", storeForDB(db), "192.0.2.1:8443")
 	if h == nil {
 		t.Fatal("expected non-nil handler")
 	}
 	if h.certsDir != "/tmp/example/certs" {
 		t.Errorf("certsDir = %q, want %q", h.certsDir, "/tmp/example/certs")
 	}
-	if h.db != db {
+	if h.db.DB() != db {
 		t.Error("expected db field to be the passed *sql.DB")
 	}
 	if h.httpsAddr != "192.0.2.1:8443" {

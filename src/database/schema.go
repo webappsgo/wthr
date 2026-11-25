@@ -16,16 +16,28 @@ type DB struct {
 	*sql.DB
 }
 
+// IsFirstRun reports whether users.db contains any administrator accounts.
+func (s *Store) IsFirstRun() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("users database not initialized")
+	}
+	var count int
+	if err := s.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM admins").Scan(&count); err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
 // IsFirstRun checks if this is the first run (no server admins exist)
 // Per AI.md PART 12: Server Admins are in the admins table of users.db
 func (db *DB) IsFirstRun() (bool, error) {
-	usersDB := GetUsersDB()
-	if usersDB == nil {
+	usersStore := GetUsersStore()
+	if usersStore == nil {
 		return false, fmt.Errorf("users database not initialized")
 	}
 
 	var count int
-	err := QueryRowContext(context.Background(), usersDB, TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
+	err := QueryRowContext(context.Background(), usersStore, TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -34,19 +46,7 @@ func (db *DB) IsFirstRun() (bool, error) {
 
 // HealthCheck returns database health status with latency
 func (db *DB) HealthCheck() (status string, latencyMs int64, err error) {
-	start := time.Now()
-
-	// Simple query to check connection
-	var result int
-	err = QueryRowContext(context.Background(), db.DB, TimeoutSimpleSelect, "SELECT 1").Scan(&result)
-
-	latencyMs = time.Since(start).Milliseconds()
-
-	if err != nil {
-		return "disconnected", latencyMs, err
-	}
-
-	return "connected", latencyMs, nil
+	return NewStore(db.DB).HealthCheck()
 }
 
 // GetSessionCount returns the number of currently active sessions across both
@@ -63,13 +63,13 @@ func (db *DB) HealthCheck() (status string, latencyMs int64, err error) {
 func (db *DB) GetSessionCount() (int, error) {
 	total := 0
 
-	userCount, err := countActiveSessions(GetUsersDB(), "user_sessions")
+	userCount, err := countActiveSessions(GetUsersStore(), "user_sessions")
 	if err != nil {
 		return 0, err
 	}
 	total += userCount
 
-	adminCount, err := countActiveSessions(GetServerDB(), "admin_sessions")
+	adminCount, err := countActiveSessions(GetServerStore(), "admin_sessions")
 	if err != nil {
 		return 0, err
 	}
@@ -89,12 +89,12 @@ func (db *DB) GetSessionCount() (int, error) {
 // table is always a compile-time literal supplied by this package, never user
 // input, which is why it can be interpolated - a table name cannot be bound as
 // a query parameter.
-func countActiveSessions(db *sql.DB, table string) (int, error) {
-	if db == nil {
+func countActiveSessions(store *Store, table string) (int, error) {
+	if store == nil {
 		return 0, nil
 	}
 
-	rows, err := QueryContext(context.Background(), db, TimeoutSimpleSelect, "SELECT expires_at FROM "+table)
+	rows, err := QueryContext(context.Background(), store, TimeoutSimpleSelect, "SELECT expires_at FROM "+table)
 	if err != nil {
 		return 0, err
 	}
@@ -116,4 +116,17 @@ func countActiveSessions(db *sql.DB, table string) (int, error) {
 	}
 
 	return count, nil
+}
+
+// GetSessionCount returns active user and administrator sessions across both stores.
+func (s *Store) GetSessionCount() (int, error) {
+	userCount, err := countActiveSessions(GetUsersStore(), "user_sessions")
+	if err != nil {
+		return 0, err
+	}
+	adminCount, err := countActiveSessions(GetServerStore(), "admin_sessions")
+	if err != nil {
+		return 0, err
+	}
+	return userCount + adminCount, nil
 }

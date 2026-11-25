@@ -24,6 +24,9 @@ type DualDB struct {
 
 	// Users database (users.db) - Server Admins, user accounts, tokens, sessions, passkeys, etc.
 	Users *sql.DB
+
+	serverStore *Store
+	usersStore  *Store
 }
 
 // InitDualDB initializes both server and users databases
@@ -63,28 +66,32 @@ func InitDualDB(dataDir string) (*DualDB, error) {
 	log.Printf("  Users DB:  %s", usersDBPath)
 
 	// Initialize server database
-	serverDB, err := initServerDB(serverDBPath)
+	serverStore, err := initServerDB(serverDBPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize server database: %w", err)
 	}
+	serverDB := serverStore.DB()
 
 	// Initialize users database
-	usersDB, err := initUsersDB(usersDBPath)
+	usersStore, err := initUsersDB(usersDBPath)
 	if err != nil {
-		_ = serverDB.Close()
+		_ = serverStore.Close()
 		return nil, fmt.Errorf("failed to initialize users database: %w", err)
 	}
+	usersDB := usersStore.DB()
 
 	// Server Admin data moved from server.db to users.db (AI.md PART 12)
 	if err := migrateLegacyAdminTables(serverDB, usersDB); err != nil {
-		_ = serverDB.Close()
-		_ = usersDB.Close()
+		_ = serverStore.Close()
+		_ = usersStore.Close()
 		return nil, fmt.Errorf("failed to carry legacy admin data forward: %w", err)
 	}
 
 	return &DualDB{
-		Server: serverDB,
-		Users:  usersDB,
+		Server:      serverDB,
+		Users:       usersDB,
+		serverStore: serverStore,
+		usersStore:  usersStore,
 	}, nil
 }
 
@@ -175,15 +182,15 @@ func initRemoteDualDB(driver, connectionURL, dataDir string) (*DualDB, error) {
 	}
 	localServerPath := filepath.Join(dataDir, "db", "server.db")
 	if _, err := os.Stat(localServerPath); err == nil {
-		localServer, openErr := sql.Open("sqlite", localServerPath)
+		localStore, openErr := OpenSQLite(localServerPath, 1)
 		if openErr != nil {
 			return nil, fmt.Errorf("open local SQLite database for migration: %w", openErr)
 		}
-		if migrateErr := config.MigrateLegacyDatabaseSettings(localServer); migrateErr != nil {
-			_ = localServer.Close()
+		if migrateErr := config.MigrateLegacyDatabaseSettings(localStore); migrateErr != nil {
+			_ = localStore.Close()
 			return nil, fmt.Errorf("migrate local settings before remote database startup: %w", migrateErr)
 		}
-		if closeErr := localServer.Close(); closeErr != nil {
+		if closeErr := localStore.Close(); closeErr != nil {
 			return nil, fmt.Errorf("close local SQLite database after settings migration: %w", closeErr)
 		}
 	}
@@ -216,7 +223,8 @@ func initRemoteDualDB(driver, connectionURL, dataDir string) (*DualDB, error) {
 			return nil, fmt.Errorf("synchronize PostgreSQL sequences after local data migration: %w", err)
 		}
 	}
-	return &DualDB{Server: db, Users: db}, nil
+	store := NewStore(db)
+	return &DualDB{Server: db, Users: db, serverStore: store, usersStore: store}, nil
 }
 
 func synchronizePostgresSequences(db *sql.DB) error {
@@ -279,12 +287,13 @@ func migrateLocalSQLiteData(dataDir string, remote *sql.DB) error {
 			}
 			return err
 		}
-		local, err := sql.Open("sqlite", source.file)
+		localStore, err := OpenSQLite(source.file, 1)
 		if err != nil {
 			return err
 		}
+		local := localStore.DB()
 		if err := renameLegacyTables(local, source.renames); err != nil {
-			_ = local.Close()
+			_ = localStore.Close()
 			return err
 		}
 		var names []string
@@ -298,7 +307,7 @@ func migrateLocalSQLiteData(dataDir string, remote *sql.DB) error {
 		for _, table := range names {
 			exists, err := sqliteTableExists(local, table)
 			if err != nil {
-				_ = local.Close()
+				_ = localStore.Close()
 				return err
 			}
 			if !exists {
@@ -306,7 +315,7 @@ func migrateLocalSQLiteData(dataDir string, remote *sql.DB) error {
 			}
 			columns, err := sqliteColumns(local, table)
 			if err != nil {
-				_ = local.Close()
+				_ = localStore.Close()
 				return err
 			}
 			if len(columns) == 0 {
@@ -314,7 +323,7 @@ func migrateLocalSQLiteData(dataDir string, remote *sql.DB) error {
 			}
 			rows, err := local.Query("SELECT * FROM " + table)
 			if err != nil {
-				_ = local.Close()
+				_ = localStore.Close()
 				return err
 			}
 			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
@@ -327,26 +336,26 @@ func migrateLocalSQLiteData(dataDir string, remote *sql.DB) error {
 				}
 				if err := rows.Scan(dest...); err != nil {
 					_ = rows.Close()
-					_ = local.Close()
+					_ = localStore.Close()
 					return err
 				}
 				if _, err := remote.Exec(insert, values...); err != nil {
 					_ = rows.Close()
-					_ = local.Close()
+					_ = localStore.Close()
 					return fmt.Errorf("copy %s row: %w", table, err)
 				}
 			}
 			if err := rows.Err(); err != nil {
 				_ = rows.Close()
-				_ = local.Close()
+				_ = localStore.Close()
 				return err
 			}
 			if err := rows.Close(); err != nil {
-				_ = local.Close()
+				_ = localStore.Close()
 				return err
 			}
 		}
-		if err := local.Close(); err != nil {
+		if err := localStore.Close(); err != nil {
 			return err
 		}
 	}
@@ -361,125 +370,113 @@ func settingText(value any) string {
 }
 
 // initServerDB initializes the server database with server schema
-func initServerDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+func initServerDB(path string) (*Store, error) {
+	store, err := OpenSQLite(path, poolMaxOpen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open server database: %w", err)
 	}
+	db := store.DB()
 
 	// AI.md PART 10: every connection uses the standard pool configuration
 	configurePool(db)
 
 	// Test connection
 	if err := PingWithTimeout(db); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to connect to server database: %w", err)
-	}
-
-	// Enable SQLite optimizations
-	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
-	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Databases created before AI.md PART 12 naming keep their data under the
 	// legacy table names; rename them before the base schema runs
 	if err := renameLegacyTables(db, serverLegacyRenames); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to rename legacy server tables: %w", err)
 	}
 	if err := migrateSchedulerSchema(db); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to migrate scheduler schema: %w", err)
 	}
 
 	// Create server schema
 	if _, err := ExecContext(context.Background(), db, TimeoutMigration, ServerSchema); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to create server schema: %w", err)
 	}
 
 	if err := copyLegacyAdminSessions(db); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to carry legacy admin sessions forward: %w", err)
 	}
 
 	if err := applySchemaUpdates(db, serverSchemaUpdates); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to apply server schema updates: %w", err)
 	}
 	if err := migrateLegacyAdminSessions(db); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to migrate legacy admin sessions: %w", err)
 	}
 
-	return db, nil
+	return store, nil
 }
 
 // initUsersDB initializes the users database with users schema
-func initUsersDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+func initUsersDB(path string) (*Store, error) {
+	store, err := OpenSQLite(path, poolMaxOpen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open users database: %w", err)
 	}
+	db := store.DB()
 
 	// AI.md PART 10: every connection uses the standard pool configuration
 	configurePool(db)
 
 	// Test connection
 	if err := PingWithTimeout(db); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to connect to users database: %w", err)
-	}
-
-	// Enable SQLite optimizations
-	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
-	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Databases created before AI.md PART 12 naming keep their data under the
 	// legacy table names; rename them before the base schema runs
 	if err := renameLegacyTables(db, usersLegacyRenames); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to rename legacy users tables: %w", err)
 	}
 
 	// Create users schema
 	if _, err := ExecContext(context.Background(), db, TimeoutMigration, UsersSchema); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to create users schema: %w", err)
 	}
 
 	if err := applySchemaUpdates(db, usersSchemaUpdates); err != nil {
-		_ = db.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("failed to apply users schema updates: %w", err)
 	}
 
-	return db, nil
+	return store, nil
 }
 
 // Close closes both database connections
 func (ddb *DualDB) Close() error {
 	var errs []string
 
-	if ddb.Server != nil {
+	if ddb.serverStore != nil && ddb.serverStore.owned {
+		if err := ddb.serverStore.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("server db: %v", err))
+		}
+	} else if ddb.Server != nil {
 		if err := ddb.Server.Close(); err != nil {
 			errs = append(errs, fmt.Sprintf("server db: %v", err))
 		}
 	}
 
-	if ddb.Users != nil && ddb.Users != ddb.Server {
+	if ddb.usersStore != nil && ddb.usersStore.owned && ddb.usersStore != ddb.serverStore {
+		if err := ddb.usersStore.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("users db: %v", err))
+		}
+	} else if (ddb.usersStore == nil || !ddb.usersStore.owned) && ddb.Users != nil && ddb.Users != ddb.Server {
 		if err := ddb.Users.Close(); err != nil {
 			errs = append(errs, fmt.Sprintf("users db: %v", err))
 		}
@@ -518,6 +515,28 @@ func (ddb *DualDB) GetServerDB() *sql.DB {
 // GetUsersDB returns the users database connection
 func (ddb *DualDB) GetUsersDB() *sql.DB {
 	return ddb.Users
+}
+
+// GetServerStore returns the store for server.db when SQLite is configured.
+func (ddb *DualDB) GetServerStore() *Store {
+	if ddb == nil {
+		return nil
+	}
+	if ddb.serverStore != nil {
+		return ddb.serverStore
+	}
+	return NewStore(ddb.Server)
+}
+
+// GetUsersStore returns the store for users.db when SQLite is configured.
+func (ddb *DualDB) GetUsersStore() *Store {
+	if ddb == nil {
+		return nil
+	}
+	if ddb.usersStore != nil {
+		return ddb.usersStore
+	}
+	return NewStore(ddb.Users)
 }
 
 // QueryServer executes a query on the server database.

@@ -52,7 +52,7 @@ func TestListAdminPasskeys(t *testing.T) {
 	admin := newAdminPasskeyTestAdmin(t, serverDB, "listadmin", "password123")
 
 	t.Run("no passkeys returns empty slice", func(t *testing.T) {
-		summaries, err := ListAdminPasskeys(serverDB, admin.ID)
+		summaries, err := ListAdminPasskeys(storeForDB(serverDB), admin.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -66,7 +66,7 @@ func TestListAdminPasskeys(t *testing.T) {
 		if _, err := badDB.Exec("DROP TABLE passkeys"); err != nil {
 			t.Fatalf("failed to drop table: %v", err)
 		}
-		if _, err := ListAdminPasskeys(badDB, admin.ID); err == nil {
+		if _, err := ListAdminPasskeys(storeForDB(badDB), admin.ID); err == nil {
 			t.Fatalf("expected error from missing table")
 		}
 	})
@@ -77,7 +77,7 @@ func TestDeleteAdminPasskey(t *testing.T) {
 	admin := newAdminPasskeyTestAdmin(t, serverDB, "deladmin", "password123")
 
 	t.Run("deleting non-existent passkey errors", func(t *testing.T) {
-		if err := DeleteAdminPasskey(serverDB, admin.ID, 999); err == nil {
+		if err := DeleteAdminPasskey(storeForDB(serverDB), admin.ID, 999); err == nil {
 			t.Fatalf("expected error deleting non-existent passkey")
 		}
 	})
@@ -89,31 +89,39 @@ func TestBeginAdminPasskeyRegistrationToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("empty name errors", func(t *testing.T) {
-		if _, err := BeginAdminPasskeyRegistrationToken(serverDB, admin, env, "", "password123"); err == nil {
+		if _, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "", "password123"); err == nil {
 			t.Fatalf("expected error for empty name")
 		}
 	})
 
 	t.Run("empty password errors", func(t *testing.T) {
-		if _, err := BeginAdminPasskeyRegistrationToken(serverDB, admin, env, "my key", ""); err == nil {
+		if _, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "my key", ""); err == nil {
 			t.Fatalf("expected error for empty password")
 		}
 	})
 
 	t.Run("wrong password errors", func(t *testing.T) {
-		if _, err := BeginAdminPasskeyRegistrationToken(serverDB, admin, env, "my key", "wrong-password"); err == nil {
+		if _, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "my key", "wrong-password"); err == nil {
 			t.Fatalf("expected error for wrong password")
 		}
 	})
 
+	t.Run("surrounding password whitespace is rejected", func(t *testing.T) {
+		for _, password := range []string{" password123", "password123 ", " password123 "} {
+			if _, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "my key", password); err != ErrPasskeyInvalidPassword {
+				t.Errorf("password %q error = %v, want %v", password, err, ErrPasskeyInvalidPassword)
+			}
+		}
+	})
+
 	t.Run("invalid envelope host errors", func(t *testing.T) {
-		if _, err := BeginAdminPasskeyRegistrationToken(serverDB, admin, PasskeyEnvelope{}, "my key", "password123"); err == nil {
+		if _, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, PasskeyEnvelope{}, "my key", "password123"); err == nil {
 			t.Fatalf("expected error for missing host")
 		}
 	})
 
 	t.Run("valid inputs succeed", func(t *testing.T) {
-		result, err := BeginAdminPasskeyRegistrationToken(serverDB, admin, env, "my key", "password123")
+		result, err := BeginAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "my key", "password123")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -133,7 +141,7 @@ func TestFinishAdminPasskeyRegistrationToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("unknown ceremony token errors", func(t *testing.T) {
-		if _, err := FinishAdminPasskeyRegistrationToken(serverDB, admin, env, "no-such-token", []byte(`{}`)); err == nil {
+		if _, err := FinishAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, "no-such-token", []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for unknown ceremony token")
 		}
 	})
@@ -144,7 +152,7 @@ func TestFinishAdminPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishAdminPasskeyRegistrationToken(serverDB, admin, env, token, []byte(`{}`)); err == nil {
+		if _, err := FinishAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, token, []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for mismatched ceremony kind")
 		}
 	})
@@ -155,7 +163,7 @@ func TestFinishAdminPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishAdminPasskeyRegistrationToken(serverDB, admin, env, token, []byte(`{}`)); err == nil {
+		if _, err := FinishAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, token, []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for mismatched admin id")
 		}
 	})
@@ -166,7 +174,7 @@ func TestFinishAdminPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishAdminPasskeyRegistrationToken(serverDB, admin, env, token, []byte(`not json`)); err == nil {
+		if _, err := FinishAdminPasskeyRegistrationToken(storeForDB(serverDB), admin, env, token, []byte(`not json`)); err == nil {
 			t.Fatalf("expected error for malformed credential body")
 		}
 	})

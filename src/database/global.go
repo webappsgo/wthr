@@ -15,6 +15,14 @@ var (
 func SetGlobalDualDB(ddb *DualDB) {
 	globalMutex.Lock()
 	defer globalMutex.Unlock()
+	if ddb != nil {
+		if ddb.serverStore == nil && ddb.Server != nil {
+			ddb.serverStore = NewStore(ddb.Server)
+		}
+		if ddb.usersStore == nil && ddb.Users != nil {
+			ddb.usersStore = NewStore(ddb.Users)
+		}
+	}
 	globalDualDB = ddb
 }
 
@@ -47,6 +55,32 @@ func GetUsersDB() *sql.DB {
 	return nil
 }
 
+// GetServerStore returns the server SQLite store when local SQLite is active.
+func GetServerStore() *Store {
+	globalMutex.RLock()
+	defer globalMutex.RUnlock()
+	if globalDualDB != nil {
+		if globalDualDB.serverStore != nil {
+			return globalDualDB.serverStore
+		}
+		return NewStore(globalDualDB.Server)
+	}
+	return nil
+}
+
+// GetUsersStore returns the users SQLite store when local SQLite is active.
+func GetUsersStore() *Store {
+	globalMutex.RLock()
+	defer globalMutex.RUnlock()
+	if globalDualDB != nil {
+		if globalDualDB.usersStore != nil {
+			return globalDualDB.usersStore
+		}
+		return NewStore(globalDualDB.Users)
+	}
+	return nil
+}
+
 // IsDualMode returns true if running in dual database mode (SQLite standalone)
 func IsDualMode() bool {
 	globalMutex.RLock()
@@ -69,6 +103,24 @@ func UsersDBOr(fallback *sql.DB) *sql.DB {
 // dual database is wired (single-handle unit tests).
 func ServerDBOr(fallback *sql.DB) *sql.DB {
 	if server := GetServerDB(); server != nil {
+		return server
+	}
+	return fallback
+}
+
+// UsersStoreOr returns the process-global users store, or fallback when no
+// dual database is wired.
+func UsersStoreOr(fallback *Store) *Store {
+	if users := GetUsersStore(); users != nil {
+		return users
+	}
+	return fallback
+}
+
+// ServerStoreOr returns the process-global server store, or fallback when no
+// dual database is wired.
+func ServerStoreOr(fallback *Store) *Store {
+	if server := GetServerStore(); server != nil {
 		return server
 	}
 	return fallback

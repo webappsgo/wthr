@@ -23,7 +23,7 @@ import (
 )
 
 type SetupHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // ShowSetupTokenEntry shows the setup token entry form
@@ -320,7 +320,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// Check if admin username already exists in admins
 	var count int
-	err = database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins WHERE username = ?", username).Scan(&count)
+	err = database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins WHERE username = ?", username).Scan(&count)
 	if err != nil {
 		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.database_error"))
 		return
@@ -343,7 +343,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// by SQL's CURRENT_TIMESTAMP, which yields a different type and zone on
 	// PostgreSQL, MySQL and SQL Server than it does on SQLite.
 	createdAt := dbtime.FormatSQLTimestamp(time.Now())
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), database.GetUsersStore(), database.TimeoutWrite, `
 		INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 		VALUES (?, ?, ?, 1, 1, ?, ?)
 	`, username, email, hashedPassword, createdAt, createdAt)
@@ -362,7 +362,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// Create the initial administrator's session through the shared model so
 	// the cookie token is hashed and the database row receives a UUID.
-	sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+	sessionModel := &model.AdminSessionModel{Store: database.GetServerStore()}
 	adminSessionLifetime := middleware.SessionSettingsFor(middleware.SessionAccountAdmin).MaxAge
 	adminSession, err := sessionModel.CreateSession(adminID, util.TrustedGetClientIP(r), r.UserAgent(), adminSessionLifetime)
 	if err != nil {
@@ -395,7 +395,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the API token's SHA-256 hash and display prefix in the unified tokens table
-	err = (&model.AdminModel{DB: database.GetUsersDB()}).StoreDefaultAPIToken(adminID, apiToken)
+	err = (&model.AdminModel{Store: database.GetUsersStore()}).StoreDefaultAPIToken(adminID, apiToken)
 	if err != nil {
 		// Log but don't fail - admin was created successfully
 		log.Printf("WARNING: CreateAdmin: failed to store admin API token: %v", err)
@@ -692,7 +692,7 @@ func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
 
 	// Get admin email for SSL contact
 	var adminEmail string
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM admins LIMIT 1").Scan(&adminEmail); err != nil && err != sql.ErrNoRows {
+	if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT email FROM admins LIMIT 1").Scan(&adminEmail); err != nil && err != sql.ErrNoRows {
 		InternalError(w, r, Translate(r, "errors.common.internal_error"))
 		return
 	}
@@ -787,7 +787,7 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Check if a primary admin exists
 	var adminCount int
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&adminCount)
+	err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&adminCount)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"status":  "error",

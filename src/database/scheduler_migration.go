@@ -285,11 +285,11 @@ func txTableColumns(ctx context.Context, tx *sql.Tx, name string) (map[string]bo
 	return queryTableColumns(ctx, tx, name)
 }
 
-type queryer interface {
+type schemaQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-func queryTableColumns(ctx context.Context, query queryer, name string) (map[string]bool, error) {
+func queryTableColumns(ctx context.Context, query schemaQueryer, name string) (map[string]bool, error) {
 	rows, err := query.QueryContext(ctx, "PRAGMA table_info("+name+")")
 	if err != nil {
 		return nil, err

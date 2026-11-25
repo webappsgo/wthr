@@ -15,7 +15,7 @@ import (
 func TestAdminServerStatus_Healthy(t *testing.T) {
 	db := newTestDatabaseDB(t)
 
-	handlerFunc := AdminServerStatus(db, "8090", 8443, nil)
+	handlerFunc := AdminServerStatus(storeForDB(db), "8090", 8443, nil)
 	c, w := newAPITestContext("/server/administration/status")
 
 	handlerFunc(w, c)

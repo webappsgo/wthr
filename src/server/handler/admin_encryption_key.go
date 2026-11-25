@@ -18,7 +18,7 @@ const encryptionKeyRotatedEvent = "security.encryption_key_rotated"
 
 // newEncryptionKeyRotator builds the rotator over the live databases.
 func newEncryptionKeyRotator() *service.EncryptionKeyRotator {
-	return &service.EncryptionKeyRotator{ServerDB: database.GetServerDB(), UsersDB: database.GetUsersDB()}
+	return &service.EncryptionKeyRotator{ServerDB: database.GetServerStore(), UsersDB: database.GetUsersStore()}
 }
 
 // encryptionKeyView is what the admin panel and API may show about the key: that it is
@@ -106,7 +106,7 @@ func (h *AdminEncryptionKeyHandler) RotateEncryptionKey(w http.ResponseWriter, r
 	}
 
 	back := adminPagePath(r, adminSecurityPath+"/encryption")
-	if strings.TrimSpace(password) == "" || !verifyAdminPassword(r, password) {
+	if strings.TrimSpace(password) == "" || passwordHasSurroundingWhitespace(password) || !verifyAdminPassword(r, password) {
 		logSecurityAudit(r, "security.encryption_key_rotation_denied", "encryption_key", "password re-prompt failed")
 		if isForm {
 			SetFlash(w, r, "error", "flash.encryption_password_invalid")

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"crypto/tls"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
@@ -19,7 +20,7 @@ import (
 type SSLHandler struct {
 	certsDir  string
 	leService *service.LetsEncryptService
-	db        *sql.DB
+	db        *database.Store
 	// Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
 	httpsAddr string
 	// challengeSink answers TLS-ALPN-01 validation on the running HTTPS listener
@@ -31,7 +32,7 @@ type SSLHandler struct {
 
 // NewSSLHandler creates a new SSL handler
 // httpsAddr should be the local HTTPS address to check certificates (e.g., "127.0.0.1:443")
-func NewSSLHandler(certsDir string, db *sql.DB, httpsAddr string) *SSLHandler {
+func NewSSLHandler(certsDir string, db *database.Store, httpsAddr string) *SSLHandler {
 	if httpsAddr == "" {
 		httpsAddr = "127.0.0.1:443" // Default for local cert checking
 	}

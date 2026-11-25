@@ -29,6 +29,7 @@ func NewNotificationCleaner(notificationService *service.NotificationService) *N
 // maxNotificationsPerRecipient is AI.md PART 18's per-user/per-admin cap on
 // retained WebUI notifications.
 const maxNotificationsPerRecipient = 100
+const notificationCleanupBatchSize = 500
 
 // notificationCleanupTaskName and notificationLimitTaskName are the scheduler
 // task ids these two jobs register under.
@@ -78,21 +79,13 @@ func (nc *NotificationCleaner) EnforceLimits() error {
 	log.Println("INFO: Starting notification limit enforcement...")
 	startTime := time.Now()
 
-	userTrimmed, err := enforceRecipientLimits(
-		nc.notificationService.UserNotif.DB,
-		"SELECT DISTINCT user_id FROM user_notifications",
-		nc.notificationService.UserNotif.EnforceLimit,
-	)
+	userTrimmed, err := enforceRecipientLimits(nc.notificationService.UserNotif.Store, "user_notifications", "user_id")
 	if err != nil {
 		log.Printf("WARNING: Failed to enforce user notification limits: %v", err)
 		return err
 	}
 
-	adminTrimmed, err := enforceRecipientLimits(
-		nc.notificationService.AdminNotif.DB,
-		"SELECT DISTINCT admin_id FROM admin_notifications",
-		nc.notificationService.AdminNotif.EnforceLimit,
-	)
+	adminTrimmed, err := enforceRecipientLimits(nc.notificationService.AdminNotif.Store, "admin_notifications", "admin_id")
 	if err != nil {
 		log.Printf("WARNING: Failed to enforce admin notification limits: %v", err)
 		return err
@@ -108,19 +101,17 @@ func (nc *NotificationCleaner) EnforceLimits() error {
 // enforceRecipientLimits applies enforce to every recipient id returned by
 // query and totals the rows removed. Recipient ids are collected before any
 // deletion so the result set is not invalidated mid-iteration.
-func enforceRecipientLimits(db *sql.DB, query string, enforce func(id int, limit int) (int64, error)) (int64, error) {
+func enforceRecipientLimits(db *database.Store, table, recipientColumn string) (int64, error) {
 	if db == nil {
 		return 0, nil
 	}
-
-	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, query)
+	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT DISTINCT "+recipientColumn+" FROM "+table)
 	if err != nil {
 		return 0, err
 	}
-
-	ids := make([]int, 0)
+	ids := make([]int64, 0)
 	for rows.Next() {
-		var id int
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return 0, errors.Join(err, rows.Close())
 		}
@@ -135,13 +126,58 @@ func enforceRecipientLimits(db *sql.DB, query string, enforce func(id int, limit
 
 	var total int64
 	for _, id := range ids {
-		deleted, err := enforce(id, maxNotificationsPerRecipient)
-		if err != nil {
-			return total, err
+		for {
+			batchSize := 0
+			var batchDeleted int64
+			err := db.Write(context.Background(), func(tx *sql.Tx) error {
+				rows, err := tx.QueryContext(context.Background(), "SELECT id FROM "+table+" WHERE "+recipientColumn+" = ? AND id NOT IN (SELECT id FROM "+table+" WHERE "+recipientColumn+" = ? ORDER BY created_at DESC, id DESC LIMIT ?) ORDER BY created_at ASC, id ASC LIMIT ?", id, id, maxNotificationsPerRecipient, notificationCleanupBatchSize)
+				if err != nil {
+					return err
+				}
+				rowIDs := make([]string, 0, notificationCleanupBatchSize)
+				for rows.Next() {
+					var rowID string
+					if err := rows.Scan(&rowID); err != nil {
+						return errors.Join(err, rows.Close())
+					}
+					rowIDs = append(rowIDs, rowID)
+				}
+				if err := rows.Err(); err != nil {
+					return errors.Join(err, rows.Close())
+				}
+				if err := rows.Close(); err != nil {
+					return fmt.Errorf("close notification rows: %w", err)
+				}
+				batchSize = len(rowIDs)
+				if batchSize == 0 {
+					return nil
+				}
+				placeholders := strings.TrimSuffix(strings.Repeat("?,", batchSize), ",")
+				args := make([]any, len(rowIDs))
+				for i, rowID := range rowIDs {
+					args[i] = rowID
+				}
+				result, err := tx.ExecContext(context.Background(), "DELETE FROM "+table+" WHERE id IN ("+placeholders+")", args...)
+				if err != nil {
+					return err
+				}
+				deleted, err := result.RowsAffected()
+				if err != nil {
+					return err
+				}
+				batchDeleted = deleted
+				return nil
+			})
+			if err != nil {
+				return total, err
+			}
+			total += batchDeleted
+			if batchSize < notificationCleanupBatchSize {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
-		total += deleted
 	}
-
 	return total, nil
 }
 

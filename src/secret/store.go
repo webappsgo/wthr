@@ -51,13 +51,13 @@ var ErrUnknownSecret = errors.New("unknown secret")
 
 // Store reads and rotates the secrets in app_secrets.
 type Store struct {
-	db    *sql.DB
+	db    *database.Store
 	now   func() time.Time
 	mutex sync.Mutex
 }
 
 // NewStore returns a store over the server database.
-func NewStore(db *sql.DB) *Store {
+func NewStore(db *database.Store) *Store {
 	return &Store{db: db, now: time.Now}
 }
 

@@ -49,7 +49,7 @@ type NotificationQueue struct {
 
 // DeliverySystem handles notification delivery with retry logic
 type DeliverySystem struct {
-	db             *sql.DB
+	db             *database.Store
 	channelManager *ChannelManager
 	templateEngine *TemplateEngine
 	maxRetries     int
@@ -61,7 +61,7 @@ type DeliverySystem struct {
 }
 
 // NewDeliverySystem creates a new delivery system
-func NewDeliverySystem(db *sql.DB, cm *ChannelManager, te *TemplateEngine) *DeliverySystem {
+func NewDeliverySystem(db *database.Store, cm *ChannelManager, te *TemplateEngine) *DeliverySystem {
 	return &DeliverySystem{
 		db:              db,
 		channelManager:  cm,
@@ -81,11 +81,11 @@ func NewDeliverySystem(db *sql.DB, cm *ChannelManager, te *TemplateEngine) *Deli
 // service with nil, or construction before the global dual DB is wired) the
 // process-global server handle is used instead, so a nil handle degrades to
 // the previous behavior rather than panicking.
-func (ds *DeliverySystem) serverDB() *sql.DB {
+func (ds *DeliverySystem) serverDB() *database.Store {
 	if ds.db != nil {
 		return ds.db
 	}
-	return database.GetServerDB()
+	return database.GetServerStore()
 }
 
 // LoadSettings loads delivery system settings from configuration files.
@@ -364,7 +364,7 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 		// database.UsersSchema, not ServerSchema, so the injected handle (the
 		// server database) cannot serve this lookup — the global users handle
 		// is the correct source here.
-		err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+		err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, `
 			SELECT config FROM user_notification_channel_preferences
 			WHERE user_id = ? AND channel_type = ? AND enabled = 1
 			LIMIT 1
@@ -385,7 +385,7 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 			// Reads users.db: users is declared in
 			// database.UsersSchema, not ServerSchema, so the injected server
 			// handle is not the right database for this fallback lookup.
-			if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM users WHERE id = ?", nq.UserID.Int64).Scan(&email); err == nil {
+			if err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT email FROM users WHERE id = ?", nq.UserID.Int64).Scan(&email); err == nil {
 				return email
 			} else {
 				util.LogWarn("Unable to find email recipient for notification %d: %v", nq.ID, err)

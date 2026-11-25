@@ -18,12 +18,12 @@ import (
 
 // NotificationTemplateHandler handles notification template management
 type NotificationTemplateHandler struct {
-	DB             *sql.DB
+	DB             *database.Store
 	TemplateEngine *service.TemplateEngine
 }
 
 // NewNotificationTemplateHandler creates a new template handler
-func NewNotificationTemplateHandler(db *sql.DB) *NotificationTemplateHandler {
+func NewNotificationTemplateHandler(db *database.Store) *NotificationTemplateHandler {
 	return &NotificationTemplateHandler{
 		DB:             db,
 		TemplateEngine: service.NewTemplateEngine(db),

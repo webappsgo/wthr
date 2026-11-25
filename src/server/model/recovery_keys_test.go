@@ -11,7 +11,7 @@ func TestRecoveryKeyModel_GenerateRecoveryKeys(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "rk-user", "rk-user@example.com")
-	model := &RecoveryKeyModel{DB: db}
+	model := &RecoveryKeyModel{testDB: db}
 
 	first, err := model.GenerateRecoveryKeys(int(userID))
 	if err != nil {
@@ -68,7 +68,7 @@ func TestRecoveryKeyModel_VerifyAndUseRecoveryKey(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "rk-verify", "rk-verify@example.com")
-	model := &RecoveryKeyModel{DB: db}
+	model := &RecoveryKeyModel{testDB: db}
 
 	tests := []struct {
 		name string
@@ -127,7 +127,7 @@ func TestRecoveryKeyModel_GetAllKeysForUserAndDelete(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "rk-list", "rk-list@example.com")
-	model := &RecoveryKeyModel{DB: db}
+	model := &RecoveryKeyModel{testDB: db}
 
 	t.Run("empty before generation", func(t *testing.T) {
 		keys, err := model.GetAllKeysForUser(int(userID))

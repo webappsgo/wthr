@@ -205,7 +205,7 @@ func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("ok"))
 			})
-			handler := AuditLogger(db)(next)
+			handler := AuditLogger(storeForDB(db))(next)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -233,7 +233,7 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
-	handler := AuditLogger(db)(next)
+	handler := AuditLogger(storeForDB(db))(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/server/administration/users", nil)
@@ -288,7 +288,7 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
-	handler := AuditLogger(db)(next)
+	handler := AuditLogger(storeForDB(db))(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/server/administration/users", nil)
@@ -328,7 +328,7 @@ func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
-	handler := AuditLogger(db)(next)
+	handler := AuditLogger(storeForDB(db))(next)
 
 	before := time.Now().UTC().Truncate(time.Second)
 

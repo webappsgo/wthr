@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,13 +46,13 @@ type operation struct {
 type Server struct {
 	Router  chi.Router
 	Config  *config.AppConfig
-	DB      *sql.DB
-	UsersDB *sql.DB
+	DB      *database.Store
+	UsersDB *database.Store
 	APIPath string
 	Version string
 }
 
-func NewServer(router chi.Router, cfg *config.AppConfig, db *sql.DB, version string) *Server {
+func NewServer(router chi.Router, cfg *config.AppConfig, db *database.Store, version string) *Server {
 	apiPath := "/api/v1"
 	if cfg != nil {
 		apiPath = cfg.GetAPIPath()
@@ -61,7 +60,7 @@ func NewServer(router chi.Router, cfg *config.AppConfig, db *sql.DB, version str
 	if version == "" {
 		version = "dev"
 	}
-	return &Server{Router: router, Config: cfg, DB: db, UsersDB: database.GetUsersDB(), APIPath: apiPath, Version: version}
+	return &Server{Router: router, Config: cfg, DB: db, UsersDB: database.GetUsersStore(), APIPath: apiPath, Version: version}
 }
 
 func (s *Server) Enabled() bool {
@@ -537,7 +536,7 @@ func (s *Server) LLMS(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	settings := &model.SettingsModel{DB: s.DB}
+	settings := &model.SettingsModel{Store: s.DB}
 	name := "wthr"
 	description := "Weather API and web application."
 	if s.Config != nil {
@@ -643,7 +642,11 @@ func (s *Server) operator(r *http.Request) bool {
 	if !strings.HasPrefix(typeOfToken, "adm_") {
 		return false
 	}
-	_, err := (&model.AdminModel{DB: database.UsersDBOr(s.DB)}).GetByAPIToken(typeOfToken)
+	usersStore := s.UsersDB
+	if usersStore == nil {
+		usersStore = s.DB
+	}
+	_, err := (&model.AdminModel{Store: usersStore}).GetByAPIToken(typeOfToken)
 	return err == nil
 }
 
@@ -652,15 +655,15 @@ func (s *Server) user(r *http.Request) bool {
 	if len(parts) != 2 || parts[0] != "Bearer" || !strings.HasPrefix(parts[1], "usr_") {
 		return false
 	}
-	usersDB := s.UsersDB
-	if usersDB == nil {
-		usersDB = s.DB
+	usersStore := s.UsersDB
+	if usersStore == nil {
+		usersStore = s.DB
 	}
-	token, err := (&model.TokenModel{DB: usersDB}).GetByToken(strings.TrimSpace(parts[1]))
+	token, err := (&model.TokenModel{Store: usersStore}).GetByToken(strings.TrimSpace(parts[1]))
 	if err != nil {
 		return false
 	}
-	user, err := (&model.UserModel{DB: usersDB}).GetByID(int64(token.UserID))
+	user, err := (&model.UserModel{Store: usersStore}).GetByID(int64(token.UserID))
 	return err == nil && user.Role != "admin"
 }
 

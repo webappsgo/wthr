@@ -21,7 +21,7 @@ func TestNotificationMetricsHandler_GetSummary(t *testing.T) {
 		t.Fatalf("failed to seed notification_queue: %v", err)
 	}
 
-	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
+	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(storeForDB(db)))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/summary", nil)
 	w := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestNotificationMetricsHandler_GetChannelMetrics(t *testing.T) {
 		t.Fatalf("failed to seed notification_queue: %v", err)
 	}
 
-	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
+	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(storeForDB(db)))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/channels/sms", nil)
 	rctx := chi.NewRouteContext()
@@ -86,7 +86,7 @@ func TestNotificationMetricsHandler_GetRecentErrors(t *testing.T) {
 		t.Fatalf("failed to seed notification_queue: %v", err)
 	}
 
-	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
+	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(storeForDB(db)))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/errors?limit=10", nil)
 	w := httptest.NewRecorder()
@@ -117,7 +117,7 @@ func TestNotificationMetricsHandler_GetRecentErrors(t *testing.T) {
 func TestNotificationMetricsHandler_GetRecentErrors_InvalidLimit(t *testing.T) {
 	db := newTestServerDB(t)
 
-	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
+	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(storeForDB(db)))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/errors?limit=not-a-number", nil)
 	w := httptest.NewRecorder()
@@ -133,7 +133,7 @@ func TestNotificationMetricsHandler_GetRecentErrors_InvalidLimit(t *testing.T) {
 func TestNotificationMetricsHandler_GetHealthStatus(t *testing.T) {
 	db := newTestServerDB(t)
 
-	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
+	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(storeForDB(db)))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/health", nil)
 	w := httptest.NewRecorder()

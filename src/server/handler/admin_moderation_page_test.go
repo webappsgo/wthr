@@ -86,7 +86,7 @@ func TestAdminModerationUserActionUpdatesAndRejectsUnknownActions(t *testing.T) 
 		if w.Code != test.status {
 			t.Fatalf("action %q status = %d", test.action, w.Code)
 		}
-		user, err := (&model.UserModel{DB: usersDB}).GetByID(1)
+		user, err := (&model.UserModel{Store: storeForDB(usersDB)}).GetByID(1)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -238,7 +238,7 @@ func TestTemplateEngine_ValidateTemplate(t *testing.T) {
 // map round-trip through JSON.
 func TestTemplateEngine_CreateGetUpdateDeleteTemplate(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	tmpl := &NotificationTemplate{
 		ChannelType:     "email",
@@ -299,7 +299,7 @@ func TestTemplateEngine_CreateGetUpdateDeleteTemplate(t *testing.T) {
 // non-existent template name falls back to the channel's default template.
 func TestTemplateEngine_GetTemplate_FallbackToDefault(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	def := &NotificationTemplate{
 		ChannelType:     "slack",
@@ -327,7 +327,7 @@ func TestTemplateEngine_GetTemplate_FallbackToDefault(t *testing.T) {
 // unknown channel type entirely.
 func TestTemplateEngine_GetDefaultTemplate_NotFound(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	tests := []string{"email", "", "unknown-channel"}
 	for _, channel := range tests {
@@ -343,7 +343,7 @@ func TestTemplateEngine_GetDefaultTemplate_NotFound(t *testing.T) {
 // alphabetical by name) and the empty-result boundary case.
 func TestTemplateEngine_ListTemplates(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	// Boundary: no templates yet.
 	empty, err := te.ListTemplates("email")
@@ -387,7 +387,7 @@ func TestTemplateEngine_ListTemplates(t *testing.T) {
 // template with invalid syntax.
 func TestTemplateEngine_RenderTemplate(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	tmpl := &NotificationTemplate{
 		ChannelType:     "email",
@@ -441,7 +441,7 @@ func TestTemplateEngine_RenderTemplate(t *testing.T) {
 // is idempotent (no duplicate rows, no errors).
 func TestTemplateEngine_InitializeDefaultTemplates(t *testing.T) {
 	db := setupTemplateEngineTestDB(t)
-	te := NewTemplateEngine(db)
+	te := NewTemplateEngine(serviceStoreForDB(db))
 
 	if err := te.InitializeDefaultTemplates(); err != nil {
 		t.Fatalf("InitializeDefaultTemplates() unexpected error: %v", err)

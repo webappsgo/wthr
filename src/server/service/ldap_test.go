@@ -85,7 +85,7 @@ func TestLDAP_Config_Defaults(t *testing.T) {
 func TestLDAP_Config_SeededValues(t *testing.T) {
 	db := setupLDAPServerDB(t)
 	wireLDAPGlobalDB(t, db)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 
 	seed := map[string]string{
 		"server.auth.ldap.enabled":     "true",
@@ -133,7 +133,7 @@ func TestLDAP_Config_SeededValues(t *testing.T) {
 func TestLDAP_ConfigDoesNotUsePlaintextDatabasePassword(t *testing.T) {
 	db := setupLDAPServerDB(t)
 	wireLDAPGlobalDB(t, db)
-	settings := &models.SettingsModel{DB: db}
+	settings := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	if err := settings.SetString("server.auth.ldap.bind_password", "legacy-plaintext"); err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestLDAP_Authenticate_GuardClauses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			db := setupLDAPServerDB(t)
 			wireLDAPGlobalDB(t, db)
-			sm := &models.SettingsModel{DB: db}
+			sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 			for k, v := range tt.seed {
 				if err := sm.SetString(k, v); err != nil {
 					t.Fatalf("seed %s: %v", k, err)

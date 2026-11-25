@@ -26,6 +26,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -54,7 +55,7 @@ type PGPKeyInfo struct {
 // private key, encrypted under a key derived from installation_secret, in
 // pgp.priv.asc.enc. Only metadata is stored in the database.
 type PGPKeyManager struct {
-	db        *sql.DB
+	db        *database.Store
 	dir       string
 	publisher keyserverPublisher
 }
@@ -83,7 +84,7 @@ var keyserverRetryDelays = []time.Duration{
 }
 
 // NewPGPKeyManager creates a manager that keeps its files in dir.
-func NewPGPKeyManager(db *sql.DB, dir string) *PGPKeyManager {
+func NewPGPKeyManager(db *database.Store, dir string) *PGPKeyManager {
 	return &PGPKeyManager{db: db, dir: dir}
 }
 
@@ -231,7 +232,7 @@ func (m *PGPKeyManager) Info() (*PGPKeyInfo, error) {
 		published        string
 		revoked          int
 	)
-	err := m.db.QueryRow(`SELECT fingerprint, created_at, expires_at, last_rotated_at, keyservers_published, revoked FROM security_keypair WHERE id = 1`).
+	err := database.QueryRowContext(context.Background(), m.db, database.TimeoutSimpleSelect, `SELECT fingerprint, created_at, expires_at, last_rotated_at, keyservers_published, revoked FROM security_keypair WHERE id = 1`).
 		Scan(&info.Fingerprint, &created, &expires, &rotated, &published, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoKeypair
@@ -265,7 +266,7 @@ func (m *PGPKeyManager) Generate(appName, contactEmail string, rotate bool) (*PG
 	if rotate {
 		rotated = now
 	}
-	_, err = m.db.Exec(`INSERT INTO security_keypair (id, fingerprint, created_at, expires_at, last_rotated_at, keyservers_published, revoked)
+	_, err = database.ExecContext(context.Background(), m.db, database.TimeoutWrite, `INSERT INTO security_keypair (id, fingerprint, created_at, expires_at, last_rotated_at, keyservers_published, revoked)
 		VALUES (1, ?, ?, ?, ?, '{}', 0)
 		ON CONFLICT(id) DO UPDATE SET fingerprint = excluded.fingerprint, created_at = excluded.created_at,
 		expires_at = excluded.expires_at, last_rotated_at = excluded.last_rotated_at, keyservers_published = '{}', revoked = 0`,
@@ -389,7 +390,7 @@ func (m *PGPKeyManager) ImportPrivate(armored, expectedIdentity string) (warning
 	if life, ok := entityExpiry(entity); ok {
 		expires = life
 	}
-	_, err = m.db.Exec(`INSERT INTO security_keypair (id, fingerprint, created_at, expires_at, keyservers_published, revoked)
+	_, err = database.ExecContext(context.Background(), m.db, database.TimeoutWrite, `INSERT INTO security_keypair (id, fingerprint, created_at, expires_at, keyservers_published, revoked)
 		VALUES (1, ?, ?, ?, '{}', 0)
 		ON CONFLICT(id) DO UPDATE SET fingerprint = excluded.fingerprint, created_at = excluded.created_at,
 		expires_at = excluded.expires_at, keyservers_published = '{}', revoked = 0`,
@@ -410,7 +411,7 @@ func entityExpiry(e *openpgp.Entity) (time.Time, bool) {
 func (m *PGPKeyManager) Delete() error {
 	_ = os.Remove(m.pubPath())
 	_ = os.Remove(m.privPath())
-	_, err := m.db.Exec(`UPDATE security_keypair SET revoked = 1 WHERE id = 1`)
+	_, err := database.ExecContext(context.Background(), m.db, database.TimeoutWrite, `UPDATE security_keypair SET revoked = 1 WHERE id = 1`)
 	return err
 }
 
@@ -623,7 +624,7 @@ func (m *PGPKeyManager) PublishToKeyservers(ctx context.Context, keyservers []st
 		changed = true
 	}
 	raw, _ := json.Marshal(info.KeyserversPublished)
-	_, err = m.db.Exec(`UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw))
+	_, err = database.ExecContext(context.Background(), m.db, database.TimeoutWrite, `UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw))
 	if err == nil && changed {
 		err = m.savePublishState(state)
 	}
@@ -681,7 +682,7 @@ func (m *PGPKeyManager) RetryKeyserverPublishes(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := m.db.ExecContext(ctx, `UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw)); err != nil {
+	if _, err := database.ExecContext(ctx, m.db, database.TimeoutWrite, `UPDATE security_keypair SET keyservers_published = ? WHERE id = 1`, string(raw)); err != nil {
 		return err
 	}
 	return m.savePublishState(state)

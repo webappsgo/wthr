@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -14,7 +13,7 @@ import (
 
 // WeatherNotificationService handles weather-based notifications
 type WeatherNotificationService struct {
-	db             *sql.DB
+	db             *database.Store
 	weatherService *WeatherService
 	deliverySystem *DeliverySystem
 	templateEngine *TemplateEngine
@@ -36,7 +35,7 @@ type WeatherAlert struct {
 }
 
 // NewWeatherNotificationService creates a new weather notification service
-func NewWeatherNotificationService(db *sql.DB, ws *WeatherService, ds *DeliverySystem, te *TemplateEngine) *WeatherNotificationService {
+func NewWeatherNotificationService(db *database.Store, ws *WeatherService, ds *DeliverySystem, te *TemplateEngine) *WeatherNotificationService {
 	return &WeatherNotificationService{
 		db:             db,
 		weatherService: ws,
@@ -55,11 +54,11 @@ func NewWeatherNotificationService(db *sql.DB, ws *WeatherService, ds *DeliveryS
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (wns *WeatherNotificationService) usersDB() *sql.DB {
+func (wns *WeatherNotificationService) usersDB() *database.Store {
 	if wns.db != nil {
 		return wns.db
 	}
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CheckWeatherAlerts checks all user locations for weather alerts
@@ -73,45 +72,55 @@ func (wns *WeatherNotificationService) CheckWeatherAlerts() error {
 	if err != nil {
 		return fmt.Errorf("failed to query locations: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Printf("WARNING: failed to close weather alert location rows: %v", err)
+	type locationRecord struct {
+		id, userID int
+		name       string
+		latitude   float64
+		longitude  float64
+	}
+	locations := make([]locationRecord, 0)
+	for rows.Next() {
+		var location locationRecord
+		if err := rows.Scan(&location.id, &location.userID, &location.name, &location.latitude, &location.longitude); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("failed to scan weather alert location: %w", err)
 		}
-	}()
+		locations = append(locations, location)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("failed to read weather alert locations: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("failed to close weather alert locations: %w", err)
+	}
 
 	alertsFound := 0
-	for rows.Next() {
-		var locationID, userID int
-		var name string
-		var lat, lon float64
-
-		if err := rows.Scan(&locationID, &userID, &name, &lat, &lon); err != nil {
-			continue
-		}
+	for _, location := range locations {
 
 		// Get weather data for this location
-		weatherData, err := wns.weatherService.GetCurrentWeather(lat, lon, "imperial")
+		weatherData, err := wns.weatherService.GetCurrentWeather(location.latitude, location.longitude, "imperial")
 		if err != nil {
 			continue
 		}
 
 		// Check for severe weather conditions
-		alerts := wns.detectSevereWeather(weatherData, name, lat, lon)
+		alerts := wns.detectSevereWeather(weatherData, location.name, location.latitude, location.longitude)
 		for _, alert := range alerts {
-			alert.LocationID = locationID
+			alert.LocationID = location.id
 
 			// Check if we've already sent this alert recently (within 6 hours)
-			if wns.hasRecentAlert(userID, locationID, alert.AlertType) {
+			if wns.hasRecentAlert(location.userID, location.id, alert.AlertType) {
 				continue
 			}
 
 			// Send notification to user
-			if err := wns.sendWeatherAlert(userID, alert); err != nil {
+			if err := wns.sendWeatherAlert(location.userID, alert); err != nil {
 				fmt.Printf("Failed to send weather alert: %v\n", err)
 			} else {
 				alertsFound++
 				// Record that we sent this alert
-				wns.recordAlertSent(userID, locationID, alert.AlertType)
+				wns.recordAlertSent(location.userID, location.id, alert.AlertType)
 			}
 		}
 	}

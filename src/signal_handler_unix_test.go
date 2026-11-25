@@ -29,7 +29,7 @@ func TestHandlePlatformSignal_SIGUSR2(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mode.SetDebugEnabled(tt.startDebug)
 
-			shouldShutdown := handlePlatformSignal(syscall.SIGUSR2, nil, nil, nil)
+			shouldShutdown := handlePlatformSignal(syscall.SIGUSR2, nil, nil)
 
 			if shouldShutdown {
 				t.Errorf("handlePlatformSignal(SIGUSR2) = shutdown true, want false")
@@ -44,7 +44,7 @@ func TestHandlePlatformSignal_SIGUSR2(t *testing.T) {
 // TestHandlePlatformSignal_SIGRTMIN3 verifies the Docker STOPSIGNAL is
 // treated as a graceful-shutdown request (return value true).
 func TestHandlePlatformSignal_SIGRTMIN3(t *testing.T) {
-	if !handlePlatformSignal(sigRTMIN3, nil, nil, nil) {
+	if !handlePlatformSignal(sigRTMIN3, nil, nil) {
 		t.Error("handlePlatformSignal(sigRTMIN3) = false, want true (graceful shutdown)")
 	}
 }
@@ -53,7 +53,7 @@ func TestHandlePlatformSignal_SIGRTMIN3(t *testing.T) {
 // signal not explicitly handled must return false and must not panic even
 // with nil db/appLogger/dirPaths.
 func TestHandlePlatformSignal_UnknownSignal(t *testing.T) {
-	if handlePlatformSignal(syscall.SIGHUP, nil, nil, nil) {
+	if handlePlatformSignal(syscall.SIGHUP, nil, nil) {
 		t.Error("handlePlatformSignal(SIGHUP) = true, want false (unhandled signal)")
 	}
 }

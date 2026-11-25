@@ -164,7 +164,8 @@ func (r *UserPasswordReset) IsUsed() bool {
 // UserModel handles user database operations
 // Per AI.md PART 9: All operations MUST use users.db
 type UserModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. Every
@@ -175,12 +176,15 @@ type UserModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateUserAccount creates a new user account
@@ -204,28 +208,30 @@ func (m *UserModel) CreateUserAccount(username, email, password string, role ...
 	// the one layout parseStoredTimestamp understands.
 	now := time.Now()
 
-	// Insert user into users.db
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO users (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 0, 1, 0, 0, ?, ?)
-	`, username, email, passwordHash, userRole, sqlTimestamp(now), sqlTimestamp(now))
-
+	var userID int64
+	err = database.WithTransaction(context.Background(), m.getDB(), func(tx *sql.Tx) error {
+		// Insert the account and its default preferences as one short transaction.
+		result, err := tx.Exec(`
+			INSERT INTO users (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 0, 1, 0, 0, ?, ?)
+		`, username, email, passwordHash, userRole, sqlTimestamp(now), sqlTimestamp(now))
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+		userID, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("failed to get user ID: %w", err)
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit, pressure_unit, wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications, created_at, updated_at)
+			VALUES (?, 'auto', 'en', 'UTC', 'celsius', 'hPa', 'kmh', 'mm', 1, 1, ?, ?)
+		`, userID, sqlTimestamp(now), sqlTimestamp(now)); err != nil {
+			return fmt.Errorf("failed to create user preferences: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	userID, err := result.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user ID: %w", err)
-	}
-
-	// Create default preferences
-	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit, pressure_unit, wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications, created_at, updated_at)
-		VALUES (?, 'auto', 'en', 'UTC', 'celsius', 'hPa', 'kmh', 'mm', 1, 1, ?, ?)
-	`, userID, sqlTimestamp(now), sqlTimestamp(now))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user preferences: %w", err)
+		return nil, err
 	}
 
 	return m.GetByID(userID)
@@ -894,7 +900,8 @@ func hashUserToken(rawToken string) string {
 // UserSessionModel handles user session operations
 // Per AI.md PART 10: Session-based authentication required
 type UserSessionModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -905,12 +912,15 @@ type UserSessionModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserSessionModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserSessionModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateSession creates a new user session
@@ -1185,7 +1195,8 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 
 // UserEmailVerificationModel handles email verification operations
 type UserEmailVerificationModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -1196,12 +1207,15 @@ type UserEmailVerificationModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserEmailVerificationModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserEmailVerificationModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateVerification creates a new email verification token (24-hour expiry)
@@ -1324,7 +1338,8 @@ func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
 
 // UserPasswordResetModel handles password reset operations
 type UserPasswordResetModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -1335,12 +1350,15 @@ type UserPasswordResetModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserPasswordResetModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserPasswordResetModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateReset creates a new password reset token (1-hour expiry)
@@ -1462,7 +1480,8 @@ func (m *UserPasswordResetModel) DeleteExpiredResets() error {
 
 // UserActivityLogModel handles activity logging
 type UserActivityLogModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -1473,12 +1492,15 @@ type UserActivityLogModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserActivityLogModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserActivityLogModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // LogActivity logs a user activity
@@ -1580,7 +1602,8 @@ type UserInvite struct {
 
 // UserInviteModel handles user invite operations per AI.md PART 33
 type UserInviteModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -1591,37 +1614,40 @@ type UserInviteModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *UserInviteModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *UserInviteModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 func (m *UserInviteModel) ensureInviteSchema() error {
-	hasUsername, err := database.ColumnExists(m.getDB(), "user_invites", "username")
-	if err != nil {
-		return fmt.Errorf("failed to inspect user_invites.username schema: %w", err)
-	}
-	hasRole, err := database.ColumnExists(m.getDB(), "user_invites", "role")
-	if err != nil {
-		return fmt.Errorf("failed to inspect user_invites.role schema: %w", err)
-	}
-
-	if !hasUsername {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_invites ADD COLUMN username TEXT`); err != nil {
-			return fmt.Errorf("failed to add user_invites.username: %w", err)
+	store := m.getDB()
+	return database.WithTransaction(context.Background(), store, func(tx *sql.Tx) error {
+		hasUsername, err := database.ColumnExistsTx(tx, store, "user_invites", "username")
+		if err != nil {
+			return fmt.Errorf("failed to inspect user_invites.username schema: %w", err)
 		}
-	}
-
-	if !hasRole {
-		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`); err != nil {
-			return fmt.Errorf("failed to add user_invites.role: %w", err)
+		hasRole, err := database.ColumnExistsTx(tx, store, "user_invites", "role")
+		if err != nil {
+			return fmt.Errorf("failed to inspect user_invites.role schema: %w", err)
 		}
-	}
-
-	return nil
+		if !hasUsername {
+			if _, err := tx.Exec(`ALTER TABLE user_invites ADD COLUMN username TEXT`); err != nil {
+				return fmt.Errorf("failed to add user_invites.username: %w", err)
+			}
+		}
+		if !hasRole {
+			if _, err := tx.Exec(`ALTER TABLE user_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`); err != nil {
+				return fmt.Errorf("failed to add user_invites.role: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 // CreateInvite creates a new user invite

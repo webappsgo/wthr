@@ -6,11 +6,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,12 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/argon2"
-	_ "modernc.org/sqlite"
-
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/privilege"
 	"github.com/webappsgo/wthr/src/util"
+	"golang.org/x/crypto/argon2"
 )
 
 // manifestEntryName is the archive member holding the backup manifest
@@ -729,22 +728,20 @@ func verifyDatabases(root string) error {
 			return nil
 		}
 
-		db, openErr := sql.Open("sqlite", path)
+		store, openErr := database.OpenSQLite(path, 1)
 		if openErr != nil {
 			return fmt.Errorf("failed to open %s: %w", filepath.Base(path), openErr)
 		}
-		defer func() {
-			if closeErr := db.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to close %s: %w", filepath.Base(path), closeErr))
-			}
-		}()
 
 		var result string
-		if queryErr := db.QueryRow("PRAGMA integrity_check").Scan(&result); queryErr != nil {
-			return fmt.Errorf("integrity check failed for %s: %w", filepath.Base(path), queryErr)
+		if queryErr := store.QueryRowContext(context.Background(), "PRAGMA integrity_check").Scan(&result); queryErr != nil {
+			return errors.Join(fmt.Errorf("integrity check failed for %s: %w", filepath.Base(path), queryErr), store.Close())
 		}
 		if result != "ok" {
-			return fmt.Errorf("integrity check failed for %s: %s", filepath.Base(path), result)
+			return errors.Join(fmt.Errorf("integrity check failed for %s: %s", filepath.Base(path), result), store.Close())
+		}
+		if closeErr := store.Close(); closeErr != nil {
+			return fmt.Errorf("failed to close %s: %w", filepath.Base(path), closeErr)
 		}
 
 		return nil

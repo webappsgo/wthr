@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -171,14 +171,14 @@ type tlsRuntime struct {
 	fqdn     string
 
 	// serverDB holds the app_secrets row that records the last DNS-backed issuance
-	serverDB *sql.DB
+	serverDB *database.Store
 
 	mu sync.Mutex
 	le *service.LetsEncryptService
 }
 
 // SetServerDB lets the runtime record dns_validated_at after a DNS-backed issuance.
-func (t *tlsRuntime) SetServerDB(db *sql.DB) {
+func (t *tlsRuntime) SetServerDB(db *database.Store) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.serverDB = db

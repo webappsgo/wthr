@@ -76,7 +76,7 @@ func TestContactPageHTMLHasExactFieldsAndRequiredInputs(t *testing.T) {
 			r.Header.Set("User-Agent", "Mozilla/5.0")
 			r.Host = "weather.example"
 			w := httptest.NewRecorder()
-			ShowContactPage(db, cfg)(w, r)
+			ShowContactPage(storeForDB(db), cfg)(w, r)
 			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 			}
@@ -96,7 +96,7 @@ func TestContactPageHTMLHasExactFieldsAndRequiredInputs(t *testing.T) {
 
 	t.Run("security", func(t *testing.T) {
 		cfg.Server.Security.EncryptionKey = base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
-		securityID, err := service.CurrentSecurityID(db.DB)
+		securityID, err := service.CurrentSecurityID(db)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +105,7 @@ func TestContactPageHTMLHasExactFieldsAndRequiredInputs(t *testing.T) {
 		r.Header.Set("User-Agent", "Mozilla/5.0")
 		r.Host = "weather.example"
 		w := httptest.NewRecorder()
-		ShowContactPage(db, cfg)(w, r)
+		ShowContactPage(storeForDB(db), cfg)(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 		}
@@ -203,7 +203,7 @@ func TestHandleContactFormWebRendersReviewWithoutDelivery(t *testing.T) {
 		w.WriteHeader(status)
 	}
 	t.Cleanup(func() { middleware.RenderHTML = previousRenderer })
-	HandleContactFormWeb(db, cfg)(w, r)
+	HandleContactFormWeb(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
@@ -211,7 +211,7 @@ func TestHandleContactFormWebRendersReviewWithoutDelivery(t *testing.T) {
 		t.Fatalf("submission did not render the review step: %#v", rendered)
 	}
 	var count int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM contact_submissions`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM contact_submissions`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {

@@ -9,7 +9,7 @@ import (
 func TestLocationModel_CreateAndGetByID(t *testing.T) {
 	db := newModelUsersDB(t)
 	userID := insertTestUser(t, db, "loc-user", "loc-user@example.com")
-	model := &LocationModel{DB: db}
+	model := &LocationModel{testDB: db}
 
 	tests := []struct {
 		name      string
@@ -62,7 +62,7 @@ func TestLocationModel_CreateAndGetByID(t *testing.T) {
 // and confirms results are scoped to the requesting user only.
 func TestLocationModel_GetByUserID(t *testing.T) {
 	db := newModelUsersDB(t)
-	model := &LocationModel{DB: db}
+	model := &LocationModel{testDB: db}
 	userA := insertTestUser(t, db, "loc-a", "loc-a@example.com")
 	userB := insertTestUser(t, db, "loc-b", "loc-b@example.com")
 
@@ -107,7 +107,7 @@ func TestLocationModel_GetByUserID(t *testing.T) {
 func TestLocationModel_Update(t *testing.T) {
 	db := newModelUsersDB(t)
 	userID := insertTestUser(t, db, "loc-upd", "loc-upd@example.com")
-	model := &LocationModel{DB: db}
+	model := &LocationModel{testDB: db}
 
 	created, err := model.CreateSavedLocation(int(userID), "Original", 1, 1, "UTC")
 	if err != nil {
@@ -134,7 +134,7 @@ func TestLocationModel_Update(t *testing.T) {
 func TestLocationModel_ToggleAlerts(t *testing.T) {
 	db := newModelUsersDB(t)
 	userID := insertTestUser(t, db, "loc-toggle", "loc-toggle@example.com")
-	model := &LocationModel{DB: db}
+	model := &LocationModel{testDB: db}
 
 	created, err := model.CreateSavedLocation(int(userID), "Toggle", 1, 1, "UTC")
 	if err != nil {
@@ -170,7 +170,7 @@ func TestLocationModel_ToggleAlerts(t *testing.T) {
 func TestLocationModel_DeleteAndCount(t *testing.T) {
 	db := newModelUsersDB(t)
 	userID := insertTestUser(t, db, "loc-del", "loc-del@example.com")
-	model := &LocationModel{DB: db}
+	model := &LocationModel{testDB: db}
 
 	count, err := model.Count(int(userID))
 	if err != nil {

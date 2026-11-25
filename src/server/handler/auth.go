@@ -20,7 +20,7 @@ import (
 )
 
 type AuthHandler struct {
-	DB   *sql.DB
+	DB   *database.Store
 	SAML *SAMLAuthHandler
 }
 
@@ -72,7 +72,7 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 		// comparison also works on PostgreSQL and MySQL, which have no
 		// datetime('now'). dbtime.IsAfter reports false for NULL and for
 		// unparseable values, so an uninterpretable session stays invalid.
-		_, storedExpiresAt, err := model.LookupActiveAdminSession(database.GetServerDB(), database.GetUsersDB(), model.HashAdminSessionToken(adminSessionID))
+		_, storedExpiresAt, err := model.LookupActiveAdminSession(database.GetServerStore(), database.GetUsersStore(), model.HashAdminSessionToken(adminSessionID))
 		if err == nil && dbtime.IsAfter(storedExpiresAt, time.Now()) {
 			http.Redirect(w, r, adminPath, http.StatusFound)
 			return
@@ -153,7 +153,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 1: Check admins FIRST
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	admin, adminErr := adminModel.VerifyCredentials(req.Identifier, req.Password)
 
 	if adminErr == nil && admin != nil {
@@ -162,7 +162,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// before issuing the admin_session cookie. Per AI.md PART 17 line
 		// 28679 a passkey can be used as a primary login or as 2FA — for
 		// admins we use it strictly as a 2nd factor here.
-		hasPasskeys, hpkErr := AdminHasPasskeys(database.GetUsersDB(), admin.ID)
+		hasPasskeys, hpkErr := AdminHasPasskeys(database.GetUsersStore(), admin.ID)
 		if hpkErr != nil {
 			respondWithError(w, r, http.StatusInternalServerError, "Failed to load passkey status")
 			return
@@ -210,7 +210,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// TOTP admins must prove possession before an admin session is issued.
 		// If passkeys are also registered, the passkey challenge above remains
 		// the selected second factor for this login attempt.
-		mfaStatus, mfaErr := model.AdminTOTPStatusFor(database.GetUsersDB(), admin.ID)
+		mfaStatus, mfaErr := model.AdminTOTPStatusFor(database.GetUsersStore(), admin.ID)
 		if mfaErr != nil {
 			respondWithError(w, r, http.StatusInternalServerError, "Failed to load admin MFA status")
 			return
@@ -227,7 +227,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			valid, verifyErr := VerifyAdminTOTP(database.GetUsersDB(), admin.ID, req.TwoFactorCode, req.UseRecoveryKey)
+			valid, verifyErr := VerifyAdminTOTP(database.GetUsersStore(), admin.ID, req.TwoFactorCode, req.UseRecoveryKey)
 			if verifyErr != nil || !valid {
 				respondWithError(w, r, http.StatusUnauthorized, Translate(r, "errors.user.public.invalid_two_factor_code"))
 				return
@@ -238,7 +238,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		cfg := config.GetGlobalConfig()
 		adminPath := "/server/" + cfg.GetAdminPath()
 
-		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+		adminSessionModel := &model.AdminSessionModel{Store: database.GetServerStore()}
 		duration := middleware.SessionSettingsFor(middleware.SessionAccountAdmin).MaxAge
 		adminSession, err := adminSessionModel.CreateSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
 		if err != nil {
@@ -270,7 +270,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 2: Check users
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {
 		respondWithError(w, r, http.StatusUnauthorized, "Invalid credentials")
@@ -312,7 +312,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		var verified bool
 		if req.UseRecoveryKey {
 			// Verify recovery key
-			recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
+			recoveryKeyModel := &model.RecoveryKeyModel{Store: h.DB}
 			verified, err = recoveryKeyModel.VerifyAndUseRecoveryKey(int(user.ID), req.TwoFactorCode)
 			if err != nil {
 				respondWithError(w, r, http.StatusInternalServerError, "Failed to verify recovery key")
@@ -347,7 +347,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create user session
-	sessionModel := &model.SessionModel{DB: h.DB}
+	sessionModel := &model.SessionModel{Store: h.DB}
 	session, err := sessionModel.CreateSession(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
@@ -423,7 +423,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 
 	// Normalize username first (per AI.md PART 22: validation accepts lowercase only)
 	username := util.NormalizeUsername(req.Username)
@@ -481,7 +481,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto-login after registration
-	sessionModel := &model.SessionModel{DB: h.DB}
+	sessionModel := &model.SessionModel{Store: h.DB}
 	session, err := sessionModel.CreateSession(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(w, r, http.StatusInternalServerError, "User created but failed to login")
@@ -516,13 +516,18 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 // HandleLogout processes logout requests
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
 	if h.SAML != nil && h.SAML.TryStartSAMLLogout(w, r) {
 		return
 	}
 	// Get session from context
 	session, exists := middleware.GetCurrentSession(r)
 	if exists {
-		sessionModel := &model.SessionModel{DB: h.DB}
+		sessionModel := &model.SessionModel{Store: h.DB}
 		if err := sessionModel.DeleteSession(session.ID); err != nil {
 			log.Printf("WARNING: logout: failed to delete user session: %v", err)
 		}
@@ -531,7 +536,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	// AI.md PART 17: one logout endpoint ends a Server Admin session as well
 	adminSessionEnded := false
 	if cookie, err := r.Cookie(middleware.AdminSessionCookieName()); err == nil && cookie.Value != "" {
-		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+		adminSessionModel := &model.AdminSessionModel{Store: database.GetServerStore()}
 		if err := adminSessionModel.DeleteSession(cookie.Value); err != nil {
 			log.Printf("WARNING: logout: failed to delete admin session: %v", err)
 		}
@@ -595,8 +600,8 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // LoadCurrentUserProfile returns the same current-user payload used by GET /api/v1/users.
-func LoadCurrentUserProfile(db *sql.DB, userID int64) (*CurrentUserProfileResponse, error) {
-	userModel := &model.UserModel{DB: db}
+func LoadCurrentUserProfile(db *database.Store, userID int64) (*CurrentUserProfileResponse, error) {
+	userModel := &model.UserModel{Store: db}
 	user, err := userModel.GetByID(userID)
 	if err != nil {
 		return nil, err
@@ -612,12 +617,12 @@ func LoadCurrentUserProfile(db *sql.DB, userID int64) (*CurrentUserProfileRespon
 }
 
 // UpdateCurrentUserProfile applies the same profile update used by PATCH /api/v1/users.
-func UpdateCurrentUserProfile(db *sql.DB, userID int64, req *UpdateCurrentUserProfileRequest) error {
+func UpdateCurrentUserProfile(db *database.Store, userID int64, req *UpdateCurrentUserProfileRequest) error {
 	if req == nil {
 		return fmt.Errorf("invalid request")
 	}
 
-	userModel := &model.UserModel{DB: db}
+	userModel := &model.UserModel{Store: db}
 	return userModel.UpdateProfile(userID, strings.TrimSpace(req.DisplayName), strings.TrimSpace(req.Phone))
 }
 
@@ -697,7 +702,7 @@ func requiresEmailVerification() bool {
 	// functionality is completely disabled and email verification is skipped
 	// entirely (addresses are auto-verified), so registration must not strand
 	// a new account on a verification step that can never complete.
-	smtpService := service.SharedSMTPService(database.GetServerDB())
+	smtpService := service.SharedSMTPService(database.GetServerStore())
 	if err := smtpService.LoadConfig(); err != nil {
 		return false
 	}
@@ -705,6 +710,6 @@ func requiresEmailVerification() bool {
 }
 
 func createUserEmailVerification(userID int64, email string) (*model.UserEmailVerification, error) {
-	verificationModel := &model.UserEmailVerificationModel{DB: database.GetUsersDB()}
+	verificationModel := &model.UserEmailVerificationModel{Store: database.GetUsersStore()}
 	return verificationModel.CreateVerification(userID, email)
 }

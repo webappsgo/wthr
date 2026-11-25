@@ -12,13 +12,14 @@ import (
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
-func newServerPagesTestDB(t *testing.T) *database.DB {
+func newServerPagesTestDB(t *testing.T) *database.Store {
 	t.Helper()
 	db := newTestDatabaseDB(t)
-	setGlobalTestDualDB(t, db.DB, db.DB)
+	setGlobalTestDualDB(t, db.DB(), db.DB())
 	return db
 }
 
@@ -62,7 +63,7 @@ func TestShowAboutPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/server/about")
-	ShowAboutPage(db, cfg)(w, r)
+	ShowAboutPage(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -72,7 +73,7 @@ func TestShowPrivacyPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/server/privacy")
-	ShowPrivacyPage(db, cfg)(w, r)
+	ShowPrivacyPage(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -82,7 +83,7 @@ func TestShowContactPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/server/contact")
-	ShowContactPage(db, cfg)(w, r)
+	ShowContactPage(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -92,7 +93,7 @@ func TestShowHelpPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/server/help")
-	ShowHelpPage(db, cfg)(w, r)
+	ShowHelpPage(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -102,7 +103,7 @@ func TestShowTermsPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/server/terms")
-	ShowTermsPage(db, cfg)(w, r)
+	ShowTermsPage(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -112,7 +113,7 @@ func TestGetAboutAPI(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/api/v1/server/about")
-	GetAboutAPI(db, cfg)(w, r)
+	GetAboutAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -125,7 +126,7 @@ func TestGetPrivacyAPI(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/api/v1/server/privacy")
-	GetPrivacyAPI(db, cfg)(w, r)
+	GetPrivacyAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -141,7 +142,7 @@ func TestGetPrivacyAPIUsesConfiguredPolicy(t *testing.T) {
 	cfg.Server.Tracking.Type = "plausible"
 	r, w := newJSONNegotiatedContext("/api/v1/server/privacy")
 	r.AddCookie(&http.Cookie{Name: "ccpa_opt_out", Value: "true"})
-	GetPrivacyAPI(db, cfg)(w, r)
+	GetPrivacyAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -157,7 +158,7 @@ func TestGetHelpAPI(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/api/v1/server/help")
-	GetHelpAPI(db, cfg)(w, r)
+	GetHelpAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -167,7 +168,7 @@ func TestGetTermsAPI(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()
 	r, w := newJSONNegotiatedContext("/api/v1/server/terms")
-	GetTermsAPI(db, cfg)(w, r)
+	GetTermsAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
@@ -189,7 +190,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 
 	t.Run("invalid form data returns 400", func(t *testing.T) {
 		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", map[string]interface{}{"name": "Ada"})
-		HandleContactFormSubmission(db, cfg)(w, r)
+		HandleContactFormSubmission(storeForDB(db), cfg)(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())
 		}
@@ -207,7 +208,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 		first := validContactBody()
 		first["form_token"] = formToken
 		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", first)
-		HandleContactFormSubmission(db, cfg)(w, r)
+		HandleContactFormSubmission(storeForDB(db), cfg)(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 		}
@@ -225,7 +226,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 			t.Fatalf("first response = %s", w.Body.String())
 		}
 		var count int
-		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
+		if err := db.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
 			t.Fatalf("query contact_submissions: %v", err)
 		}
 		if count != 0 {
@@ -235,12 +236,12 @@ func TestHandleContactFormSubmission(t *testing.T) {
 		second["step"], second["confirmed"] = "confirm", true
 		second["form_token"], second["review_token"] = firstResponse.Data.FormToken, firstResponse.Data.ReviewToken
 		r, w = newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", second)
-		r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
-		HandleContactFormSubmission(db, cfg)(w, r)
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", storeForDB(db)))
+		HandleContactFormSubmission(storeForDB(db), cfg)(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("confirm status = %d, body=%s", w.Code, w.Body.String())
 		}
-		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
+		if err := db.QueryRow(`SELECT COUNT(*) FROM contact_submissions WHERE email = ?`, "ada@example.com").Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		if count != 1 {
@@ -262,7 +263,7 @@ func TestSaveContactToDBMissingSchema(t *testing.T) {
 	})
 
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/server/contact", nil)
-	r = r.WithContext(reqctx.SetValue(r.Context(), "db", &database.DB{DB: raw}))
+	r = r.WithContext(reqctx.SetValue(r.Context(), "db", storeForDB(raw)))
 
 	err = saveContactToDB(r, "Ada", "ada@example.com", "Hello", "Test message")
 	if err == nil {

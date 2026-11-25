@@ -60,7 +60,7 @@ type OIDCService struct {
 // area file and secrets.yml credentials.
 func NewOIDCService() *OIDCService {
 	return &OIDCService{
-		settings:      &models.SettingsModel{DB: database.GetServerDB()},
+		settings:      &models.SettingsModel{Store: database.GetServerStore()},
 		providerCache: make(map[string]*oidc.Provider),
 		cacheExpiry:   make(map[string]time.Time),
 	}

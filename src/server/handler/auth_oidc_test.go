@@ -289,7 +289,7 @@ func newOIDCTestRequest(target, provider string) (*http.Request, *httptest.Respo
 func TestOIDCAuthHandlerStartLogin_Disabled(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService()}
+	h := &OIDCAuthHandler{DB: storeForDB(serverDB), OIDCService: service.NewOIDCService()}
 
 	r, w := newOIDCTestRequest("/server/auth/oidc/okta/start", "okta")
 
@@ -306,7 +306,7 @@ func TestOIDCAuthHandlerStartLogin_Disabled(t *testing.T) {
 func TestOIDCAuthHandlerCallback_Disabled(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService()}
+	h := &OIDCAuthHandler{DB: storeForDB(serverDB), OIDCService: service.NewOIDCService()}
 
 	r, w := newOIDCTestRequest("/server/auth/oidc/okta/callback", "okta")
 

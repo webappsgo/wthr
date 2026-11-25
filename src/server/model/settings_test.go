@@ -23,7 +23,7 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 	setSettingsTestConfig(t)
 	serverDB := newModelServerDB(t)
 	setModelGlobalDualDB(t, serverDB, nil)
-	model := &SettingsModel{DB: serverDB}
+	model := &SettingsModel{testDB: serverDB}
 
 	t.Run("Get missing key errors", func(t *testing.T) {
 		if _, err := model.GetSetting("missing.key"); err == nil {
@@ -153,7 +153,7 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 	setSettingsTestConfig(t)
 	db := newModelServerDB(t)
 	setModelGlobalDualDB(t, db, nil)
-	model := &SettingsModel{DB: db}
+	model := &SettingsModel{testDB: db}
 
 	t.Run("List on empty custom config", func(t *testing.T) {
 		list, err := model.List()

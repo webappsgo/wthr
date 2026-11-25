@@ -11,7 +11,7 @@ import (
 // unauthenticated request (no user in the request context) is redirected to
 // the login page rather than attempting a template render.
 func TestDashboardHandler_ShowDashboard_Unauthenticated(t *testing.T) {
-	h := &DashboardHandler{DB: newTestServerDB(t)}
+	h := &DashboardHandler{DB: storeForDB(newTestServerDB(t))}
 
 	c, w := newAPITestContext("/dashboard")
 	h.ShowDashboard(w, c)
@@ -28,7 +28,7 @@ func TestDashboardHandler_ShowDashboard_Unauthenticated(t *testing.T) {
 // with no "admin_id" set in the request context is redirected to the admin
 // login page rather than attempting a template render.
 func TestDashboardHandler_ShowAdminPanel_MissingAdminID(t *testing.T) {
-	h := &DashboardHandler{DB: newTestServerDB(t)}
+	h := &DashboardHandler{DB: storeForDB(newTestServerDB(t))}
 
 	c, w := newAPITestContext("/server/administration")
 	h.ShowAdminPanel(w, c)
@@ -45,7 +45,7 @@ func TestDashboardHandler_ShowAdminPanel_MissingAdminID(t *testing.T) {
 // non-int "admin_id" context value is treated the same as missing and
 // redirects to the admin login page.
 func TestDashboardHandler_ShowAdminPanel_WrongAdminIDType(t *testing.T) {
-	h := &DashboardHandler{DB: newTestServerDB(t)}
+	h := &DashboardHandler{DB: storeForDB(newTestServerDB(t))}
 
 	c, w := newAPITestContext("/server/administration")
 	c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
@@ -66,7 +66,7 @@ func TestDashboardHandler_ShowAdminPanel_AdminNotFound(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, newTestServerDB(t))
 
-	h := &DashboardHandler{DB: serverDB}
+	h := &DashboardHandler{DB: storeForDB(serverDB)}
 
 	c, w := newAPITestContext("/server/administration")
 	c = withAdminID(c, 999999)

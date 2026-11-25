@@ -1253,7 +1253,7 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 	createdAt := now.UTC().Format("2006-01-02 15:04:05")
 
 	seedAdmin := func(username string, active bool) int64 {
-		admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount(username, username+"@example.com", "password123", false)
+		admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount(username, username+"@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("create admin %q: %v", username, err)
 		}
@@ -1296,7 +1296,7 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 	brokenAdmin := seedAdmin("brokenadmin", true)
 	seedSession("broken-session", brokenAdmin, "whenever-o-clock")
 
-	got, err := loadGraphQLOnlineAdminUsernames(context.Background(), ddb.Server, ddb.Users)
+	got, err := loadGraphQLOnlineAdminUsernames(context.Background(), ddb.GetServerStore(), ddb.GetUsersStore())
 	if err != nil {
 		t.Fatalf("loadGraphQLOnlineAdminUsernames: %v", err)
 	}
@@ -1356,7 +1356,7 @@ func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) 
 	if _, err := ddb.Server.Exec(`UPDATE audit_log SET timestamp = ? WHERE ulid = ?`, queryTime.Add(-5*time.Second).In(graphQLZoneWest).Format(graphQLLocalTimestampLayout), "entry-recent"); err != nil {
 		t.Fatalf("refresh recent audit fixture: %v", err)
 	}
-	stats, err := loadGraphQLRequestStats(context.Background(), ddb.Server)
+	stats, err := loadGraphQLRequestStats(context.Background(), ddb.GetServerStore())
 	if err != nil {
 		t.Fatalf("loadGraphQLRequestStats: %v", err)
 	}

@@ -9,12 +9,15 @@ func TestSchedulerTaskDefsCoverRequiredTasks(t *testing.T) {
 	required := []string{
 		"ssl_renewal", "geoip_update", "blocklist_update", "cve_update", "update_check",
 		"session_cleanup", "token_cleanup", "log_rotation", "backup_daily", "backup_hourly",
-		"healthcheck_self", "tor_health", "i2p_health", "cluster_heartbeat",
+		"healthcheck_self", "database_check", "disk_check", "database_vacuum", "tor_health", "i2p_health", "cluster_heartbeat",
 	}
 	for _, name := range required {
 		if _, ok := SchedulerTaskDefFor(name); !ok {
 			t.Errorf("required task %q has no definition", name)
 		}
+	}
+	if vacuum, ok := SchedulerTaskDefFor("database_vacuum"); !ok || vacuum.Defaults.Enabled {
+		t.Error("database_vacuum must be registered but disabled for automatic scheduling")
 	}
 	if _, ok := SchedulerTaskDefFor("no_such_task"); ok {
 		t.Error("unknown task must not resolve")

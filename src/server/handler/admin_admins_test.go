@@ -80,8 +80,8 @@ func newAdminsTestHandler(t *testing.T) (*AdminsHandler, *sql.DB) {
 	t.Helper()
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	inviteService := service.NewAdminInviteService(serverDB, "https://example.com", nil)
-	return NewAdminsHandler(serverDB, inviteService), serverDB
+	inviteService := service.NewAdminInviteService(storeForDB(serverDB), "https://example.com", nil)
+	return NewAdminsHandler(storeForDB(serverDB), inviteService), serverDB
 }
 
 // newAdminsTestAdmin creates a real admin row for tests that need one.
@@ -433,7 +433,7 @@ func TestAdminsHandlerShowInviteAcceptPage_InvalidToken(t *testing.T) {
 func TestAdminsHandlerShowInviteAcceptPage_ValidToken(t *testing.T) {
 	h, serverDB := newAdminsTestHandler(t)
 	inviterID := newAdminsTestAdmin(t, "invitercreator", "password123")
-	inviteService := service.NewAdminInviteService(serverDB, "https://example.com", nil)
+	inviteService := service.NewAdminInviteService(storeForDB(serverDB), "https://example.com", nil)
 	created, _, err := inviteService.CreateInvite("invitee@example.com", int(inviterID.ID), "24h")
 	if err != nil {
 		t.Fatalf("CreateInvite() unexpected error: %v", err)

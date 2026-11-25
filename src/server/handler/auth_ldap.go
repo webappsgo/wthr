@@ -17,7 +17,7 @@ import (
 
 // LDAPAuthHandler handles LDAP-based user authentication.
 type LDAPAuthHandler struct {
-	DB          *sql.DB
+	DB          *database.Store
 	LDAPService *service.LDAPService
 }
 
@@ -61,7 +61,7 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 
 	var userID int64
 	err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect,
@@ -104,7 +104,7 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionModel := &models.UserSessionModel{DB: usersDB}
+	sessionModel := &models.UserSessionModel{Store: usersDB}
 	session, sessionErr := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge)
 	if sessionErr != nil {
 		InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_session"))

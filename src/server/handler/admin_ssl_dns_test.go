@@ -41,9 +41,9 @@ func dnsRequest(method, path, body string) *http.Request {
 func TestSaveDNSSettingsSealsCredentialsAndMasksTheView(t *testing.T) {
 	cfg := withDNSConfig(t)
 	db := newTestServerDB(t)
-	h := NewSSLHandler(t.TempDir(), db, "")
+	h := NewSSLHandler(t.TempDir(), storeForDB(db), "")
 
-	if err := service.MarkDNSValidated(db); err != nil {
+	if err := service.MarkDNSValidated(storeForDB(db)); err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
@@ -58,7 +58,7 @@ func TestSaveDNSSettingsSealsCredentialsAndMasksTheView(t *testing.T) {
 	if !strings.HasPrefix(stored, util.DNSCredentialPrefix) {
 		t.Errorf("stored value is not sealed: %q", stored)
 	}
-	if _, ok := service.DNSValidatedAt(db); ok {
+	if _, ok := service.DNSValidatedAt(storeForDB(db)); ok {
 		t.Error("changing the credentials must clear dns_validated_at")
 	}
 
@@ -85,7 +85,7 @@ func TestSaveDNSSettingsSealsCredentialsAndMasksTheView(t *testing.T) {
 func TestSaveDNSSettingsKeepsAStoredValueWhenTheMaskIsSent(t *testing.T) {
 	cfg := withDNSConfig(t)
 	db := newTestServerDB(t)
-	h := NewSSLHandler(t.TempDir(), db, "")
+	h := NewSSLHandler(t.TempDir(), storeForDB(db), "")
 
 	rec := httptest.NewRecorder()
 	h.SaveDNSSettings(rec, dnsRequest(http.MethodPut, "/dns", `{"provider":"cloudflare","credentials":{"CF_DNS_API_TOKEN":"first"}}`))
@@ -94,7 +94,7 @@ func TestSaveDNSSettingsKeepsAStoredValueWhenTheMaskIsSent(t *testing.T) {
 	}
 	before := cfg.Server.SSL.LetsEncrypt.DNSCredentials["CF_DNS_API_TOKEN"]
 
-	if err := service.MarkDNSValidated(db); err != nil {
+	if err := service.MarkDNSValidated(storeForDB(db)); err != nil {
 		t.Fatal(err)
 	}
 	rec = httptest.NewRecorder()
@@ -105,14 +105,14 @@ func TestSaveDNSSettingsKeepsAStoredValueWhenTheMaskIsSent(t *testing.T) {
 	if cfg.Server.SSL.LetsEncrypt.DNSCredentials["CF_DNS_API_TOKEN"] != before {
 		t.Error("an unchanged value must keep its ciphertext")
 	}
-	if _, ok := service.DNSValidatedAt(db); !ok {
+	if _, ok := service.DNSValidatedAt(storeForDB(db)); !ok {
 		t.Error("nothing changed, so dns_validated_at stays")
 	}
 }
 
 func TestSaveDNSSettingsReportsVariableNamesOnly(t *testing.T) {
 	cfg := withDNSConfig(t)
-	h := NewSSLHandler(t.TempDir(), newTestServerDB(t), "")
+	h := NewSSLHandler(t.TempDir(), storeForDB(newTestServerDB(t)), "")
 
 	rec := httptest.NewRecorder()
 	h.SaveDNSSettings(rec, dnsRequest(http.MethodPut, "/dns", `{"provider":"cloudflare","credentials":{"CF_API_EMAIL":"admin@example.com"}}`))
@@ -129,7 +129,7 @@ func TestSaveDNSSettingsReportsVariableNamesOnly(t *testing.T) {
 
 func TestSaveDNSSettingsRejectsUnknownProviderAndClears(t *testing.T) {
 	cfg := withDNSConfig(t)
-	h := NewSSLHandler(t.TempDir(), newTestServerDB(t), "")
+	h := NewSSLHandler(t.TempDir(), storeForDB(newTestServerDB(t)), "")
 
 	rec := httptest.NewRecorder()
 	h.SaveDNSSettings(rec, dnsRequest(http.MethodPut, "/dns", `{"provider":"exec","credentials":{}}`))
@@ -151,7 +151,7 @@ func TestSaveDNSSettingsRejectsUnknownProviderAndClears(t *testing.T) {
 
 func TestCheckDNSSettingsStoresNothing(t *testing.T) {
 	cfg := withDNSConfig(t)
-	h := NewSSLHandler(t.TempDir(), newTestServerDB(t), "")
+	h := NewSSLHandler(t.TempDir(), storeForDB(newTestServerDB(t)), "")
 
 	rec := httptest.NewRecorder()
 	h.CheckDNSSettings(rec, dnsRequest(http.MethodPost, "/dns/check", `{"provider":"digitalocean","credentials":{"DO_AUTH_TOKEN":"t"}}`))

@@ -13,7 +13,7 @@ const testUserPassword = "test-password-123"
 
 // newUserTestDB wires a fresh in-memory users.db and sets it as the global
 // dual-DB so UserModel/UserSessionModel/etc. (which read via
-// database.GetUsersDB()) operate against it.
+// database.GetUsersStore()) operate against it.
 func newUserTestDB(t *testing.T) {
 	t.Helper()
 	usersDB := newModelUsersDB(t)
@@ -188,7 +188,7 @@ func TestUserModelListAndCount(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	serverDB := newModelServerDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
-	m := &UserModel{DB: usersDB}
+	m := &UserModel{testDB: usersDB}
 
 	t.Run("empty table", func(t *testing.T) {
 		users, err := m.ListUsers(0, 10)

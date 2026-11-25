@@ -130,7 +130,7 @@ func TestValidateTokenFormat(t *testing.T) {
 // user-only ownership constraint of tokens, and expiration calculation.
 func TestTokenModelV2_CreateToken(t *testing.T) {
 	db := newTokenV2UsersDB(t)
-	model := &TokenModelV2{DB: db}
+	model := &TokenModelV2{testDB: db}
 
 	t.Run("invalid owner type", func(t *testing.T) {
 		if _, err := model.CreateToken("bogus", 1, "n", ScopeRead, 0); err == nil {
@@ -195,7 +195,7 @@ func TestTokenModelV2_CreateToken(t *testing.T) {
 // expired, and the happy path.
 func TestTokenModelV2_ValidateToken(t *testing.T) {
 	db := newTokenV2UsersDB(t)
-	model := &TokenModelV2{DB: db}
+	model := &TokenModelV2{testDB: db}
 
 	t.Run("invalid format rejected before DB lookup", func(t *testing.T) {
 		if _, err := model.ValidateToken("not-a-token"); err == nil {
@@ -249,7 +249,7 @@ func TestTokenModelV2_ValidateToken(t *testing.T) {
 // lifecycle methods, including ownership-scoped delete failures.
 func TestTokenModelV2_UpdateLastUsedListDeleteRotate(t *testing.T) {
 	db := newTokenV2UsersDB(t)
-	model := &TokenModelV2{DB: db}
+	model := &TokenModelV2{testDB: db}
 
 	created, err := model.CreateToken(OwnerTypeUser, 20, "Key", ScopeGlobal, 0)
 	if err != nil {

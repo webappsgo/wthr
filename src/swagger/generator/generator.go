@@ -142,7 +142,7 @@ func ExtractRegisteredAPIRoutes(root string) ([]Route, error) {
 		return true
 	})
 
-	for _, functionName := range []string{"registerHealthRoutes", "registerMetricsRoutes", "registerGraphQLRoutes", "registerSwaggerRoutes"} {
+	for _, functionName := range []string{"registerHealthRoutes", "registerMetricsRoutes", "registerGraphQLRoutes", "registerSwaggerRoutes", "registerAPIRoot"} {
 		declaration := findFunction(file, functionName)
 		if declaration == nil || declaration.Body == nil {
 			continue
@@ -153,6 +153,8 @@ func ExtractRegisteredAPIRoutes(root string) ([]Route, error) {
 				for _, name := range field.Names {
 					switch name.Name {
 					case "apiPath":
+						env[name.Name] = "/api/{api_version}"
+					case "api":
 						env[name.Name] = "/api/{api_version}"
 					case "r":
 						env[name.Name] = ""
@@ -171,6 +173,9 @@ func ExtractRegisteredAPIRoutes(root string) ([]Route, error) {
 			}
 			path, ok := routeExpression(call.Args[0], env)
 			if ok {
+				if receiver, found := routeReceiverName(selector.X); found && env[receiver] != "" {
+					path = joinRoute(env[receiver], path)
+				}
 				add(selector.Sel.Name, path)
 			} else {
 				position := fset.Position(call.Pos())
@@ -300,6 +305,18 @@ func marshalOpenAPI(routes []Route) ([]byte, error) {
 			},
 			"security": []map[string][]string{{}, {"BearerAuth": {}}},
 		}
+		maintenanceVacuum := route.Method == "POST" && route.Path == "/api/{api_version}/server/{admin_path}/database/vacuum"
+		if maintenanceVacuum {
+			operation["summary"] = "Queue SQLite database vacuum maintenance"
+			operation["description"] = "Queues database_vacuum for local SQLite databases. The operation runs asynchronously in the maintenance scheduler."
+			operation["responses"] = map[string]interface{}{
+				"202": map[string]interface{}{"description": "Maintenance task accepted", "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/APIResponse"}}}},
+				"401": map[string]interface{}{"description": "Authentication required", "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/APIError"}}}},
+				"500": map[string]interface{}{"description": "Server error", "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/APIError"}}}},
+				"501": map[string]interface{}{"description": "Local SQLite maintenance is unavailable", "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/APIError"}}}},
+				"503": map[string]interface{}{"description": "Maintenance task could not be scheduled", "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/APIError"}}}},
+			}
+		}
 		parameters := []map[string]interface{}{}
 		for _, name := range routePathParams(route.Path) {
 			parameters = append(parameters, map[string]interface{}{"name": name, "in": "path", "required": true, "schema": map[string]string{"type": "string"}})
@@ -307,7 +324,7 @@ func marshalOpenAPI(routes []Route) ([]byte, error) {
 		if len(parameters) > 0 {
 			operation["parameters"] = parameters
 		}
-		if route.Method == "POST" || route.Method == "PUT" || route.Method == "PATCH" {
+		if (route.Method == "POST" || route.Method == "PUT" || route.Method == "PATCH") && !maintenanceVacuum {
 			operation["requestBody"] = map[string]interface{}{"required": false, "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "additionalProperties": true}}}}
 		}
 		pathItem[strings.ToLower(route.Method)] = operation

@@ -1576,30 +1576,29 @@
     },
 
     vacuumDatabase: function() {
-      const adminApiPath = AdminDatabasePage.getData().adminApiPath;
       const btn = document.getElementById('vacuum-btn');
+      const queuedMessage = document.getElementById('database-vacuum-queued-message');
+      const failedMessage = document.getElementById('database-vacuum-failed-message');
+      const form = btn.closest('form');
       btn.disabled = true;
-      btn.textContent = '⏳ Vacuuming...';
-      fetch(adminApiPath + '/server/database/vacuum', { method: 'POST' })
+      const originalLabel = btn.textContent;
+      btn.textContent = '⏳ ' + originalLabel;
+      fetch(form.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(new FormData(form))
+      })
         .then(function(response) {
-          return response.json().then(function(data) {
-            return { ok: response.ok, data: data };
-          });
-        })
-        .then(function(result) {
-          if (result.ok) {
-            AdminDatabasePage.showOperationResult('✅ Database vacuumed successfully! Space reclaimed.', 'success');
-            AdminDatabasePage.refreshStats();
-          } else {
-            throw new Error((result.data.error && result.data.error.message) || 'Vacuum failed');
-          }
+          if (!response.ok) throw new Error(failedMessage ? failedMessage.textContent.trim() : '');
+          AdminDatabasePage.showOperationResult('✅ ' + (queuedMessage ? queuedMessage.textContent.trim() : ''), 'success');
         })
         .catch(function(error) {
           AdminDatabasePage.showOperationResult('❌ ' + error.message, 'error');
         })
         .finally(function() {
           btn.disabled = false;
-          btn.textContent = '🧹 Vacuum Now';
+          btn.textContent = originalLabel;
         });
     },
 
@@ -6537,25 +6536,6 @@
       });
     },
 
-    vacuumDatabase: function() {
-      showConfirm('Vacuum database? This will compact the database file and may take several minutes.').then(function(confirmed) {
-        if (!confirmed) return;
-        const adminApiPath = AdminDashboardPage.getData().adminApiPath;
-        fetch(adminApiPath + '/database/vacuum', { method: 'POST' })
-          .then(function(response) { return response.json(); })
-          .then(function(result) {
-            if (result.success) {
-              Toast.success('Database vacuumed successfully!');
-            } else {
-              Toast.error('Vacuum failed: ' + result.error);
-            }
-          })
-          .catch(function(error) {
-            Toast.error('Error vacuuming database: ' + error.message);
-          });
-      });
-    },
-
     // SSL/TLS
 
     testSSLCertificate: function() {
@@ -7623,9 +7603,6 @@
         case 'admin-dashboard-clear-cache':
           AdminDashboardPage.clearCache();
           break;
-        case 'admin-dashboard-vacuum-database':
-          AdminDashboardPage.vacuumDatabase();
-          break;
         case 'admin-dashboard-test-ssl-certificate':
           AdminDashboardPage.testSSLCertificate();
           break;
@@ -8011,6 +7988,32 @@
       }
     },
 
+    cacheOfflineStrings() {
+      const data = document.getElementById('offline-strings-data');
+      if (!data || !window.caches) {
+        return;
+      }
+      if (!data.dataset.title || !data.dataset.heading || !data.dataset.message) {
+        return;
+      }
+      const strings = {
+        lang: data.dataset.lang || document.documentElement.lang,
+        dir: data.dataset.dir || 'ltr',
+        title: data.dataset.title,
+        heading: data.dataset.heading,
+        message: data.dataset.message
+      };
+      caches.open('wthr-offline-strings')
+        .then(function(cache) {
+          return cache.put('/offline-strings.json', new Response(JSON.stringify(strings), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        })
+        .catch(function() {
+          // Offline support remains an enhancement if Cache Storage is unavailable.
+        });
+    },
+
     async showUpdate() {
       if (document.querySelector('.update-banner')) {
         return;
@@ -8114,6 +8117,7 @@
   };
 
   Pwa.watchdog();
+  Pwa.cacheOfflineStrings();
   Pwa.register();
 
 })();

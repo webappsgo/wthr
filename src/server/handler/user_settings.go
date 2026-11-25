@@ -29,11 +29,11 @@ import (
 
 // UserSettingsHandler handles user settings pages and API
 type UserSettingsHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // NewUserSettingsHandler creates a new UserSettingsHandler
-func NewUserSettingsHandler(db *sql.DB) *UserSettingsHandler {
+func NewUserSettingsHandler(db *database.Store) *UserSettingsHandler {
 	return &UserSettingsHandler{DB: db}
 }
 
@@ -385,12 +385,12 @@ func (h *UserSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Requ
 }
 
 // LoadUserSettings loads the live user settings payload used by /api/v1/users/settings.
-func LoadUserSettings(db *sql.DB, userID int64) (*UserSettingsResponse, error) {
+func LoadUserSettings(db *database.Store, userID int64) (*UserSettingsResponse, error) {
 	return NewUserSettingsHandler(db).loadSettings(userID)
 }
 
 // ApplyUserSettingsUpdate applies the same section-based settings update used by PATCH /api/v1/users/settings.
-func ApplyUserSettingsUpdate(db *sql.DB, userID int64, req *UpdateSettingsRequest) error {
+func ApplyUserSettingsUpdate(db *database.Store, userID int64, req *UpdateSettingsRequest) error {
 	return NewUserSettingsHandler(db).applySettingsUpdate(userID, req)
 }
 
@@ -876,7 +876,7 @@ func (h *UserSettingsHandler) ListSessions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	sessionModel := &models.UserSessionModel{DB: h.DB}
+	sessionModel := &models.UserSessionModel{Store: h.DB}
 	sessions, err := sessionModel.GetActiveSessions(user.ID)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_list_sessions"))
@@ -972,7 +972,7 @@ func (h *UserSettingsHandler) RevokeSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	sessionModel := &models.UserSessionModel{DB: h.DB}
+	sessionModel := &models.UserSessionModel{Store: h.DB}
 	if err := sessionModel.DeleteSessionByRowID(rowID); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_revoke_session"))
 		return
@@ -992,7 +992,7 @@ func (h *UserSettingsHandler) RevokeAllSessions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	sessionModel := &models.UserSessionModel{DB: h.DB}
+	sessionModel := &models.UserSessionModel{Store: h.DB}
 	if err := sessionModel.DeleteAllSessionsForUser(user.ID); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_revoke_sessions"))
 		return

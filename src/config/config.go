@@ -504,9 +504,27 @@ type VerificationMetaTag struct {
 
 // NotificationConfig represents notification settings per AI.md PART 4
 type NotificationConfig struct {
-	Enabled        bool `yaml:"enabled"`
-	EmailEnabled   bool `yaml:"email_enabled"`
-	WebhookEnabled bool `yaml:"webhook_enabled"`
+	Enabled        bool                            `yaml:"enabled"`
+	EmailEnabled   bool                            `yaml:"email_enabled"`
+	WebhookEnabled bool                            `yaml:"webhook_enabled"`
+	DatabaseError  DatabaseErrorNotificationConfig `yaml:"database_error"`
+	DiskLow        DiskLowNotificationConfig       `yaml:"disk_low"`
+}
+
+// DatabaseErrorNotificationConfig controls the scheduled database health alert.
+type DatabaseErrorNotificationConfig struct {
+	Enabled       bool   `yaml:"enabled"`
+	Failures      int    `yaml:"failures"`
+	CheckInterval string `yaml:"check_interval"`
+	Repeat        string `yaml:"repeat"`
+}
+
+// DiskLowNotificationConfig controls the scheduled low disk space alert.
+type DiskLowNotificationConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	ThresholdPercent int    `yaml:"threshold_percent"`
+	CheckInterval    string `yaml:"check_interval"`
+	Repeat           string `yaml:"repeat"`
 }
 
 // WebConfig represents web-specific configuration per AI.md PART 4
@@ -960,8 +978,10 @@ func DefaultAppConfig() *AppConfig {
 				},
 			},
 			Notifications: NotificationConfig{
-				Enabled:      true,
-				EmailEnabled: true,
+				Enabled:       true,
+				EmailEnabled:  true,
+				DatabaseError: DatabaseErrorNotificationConfig{Enabled: true, Failures: 3, CheckInterval: "1m", Repeat: "24h"},
+				DiskLow:       DiskLowNotificationConfig{Enabled: true, ThresholdPercent: 85, CheckInterval: "5m", Repeat: "24h"},
 			},
 			Tor: TorConfig{
 				Enabled: false,

@@ -23,7 +23,7 @@ type NotificationChannel interface {
 
 // ChannelManager manages all notification channels
 type ChannelManager struct {
-	db       *sql.DB
+	db       *database.Store
 	channels map[string]NotificationChannel
 	smtp     *SMTPService
 }
@@ -124,7 +124,7 @@ var ChannelRegistry = []ChannelDefinition{
 }
 
 // NewChannelManager creates a new channel manager
-func NewChannelManager(db *sql.DB) *ChannelManager {
+func NewChannelManager(db *database.Store) *ChannelManager {
 	return &ChannelManager{
 		db:       db,
 		channels: make(map[string]NotificationChannel),

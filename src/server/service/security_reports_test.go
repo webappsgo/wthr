@@ -20,7 +20,7 @@ func newSecurityTestStore(t *testing.T) *SecurityReportStore {
 	}
 	t.Cleanup(func() { _ = ddb.Close() })
 	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
-	return &SecurityReportStore{DB: ddb.Server, EncryptionKey: key, PGP: NewPGPKeyManager(ddb.Server, t.TempDir())}
+	return &SecurityReportStore{Store: ddb.GetServerStore(), EncryptionKey: key, PGP: NewPGPKeyManager(ddb.GetServerStore(), t.TempDir())}
 }
 
 func sampleReport() SecurityReport {
@@ -30,26 +30,26 @@ func sampleReport() SecurityReport {
 
 func TestSecurityIDWindows(t *testing.T) {
 	store := newSecurityTestStore(t)
-	id, err := CurrentSecurityID(store.DB)
+	id, err := CurrentSecurityID(store.Store)
 	if err != nil || len(id) != 16 {
 		t.Fatalf("CurrentSecurityID = %q, %v", id, err)
 	}
-	if !ValidSecurityID(store.DB, id) {
+	if !ValidSecurityID(store.Store, id) {
 		t.Error("current id must validate")
 	}
-	secret, _ := InstallationSecret(store.DB)
-	if !ValidSecurityID(store.DB, securityIDFor(secret, time.Now().Add(-securityIDWindow*time.Second))) {
+	secret, _ := InstallationSecret(store.Store)
+	if !ValidSecurityID(store.Store, securityIDFor(secret, time.Now().Add(-securityIDWindow*time.Second))) {
 		t.Error("previous window id must validate")
 	}
-	if ValidSecurityID(store.DB, securityIDFor(secret, time.Now().Add(-3*securityIDWindow*time.Second))) {
+	if ValidSecurityID(store.Store, securityIDFor(secret, time.Now().Add(-3*securityIDWindow*time.Second))) {
 		t.Error("an id three windows old must not validate")
 	}
 	for _, bad := range []string{"", "short", strings.Repeat("z", 16)} {
-		if ValidSecurityID(store.DB, bad) {
+		if ValidSecurityID(store.Store, bad) {
 			t.Errorf("%q must not validate", bad)
 		}
 	}
-	again, _ := InstallationSecret(store.DB)
+	again, _ := InstallationSecret(store.Store)
 	if string(again) != string(secret) {
 		t.Error("installation secret must be stable")
 	}
@@ -69,12 +69,12 @@ func TestSecurityReportAESRoundTrip(t *testing.T) {
 	}
 	var stored []byte
 	var alg string
-	_ = store.DB.QueryRow(`SELECT body_enc, body_alg FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&stored, &alg)
+	_ = database.QueryRowContext(context.Background(), store.Store, database.TimeoutSimpleSelect, `SELECT body_enc, body_alg FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&stored, &alg)
 	if alg != "aes-256-gcm" || strings.Contains(string(stored), "xss") {
 		t.Fatalf("body must be encrypted with aes-256-gcm, alg=%q", alg)
 	}
 	var raw string
-	_ = store.DB.QueryRow(`SELECT security_id FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&raw)
+	_ = database.QueryRowContext(context.Background(), store.Store, database.TimeoutSimpleSelect, `SELECT security_id FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&raw)
 	if raw == "0123456789abcdef" {
 		t.Error("the raw security id must never be stored")
 	}
@@ -105,7 +105,7 @@ func TestSecurityReportPGPRoundTrip(t *testing.T) {
 	}
 	var alg string
 	var stored []byte
-	_ = store.DB.QueryRow(`SELECT body_alg, body_enc FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&alg, &stored)
+	_ = database.QueryRowContext(context.Background(), store.Store, database.TimeoutSimpleSelect, `SELECT body_alg, body_enc FROM security_reports WHERE tracking_id = ?`, tracking).Scan(&alg, &stored)
 	if alg != "pgp" || !strings.HasPrefix(string(stored), "-----BEGIN PGP MESSAGE") {
 		t.Fatalf("expected a PGP body, alg=%q", alg)
 	}
@@ -224,11 +224,11 @@ func TestSecurityReportResearcherToken(t *testing.T) {
 	if _, err := store.ResearcherView(tracking, token); !errors.Is(err, ErrReportNotFound) {
 		t.Error("the token works once per day")
 	}
-	_, _ = store.DB.Exec(`UPDATE security_reports SET token_last_used = '2000-01-01' WHERE tracking_id = ?`, tracking)
+	_, _ = database.ExecContext(context.Background(), store.Store, database.TimeoutWrite, `UPDATE security_reports SET token_last_used = '2000-01-01' WHERE tracking_id = ?`, tracking)
 	if _, err := store.ResearcherView(tracking, token); err != nil {
 		t.Errorf("the token works again on another day: %v", err)
 	}
-	_, _ = store.DB.Exec(`UPDATE security_reports SET token_last_used = '2000-01-01', closed_at = ? WHERE tracking_id = ?`, time.Now().Add(-31*24*time.Hour), tracking)
+	_, _ = database.ExecContext(context.Background(), store.Store, database.TimeoutWrite, `UPDATE security_reports SET token_last_used = '2000-01-01', closed_at = ? WHERE tracking_id = ?`, time.Now().Add(-31*24*time.Hour), tracking)
 	if _, err := store.ResearcherView(tracking, token); !errors.Is(err, ErrReportNotFound) {
 		t.Error("the link stops working 30 days after closing")
 	}
@@ -239,8 +239,8 @@ func TestSecurityReportPurgeAndThanks(t *testing.T) {
 	open, _, _ := store.Create("0123456789abcdef", sampleReport(), ReportContact{})
 	closedOld, _, _ := store.Create("0123456789abcdef", sampleReport(), ReportContact{})
 	closedNew, _, _ := store.Create("0123456789abcdef", sampleReport(), ReportContact{})
-	_, _ = store.DB.Exec(`UPDATE security_reports SET status = 'disclosed', closed_at = ? WHERE tracking_id = ?`, time.Now().AddDate(-2, 0, 0), closedOld)
-	_, _ = store.DB.Exec(`UPDATE security_reports SET status = 'disclosed', closed_at = ? WHERE tracking_id = ?`, time.Now(), closedNew)
+	_, _ = database.ExecContext(context.Background(), store.Store, database.TimeoutWrite, `UPDATE security_reports SET status = 'disclosed', closed_at = ? WHERE tracking_id = ?`, time.Now().AddDate(-2, 0, 0), closedOld)
+	_, _ = database.ExecContext(context.Background(), store.Store, database.TimeoutWrite, `UPDATE security_reports SET status = 'disclosed', closed_at = ? WHERE tracking_id = ?`, time.Now(), closedNew)
 	n, err := store.Purge(0)
 	if err != nil || n != 1 {
 		t.Fatalf("Purge = %d %v", n, err)

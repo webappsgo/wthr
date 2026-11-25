@@ -21,7 +21,7 @@ func seedSettings(t *testing.T) {
 	}
 	db := newTestServerDB(t)
 	setGlobalTestDualDB(t, db, db)
-	settings := &model.SettingsModel{DB: db}
+	settings := &model.SettingsModel{Store: storeForDB(db)}
 	for _, row := range [][]string{
 		{"demo.title", "Old", "string"},
 		{"demo.count", "5", "number"},

@@ -40,8 +40,8 @@ var ErrEncryptionKeyUnavailable = errors.New("no encryption key is configured")
 // depend on it: users.two_factor_secret (users.db), the AES-sealed security report bodies and
 // contacts, and the unattended backup password (server.db).
 type EncryptionKeyRotator struct {
-	ServerDB *sql.DB
-	UsersDB  *sql.DB
+	ServerDB *database.Store
+	UsersDB  *database.Store
 }
 
 // newEncryptionKey returns a base64-encoded 32-byte key from crypto/rand.
@@ -355,31 +355,26 @@ func (r *EncryptionKeyRotator) Rebase(oldKey, newKey string) error {
 func (r *EncryptionKeyRotator) rebaseAdminTOTPBatch(batch []adminTOTPRow, oldKey, newKey string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutWrite)
 	defer cancel()
-	tx, err := r.UsersDB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	for _, row := range batch {
-		if openUnder(newKey, row.secret) {
-			continue
+	return r.UsersDB.Write(ctx, func(tx *sql.Tx) error {
+		for _, row := range batch {
+			if openUnder(newKey, row.secret) {
+				continue
+			}
+			plaintext, err := util.DecryptAtRest(oldKey, row.secret)
+			if err != nil {
+				log.Printf("SECURITY event=security.decrypt_failed resource=admin_totp_secret")
+				return fmt.Errorf("decrypting an admin TOTP secret during key rotation: %w", err)
+			}
+			sealed, err := util.EncryptAtRest(newKey, plaintext)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE admins SET totp_secret = ? WHERE id = ?`, sealed, row.id); err != nil {
+				return err
+			}
 		}
-		plaintext, err := util.DecryptAtRest(oldKey, row.secret)
-		if err != nil {
-			_ = tx.Rollback()
-			log.Printf("SECURITY event=security.decrypt_failed resource=admin_totp_secret")
-			return fmt.Errorf("decrypting an admin TOTP secret during key rotation: %w", err)
-		}
-		sealed, err := util.EncryptAtRest(newKey, plaintext)
-		if err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE admins SET totp_secret = ? WHERE id = ?`, sealed, row.id); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 func (r *EncryptionKeyRotator) rebaseBackupPassword(oldKey, newKey string) error {
@@ -416,62 +411,52 @@ func rebaseDNSCredentials(oldKey, newKey string) error {
 
 // rebaseTwoFactorBatch re-encrypts one batch of two-factor secrets in one transaction.
 func (r *EncryptionKeyRotator) rebaseTwoFactorBatch(batch []twoFactorRow, oldKey, newKey string) error {
-	tx, err := r.UsersDB.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	for _, row := range batch {
-		sealed, changed, err := reencrypt(oldKey, newKey, row.secret)
-		if err != nil {
-			_ = tx.Rollback()
-			return err
+	return r.UsersDB.Write(context.Background(), func(tx *sql.Tx) error {
+		for _, row := range batch {
+			sealed, changed, err := reencrypt(oldKey, newKey, row.secret)
+			if err != nil {
+				return err
+			}
+			if !changed {
+				continue
+			}
+			if _, err := tx.Exec(`UPDATE users SET two_factor_secret = ? WHERE id = ?`, sealed, row.id); err != nil {
+				return err
+			}
 		}
-		if !changed {
-			continue
-		}
-		if _, err := tx.Exec(`UPDATE users SET two_factor_secret = ? WHERE id = ?`, sealed, row.id); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // rebaseReportBatch re-encrypts one batch of report bodies and contacts in one transaction.
 func (r *EncryptionKeyRotator) rebaseReportBatch(batch []reportRow, oldKey, newKey string) error {
-	tx, err := r.ServerDB.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	for _, row := range batch {
-		if row.bodyAlg == "aes-256-gcm" {
-			sealed, changed, err := reencrypt(oldKey, newKey, string(row.body))
-			if err != nil {
-				_ = tx.Rollback()
-				return err
-			}
-			if changed {
-				if _, err := tx.Exec(`UPDATE security_reports SET body_enc = ? WHERE tracking_id = ?`, []byte(sealed), row.trackingID); err != nil {
-					_ = tx.Rollback()
+	return r.ServerDB.Write(context.Background(), func(tx *sql.Tx) error {
+		for _, row := range batch {
+			if row.bodyAlg == "aes-256-gcm" {
+				sealed, changed, err := reencrypt(oldKey, newKey, string(row.body))
+				if err != nil {
 					return err
+				}
+				if changed {
+					if _, err := tx.Exec(`UPDATE security_reports SET body_enc = ? WHERE tracking_id = ?`, []byte(sealed), row.trackingID); err != nil {
+						return err
+					}
+				}
+			}
+			if aesSealedContact(row.contact) {
+				sealed, changed, err := reencrypt(oldKey, newKey, string(row.contact))
+				if err != nil {
+					return err
+				}
+				if changed {
+					if _, err := tx.Exec(`UPDATE security_reports SET contact_enc = ? WHERE tracking_id = ?`, []byte(sealed), row.trackingID); err != nil {
+						return err
+					}
 				}
 			}
 		}
-		if aesSealedContact(row.contact) {
-			sealed, changed, err := reencrypt(oldKey, newKey, string(row.contact))
-			if err != nil {
-				_ = tx.Rollback()
-				return err
-			}
-			if changed {
-				if _, err := tx.Exec(`UPDATE security_reports SET contact_enc = ? WHERE tracking_id = ?`, []byte(sealed), row.trackingID); err != nil {
-					_ = tx.Rollback()
-					return err
-				}
-			}
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // Rotate replaces server.security.encryption_key following the PART 11 "Rotation contract":

@@ -93,7 +93,7 @@ type Scheduler struct {
 	stopCh  chan struct{}
 	stopped chan struct{}
 	tasks   map[string]*Task
-	db      *sql.DB
+	db      *database.Store
 	nodeID  string
 	mu      sync.RWMutex
 	running bool
@@ -112,7 +112,7 @@ type Scheduler struct {
 
 // NewScheduler creates a new scheduler instance backed by a built-in
 // time.Ticker loop instead of an external cron library.
-func NewScheduler(db *sql.DB) *Scheduler {
+func NewScheduler(db *database.Store) *Scheduler {
 	// Get node ID from hostname
 	nodeID, err := getNodeID()
 	if err != nil {
@@ -286,23 +286,24 @@ func (s *Scheduler) ensureTaskStateRow(task *Task) {
 		taskType = "global"
 	}
 
-	if _, err := s.db.Exec(
-		`INSERT OR IGNORE INTO scheduler_tasks (id, name, schedule, next_run, task_type)
-		 VALUES (?, ?, ?, ?, ?)`,
-		task.Name, task.Name, task.Schedule, nextRun, taskType,
-	); err != nil {
-		log.Printf("WARN: Failed to create scheduler state row for task '%s': %v", task.Name, err)
-		return
-	}
-
 	task.mu.Lock()
 	enabled := task.enabled
 	task.mu.Unlock()
-
-	if _, err := s.db.Exec(
-		"UPDATE scheduler_tasks SET name = ?, schedule = ?, next_run = ?, enabled = ?, task_type = ? WHERE id = ?",
-		task.Name, task.Schedule, nextRun, enabled, taskType, task.Name,
-	); err != nil {
+	err := s.db.Write(context.Background(), func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(context.Background(), `
+			INSERT INTO scheduler_tasks (id, name, schedule, next_run, task_type)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO NOTHING
+		`, task.Name, task.Name, task.Schedule, nextRun, taskType); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(context.Background(),
+			"UPDATE scheduler_tasks SET name = ?, schedule = ?, next_run = ?, enabled = ?, task_type = ? WHERE id = ?",
+			task.Name, task.Schedule, nextRun, enabled, taskType, task.Name,
+		)
+		return err
+	})
+	if err != nil {
 		log.Printf("WARN: Failed to refresh scheduler state row for task '%s': %v", task.Name, err)
 	}
 }
@@ -405,7 +406,7 @@ func (s *Scheduler) runMissedTasks() {
 		defer s.inFlight.Done()
 		for _, run := range missed {
 			log.Printf("INFO: Catch-up: running task '%s' missed at %s", run.task.Name, run.due.UTC().Format(time.RFC3339))
-			s.executeTask(run.task)
+			s.executeTask(run.task, false)
 		}
 	}()
 }
@@ -466,7 +467,7 @@ func (s *Scheduler) runDueTasks(now time.Time) {
 		s.inFlight.Add(1)
 		go func(t *Task) {
 			defer s.inFlight.Done()
-			s.executeTask(t)
+			s.executeTask(t, false)
 		}(task)
 	}
 }
@@ -530,7 +531,7 @@ func (s *Scheduler) releaseNodeLocks() {
 		return
 	}
 
-	if _, err := s.db.Exec(
+	if _, err := database.ExecContext(context.Background(), s.db, database.TimeoutWrite,
 		"UPDATE scheduler_tasks SET locked_by = NULL, locked_at = NULL WHERE locked_by = ?",
 		s.nodeID,
 	); err != nil {
@@ -547,7 +548,7 @@ func (s *Scheduler) markTasksInterrupted(names []string) {
 	}
 
 	for _, name := range names {
-		if _, err := s.db.Exec(
+		if _, err := database.ExecContext(context.Background(), s.db, database.TimeoutWrite,
 			"UPDATE scheduler_tasks SET last_status = ?, last_error = ?, fail_count = fail_count + 1 WHERE id = ?",
 			"interrupted", "interrupted by server shutdown", name,
 		); err != nil {
@@ -573,99 +574,84 @@ func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 		return true
 	}
 
-	db := database.GetServerDB()
 	ctx := context.Background()
 	nowUnix := time.Now().UTC().Unix()
 	lockExpiry := time.Now().UTC().Add(-LockTimeout)
-
-	// Read the current holder first. The staleness test used to live in SQL
-	// ("locked_at < ?" against a bound time.Time), which compared two different
-	// text encodings whenever the row had been written by a different producer.
-	// The canonical table stores Unix seconds, which compare as absolute instants.
-	var lockedBy sql.NullString
-	var lockedAt interface{}
-	err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT locked_by, locked_at FROM scheduler_tasks WHERE id = ?",
-		taskName,
-	).Scan(&lockedBy, &lockedAt)
-
-	// No row yet: this node is the row's first writer. ON CONFLICT DO NOTHING
-	// keeps the insert atomic, so a node that loses the race to create the row
-	// simply does not get the lock this tick.
-	if err == sql.ErrNoRows {
-		result, insertErr := database.ExecContext(ctx, db, database.TimeoutWrite, `
-			INSERT INTO scheduler_tasks (id, name, schedule, task_type, locked_by, locked_at, enabled)
-			VALUES (?, ?, ?, 'global', ?, ?, 1)
-			ON CONFLICT(id) DO NOTHING
-		`, taskName, taskName, schedule, s.nodeID, nowUnix)
-		if insertErr != nil {
-			log.Printf("WARNING: Failed to acquire lock for task '%s': %v", taskName, insertErr)
-			return false
-		}
-
-		inserted, _ := result.RowsAffected()
-		return inserted > 0
-	}
-
-	if err != nil {
-		log.Printf("WARNING: Failed to read lock state for task '%s': %v", taskName, err)
+	acquired := false
+	store := database.ServerStoreOr(s.db)
+	if store == nil {
+		log.Printf("WARNING: Failed to acquire lock for task '%s': server database is unavailable", taskName)
 		return false
 	}
-
-	// Decide acquirability from parsed instants:
-	// 1. Nobody holds it, take it
-	// 2. We hold it, refresh it
-	// 3. Somebody else holds it, take it only when their lock is provably older
-	//    than LockTimeout. A NULL or unparseable locked_at is treated as HELD,
-	//    never as stale: guessing "stale" would let two nodes run the same
-	//    global task at once, while guessing "held" only skips a tick.
-	if lockedBy.Valid && lockedBy.String != s.nodeID {
-		heldSince, ok := parseStoredTimestamp(lockedAt)
-		if !ok || !heldSince.Before(lockExpiry) {
-			return false
+	err := store.Write(ctx, func(tx *sql.Tx) error {
+		var lockedBy sql.NullString
+		var lockedAt interface{}
+		// Read, decide, and change the lock under one write transaction.
+		err := tx.QueryRowContext(ctx,
+			"SELECT locked_by, locked_at FROM scheduler_tasks WHERE id = ?", taskName,
+		).Scan(&lockedBy, &lockedAt)
+		if err == sql.ErrNoRows {
+			result, insertErr := tx.ExecContext(ctx, `
+				INSERT INTO scheduler_tasks (id, name, schedule, task_type, locked_by, locked_at, enabled)
+				VALUES (?, ?, ?, 'global', ?, ?, 1)
+				ON CONFLICT(id) DO NOTHING
+			`, taskName, taskName, schedule, s.nodeID, nowUnix)
+			if insertErr != nil {
+				return insertErr
+			}
+			inserted, affectedErr := result.RowsAffected()
+			acquired = affectedErr == nil && inserted > 0
+			return affectedErr
 		}
-	}
+		if err != nil {
+			return err
+		}
+		if lockedBy.Valid && lockedBy.String != s.nodeID {
+			heldSince, ok := parseStoredTimestamp(lockedAt)
+			if !ok || !heldSince.Before(lockExpiry) {
+				return nil
+			}
+		}
 
-	// Compare-and-swap on the holder observed above so a concurrent stealer
-	// loses: whichever node's UPDATE runs first flips locked_by, and the other
-	// node's WHERE clause no longer matches.
-	var result sql.Result
-	if lockedBy.Valid {
-		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
-			UPDATE scheduler_tasks
-			SET schedule = ?, task_type = 'global', locked_by = ?, locked_at = ?
-			WHERE id = ? AND locked_by = ?
-		`, schedule, s.nodeID, nowUnix, taskName, lockedBy.String)
-	} else {
-		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
-			UPDATE scheduler_tasks
-			SET schedule = ?, task_type = 'global', locked_by = ?, locked_at = ?
-			WHERE id = ? AND locked_by IS NULL
-		`, schedule, s.nodeID, nowUnix, taskName)
-	}
-
+		var result sql.Result
+		if lockedBy.Valid {
+			result, err = tx.ExecContext(ctx, `
+				UPDATE scheduler_tasks
+				SET schedule = ?, task_type = 'global', locked_by = ?, locked_at = ?
+				WHERE id = ? AND locked_by = ?
+			`, schedule, s.nodeID, nowUnix, taskName, lockedBy.String)
+		} else {
+			result, err = tx.ExecContext(ctx, `
+				UPDATE scheduler_tasks
+				SET schedule = ?, task_type = 'global', locked_by = ?, locked_at = ?
+				WHERE id = ? AND locked_by IS NULL
+			`, schedule, s.nodeID, nowUnix, taskName)
+		}
+		if err != nil {
+			return err
+		}
+		rowsAffected, affectedErr := result.RowsAffected()
+		if affectedErr != nil {
+			return affectedErr
+		}
+		if rowsAffected > 0 {
+			acquired = true
+			return nil
+		}
+		var confirmed sql.NullString
+		if err := tx.QueryRowContext(ctx,
+			"SELECT locked_by FROM scheduler_tasks WHERE id = ?", taskName,
+		).Scan(&confirmed); err != nil {
+			return err
+		}
+		acquired = confirmed.Valid && confirmed.String == s.nodeID
+		return nil
+	})
 	if err != nil {
 		log.Printf("WARNING: Failed to acquire lock for task '%s': %v", taskName, err)
 		return false
 	}
-
-	if rowsAffected, affectedErr := result.RowsAffected(); affectedErr == nil && rowsAffected > 0 {
-		return true
-	}
-
-	// Zero affected rows means either a competitor won the row or the driver
-	// reports "no change" for an update that rewrote identical values (MySQL
-	// does this when we refresh our own lock inside the same second). Re-read
-	// the holder to tell the two apart.
-	var confirmed sql.NullString
-	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT locked_by FROM scheduler_tasks WHERE id = ?",
-		taskName,
-	).Scan(&confirmed); err != nil {
-		return false
-	}
-
-	return confirmed.Valid && confirmed.String == s.nodeID
+	return acquired
 }
 
 // releaseTaskLock releases the distributed lock for a task
@@ -674,7 +660,7 @@ func (s *Scheduler) releaseTaskLock(taskName string) {
 		return
 	}
 
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		UPDATE scheduler_tasks
 		SET locked_by = NULL, locked_at = NULL
 		WHERE id = ? AND locked_by = ?
@@ -686,10 +672,10 @@ func (s *Scheduler) releaseTaskLock(taskName string) {
 }
 
 // executeTask executes a task and logs results
-func (s *Scheduler) executeTask(task *Task) {
+func (s *Scheduler) executeTask(task *Task, manual bool) {
 	// Check if task is enabled
 	task.mu.Lock()
-	if !task.enabled {
+	if !task.enabled && !manual {
 		task.mu.Unlock()
 		return
 	}
@@ -837,7 +823,7 @@ func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
 		nextRunUnix = nextRun.Unix()
 	}
 
-	if _, err := s.db.Exec(
+	if _, err := database.ExecContext(context.Background(), s.db, database.TimeoutWrite,
 		`UPDATE scheduler_tasks
 		 SET last_run = ?, last_status = ?, last_error = ?, next_run = ?,
 		     run_count = run_count + 1, fail_count = fail_count + ?
@@ -850,7 +836,7 @@ func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
 
 // logTaskExecution logs task execution to audit log
 func serverSettingEnabled(key string) bool {
-	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	settings := &model.SettingsModel{Store: database.GetServerStore()}
 	return settings.GetBool(key, false)
 }
 
@@ -869,7 +855,7 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 	now := time.Now()
 	auditID := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
-	_, insertErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, insertErr := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, ?, 'scheduler', ?, ?, 'scheduler', ?, ?, 'system', 'scheduler', ?)
 	`, auditID, now.UTC().Format(sqlTimestampLayout), s.nodeID, taskName, taskName, details, status)
@@ -908,7 +894,7 @@ func (s *Scheduler) GetTaskStatus() []map[string]interface{} {
 // against a UTC cutoff instead of SQLite's datetime('now') - comparing those
 // mixed layouts as text deleted sessions that had not actually expired.
 func CleanupOldSessions() error {
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_sessions", "id", "expires_at", time.Now().UTC())
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersStore(), "user_sessions", "id", "expires_at", time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to cleanup sessions: %w", err)
 	}
@@ -942,7 +928,7 @@ func CleanupOldAuditLogs() error {
 	// NULL or unparseable are left alone rather than deleted.
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "audit_log", "id", "timestamp", cutoff)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerStore(), "audit_log", "id", "timestamp", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup audit logs: %w", err)
 	}
@@ -957,7 +943,7 @@ func CleanupOldAuditLogs() error {
 // CheckWeatherAlerts checks for weather alerts on saved locations
 func CheckWeatherAlerts() error {
 	// Get all locations with alerts enabled
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), database.GetUsersStore(), database.TimeoutComplexSelect, `
 		SELECT l.id, l.name, l.latitude, l.longitude, l.user_id
 		FROM user_saved_locations l
 		JOIN users u ON l.user_id = u.id
@@ -1128,7 +1114,7 @@ func resolveUserLang(userID int) string {
 	if instance == nil {
 		return "en"
 	}
-	users := &model.UserModel{DB: database.GetUsersDB()}
+	users := &model.UserModel{Store: database.GetUsersStore()}
 	user, err := users.GetByID(int64(userID))
 	if err != nil || user == nil || user.Language == "" || !instance.IsSupported(user.Language) {
 		return instance.GetDefaultLanguage()
@@ -1154,7 +1140,7 @@ func translateAlert(lang, key string) string {
 // display value and its 30-day expiry, and carries the deep link in action_json
 // as a NotificationAction, which is where the schema actually keeps a link.
 func createNotification(userID int, notifType model.NotificationType, title, message, actionLabel, link string) {
-	notifications := &model.UserNotificationModel{DB: database.GetUsersDB()}
+	notifications := &model.UserNotificationModel{Store: database.GetUsersStore()}
 
 	// src/server/service/notification_service.go renders every non-security
 	// severity as a toast; weather alerts follow the same mapping.
@@ -1189,7 +1175,7 @@ func CreateSystemBackup() error {
 	// above disk_threshold (default 90%).
 	backupDir := backup.ResolveDir(p.DataDir)
 	if skip, reason := backupDiskSpaceExceeded(backupDir); skip {
-		logBackupSkippedDiskFullAudit(database.GetServerDB(), reason)
+		logBackupSkippedDiskFullAudit(database.GetServerStore(), reason)
 		log.Printf("ERROR: %s", reason)
 		return nil
 	}
@@ -1197,7 +1183,7 @@ func CreateSystemBackup() error {
 	encryptionPassword, err := scheduledBackupPassword()
 	if err != nil {
 		if errors.Is(err, backup.ErrComplianceEncryptionRequired) {
-			logBackupSkippedComplianceAudit(database.GetServerDB(), "daily")
+			logBackupSkippedComplianceAudit(database.GetServerStore(), "daily")
 			return nil
 		}
 		return err
@@ -1227,7 +1213,7 @@ func CreateSystemBackup() error {
 		return fmt.Errorf("backup failed: %w", err)
 	}
 
-	logBackupRetentionAudit(database.GetServerDB(), "scheduler", "daily", backupPath, deleted)
+	logBackupRetentionAudit(database.GetServerStore(), "scheduler", "daily", backupPath, deleted)
 	log.Printf("OK: Automated backup completed: %s", backupPath)
 
 	// AI.md PART 22 Backup Creation Flow steps 5-6: create and verify the
@@ -1243,8 +1229,8 @@ func CreateSystemBackup() error {
 		return fmt.Errorf("daily incremental backup failed: %w", dailyErr)
 	}
 
-	logBackupRetentionAudit(database.GetServerDB(), "scheduler", "daily", dailyPath, dailyDeleted)
-	logBackupDailyUpdatedAudit(database.GetServerDB(), dailyPath)
+	logBackupRetentionAudit(database.GetServerStore(), "scheduler", "daily", dailyPath, dailyDeleted)
+	logBackupDailyUpdatedAudit(database.GetServerStore(), dailyPath)
 	log.Printf("OK: Daily incremental backup completed: %s", dailyPath)
 
 	return nil
@@ -1304,7 +1290,7 @@ func diskSpaceGuardDecision(free, total, mostRecentBackupSize int64, hasPriorBac
 // "backup.skipped_disk_full" audit event ("Backup skipped - insufficient
 // free space or disk above threshold") when backupDiskSpaceExceeded aborts a
 // scheduled run before any backup file is created.
-func logBackupSkippedDiskFullAudit(db *sql.DB, reason string) {
+func logBackupSkippedDiskFullAudit(db *database.Store, reason string) {
 	if db == nil {
 		return
 	}
@@ -1330,7 +1316,7 @@ func logBackupSkippedDiskFullAudit(db *sql.DB, reason string) {
 
 // logBackupSkippedComplianceAudit records the required warning when a
 // scheduled backup is blocked because compliance mode has no saved password.
-func logBackupSkippedComplianceAudit(db *sql.DB, schedule string) {
+func logBackupSkippedComplianceAudit(db *database.Store, schedule string) {
 	const reason = "compliance mode requires encrypted backups, but no backup password is configured"
 	log.Printf("WARNING: %s; skipping %s backup", reason, schedule)
 	if db == nil {
@@ -1360,7 +1346,7 @@ func logBackupSkippedComplianceAudit(db *sql.DB, schedule string) {
 // logBackupDailyUpdatedAudit records AI.md PART 22/36320's
 // "backup.daily_updated" audit event ("Daily incremental updated") after the
 // fixed-path daily incremental file is (re)created.
-func logBackupDailyUpdatedAudit(db *sql.DB, dailyPath string) {
+func logBackupDailyUpdatedAudit(db *database.Store, dailyPath string) {
 	if db == nil {
 		return
 	}
@@ -1390,7 +1376,7 @@ func logBackupDailyUpdatedAudit(db *sql.DB, dailyPath string) {
 // one backup. A no-op sweep writes nothing - there is no cleanup to audit.
 // db may be nil (e.g. BackupHourlyTask running before startup wiring
 // completes) - that case is treated as "audit unavailable", not an error.
-func logBackupRetentionAudit(db *sql.DB, actorType, actorID, backupPath string, deleted []string) {
+func logBackupRetentionAudit(db *database.Store, actorType, actorID, backupPath string, deleted []string) {
 	if db == nil || len(deleted) == 0 {
 		return
 	}
@@ -1429,7 +1415,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 	retention := backup.DefaultRetention()
 
 	get := func(key string) string {
-		return (&model.SettingsModel{DB: database.GetServerDB()}).GetString(key, "")
+		return (&model.SettingsModel{Store: database.GetServerStore()}).GetString(key, "")
 	}
 
 	if v := get("backup.retention.max_backups"); v != "" {
@@ -1462,7 +1448,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 // AI.md PART 19: token cleanup every 15 minutes
 // tokens (database.UsersSchema) is this project's only API-token table and
 // it lives in the users database, so the cleanup runs against
-// database.GetUsersDB(). The one-time admin setup token is a file at
+// database.GetUsersStore(). The one-time admin setup token is a file at
 // {config_dir}/setup_token.txt (src/util/firstrun.go), not a database row, so
 // there is nothing for a scheduled task to prune for it.
 // Expiry is evaluated in Go against a UTC cutoff (see CleanupOldSessions) so a
@@ -1472,7 +1458,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 func CleanupExpiredTokens() error {
 	now := time.Now().UTC()
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "tokens", "id", "expires_at", now)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersStore(), "tokens", "id", "expires_at", now)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup expired API tokens: %w", err)
 	}
@@ -1488,7 +1474,7 @@ func CleanupExpiredTokens() error {
 // AI.md PART 19: healthcheck_self every 5 minutes
 func SelfHealthCheck() error {
 	// Check database connectivity
-	err := database.PingWithTimeout(database.GetServerDB())
+	err := database.GetServerStore().Probe(context.Background())
 	if err != nil {
 		log.Printf("WARNING: Self health check: database ping failed: %v", err)
 		return fmt.Errorf("database health check failed: %w", err)
@@ -1510,9 +1496,9 @@ func SelfHealthCheck() error {
 	}
 
 	// Check users database connectivity too
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 	if usersDB != nil {
-		if err := database.PingWithTimeout(usersDB); err != nil {
+		if err := usersDB.Probe(context.Background()); err != nil {
 			log.Printf("WARNING: Self health check: users database ping failed: %v", err)
 			return fmt.Errorf("users database health check failed: %w", err)
 		}
@@ -1529,7 +1515,7 @@ func CleanupRateLimitCounters() error {
 	// Reset hourly counters that are older than 1 hour
 	cutoff := time.Now().UTC().Add(-1 * time.Hour)
 
-	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "rate_limits", "id", "window_start", cutoff)
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerStore(), "rate_limits", "id", "window_start", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup rate limits: %w", err)
 	}
@@ -1561,7 +1547,7 @@ func UpdateBlocklist() error {
 		{"spamhaus_edrop", "https://www.spamhaus.org/drop/edrop.txt"},
 	}
 
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 
 	// Create table if not exists
 	if _, err := database.ExecContext(context.Background(), db, database.TimeoutMigration, `
@@ -1691,7 +1677,7 @@ func UpdateCVEDatabase() error {
 		return nil
 	}
 
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 
 	// server_cve_alerts is declared in database.ServerSchema, which
 	// database.InitDualDB executes on startup. The CREATE TABLE that used to run
@@ -1845,7 +1831,7 @@ func ClusterHeartbeat(nodeID string) error {
 	// project's single host-resolution helper (proxy/DOMAIN aware, falling back
 	// through os.Hostname to a routable address), so a node identifies itself the
 	// same way here as everywhere else the app names itself.
-	if _, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	if _, err := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO server_nodes (node_id, hostname, last_heartbeat, status)
 		VALUES (?, ?, ?, 'online')
 		ON CONFLICT(node_id) DO UPDATE SET
@@ -1883,7 +1869,7 @@ func (s *Scheduler) persistEnabled(taskName string, enabled bool) {
 	if s.db == nil {
 		return
 	}
-	if _, err := s.db.Exec("UPDATE scheduler_tasks SET enabled = ? WHERE id = ?", enabled, taskName); err != nil {
+	if _, err := database.ExecContext(context.Background(), s.db, database.TimeoutWrite, "UPDATE scheduler_tasks SET enabled = ? WHERE id = ?", enabled, taskName); err != nil {
 		log.Printf("WARN: Failed to persist enabled state for task '%s': %v", taskName, err)
 	}
 }
@@ -1924,7 +1910,11 @@ func (s *Scheduler) TriggerTask(taskName string) error {
 	}
 
 	log.Printf("INFO: Manually triggering task '%s'", taskName)
-	go s.executeTask(task)
+	s.inFlight.Add(1)
+	go func() {
+		defer s.inFlight.Done()
+		s.executeTask(task, true)
+	}()
 	return nil
 }
 

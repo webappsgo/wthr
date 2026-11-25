@@ -1,11 +1,13 @@
 package service
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/secret"
 )
 
@@ -13,7 +15,7 @@ import (
 func rotationFixture(t *testing.T) *SecurityReportStore {
 	t.Helper()
 	store := newSecurityTestStore(t)
-	secrets := secret.NewStore(store.DB)
+	secrets := secret.NewStore(store.Store)
 	if err := secrets.EnsureAll(); err != nil {
 		t.Fatal(err)
 	}
@@ -31,13 +33,13 @@ func TestRotateInstallationSecretRebasesThePrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldSecret, _ := InstallationSecret(store.DB)
+	oldSecret, _ := InstallationSecret(store.Store)
 
-	if err := RotateInstallationSecret(store.DB, store.PGP); err != nil {
+	if err := RotateInstallationSecret(store.Store, store.PGP); err != nil {
 		t.Fatalf("rotation failed: %v", err)
 	}
 
-	newSecret, _ := InstallationSecret(store.DB)
+	newSecret, _ := InstallationSecret(store.Store)
 	if string(newSecret) == string(oldSecret) {
 		t.Fatal("the installation secret must change")
 	}
@@ -56,37 +58,37 @@ func TestRotateInstallationSecretRebasesThePrivateKey(t *testing.T) {
 
 func TestRotateInstallationSecretKeepsInFlightSecurityIDsValid(t *testing.T) {
 	store := rotationFixture(t)
-	oldID, _ := CurrentSecurityID(store.DB)
+	oldID, _ := CurrentSecurityID(store.Store)
 
-	if err := RotateInstallationSecret(store.DB, store.PGP); err != nil {
+	if err := RotateInstallationSecret(store.Store, store.PGP); err != nil {
 		t.Fatal(err)
 	}
-	if !ValidSecurityID(store.DB, oldID) {
+	if !ValidSecurityID(store.Store, oldID) {
 		t.Error("a security_id issued before the rotation must keep validating during the grace period")
 	}
-	newID, _ := CurrentSecurityID(store.DB)
-	if newID == oldID || !ValidSecurityID(store.DB, newID) {
+	newID, _ := CurrentSecurityID(store.Store)
+	if newID == oldID || !ValidSecurityID(store.Store, newID) {
 		t.Error("the new secret issues a different, valid id")
 	}
 }
 
 func TestSecurityIDStopsValidatingAfterTheGracePeriod(t *testing.T) {
 	store := rotationFixture(t)
-	oldID, _ := CurrentSecurityID(store.DB)
-	if err := RotateInstallationSecret(store.DB, store.PGP); err != nil {
+	oldID, _ := CurrentSecurityID(store.Store)
+	if err := RotateInstallationSecret(store.Store, store.PGP); err != nil {
 		t.Fatal(err)
 	}
 
 	secrets := secret.Default()
 	// Retiring after the grace period removes the previous value, so the old id fails closed
-	if _, err := store.DB.Exec(`UPDATE app_secrets SET value = ? WHERE name = 'installation_secret_previous_until'`,
+	if _, err := database.ExecContext(context.Background(), store.Store, database.TimeoutWrite, `UPDATE app_secrets SET value = ? WHERE name = 'installation_secret_previous_until'`,
 		time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)); err != nil {
 		t.Fatal(err)
 	}
 	if retired, err := secrets.RetireExpired(); err != nil || len(retired) != 1 {
 		t.Fatalf("the expired previous value must be retired, got %v, %v", retired, err)
 	}
-	if ValidSecurityID(store.DB, oldID) {
+	if ValidSecurityID(store.Store, oldID) {
 		t.Error("an id from before the rotation must stop validating once the previous secret is retired")
 	}
 }
@@ -113,7 +115,7 @@ func TestRebaseWithoutAKeypairIsANoOp(t *testing.T) {
 	if err := store.PGP.Rebase([]byte("old"), []byte("new")); err != nil {
 		t.Errorf("no keypair means nothing to rebase, got %v", err)
 	}
-	if err := RotateInstallationSecret(store.DB, store.PGP); err != nil {
+	if err := RotateInstallationSecret(store.Store, store.PGP); err != nil {
 		t.Errorf("rotating without a keypair must work, got %v", err)
 	}
 }

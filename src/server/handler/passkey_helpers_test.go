@@ -19,7 +19,7 @@ func newPasskeyTestUser(t *testing.T, usersDB *sql.DB, username, password string
 	// struct's injected DB field, so the global dual-DB must be wired for
 	// these calls to hit this in-memory database instead of nil-panicking.
 	setGlobalTestDualDB(t, usersDB, usersDB)
-	user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount(username, username+"@example.com", password, "user")
+	user, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount(username, username+"@example.com", password, "user")
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestListUserPasskeys(t *testing.T) {
 	user := newPasskeyTestUser(t, usersDB, "listuser", "password123")
 
 	t.Run("no passkeys returns empty slice", func(t *testing.T) {
-		summaries, err := ListUserPasskeys(usersDB, user.ID)
+		summaries, err := ListUserPasskeys(storeForDB(usersDB), user.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -186,7 +186,7 @@ func TestListUserPasskeys(t *testing.T) {
 		if _, err := badDB.Exec("DROP TABLE passkeys"); err != nil {
 			t.Fatalf("failed to drop table: %v", err)
 		}
-		if _, err := ListUserPasskeys(badDB, user.ID); err == nil {
+		if _, err := ListUserPasskeys(storeForDB(badDB), user.ID); err == nil {
 			t.Fatalf("expected error from missing table")
 		}
 	})
@@ -198,7 +198,7 @@ func TestDeleteUserPasskey(t *testing.T) {
 	user := newPasskeyTestUser(t, usersDB, "deluser", "password123")
 
 	t.Run("deleting non-existent passkey errors", func(t *testing.T) {
-		if err := DeleteUserPasskey(usersDB, user.ID, 999); err == nil {
+		if err := DeleteUserPasskey(storeForDB(usersDB), user.ID, 999); err == nil {
 			t.Fatalf("expected error deleting non-existent passkey")
 		}
 	})
@@ -211,31 +211,39 @@ func TestBeginPasskeyRegistrationToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("empty name errors", func(t *testing.T) {
-		if _, err := BeginPasskeyRegistrationToken(usersDB, user, env, "", "password123"); err == nil {
+		if _, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, env, "", "password123"); err == nil {
 			t.Fatalf("expected error for empty name")
 		}
 	})
 
 	t.Run("empty password errors", func(t *testing.T) {
-		if _, err := BeginPasskeyRegistrationToken(usersDB, user, env, "my key", ""); err == nil {
+		if _, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, env, "my key", ""); err == nil {
 			t.Fatalf("expected error for empty password")
 		}
 	})
 
 	t.Run("wrong password errors", func(t *testing.T) {
-		if _, err := BeginPasskeyRegistrationToken(usersDB, user, env, "my key", "wrong-password"); err == nil {
+		if _, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, env, "my key", "wrong-password"); err == nil {
 			t.Fatalf("expected error for wrong password")
 		}
 	})
 
+	t.Run("surrounding password whitespace is rejected", func(t *testing.T) {
+		for _, password := range []string{" password123", "password123 ", " password123 "} {
+			if _, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, env, "my key", password); err != ErrPasskeyInvalidPassword {
+				t.Errorf("password %q error = %v, want %v", password, err, ErrPasskeyInvalidPassword)
+			}
+		}
+	})
+
 	t.Run("invalid envelope host errors", func(t *testing.T) {
-		if _, err := BeginPasskeyRegistrationToken(usersDB, user, PasskeyEnvelope{}, "my key", "password123"); err == nil {
+		if _, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, PasskeyEnvelope{}, "my key", "password123"); err == nil {
 			t.Fatalf("expected error for missing host")
 		}
 	})
 
 	t.Run("valid inputs succeed", func(t *testing.T) {
-		result, err := BeginPasskeyRegistrationToken(usersDB, user, env, "my key", "password123")
+		result, err := BeginPasskeyRegistrationToken(storeForDB(usersDB), user, env, "my key", "password123")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -256,7 +264,7 @@ func TestFinishPasskeyRegistrationToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("unknown ceremony token errors", func(t *testing.T) {
-		if _, err := FinishPasskeyRegistrationToken(usersDB, user, env, "no-such-token", []byte(`{}`)); err == nil {
+		if _, err := FinishPasskeyRegistrationToken(storeForDB(usersDB), user, env, "no-such-token", []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for unknown ceremony token")
 		}
 	})
@@ -267,7 +275,7 @@ func TestFinishPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyRegistrationToken(usersDB, user, env, token, []byte(`{}`)); err == nil {
+		if _, err := FinishPasskeyRegistrationToken(storeForDB(usersDB), user, env, token, []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for mismatched ceremony kind")
 		}
 	})
@@ -278,7 +286,7 @@ func TestFinishPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyRegistrationToken(usersDB, user, env, token, []byte(`{}`)); err == nil {
+		if _, err := FinishPasskeyRegistrationToken(storeForDB(usersDB), user, env, token, []byte(`{}`)); err == nil {
 			t.Fatalf("expected error for mismatched user id")
 		}
 	})
@@ -289,7 +297,7 @@ func TestFinishPasskeyRegistrationToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyRegistrationToken(usersDB, user, env, token, []byte(`not json`)); err == nil {
+		if _, err := FinishPasskeyRegistrationToken(storeForDB(usersDB), user, env, token, []byte(`not json`)); err == nil {
 			t.Fatalf("expected error for malformed credential body")
 		}
 	})
@@ -301,13 +309,13 @@ func TestBeginPasskeyChallengeToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("invalid envelope host errors", func(t *testing.T) {
-		if _, err := BeginPasskeyChallengeToken(usersDB, PasskeyEnvelope{}, ""); err == nil {
+		if _, err := BeginPasskeyChallengeToken(storeForDB(usersDB), PasskeyEnvelope{}, ""); err == nil {
 			t.Fatalf("expected error for missing host")
 		}
 	})
 
 	t.Run("discoverable login succeeds without pending session", func(t *testing.T) {
-		result, err := BeginPasskeyChallengeToken(usersDB, env, "")
+		result, err := BeginPasskeyChallengeToken(storeForDB(usersDB), env, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -318,18 +326,18 @@ func TestBeginPasskeyChallengeToken(t *testing.T) {
 	})
 
 	t.Run("unknown pending session token errors", func(t *testing.T) {
-		if _, err := BeginPasskeyChallengeToken(usersDB, env, "no-such-pending-session"); err == nil {
+		if _, err := BeginPasskeyChallengeToken(storeForDB(usersDB), env, "no-such-pending-session"); err == nil {
 			t.Fatalf("expected error for unknown pending session token")
 		}
 	})
 
 	t.Run("user without passkeys errors", func(t *testing.T) {
 		user := newPasskeyTestUser(t, usersDB, "nopasskeyuser", "password123")
-		pending, err := createPendingTwoFactorSession(usersDB, user.ID)
+		pending, err := createPendingTwoFactorSession(storeForDB(usersDB), user.ID)
 		if err != nil {
 			t.Fatalf("unexpected error creating pending session: %v", err)
 		}
-		if _, err := BeginPasskeyChallengeToken(usersDB, env, pending.ID); err == nil {
+		if _, err := BeginPasskeyChallengeToken(storeForDB(usersDB), env, pending.ID); err == nil {
 			t.Fatalf("expected error for user with no registered passkeys")
 		}
 	})
@@ -341,13 +349,13 @@ func TestFinishPasskeyChallengeToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("empty body errors", func(t *testing.T) {
-		if _, err := FinishPasskeyChallengeToken(usersDB, env, "any-token", nil, "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), env, "any-token", nil, "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for empty body")
 		}
 	})
 
 	t.Run("unknown ceremony token errors", func(t *testing.T) {
-		if _, err := FinishPasskeyChallengeToken(usersDB, env, "no-such-token", []byte(`{}`), "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), env, "no-such-token", []byte(`{}`), "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for unknown ceremony token")
 		}
 	})
@@ -358,7 +366,7 @@ func TestFinishPasskeyChallengeToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyChallengeToken(usersDB, PasskeyEnvelope{}, token, []byte(`{}`), "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), PasskeyEnvelope{}, token, []byte(`{}`), "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for missing host")
 		}
 	})
@@ -369,7 +377,7 @@ func TestFinishPasskeyChallengeToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyChallengeToken(usersDB, env, token, []byte(`not json`), "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), env, token, []byte(`not json`), "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for malformed credential response")
 		}
 	})
@@ -380,7 +388,7 @@ func TestFinishPasskeyChallengeToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyChallengeToken(usersDB, env, token, []byte(`{}`), "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), env, token, []byte(`{}`), "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for unknown ceremony kind")
 		}
 	})
@@ -391,7 +399,7 @@ func TestFinishPasskeyChallengeToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		defer passkeyCeremonyCache.Delete(token)
-		if _, err := FinishPasskeyChallengeToken(usersDB, env, token, []byte(`{}`), "127.0.0.1"); err == nil {
+		if _, err := FinishPasskeyChallengeToken(storeForDB(usersDB), env, token, []byte(`{}`), "127.0.0.1"); err == nil {
 			t.Fatalf("expected error for invalid pending session")
 		}
 	})

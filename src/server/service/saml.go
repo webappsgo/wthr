@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -124,7 +125,7 @@ type SAMLParsedAuthnStatement struct {
 }
 
 func NewSAMLService() *SAMLService {
-	return &SAMLService{settings: &models.SettingsModel{DB: database.GetServerDB()}, metadataCache: make(map[string]samlMetadataCacheEntry)}
+	return &SAMLService{settings: &models.SettingsModel{Store: database.GetServerStore()}, metadataCache: make(map[string]samlMetadataCacheEntry)}
 }
 
 func (s *SAMLService) Enabled() bool {
@@ -550,13 +551,18 @@ func (samlReplayCache) Consume(assertionID string, expiresAt time.Time) error {
 	if assertionID == "" {
 		return errors.New("empty SAML assertion ID")
 	}
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return errors.New("SAML replay store is unavailable")
 	}
 	now := dbtime.FormatSQLTimestamp(time.Now())
-	_, _ = db.Exec(`DELETE FROM saml_replay_cache WHERE expires_at <= ?`, now)
-	_, err := db.Exec(`INSERT INTO saml_replay_cache (assertion_id, expires_at) VALUES (?, ?)`, assertionID, dbtime.FormatSQLTimestamp(expiresAt))
+	err := db.Write(context.Background(), func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(context.Background(), `DELETE FROM saml_replay_cache WHERE expires_at <= ?`, now); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(context.Background(), `INSERT INTO saml_replay_cache (assertion_id, expires_at) VALUES (?, ?)`, assertionID, dbtime.FormatSQLTimestamp(expiresAt))
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("record SAML assertion replay key: %w", err)
 	}

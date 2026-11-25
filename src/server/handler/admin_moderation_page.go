@@ -22,7 +22,7 @@ import (
 // ShowAdminModerationPage renders the user list and applies search/status
 // filters on the server so the page remains useful without JavaScript.
 func ShowAdminModerationPage(w http.ResponseWriter, r *http.Request) {
-	users, err := (&model.UserModel{DB: database.GetUsersDB()}).GetAll()
+	users, err := (&model.UserModel{Store: database.GetUsersStore()}).GetAll()
 	if err != nil {
 		renderModerationError(w, r)
 		return
@@ -64,13 +64,13 @@ func AdminModerationImpersonateUser(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	user, err := (&model.UserModel{DB: database.GetUsersDB()}).GetByID(userID)
+	user, err := (&model.UserModel{Store: database.GetUsersStore()}).GetByID(userID)
 	if err != nil || !user.IsActive || user.IsBanned || user.Role == "admin" {
 		http.NotFound(w, r)
 		return
 	}
 	const lifetime = 15 * time.Minute
-	sessions := &model.SessionModel{DB: database.GetUsersDB()}
+	sessions := &model.SessionModel{Store: database.GetUsersStore()}
 	session, err := sessions.CreateSession(user.ID, int(lifetime.Seconds()))
 	if err != nil {
 		http.Error(w, "Unable to start impersonation", http.StatusInternalServerError)
@@ -112,7 +112,7 @@ func StopUserImpersonation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	sessions := &model.SessionModel{DB: database.GetUsersDB()}
+	sessions := &model.SessionModel{Store: database.GetUsersStore()}
 	session, err := sessions.GetByID(cookie.Value)
 	if err != nil || !isAdminImpersonationSession(session) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
@@ -162,7 +162,7 @@ func writeImpersonationAudit(r *http.Request, adminID, targetID int64, phase, st
 	if err != nil {
 		return err
 	}
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, source, status)
 		VALUES (?, ?, 'admin', ?, ?, 'user', ?, ?, ?, ?, 'web', ?)
 	`, ulid.Make().String(), dbtime.FormatSQLTimestamp(time.Now()), strconv.FormatInt(adminID, 10),
@@ -179,13 +179,13 @@ func ShowAdminModerationUserPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	users := &model.UserModel{DB: database.GetUsersDB()}
+	users := &model.UserModel{Store: database.GetUsersStore()}
 	user, err := users.GetByID(id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	activities, err := (&model.UserActivityLogModel{DB: database.GetUsersDB()}).GetActivities(id, 0, 25)
+	activities, err := (&model.UserActivityLogModel{Store: database.GetUsersStore()}).GetActivities(id, 0, 25)
 	if err != nil {
 		renderModerationError(w, r)
 		return
@@ -202,7 +202,7 @@ func ShowAdminModerationUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func moderationUserSessions(userID int64) ([]map[string]interface{}, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect,
+	rows, err := database.QueryContext(context.Background(), database.GetUsersStore(), database.TimeoutComplexSelect,
 		"SELECT id, ip_address, user_agent, created_at, expires_at, last_used_at FROM user_sessions WHERE user_id = ? ORDER BY last_used_at DESC", userID)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func AdminModerationUserAction(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, adminPagePath(r, "/moderation/users"), http.StatusSeeOther)
 		return
 	}
-	users := &model.UserModel{DB: database.GetUsersDB()}
+	users := &model.UserModel{Store: database.GetUsersStore()}
 	target := adminPagePath(r, "/moderation/users/"+strconv.FormatInt(id, 10))
 	action := r.FormValue("action")
 	switch action {
@@ -251,7 +251,7 @@ func AdminModerationUserAction(w http.ResponseWriter, r *http.Request) {
 		SetFlash(w, r, "success", "flash.settings_saved")
 		target = adminPagePath(r, "/moderation/users")
 	case "revoke_sessions":
-		if err := (&model.UserSessionModel{DB: database.GetUsersDB()}).DeleteAllSessionsForUser(id); err != nil {
+		if err := (&model.UserSessionModel{Store: database.GetUsersStore()}).DeleteAllSessionsForUser(id); err != nil {
 			SetFlash(w, r, "error", "flash.settings_save_failed")
 		} else {
 			SetFlash(w, r, "success", "flash.settings_saved")

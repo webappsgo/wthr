@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202611101800-git
+##@Version           :  202611241200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
 # @@ReadME           :  {scriptname --help | README.md}
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
-# @@Created          :  Tuesday, November 10, 2026 18:00 EST
+# @@Created          :  Tuesday, November 24, 2026 12:00 EST
 # @@File             :  e2e.sh
-# @@Description      :  AI.md PART 29 browser E2E and layout review matrix in headless Chromium
-# @@Changelog        :  Build the server in Docker, run it beside Playwright, assert layout at every viewport
+# @@Description      :  AI.md PART 29 chromedp E2E suite for SSR, no-JS, and full-browser flows
+# @@Changelog        :  Replace the Playwright layout pass with a hermetic chromedp test suite
 # @@TODO             :  none
 # @@Other            :  none
 # @@Resource         :  none
@@ -20,70 +20,83 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# AI.md PART 29: headless Chromium review matrix (viewports x themes x direction x pages)
 set -euo pipefail
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "ERROR: docker not found"
-    exit 1
+  echo "ERROR: docker not found. Install Docker to run the browser E2E suite." >&2
+  exit 69
 fi
 
 PROJECTNAME=$(basename "$PWD")
 PROJECTORG=$(basename "$(dirname "$PWD")")
-CONTAINER_NAME="e2e-${PROJECTNAME}-$$"
-SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-
-mkdir -p "${TMPDIR:-/tmp}/${PROJECTORG}"
-BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECTORG}/${PROJECTNAME}-XXXXXX")
-trap 'docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true; rm -rf "$BUILD_DIR"' EXIT
-
+INTERNAL_NAME="${INTERNAL_NAME:-$PROJECTNAME}"
+E2E_TIMEOUT="${E2E_TIMEOUT:-3600}"
 GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
-GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$PROJECTNAME}"
-mkdir -p "$GO_CACHE" "$GO_BUILD"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$INTERNAL_NAME}"
+new_suffix() { od -An -N4 -tx1 /dev/urandom | tr -d ' \n'; }
 
-echo "=== Building the server in Docker ==="
-docker run --rm \
-  --name "${PROJECTNAME}-e2ebuild-$$" \
-  -v "$PWD:/build" \
-  -v "$BUILD_DIR:/output" \
+mkdir -p "${TMPDIR:-/tmp}/${PROJECTORG}" "$GO_CACHE" "$GO_BUILD"
+BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECTORG}/${INTERNAL_NAME}-XXXXXX")
+BUILD_DIR=$(cd -- "$BUILD_DIR" && pwd)
+chmod 0700 "$BUILD_DIR"
+mkdir -p "$BUILD_DIR/artifacts" "$BUILD_DIR/test-tmp"
+chmod 0700 "$BUILD_DIR/artifacts" "$BUILD_DIR/test-tmp"
+
+NETWORK_NAME="${PROJECTNAME}-$(new_suffix)"
+BROWSER_CONTAINER="${PROJECTNAME}-$(new_suffix)"
+TEST_CONTAINER="${PROJECTNAME}-$(new_suffix)"
+BROWSER_ALIAS="${PROJECTNAME}-headless"
+TEST_ALIAS="${PROJECTNAME}-e2e"
+
+cleanup() {
+  local status=$?
+  if [ "$status" -ne 0 ]; then
+    timeout -k 5 30 docker logs "$BROWSER_CONTAINER" >&2 2>/dev/null || true
+  fi
+  timeout -k 5 60 docker rm -f "$BROWSER_CONTAINER" "$TEST_CONTAINER" >/dev/null 2>&1 || true
+  timeout -k 5 60 docker network rm "$NETWORK_NAME" >/dev/null 2>&1 || true
+  if [ "$status" -eq 0 ]; then
+    rm -rf "$BUILD_DIR"
+  else
+    printf 'E2E failure artifacts retained at %s\n' "$BUILD_DIR" >&2
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+echo "=== Creating isolated Docker network ==="
+timeout -k 5 60 docker network create --internal --driver bridge "$NETWORK_NAME" >/dev/null
+
+echo "=== Starting headless Chromium sidecar ==="
+timeout -k 30 "$E2E_TIMEOUT" docker run --detach --rm --no-healthcheck \
+  --name "$BROWSER_CONTAINER" \
+  --network "$NETWORK_NAME" \
+  --network-alias "$BROWSER_ALIAS" \
+  --memory=2g --cpus=2 --cpu-shares=512 --shm-size=1g \
+  chromedp/headless-shell:latest \
+  --no-sandbox --remote-debugging-address=0.0.0.0 --remote-debugging-port=9222
+
+echo "=== Building the server and running all three E2E tiers in Docker ==="
+timeout -k 30 "$E2E_TIMEOUT" docker run --rm --no-healthcheck \
+  --name "$TEST_CONTAINER" \
+  --network "$NETWORK_NAME" \
+  --network-alias "$TEST_ALIAS" \
+  --memory=4g --cpus=2 --cpu-shares=512 \
+  -v "$PWD:/app:ro" \
+  -v "$BUILD_DIR/artifacts:/tmp/e2e" \
+  -v "$BUILD_DIR/test-tmp:/tmp/${PROJECTORG}" \
   -v "$GO_CACHE:/usr/local/share/go/pkg/mod" \
   -v "$GO_BUILD:/usr/local/share/go/cache" \
-  -w /build \
+  -w /app \
   -e CGO_ENABLED=0 \
   -e GOFLAGS=-buildvcs=false \
-  casjaysdev/go:latest go build -trimpath -ldflags '-s -w' -o "/output/$PROJECTNAME" ./src
+  -e "PROJECT_ORG=$PROJECTORG" \
+  -e "INTERNAL_NAME=$INTERNAL_NAME" \
+  -e "E2E_SERVER_BINARY=/tmp/e2e/$PROJECTNAME" \
+  -e "E2E_SERVER_PORT=64127" \
+  -e "E2E_BASE_URL=http://$TEST_ALIAS:64127" \
+  -e "E2E_CHROME_WS_URL=ws://$BROWSER_ALIAS:9222" \
+  casjaysdev/go:latest sh -c "set -e; go build -trimpath -ldflags '-s -w' -o /tmp/e2e/$PROJECTNAME ./src; go test -tags e2e -count=1 -timeout=50m ./tests/e2e/..."
 
-cp "$SCRIPT_DIR/e2e/layout.mjs" "$BUILD_DIR/layout.mjs"
-
-echo "=== Running the layout review matrix in headless Chromium ==="
-docker run --rm \
-  --name "$CONTAINER_NAME" \
-  --ipc=host \
-  -v "$BUILD_DIR:/artifacts:ro" \
-  -e "PROJECTNAME=$PROJECTNAME" \
-  -e "SKIP_PUBLIC=${SKIP_PUBLIC:-0}" \
-  mcr.microsoft.com/playwright:v1.49.1-jammy bash -c '
-    set -euo pipefail
-    mkdir -p /tmp/e2e/config /tmp/e2e/data /tmp/e2e/log
-    # The matrix loads thousands of pages from one IP; per-IP rate limiting is covered by unit tests
-    printf "server:\n  rate_limit:\n    enabled: false\n" > /tmp/e2e/config/server.yml
-    cp "/artifacts/$PROJECTNAME" /tmp/e2e/server
-    chmod +x /tmp/e2e/server
-    /tmp/e2e/server --config /tmp/e2e/config --data /tmp/e2e/data --log /tmp/e2e/log --port 64999 >/tmp/e2e/server.out 2>&1 &
-    SERVER_PID=$!
-    trap "kill $SERVER_PID 2>/dev/null || true" EXIT
-    for _ in $(seq 1 60); do
-      curl -q -LSsf -o /dev/null http://127.0.0.1:64999/server/healthz && break
-      sleep 1
-    done
-    cd /tmp/e2e
-    npm init -y >/dev/null 2>&1
-    npm install --silent playwright@1.49.1 >/dev/null 2>&1
-    cp /artifacts/layout.mjs /tmp/e2e/layout.mjs
-    if [ "${SKIP_PUBLIC:-0}" != "1" ]; then BASE_URL=http://127.0.0.1:64999 node /tmp/e2e/layout.mjs; fi
-    BASE_URL=http://127.0.0.1:64999 SIGNED_IN=1 node /tmp/e2e/layout.mjs
-  '
-
-echo "E2E layout matrix completed successfully"
-
-# ex: ts=2 sw=2 et filetype=sh
+echo "E2E suite completed successfully"

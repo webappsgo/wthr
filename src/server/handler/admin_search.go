@@ -3,11 +3,12 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"log"
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
@@ -160,7 +161,7 @@ func adminSearchSettings(r *http.Request, query, adminPath string) []AdminSearch
 
 // adminSearchTasks matches scheduled task ids and names.
 func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchResult {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return nil
 	}
@@ -185,7 +186,7 @@ func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchRes
 
 // adminSearchAuditLog matches recent audit entries by action or resource.
 func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearchResult {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return nil
 	}
@@ -212,7 +213,7 @@ func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearch
 // deliberately not returned: AI.md PART 34 keeps a user's full email hidden from
 // the Server Admin surface.
 func adminSearchUsers(r *http.Request, query, adminPath string) []AdminSearchResult {
-	db := database.GetUsersDB()
+	db := database.GetUsersStore()
 	if db == nil {
 		return nil
 	}

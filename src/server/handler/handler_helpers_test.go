@@ -73,10 +73,10 @@ func newTestUsersDB(t *testing.T) *sql.DB {
 }
 
 // newTestDatabaseDB wraps a fresh in-memory server-schema SQLite connection
-// in database.DB, the type most handler.* functions expect.
-func newTestDatabaseDB(t *testing.T) *database.DB {
+// in the Store type handlers use for database access.
+func newTestDatabaseDB(t *testing.T) *database.Store {
 	t.Helper()
-	return &database.DB{DB: newTestServerDB(t)}
+	return storeForDB(newTestServerDB(t))
 }
 
 // setGlobalTestDualDB wires database.SetGlobalDualDB for handlers/models

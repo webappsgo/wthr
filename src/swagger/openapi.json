@@ -51,61 +51,6 @@
   },
   "openapi": "3.0.3",
   "paths": {
-    "/api": {
-      "get": {
-        "description": "API operation registered by the wthr server.",
-        "operationId": "get_059a5b30",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIResponse"
-                }
-              }
-            },
-            "description": "Successful response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Invalid request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Authentication required"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Server error"
-          }
-        },
-        "security": [
-          {},
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "GET /api"
-      }
-    },
     "/api/autodiscover": {
       "get": {
         "description": "API operation registered by the wthr server.",
@@ -6360,7 +6305,7 @@
     },
     "/api/{api_version}/server/{admin_path}/database/vacuum": {
       "post": {
-        "description": "API operation registered by the wthr server.",
+        "description": "Queues database_vacuum for local SQLite databases. The operation runs asynchronously in the maintenance scheduler.",
         "operationId": "postVersionServerAdminPathDatabaseVacuum_66d61c62",
         "parameters": [
           {
@@ -6380,19 +6325,8 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object"
-              }
-            }
-          },
-          "required": false
-        },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6400,17 +6334,7 @@
                 }
               }
             },
-            "description": "Successful response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Invalid request"
+            "description": "Maintenance task accepted"
           },
           "401": {
             "content": {
@@ -6431,6 +6355,26 @@
               }
             },
             "description": "Server error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Local SQLite maintenance is unavailable"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Maintenance task could not be scheduled"
           }
         },
         "security": [
@@ -6439,7 +6383,7 @@
             "BearerAuth": []
           }
         ],
-        "summary": "POST /api/{api_version}/server/{admin_path}/database/vacuum"
+        "summary": "Queue SQLite database vacuum maintenance"
       }
     },
     "/api/{api_version}/server/{admin_path}/email": {

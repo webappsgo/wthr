@@ -65,7 +65,7 @@ func (r *queryResolver) Health(ctx context.Context) (*HealthStatus, error) {
 	)
 	if r.ServerDB != nil {
 		start := time.Now()
-		err := r.ServerDB.PingContext(ctx)
+		err := r.ServerDB.Probe(ctx)
 		latency := int(time.Since(start).Milliseconds())
 		dbHealth = &DatabaseHealth{
 			Status:  "ok",
@@ -1063,7 +1063,7 @@ func (r *queryResolver) AdminServerAdmins(ctx context.Context) (*ServerAdminOver
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	adminModel := &models.AdminModel{DB: r.adminAccountsDB()}
+	adminModel := &models.AdminModel{Store: r.adminAccountsDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		return nil, fmt.Errorf("failed to count admins: %w", err)
@@ -1117,7 +1117,7 @@ func (r *queryResolver) AdminUserInvites(ctx context.Context) ([]*UserInvite, er
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	inviteModel := &models.UserInviteModel{DB: r.UsersDB}
+	inviteModel := &models.UserInviteModel{Store: r.UsersDB}
 	invites, err := inviteModel.ListInvites()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user invites: %w", err)
@@ -1144,7 +1144,7 @@ func (r *queryResolver) AdminUserInvite(ctx context.Context, id string) (*UserIn
 		return nil, fmt.Errorf("invalid invite id")
 	}
 
-	inviteModel := &models.UserInviteModel{DB: r.UsersDB}
+	inviteModel := &models.UserInviteModel{Store: r.UsersDB}
 	invite, err := inviteModel.GetByID(inviteID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user invite: %w", err)
@@ -1197,7 +1197,7 @@ func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, er
 		return nil, fmt.Errorf("unauthorized: admin session required")
 	}
 
-	adminModel := &models.AdminModel{DB: r.adminAccountsDB()}
+	adminModel := &models.AdminModel{Store: r.adminAccountsDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin token metadata: %w", err)
@@ -1339,7 +1339,7 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 	var totalNotifications int
 	var unreadNotifications int
 
-	userModel := &models.UserModel{DB: r.UsersDB}
+	userModel := &models.UserModel{Store: r.UsersDB}
 	totalUsers, err := userModel.Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to count users: %w", err)

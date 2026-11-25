@@ -2,7 +2,10 @@
 
 package scheduler
 
-import "syscall"
+import (
+	"fmt"
+	"syscall"
+)
 
 // getDiskUsagePercent returns disk usage percentage for a path
 // AI.md: SelfHealthCheck should check disk space
@@ -23,4 +26,13 @@ func getDiskUsagePercent(path string) (int, error) {
 
 	usedPercent := int(float64(totalBytes-freeBytes) / float64(totalBytes) * 100)
 	return usedPercent, nil
+}
+
+// DiskVolumeID returns the filesystem device identifier containing path.
+func DiskVolumeID(path string) (string, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d", stat.Dev), nil
 }

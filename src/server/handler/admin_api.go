@@ -49,7 +49,7 @@ func SaveWebSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -95,7 +95,7 @@ func SaveSecuritySettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -129,7 +129,12 @@ func TestDatabaseConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	if err := db.(*sql.DB).Ping(); err != nil {
+	store, ok := db.(*database.Store)
+	if !ok || store == nil {
+		InternalError(w, r, "Database connection not available")
+		return
+	}
+	if err := store.Probe(r.Context()); err != nil {
 		InternalError(w, r, fmt.Sprintf("Database connection failed: %v", err))
 		return
 	}
@@ -149,10 +154,14 @@ func OptimizeDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sqlDB := db.(*sql.DB)
+	store, ok := db.(*database.Store)
+	if !ok || store == nil {
+		InternalError(w, r, "Database connection not available")
+		return
+	}
 
 	// Run ANALYZE to update statistics
-	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "ANALYZE"); err != nil {
+	if _, err := database.ExecContext(context.Background(), store, database.TimeoutBulk, "ANALYZE"); err != nil {
 		InternalError(w, r, fmt.Sprintf("Failed to analyze database: %v", err))
 		return
 	}
@@ -194,20 +203,29 @@ func VacuumDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sqlDB := db.(*sql.DB)
-	start := time.Now()
-
-	// Run VACUUM to reclaim space
-	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "VACUUM"); err != nil {
-		InternalError(w, r, fmt.Sprintf("Failed to vacuum database: %v", err))
+	store, ok := db.(*database.Store)
+	if !ok || store == nil {
+		InternalError(w, r, "Database connection not available")
 		return
 	}
-
-	duration := time.Since(start)
-
-	RespondSuccess(w, r, "Database vacuum completed", map[string]interface{}{
-		"duration":  duration.String(),
-		"operation": "VACUUM completed",
+	if !store.IsSQLite() {
+		RespondError(w, r, http.StatusNotImplemented, ErrNotImplemented, "VACUUM is supported only for local SQLite databases")
+		return
+	}
+	trigger, exists := reqctx.GetValue(r.Context(), "maintenance_scheduler")
+	maintenanceScheduler, ok := trigger.(interface{ TriggerTask(string) error })
+	if !exists || !ok || maintenanceScheduler == nil {
+		RespondError(w, r, http.StatusNotImplemented, ErrNotImplemented, "database maintenance is unavailable")
+		return
+	}
+	if err := maintenanceScheduler.TriggerTask("database_vacuum"); err != nil {
+		log.Printf("WARNING: Could not schedule database vacuum: %v", err)
+		RespondError(w, r, http.StatusServiceUnavailable, ErrServiceUnavail, "database maintenance could not be scheduled")
+		return
+	}
+	RespondNegotiatedData(w, r, http.StatusAccepted, map[string]interface{}{
+		"ok":   true,
+		"data": map[string]interface{}{"status": "accepted", "task": "database_vacuum"},
 	})
 }
 
@@ -538,7 +556,7 @@ func BackupStats(w http.ResponseWriter, r *http.Request) {
 // unregistered task simply yields no value rather than an error - the counter
 // is informational.
 func nextScheduledBackup() string {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return ""
 	}
@@ -811,7 +829,7 @@ func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []strin
 	if !exists {
 		return
 	}
-	db, ok := dbHandle.(*sql.DB)
+	db, ok := dbHandle.(*database.Store)
 	if !ok || db == nil {
 		return
 	}
@@ -855,11 +873,11 @@ func adminSettingsModel(r *http.Request) (*model.SettingsModel, error) {
 	if !exists {
 		return nil, fmt.Errorf("database connection not available")
 	}
-	handle, ok := db.(*sql.DB)
+	handle, ok := db.(*database.Store)
 	if !ok || handle == nil {
 		return nil, fmt.Errorf("database connection not available")
 	}
-	return &model.SettingsModel{DB: database.GetServerDB()}, nil
+	return &model.SettingsModel{Store: handle}, nil
 }
 
 // SaveDatabaseSettings handles saving database configuration
@@ -876,7 +894,17 @@ func SaveDatabaseSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	db, exists := reqctx.GetValue(r.Context(), "db")
+	if !exists {
+		InternalError(w, r, "Database connection not available")
+		return
+	}
+	store, ok := db.(*database.Store)
+	if !ok || store == nil {
+		InternalError(w, r, "Database connection not available")
+		return
+	}
+	settingsModel := &model.SettingsModel{Store: store}
 
 	// Validate driver value
 	if driver, ok := settings["database.driver"].(string); ok {

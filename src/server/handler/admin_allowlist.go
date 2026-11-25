@@ -23,7 +23,7 @@ type allowlistView struct {
 // ShowFirewall renders the active allowlist as a usable admin page.
 func ShowFirewall(w http.ResponseWriter, r *http.Request) {
 	entries := currentAllowlistViews()
-	blocks, err := readIPBlocks(r.Context(), database.GetServerDB(), false)
+	blocks, err := readIPBlocks(r.Context(), database.GetServerStore(), false)
 	if err != nil {
 		InternalError(w, r, err.Error())
 		return

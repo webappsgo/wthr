@@ -31,7 +31,7 @@ func newSAMLHandlerTest(t *testing.T, enabled bool) *SAMLAuthHandler {
 	if err := config.WriteSetting("server.auth.saml.enabled", enabled); err != nil {
 		t.Fatalf("configure SAML: %v", err)
 	}
-	return &SAMLAuthHandler{DB: serverDB, Service: service.NewSAMLService()}
+	return &SAMLAuthHandler{DB: storeForDB(serverDB), Service: service.NewSAMLService()}
 }
 
 func samlProviderRequest(method string) *http.Request {

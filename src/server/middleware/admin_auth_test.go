@@ -65,7 +65,7 @@ func setAdminTestRenderer(t *testing.T) {
 // { c.Set("db", db); c.Next() }) stub.
 func withDB(db *sql.DB, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := reqctx.SetValue(r.Context(), "db", db)
+		ctx := reqctx.SetValue(r.Context(), "db", storeForDB(db))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -212,7 +212,7 @@ func TestRequireAdminAuthRejectsSessionForInactiveAdmin(t *testing.T) {
 	setAdminTestRenderer(t)
 	serverDB := openAdminAuthTestServerDB(t)
 	adminID := seedAdminCredential(t, serverDB, "disabled-admin", "hunter2-hunter2")
-	session, err := (&models.AdminSessionModel{DB: serverDB}).CreateSession(adminID, "127.0.0.1", "test-agent", time.Hour)
+	session, err := (&models.AdminSessionModel{Store: storeForDB(serverDB)}).CreateSession(adminID, "127.0.0.1", "test-agent", time.Hour)
 	if err != nil {
 		t.Fatalf("create admin session: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestAdminLoginHandler(t *testing.T) {
 
 	t.Run("empty credentials rejected", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
-		handler := AdminLoginHandler(serverDB)
+		handler := AdminLoginHandler(storeForDB(serverDB))
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/server/administration/login", strings.NewReader(url.Values{}.Encode()))
@@ -356,7 +356,7 @@ func TestAdminLoginHandler(t *testing.T) {
 
 	t.Run("unknown username rejected generically", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
-		handler := AdminLoginHandler(serverDB)
+		handler := AdminLoginHandler(storeForDB(serverDB))
 
 		form := url.Values{"username": {"nobody"}, "password": {"whatever123"}}
 		w := httptest.NewRecorder()
@@ -375,7 +375,7 @@ func TestAdminLoginHandler(t *testing.T) {
 	t.Run("wrong password rejected generically", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
 		seedAdminCredential(t, serverDB, "root", "correct-password-123")
-		handler := AdminLoginHandler(serverDB)
+		handler := AdminLoginHandler(storeForDB(serverDB))
 
 		form := url.Values{"username": {"root"}, "password": {"wrong-password"}}
 		w := httptest.NewRecorder()
@@ -394,7 +394,7 @@ func TestAdminLoginHandler(t *testing.T) {
 	t.Run("correct credentials create a session and redirect", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
 		seedAdminCredential(t, serverDB, "root", "correct-password-123")
-		handler := AdminLoginHandler(serverDB)
+		handler := AdminLoginHandler(storeForDB(serverDB))
 
 		form := url.Values{"username": {"root"}, "password": {"correct-password-123"}}
 		w := httptest.NewRecorder()

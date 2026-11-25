@@ -149,20 +149,20 @@ func buildGraphQLTokenContext(ctx context.Context, authHeader string) (context.C
 
 	switch middleware.DetectTokenType(token) {
 	case middleware.TokenTypeAdmin:
-		adminModel := &models.AdminModel{DB: database.GetUsersDB()}
+		adminModel := &models.AdminModel{Store: database.GetUsersStore()}
 		admin, err := adminModel.GetByAPIToken(token)
 		if err != nil {
 			return nil, fmt.Errorf("invalid admin token")
 		}
 		return withGraphQLAdminValues(ctx, int(admin.ID), admin.Email), nil
 	case middleware.TokenTypeUser:
-		tokenModel := &models.TokenModelV2{DB: database.GetUsersDB()}
+		tokenModel := &models.TokenModelV2{Store: database.GetUsersStore()}
 		validatedToken, err := tokenModel.ValidateToken(token)
 		if err != nil {
 			return nil, fmt.Errorf("invalid user token")
 		}
 
-		userModel := &models.UserModel{DB: database.GetUsersDB()}
+		userModel := &models.UserModel{Store: database.GetUsersStore()}
 		user, err := userModel.GetByID(validatedToken.OwnerID)
 		if err != nil {
 			return nil, fmt.Errorf("user not found")
@@ -174,7 +174,7 @@ func buildGraphQLTokenContext(ctx context.Context, authHeader string) (context.C
 }
 
 func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (context.Context, error) {
-	serverDB := database.GetServerDB()
+	serverDB := database.GetServerStore()
 	if serverDB == nil {
 		return ctx, nil
 	}
@@ -185,7 +185,11 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 	// local-zone time.Time.String() form an older build wrote, so a session
 	// stored in a zone behind UTC authenticated long after it had expired,
 	// while one stored ahead of UTC was rejected while still valid.
-	adminID, storedExpiresAt, err := models.LookupActiveAdminSession(serverDB, database.UsersDBOr(serverDB), models.HashAdminSessionToken(sessionID))
+	accountsStore := database.GetUsersStore()
+	if accountsStore == nil {
+		accountsStore = serverDB
+	}
+	adminID, storedExpiresAt, err := models.LookupActiveAdminSession(serverDB, accountsStore, models.HashAdminSessionToken(sessionID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ctx, nil
@@ -203,13 +207,13 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 }
 
 func buildGraphQLUserSessionContext(ctx context.Context, sessionID string) (context.Context, error) {
-	sessionModel := &models.SessionModel{DB: database.GetUsersDB()}
+	sessionModel := &models.SessionModel{Store: database.GetUsersStore()}
 	session, err := sessionModel.GetByID(sessionID)
 	if err != nil {
 		return ctx, nil
 	}
 
-	userModel := &models.UserModel{DB: database.GetUsersDB()}
+	userModel := &models.UserModel{Store: database.GetUsersStore()}
 	user, err := userModel.GetByID(int64(session.UserID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load authenticated user: %w", err)
@@ -219,7 +223,7 @@ func buildGraphQLUserSessionContext(ctx context.Context, sessionID string) (cont
 }
 
 func withGraphQLAdminContext(ctx context.Context, adminID int) (context.Context, error) {
-	adminModel := &models.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &models.AdminModel{Store: database.GetUsersStore()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load authenticated admin: %w", err)

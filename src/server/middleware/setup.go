@@ -94,7 +94,7 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 
 			// Check if any admin exists
 			var count int
-			err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
+			err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
@@ -162,7 +162,7 @@ func BlockSetupAfterComplete(cfg *config.AppConfig) func(http.Handler) http.Hand
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if any admin exists - setup is complete when admin exists
 			var count int
-			err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
+			err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 			if err == nil && count > 0 {
 				// Admin exists - setup complete, redirect to admin dashboard
 				adminPath := "/server/" + cfg.GetAdminPath()
@@ -226,7 +226,7 @@ func BlockSetupAfterAdminExists(cfg *config.AppConfig) func(http.Handler) http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if admin exists in admins
 			var count int
-			err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
+			err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM admins").Scan(&count)
 			if err != nil {
 				writeAPIError(w, http.StatusInternalServerError, "SERVER_ERROR", "Internal server error")
 				return

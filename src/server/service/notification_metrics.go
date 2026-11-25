@@ -13,7 +13,7 @@ import (
 
 // NotificationMetrics provides metrics and statistics for the notification system
 type NotificationMetrics struct {
-	db *sql.DB
+	db *database.Store
 }
 
 // MetricsSummary contains aggregate notification metrics
@@ -51,7 +51,7 @@ type ChannelMetrics struct {
 }
 
 // NewNotificationMetrics creates a new notification metrics service
-func NewNotificationMetrics(db *sql.DB) *NotificationMetrics {
+func NewNotificationMetrics(db *database.Store) *NotificationMetrics {
 	return &NotificationMetrics{
 		db: db,
 	}

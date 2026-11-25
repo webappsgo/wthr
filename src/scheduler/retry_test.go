@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 func TestRunTaskFn_RecoversPanic(t *testing.T) {
@@ -156,7 +158,7 @@ func TestSetCatchUpWindow(t *testing.T) {
 func TestRunMissedTasks_DisabledWindowIsNoOp(t *testing.T) {
 	serverDB, _ := newSchedulerTestDBs(t)
 
-	s := NewScheduler(serverDB)
+	s := NewScheduler(database.NewStore(serverDB))
 	s.SetCatchUpWindow(0)
 
 	ran := make(chan struct{}, 1)
@@ -182,7 +184,7 @@ func TestRunMissedTasks_DisabledWindowIsNoOp(t *testing.T) {
 func TestRunMissedTasks_NoHistorySkipsReplay(t *testing.T) {
 	serverDB, _ := newSchedulerTestDBs(t)
 
-	s := NewScheduler(serverDB)
+	s := NewScheduler(database.NewStore(serverDB))
 	s.SetCatchUpWindow(time.Hour)
 
 	ran := make(chan struct{}, 1)

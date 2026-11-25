@@ -1,7 +1,6 @@
 package service
 
 import (
-	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/health"
 )
 
@@ -27,7 +27,7 @@ var locationDataFS embed.FS
 // LocationEnhancer enhances location data with the vendored GeoNames
 // reference databases (see LICENSE.md for attribution).
 type LocationEnhancer struct {
-	db             *sql.DB
+	db             *database.Store
 	countriesData  []Country
 	citiesData     []City
 	mu             sync.RWMutex
@@ -75,7 +75,7 @@ type EnhancedLocation struct {
 }
 
 // NewLocationEnhancer creates a new location enhancer
-func NewLocationEnhancer(db *sql.DB) *LocationEnhancer {
+func NewLocationEnhancer(db *database.Store) *LocationEnhancer {
 	le := &LocationEnhancer{
 		db:            db,
 		countriesData: []Country{},

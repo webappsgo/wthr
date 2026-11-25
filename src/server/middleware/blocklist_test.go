@@ -36,7 +36,7 @@ func TestBlocklistMiddlewareBlocksIPAndCIDR(t *testing.T) {
 	}
 	for _, ip := range []string{"198.51.100.20", "203.0.113.9"} {
 		called := false
-		handler := BlocklistMiddleware(db)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+		handler := BlocklistMiddleware(storeForDB(db))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
 		request := httptest.NewRequest(http.MethodGet, "/weather", nil)
 		request.RemoteAddr = ip + ":443"
 		recorder := httptest.NewRecorder()
@@ -58,7 +58,7 @@ func TestBlocklistMiddlewareSkipsAllowlistedIPAndFailsOpenWithoutDatabase(t *tes
 		t.Fatal(err)
 	}
 	called := false
-	handler := AllowlistMiddleware()(BlocklistMiddleware(db)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AllowlistMiddleware()(BlocklistMiddleware(storeForDB(db))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = reqctx.GetBool(r.Context(), "allowlisted")
 	})))
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -107,7 +107,7 @@ func TestBlocklistMiddlewareNegotiatesBlockedResponses(t *testing.T) {
 			request.Header.Set("Accept", test.accept)
 			request.Header.Set("User-Agent", test.userAgent)
 			recorder := httptest.NewRecorder()
-			BlocklistMiddleware(db)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(recorder, request)
+			BlocklistMiddleware(storeForDB(db))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
 			}

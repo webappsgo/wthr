@@ -163,7 +163,7 @@ func TestParseTLSMinVersion(t *testing.T) {
 }
 
 func TestNewSSLManagerStartsDisabled(t *testing.T) {
-	mgr := NewSSLManager(nil, t.TempDir())
+	mgr := NewSSLManager(t.TempDir())
 	if mgr.IsHTTPSEnabled() {
 		t.Error("a fresh manager must not claim HTTPS")
 	}
@@ -186,7 +186,7 @@ func TestCheckExistingCertsLoadsTheFoundCertificate(t *testing.T) {
 	ssl := t.TempDir()
 	notBefore, notAfter := validWindow()
 	host := "api.example.com"
-	mgr := NewSSLManager(nil, ssl)
+	mgr := NewSSLManager(ssl)
 
 	found, err := mgr.CheckExistingCerts(host)
 	if err != nil || found {
@@ -214,7 +214,7 @@ func TestCheckRenewalOnlyForAppCertificatesWithinSevenDays(t *testing.T) {
 	before := time.Now().Add(-time.Hour)
 
 	writeTestCert(t, filepath.Join(ssl, "letsencrypt", host, "fullchain.pem"), filepath.Join(ssl, "letsencrypt", host, "privkey.pem"), []string{host}, before, soon)
-	app := NewSSLManager(nil, ssl)
+	app := NewSSLManager(ssl)
 	if ok, err := app.CheckExistingCerts(host); err != nil || !ok {
 		t.Fatalf("ok=%v err=%v", ok, err)
 	}
@@ -224,7 +224,7 @@ func TestCheckRenewalOnlyForAppCertificatesWithinSevenDays(t *testing.T) {
 
 	other := t.TempDir()
 	writeTestCert(t, filepath.Join(other, "local", host, "cert.pem"), filepath.Join(other, "local", host, "key.pem"), []string{host}, before, soon)
-	user := NewSSLManager(nil, other)
+	user := NewSSLManager(other)
 	if ok, err := user.CheckExistingCerts(host); err != nil || !ok {
 		t.Fatalf("ok=%v err=%v", ok, err)
 	}
@@ -242,7 +242,7 @@ func TestReloadPicksUpARenewedCertificate(t *testing.T) {
 	now := time.Now()
 
 	writeTestCert(t, certPath, keyPath, []string{host}, now.Add(-time.Hour), now.Add(2*24*time.Hour))
-	mgr := NewSSLManager(nil, ssl)
+	mgr := NewSSLManager(ssl)
 	if ok, err := mgr.CheckExistingCerts(host); err != nil || !ok {
 		t.Fatalf("ok=%v err=%v", ok, err)
 	}
@@ -266,7 +266,7 @@ func TestReloadPicksUpARenewedCertificate(t *testing.T) {
 func TestGenerateSelfSignedCert(t *testing.T) {
 	useSystemDir(t)
 	ssl := t.TempDir()
-	mgr := NewSSLManager(nil, ssl)
+	mgr := NewSSLManager(ssl)
 
 	if err := mgr.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatalf("GenerateSelfSignedCert: %v", err)
@@ -291,7 +291,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 		t.Errorf("days_remaining = %v", status["days_remaining"])
 	}
 
-	again := NewSSLManager(nil, ssl)
+	again := NewSSLManager(ssl)
 	if ok, err := again.CheckExistingCerts("example.com"); err != nil || !ok {
 		t.Errorf("a generated certificate must be found on the next start: ok=%v err=%v", ok, err)
 	}
@@ -299,7 +299,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 
 func TestGenerateSelfSignedCertForAnIPAddress(t *testing.T) {
 	useSystemDir(t)
-	mgr := NewSSLManager(nil, t.TempDir())
+	mgr := NewSSLManager(t.TempDir())
 	if err := mgr.GenerateSelfSignedCert("203.0.113.9"); err != nil {
 		t.Fatalf("GenerateSelfSignedCert: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestGenerateSelfSignedCertForAnIPAddress(t *testing.T) {
 
 func TestGetTLSConfigServesTheCertificateAndHonorsMinVersion(t *testing.T) {
 	useSystemDir(t)
-	mgr := NewSSLManager(nil, t.TempDir())
+	mgr := NewSSLManager(t.TempDir())
 	if err := mgr.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestGetTLSConfigServesTheCertificateAndHonorsMinVersion(t *testing.T) {
 
 func TestGetCertificateAnswersTLSALPNChallenges(t *testing.T) {
 	useSystemDir(t)
-	mgr := NewSSLManager(nil, t.TempDir())
+	mgr := NewSSLManager(t.TempDir())
 	if err := mgr.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatal(err)
 	}

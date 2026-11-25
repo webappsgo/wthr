@@ -24,7 +24,8 @@ type RecoveryKey struct {
 
 // RecoveryKeyModel handles recovery key database operations.
 type RecoveryKeyModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -35,23 +36,23 @@ type RecoveryKeyModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *RecoveryKeyModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *RecoveryKeyModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GenerateRecoveryKeys generates 10 one-time recovery keys for a user per AI.md PART 34.
 // Keys are formatted as {8-hex-chars}-{4-hex-chars} (e.g. a1b2c3d4-e5f6).
 // Each key is SHA-256 hashed before storage; plain-text keys are returned once.
 func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
-	if err := m.DeleteAllForUser(userID); err != nil {
-		return nil, fmt.Errorf("failed to delete existing keys: %w", err)
-	}
-
 	keys := make([]string, 10)
+	hashes := make([]string, len(keys))
 
 	for i := 0; i < 10; i++ {
 		raw := make([]byte, 6) // 6 bytes = 12 hex chars
@@ -62,16 +63,22 @@ func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
 		formatted := h[0:8] + "-" + h[8:12]
 		keys[i] = formatted
 
-		// SHA-256 per AI.md PART 34
-		keyHash := HashAPIToken(formatted)
-
-		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-			INSERT INTO recovery_keys (user_id, key_hash, created_at)
-			VALUES (?, ?, ?)
-		`, userID, keyHash, time.Now())
-		if err != nil {
-			return nil, fmt.Errorf("failed to store recovery key: %w", err)
+		hashes[i] = HashAPIToken(formatted)
+	}
+	now := time.Now().UTC()
+	err := database.WithTransaction(context.Background(), m.getDB(), func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM recovery_keys WHERE user_id = ?`, userID); err != nil {
+			return fmt.Errorf("failed to delete existing keys: %w", err)
 		}
+		for _, keyHash := range hashes {
+			if _, err := tx.Exec(`INSERT INTO recovery_keys (user_id, key_hash, created_at) VALUES (?, ?, ?)`, userID, keyHash, now); err != nil {
+				return fmt.Errorf("failed to store recovery key: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return keys, nil
@@ -90,38 +97,20 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 
 	keyHash := HashAPIToken(key)
 
-	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id FROM recovery_keys
-		WHERE user_id = ? AND key_hash = ? AND used_at IS NULL
-	`, userID, keyHash)
-	if err != nil {
-		return false, fmt.Errorf("failed to query recovery keys: %w", err)
-	}
-	defer closeRows(rows)
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("failed to iterate recovery keys: %w", err)
-		}
-		return false, nil
-	}
-
-	var id int
-	if err := rows.Scan(&id); err != nil {
-		return false, fmt.Errorf("failed to scan recovery key: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return false, fmt.Errorf("failed to close recovery keys query: %w", err)
-	}
-
-	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE recovery_keys SET used_at = ? WHERE id = ?
-	`, time.Now(), id)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
+		UPDATE recovery_keys
+		SET used_at = ?
+		WHERE id = (
+			SELECT id FROM recovery_keys
+			WHERE user_id = ? AND key_hash = ? AND used_at IS NULL
+			LIMIT 1
+		) AND used_at IS NULL
+	`, time.Now().UTC(), userID, keyHash)
 	if err != nil {
 		return false, fmt.Errorf("failed to mark key as used: %w", err)
 	}
-
-	return true, nil
+	affected, err := result.RowsAffected()
+	return affected == 1, err
 }
 
 // GetUnusedKeysCount returns the count of unused recovery keys for a user.

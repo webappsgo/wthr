@@ -163,18 +163,18 @@ func TestLookupEmailVerificationHonorsStoredZone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotID, gotUserID, gotValid := lookupEmailVerification(usersDB, tt.name, now)
+			gotUserID, gotValid, err := verifyAndConsumeEmailVerification(database.NewStore(usersDB), tt.name, now)
+			if err != nil {
+				t.Fatalf("verifyAndConsumeEmailVerification(%q): %v", tt.name, err)
+			}
 			if gotValid != tt.wantValid {
-				t.Fatalf("lookupEmailVerification(%q) valid = %v, want %v (stored %q)", tt.name, gotValid, tt.wantValid, tt.storedExpiresAt)
+				t.Fatalf("verifyAndConsumeEmailVerification(%q) valid = %v, want %v (stored %q)", tt.name, gotValid, tt.wantValid, tt.storedExpiresAt)
 			}
 			if !tt.wantValid {
-				if gotID != 0 || gotUserID != 0 {
-					t.Errorf("rejected token returned id=%d user_id=%d, want zeroes", gotID, gotUserID)
+				if gotUserID != 0 {
+					t.Errorf("rejected token returned user_id=%d, want zero", gotUserID)
 				}
 				return
-			}
-			if gotID == 0 {
-				t.Error("accepted token returned id = 0, want the row id")
 			}
 			if gotUserID != userID {
 				t.Errorf("accepted token returned user_id = %d, want %d", gotUserID, userID)
@@ -188,8 +188,8 @@ func TestLookupEmailVerificationHonorsStoredZone(t *testing.T) {
 func TestLookupEmailVerificationUnknownToken(t *testing.T) {
 	usersDB := newMainUsersDB(t)
 
-	if _, _, valid := lookupEmailVerification(usersDB, "no-such-token", time.Now()); valid {
-		t.Error("lookupEmailVerification() accepted a token that does not exist")
+	if _, valid, err := verifyAndConsumeEmailVerification(database.NewStore(usersDB), "no-such-token", time.Now()); err != nil || valid {
+		t.Errorf("verifyAndConsumeEmailVerification() = valid %v, error %v, want false and nil", valid, err)
 	}
 }
 
@@ -227,7 +227,7 @@ func TestLoadAdminPreferencesRowBindOrder(t *testing.T) {
 	usersDB := newMainUsersDB(t)
 	adminID := insertPreferencesAdmin(t, usersDB)
 
-	prefs, err := loadAdminPreferencesRow(usersDB, adminID)
+	prefs, err := loadAdminPreferencesRow(database.NewStore(usersDB), adminID)
 	if err != nil {
 		t.Fatalf("loadAdminPreferencesRow() error = %v", err)
 	}
@@ -317,7 +317,7 @@ func TestLoadAdminPreferencesRowReadsLegacyLayouts(t *testing.T) {
 				t.Fatalf("insert legacy preferences row: %v", err)
 			}
 
-			prefs, err := loadAdminPreferencesRow(usersDB, adminID)
+			prefs, err := loadAdminPreferencesRow(database.NewStore(usersDB), adminID)
 			if err != nil {
 				t.Fatalf("loadAdminPreferencesRow() error = %v, want the row to load", err)
 			}

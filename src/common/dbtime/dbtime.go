@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -61,8 +62,15 @@ const deleteChunkSize = 500
 // giving up its stdlib-only guarantee.
 const scanTimeout = 15 * time.Second
 
-// bulkDeleteTimeout bounds each chunked DELETE. It matches database.TimeoutBulk.
-const bulkDeleteTimeout = 60 * time.Second
+var sqlIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+type transactionWriter interface {
+	Write(context.Context, func(*sql.Tx) error) error
+}
+
+type readStore interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
 
 // FormatSQLTimestamp renders t as canonical UTC text suitable for binding into
 // a query or storing in a DATETIME column.
@@ -130,59 +138,120 @@ func NormalizeScannedRowID(id interface{}) interface{} {
 	return id
 }
 
-// DeleteRowsWithTimestampBefore deletes every row of table whose
-// timestampColumn holds an instant earlier than cutoff, comparing in Go so that
-// mixed on-disk layouts and mixed timezones all resolve to the same absolute
-// instant. When includeEqual is true a row whose timestamp equals cutoff is
-// deleted too, matching an SQL "<=" test. It returns the number of rows deleted.
-//
-// table, idColumn and timestampColumn are compile-time constants supplied by
-// the calling package - never user input - and only the row IDs are bound
-// values, so no untrusted data reaches the statement text. IDs are carried as
-// the driver's own scanned values, which keeps both INTEGER and TEXT (ULID,
-// session token, rowid) primary keys exact.
-func DeleteRowsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) (int64, error) {
-	expiredIDs, err := SelectRowIDsWithTimestampBefore(db, table, idColumn, timestampColumn, cutoff, includeEqual)
-	if err != nil {
-		return 0, err
+// DeleteRowsWithTimestampBefore deletes rows in atomic Store.Write batches of
+// at most 500. Selection happens on the write transaction, rows are closed
+// before the delete statement, and each batch yields before the next transaction.
+func DeleteRowsWithTimestampBefore(ctx context.Context, store transactionWriter, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) (int64, error) {
+	if store == nil {
+		return 0, fmt.Errorf("timestamp cleanup store is unavailable")
+	}
+	for _, identifier := range []string{table, idColumn, timestampColumn} {
+		if !sqlIdentifierPattern.MatchString(identifier) {
+			return 0, fmt.Errorf("invalid timestamp cleanup identifier")
+		}
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	var deleted int64
-	for start := 0; start < len(expiredIDs); start += deleteChunkSize {
-		end := start + deleteChunkSize
-		if end > len(expiredIDs) {
-			end = len(expiredIDs)
+	cutoff = cutoff.UTC()
+	var totalDeleted int64
+	var lastID interface{}
+	hasLastID := false
+	for {
+		var batchDeleted int64
+		var batchScanned int
+		var batchLastID interface{}
+		err := store.Write(ctx, func(tx *sql.Tx) error {
+			batchDeleted = 0
+			batchScanned = 0
+			batchLastID = nil
+			query := fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s IS NOT NULL", idColumn, timestampColumn, table, timestampColumn)
+			args := []interface{}{}
+			if hasLastID {
+				query += fmt.Sprintf(" AND %s > ?", idColumn)
+				args = append(args, lastID)
+			}
+			query += fmt.Sprintf(" ORDER BY %s", idColumn)
+			rows, err := tx.QueryContext(ctx, query, args...)
+			if err != nil {
+				return err
+			}
+
+			ids := make([]interface{}, 0, deleteChunkSize)
+			for rows.Next() && batchScanned < deleteChunkSize {
+				var id interface{}
+				var stored interface{}
+				if err := rows.Scan(&id, &stored); err != nil {
+					_ = rows.Close()
+					return err
+				}
+				batchScanned++
+				batchLastID = NormalizeScannedRowID(id)
+				parsed, ok := ParseStoredTimestamp(stored)
+				if ok && (parsed.Before(cutoff) || includeEqual && parsed.Equal(cutoff)) {
+					ids = append(ids, batchLastID)
+				}
+			}
+			rowsErr := rows.Err()
+			closeErr := rows.Close()
+			if rowsErr != nil {
+				return rowsErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			if len(ids) == 0 {
+				return nil
+			}
+
+			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+			deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", table, idColumn, placeholders)
+			result, err := tx.ExecContext(ctx, deleteQuery, ids...)
+			if err != nil {
+				return err
+			}
+			batchDeleted, err = result.RowsAffected()
+			return err
+		})
+		if err != nil {
+			return totalDeleted, err
 		}
-
-		chunk := expiredIDs[start:end]
-		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ",")
-		deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", table, idColumn, placeholders)
-
-		ctx, cancel := context.WithTimeout(context.Background(), bulkDeleteTimeout)
-		result, execErr := db.ExecContext(ctx, deleteQuery, chunk...)
-		cancel()
-		if execErr != nil {
-			return deleted, execErr
+		totalDeleted += batchDeleted
+		if batchScanned < deleteChunkSize {
+			return totalDeleted, nil
 		}
-
-		affected, _ := result.RowsAffected()
-		deleted += affected
+		lastID = batchLastID
+		hasLastID = true
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return totalDeleted, ctx.Err()
+		case <-timer.C:
+		}
 	}
-
-	return deleted, nil
 }
 
 // SelectRowIDsWithTimestampBefore returns the primary keys of every row of
 // table whose timestampColumn holds an instant earlier than cutoff (or equal to
 // it when includeEqual is true), parsed in Go rather than compared as SQL text.
 // Rows holding NULL or an unrecognised value are never returned.
-func SelectRowIDsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) ([]interface{}, error) {
+func SelectRowIDsWithTimestampBefore(store readStore, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) ([]interface{}, error) {
+	if store == nil {
+		return nil, fmt.Errorf("timestamp selection store is unavailable")
+	}
+	for _, identifier := range []string{table, idColumn, timestampColumn} {
+		if !sqlIdentifierPattern.MatchString(identifier) {
+			return nil, fmt.Errorf("invalid timestamp selection identifier")
+		}
+	}
 	selectQuery := fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s IS NOT NULL", idColumn, timestampColumn, table, timestampColumn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), scanTimeout)
 	defer cancel()
 
-	rows, err := db.QueryContext(ctx, selectQuery)
+	rows, err := store.QueryContext(ctx, selectQuery)
 	if err != nil {
 		return nil, err
 	}

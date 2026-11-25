@@ -3,10 +3,11 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/webappsgo/wthr/src/common/httputil"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/common/httputil"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/reqctx"
@@ -63,6 +64,7 @@ const (
 	ErrRateLimited      = "RATE_LIMITED"
 	ErrBadRequest       = "BAD_REQUEST"
 	ErrMethodNotAllowed = "METHOD_NOT_ALLOWED"
+	ErrNotImplemented   = "NOT_IMPLEMENTED"
 
 	// Server errors (5xx)
 	ErrInternal        = "INTERNAL_ERROR"

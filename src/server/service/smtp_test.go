@@ -272,7 +272,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		wireSMTPGlobalDB(t, db)
 		t.Setenv("SMTP_HOST", "env-host.example")
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.host", "db-host.example"); err != nil {
 			t.Fatalf("saveSetting: %v", err)
 		}
@@ -291,7 +291,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		t.Setenv("SMTP_HOST", "env-host.example")
 		t.Setenv("SMTP_FROM_EMAIL", "env@example.com")
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.LoadConfig(); err != nil {
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
@@ -314,7 +314,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		t.Setenv("SMTP_FROM_NAME", "Env Name")
 		t.Setenv("SMTP_FROM_EMAIL", "env@example.com")
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		for key, value := range map[string]string{
 			"smtp.host":         "db.example.com",
 			"smtp.port":         "25",
@@ -359,7 +359,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.LoadConfig(); err != nil {
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
@@ -378,7 +378,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.use_tls", "true"); err != nil {
 			t.Fatalf("saveSetting: %v", err)
 		}
@@ -400,7 +400,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.use_tls", "off"); err != nil {
 			t.Fatalf("saveSetting: %v", err)
 		}
@@ -422,7 +422,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.LoadConfig(); err != nil {
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
@@ -474,7 +474,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if svc.IsEnabled() {
 			t.Error("IsEnabled() = true, want false with empty database")
 		}
@@ -484,7 +484,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.host", "smtp.example.com"); err != nil {
 			t.Fatalf("saveSetting host: %v", err)
 		}
@@ -503,7 +503,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 
 		host, port, _ := startFakeSMTPResponder(t, "")
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.host", host); err != nil {
 			t.Fatalf("saveSetting host: %v", err)
 		}
@@ -526,7 +526,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.host", "127.0.0.1"); err != nil {
 			t.Fatalf("saveSetting host: %v", err)
 		}
@@ -550,7 +550,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.saveSetting("smtp.host", "smtp.example.com"); err != nil {
 			t.Fatalf("saveSetting host: %v", err)
 		}
@@ -568,7 +568,7 @@ func TestSMTP_VerifyConfiguredConnection(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
-		svc := NewSMTPService(db)
+		svc := NewSMTPService(serviceStoreForDB(db))
 		if err := svc.VerifyConfiguredConnection(); err != nil {
 			t.Errorf("VerifyConfiguredConnection() error = %v, want nil for an unconfigured host", err)
 		}
@@ -804,7 +804,7 @@ func TestSMTP_EnableChannel_Idempotent(t *testing.T) {
 func TestSMTP_getSetting_saveSetting_RoundTrip(t *testing.T) {
 	db := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, db)
-	svc := NewSMTPService(db)
+	svc := NewSMTPService(serviceStoreForDB(db))
 
 	t.Run("missing key returns sql.ErrNoRows", func(t *testing.T) {
 		_, err := svc.getSetting("smtp.does_not_exist")
@@ -848,7 +848,7 @@ func TestSMTPService_UsesInjectedServerDB(t *testing.T) {
 	decoy := openDecoyServerDB(t)
 	wireSMTPGlobalDB(t, decoy)
 
-	svc := NewSMTPService(injected)
+	svc := NewSMTPService(serviceStoreForDB(injected))
 	if err := svc.saveSetting("smtp.host", "injected.example"); err != nil {
 		t.Fatalf("save SMTP host: %v", err)
 	}

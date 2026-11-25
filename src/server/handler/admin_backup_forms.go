@@ -24,7 +24,7 @@ func SaveBackupScheduleForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, back, "flash.settings_saved", "flash.settings_save_failed", strconv.ErrSyntax)
 		return
 	}
-	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	settings := &model.SettingsModel{Store: database.GetServerStore()}
 	values := []struct {
 		key string
 		val string
@@ -48,7 +48,7 @@ func RestoreBackupForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, adminPagePath(r, "/backup"), "flash.settings_saved", "flash.settings_save_failed", err)
 		return
 	}
-	ctx := reqctx.SetValue(r.Context(), "db", database.GetServerDB())
+	ctx := reqctx.SetValue(r.Context(), "db", database.GetServerStore())
 	r = r.WithContext(ctx)
 	result := httptest.NewRecorder()
 	RestoreBackup(result, r)

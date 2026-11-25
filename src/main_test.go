@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/config"
@@ -188,6 +190,155 @@ func TestPIDFileEnabled(t *testing.T) {
 	}
 }
 
+func TestPIDFileEnabledExplicitPathOverridesConfigDisable(t *testing.T) {
+	t.Setenv("PID_FILE", "/tmp/wthr.pid")
+	if !pidFileEnabled(false) {
+		t.Fatal("pidFileEnabled(false) = false with an explicit PID_FILE path, want true")
+	}
+}
+
+func TestGetAdminEmailPreferences(t *testing.T) {
+	if got := getAdminEmailPreferences(nil, 1); got.Language != "en" || !got.EmailNotifications {
+		t.Fatalf("missing store defaults = %#v, want English with email enabled", got)
+	}
+
+	store, err := database.OpenSQLite(filepath.Join(t.TempDir(), "users.db"), 2)
+	if err != nil {
+		t.Fatalf("open preferences database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close preferences database: %v", err)
+		}
+	})
+	if _, err := store.ExecContext(context.Background(), "CREATE TABLE admin_preferences (admin_id INTEGER PRIMARY KEY, preferences TEXT NOT NULL)"); err != nil {
+		t.Fatalf("create preferences table: %v", err)
+	}
+	if _, err := store.ExecContext(context.Background(), "INSERT INTO admin_preferences (admin_id, preferences) VALUES (?, ?)", 42, `{"language":"fr","email_notifications":false}`); err != nil {
+		t.Fatalf("insert preferences: %v", err)
+	}
+	got := getAdminEmailPreferences(store, 42)
+	if got.Language != "fr" || got.EmailNotifications {
+		t.Fatalf("stored preferences = %#v, want French with email disabled", got)
+	}
+	if got := getAdminEmailPreferences(store, 43); got.Language != "en" || !got.EmailNotifications {
+		t.Fatalf("missing row defaults = %#v, want English with email enabled", got)
+	}
+}
+
+func TestRedactDatabaseError(t *testing.T) {
+	cfg := config.DatabaseConfig{
+		URL:      "postgres://admin:secret@database.example/db",
+		Username: "admin",
+		Password: "secret",
+	}
+	got := redactDatabaseError(errors.New("connect postgres://admin:secret@database.example/db for admin with password secret"), cfg)
+	for _, secret := range []string{"postgres://admin:secret@database.example/db", "admin", "secret"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("redacted database error contains %q: %s", secret, got)
+		}
+	}
+	if got := redactDatabaseError(nil, cfg); got != "unknown database error" {
+		t.Fatalf("nil error redaction = %q", got)
+	}
+}
+
+func TestHumanReadableBytes(t *testing.T) {
+	for _, test := range []struct {
+		value int64
+		want  string
+	}{
+		{value: 0, want: "0 B"},
+		{value: 1023, want: "1023 B"},
+		{value: 1024, want: "1.0 KiB"},
+		{value: 1536, want: "1.5 KiB"},
+		{value: 1048576, want: "1.0 MiB"},
+	} {
+		if got := humanReadableBytes(test.value); got != test.want {
+			t.Errorf("humanReadableBytes(%d) = %q, want %q", test.value, got, test.want)
+		}
+	}
+}
+
+func TestInfrastructureAlertStateAndDiskThresholds(t *testing.T) {
+	start := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+	var state infrastructureAlertState
+	if state.RecordFailure(start, 3, 24*time.Hour) {
+		t.Fatal("first database failure triggered an alert before the threshold")
+	}
+	if state.RecordFailure(start.Add(time.Minute), 3, 24*time.Hour) {
+		t.Fatal("second database failure triggered an alert before the threshold")
+	}
+	if !state.RecordFailure(start.Add(2*time.Minute), 3, 24*time.Hour) {
+		t.Fatal("third consecutive database failure did not trigger the alert")
+	}
+	if !state.first.Equal(start) {
+		t.Fatalf("alert start = %s, want first failure %s", state.first, start)
+	}
+	state.MarkSent(start.Add(2 * time.Minute))
+	if state.RecordFailure(start.Add(time.Hour), 3, 24*time.Hour) {
+		t.Fatal("repeat database alert was sent before its repeat interval")
+	}
+	if !state.RecordFailure(start.Add(24*time.Hour+3*time.Minute), 3, 24*time.Hour) {
+		t.Fatal("database alert was not repeated after its interval")
+	}
+	if !state.Recover() || state.Recover() {
+		t.Fatal("database recovery did not report and reset the failed run exactly once")
+	}
+	if state.RecordFailure(start.Add(25*time.Hour), 2, 24*time.Hour) {
+		t.Fatal("new failure run triggered before its threshold")
+	}
+	if !state.first.Equal(start.Add(25*time.Hour)) || !state.lastSent.IsZero() || state.active {
+		t.Fatalf("new failure run retained prior alert state: %#v", state)
+	}
+
+	for _, test := range []struct {
+		used, threshold int
+		wantDue         bool
+		wantRecovered   bool
+	}{
+		{used: 84, threshold: 85},
+		{used: 85, threshold: 85, wantDue: true},
+		{used: 90, threshold: 85, wantDue: true},
+		{used: 80, threshold: 85, wantRecovered: true},
+	} {
+		if got := diskAlertDue(test.used, test.threshold, time.Time{}, start, 24*time.Hour); got != test.wantDue {
+			t.Errorf("diskAlertDue(%d, %d) = %t, want %t", test.used, test.threshold, got, test.wantDue)
+		}
+		if got := diskAlertRecovered(test.used, test.threshold); got != test.wantRecovered {
+			t.Errorf("diskAlertRecovered(%d, %d) = %t, want %t", test.used, test.threshold, got, test.wantRecovered)
+		}
+	}
+	if diskAlertDue(90, 85, start, start.Add(time.Hour), 24*time.Hour) {
+		t.Fatal("disk alert repeated before its interval")
+	}
+}
+
+func TestRunServerConfiguresProductionHooks(t *testing.T) {
+	previousRunner := runServerWithHooksRunner
+	t.Cleanup(func() { runServerWithHooksRunner = previousRunner })
+
+	var got serverRunHooks
+	runServerWithHooksRunner = func(hooks serverRunHooks) {
+		got = hooks
+	}
+
+	runServer()
+
+	if got.exitProcess == nil {
+		t.Fatal("runServer() did not configure the process exit hook")
+	}
+	if got.runRootPhase == nil {
+		t.Fatal("runServer() did not configure the root phase hook")
+	}
+	if got.serviceStop == nil {
+		t.Fatal("runServer() did not configure the service stop channel")
+	}
+	if !got.installSignals {
+		t.Fatal("runServer() did not enable signal installation")
+	}
+}
+
 func TestServeLocaleFallbackAndETag(t *testing.T) {
 	request := func(file, etag string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/locales/"+file, nil)
@@ -346,7 +497,7 @@ func TestShowServerStatusReadsDatabasesAndEnvironment(t *testing.T) {
 		}
 	})
 
-	if !showServerStatus(&database.DB{DB: dualDB.Users}, "test/server.db + users.db", true) {
+	if !showServerStatus(dualDB.GetUsersStore(), "test/server.db + users.db", true) {
 		t.Fatal("showServerStatus reported healthy test databases as unhealthy")
 	}
 }

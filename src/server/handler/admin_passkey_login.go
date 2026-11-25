@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -102,8 +101,8 @@ func DeleteAdminPendingSession(token string) {
 // AdminHasPasskeys returns true if the given admin has at least one
 // registered passkey. Used by the login handler to decide whether to issue
 // a pending session or complete the login outright.
-func AdminHasPasskeys(db *sql.DB, adminID int64) (bool, error) {
-	model := &models.AdminPasskeyModel{DB: db}
+func AdminHasPasskeys(store *database.Store, adminID int64) (bool, error) {
+	model := &models.AdminPasskeyModel{Store: store}
 	return model.HasPasskeys(adminID)
 }
 
@@ -118,13 +117,13 @@ type AdminPasskeyLoginOptionsResult struct {
 // admin identified by the pending-session token. Returns an opaque
 // ceremony token + the WebAuthn options the browser should pass to
 // navigator.credentials.get().
-func BeginAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, pendingSessionToken string) (*AdminPasskeyLoginOptionsResult, error) {
+func BeginAdminPasskeyLoginToken(store *database.Store, env PasskeyEnvelope, pendingSessionToken string) (*AdminPasskeyLoginOptionsResult, error) {
 	pending, err := LoadAdminPendingSession(pendingSessionToken)
 	if err != nil {
 		return nil, err
 	}
 
-	adminModel := &models.AdminModel{DB: db}
+	adminModel := &models.AdminModel{Store: store}
 	admin, err := adminModel.GetByID(pending.AdminID)
 	if err != nil || admin == nil {
 		return nil, fmt.Errorf("invalid session token")
@@ -133,7 +132,7 @@ func BeginAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, pendingSession
 		return nil, fmt.Errorf("admin account is disabled")
 	}
 
-	waUser, err := loadWebAuthnAdminUser(db, admin)
+	waUser, err := loadWebAuthnAdminUser(store, admin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
 	}
@@ -181,7 +180,7 @@ type AdminPasskeyLoginResult struct {
 // invalidates the pending session token. The caller must set the
 // admin_session cookie itself (this helper is gin-context-free so GraphQL
 // can call it too).
-func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP, userAgent string, sessionDuration time.Duration) (*AdminPasskeyLoginResult, error) {
+func FinishAdminPasskeyLoginToken(store *database.Store, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP, userAgent string, sessionDuration time.Duration) (*AdminPasskeyLoginResult, error) {
 	if len(body) == 0 {
 		return nil, fmt.Errorf("invalid request body")
 	}
@@ -202,7 +201,7 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, fmt.Errorf("invalid session token")
 	}
 
-	adminModel := &models.AdminModel{DB: db}
+	adminModel := &models.AdminModel{Store: store}
 	admin, err := adminModel.GetByID(pending.AdminID)
 	if err != nil || admin == nil {
 		return nil, fmt.Errorf("invalid session token")
@@ -211,7 +210,7 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, fmt.Errorf("admin account is disabled")
 	}
 
-	waUser, err := loadWebAuthnAdminUser(db, admin)
+	waUser, err := loadWebAuthnAdminUser(store, admin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
 	}
@@ -239,17 +238,17 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, fmt.Errorf("credential not found")
 	}
 
-	passkeyModel := &models.AdminPasskeyModel{DB: db}
+	passkeyModel := &models.AdminPasskeyModel{Store: store}
 	if err := passkeyModel.UpdateCredential(admin.ID, credential); err != nil {
 		return nil, fmt.Errorf("failed to update passkey: %w", err)
 	}
 
 	// admin_sessions lives in server.db while admins and passkeys live in users.db
-	sessionDB := database.GetServerDB()
-	if sessionDB == nil {
-		sessionDB = db
+	sessionStore := database.GetServerStore()
+	if sessionStore == nil {
+		sessionStore = store
 	}
-	adminSessionModel := &models.AdminSessionModel{DB: sessionDB}
+	adminSessionModel := &models.AdminSessionModel{Store: sessionStore}
 	adminSession, err := adminSessionModel.CreateSession(admin.ID, clientIP, userAgent, sessionDuration)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin session: %w", err)

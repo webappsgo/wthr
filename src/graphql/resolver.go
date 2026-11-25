@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	"database/sql"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -11,8 +11,8 @@ import (
 // It holds references to all services and handlers needed for resolving queries and mutations.
 type Resolver struct {
 	// Database connections
-	ServerDB *sql.DB
-	UsersDB  *sql.DB
+	ServerDB *database.Store
+	UsersDB  *database.Store
 
 	// Services
 	WeatherService *service.WeatherService
@@ -35,7 +35,7 @@ type Resolver struct {
 // adminAccountsDB returns the database holding Server Admin accounts, which is
 // users.db (AI.md PART 12). A resolver wired with a single handle falls back to
 // ServerDB so single-database tests keep working.
-func (r *Resolver) adminAccountsDB() *sql.DB {
+func (r *Resolver) adminAccountsDB() *database.Store {
 	if r.UsersDB != nil {
 		return r.UsersDB
 	}
@@ -44,7 +44,7 @@ func (r *Resolver) adminAccountsDB() *sql.DB {
 
 // NewResolver creates a new root resolver with all dependencies
 func NewResolver(
-	serverDB, usersDB *sql.DB,
+	serverDB, usersDB *database.Store,
 	weatherService *service.WeatherService,
 	apiHandler *handler.APIHandler,
 	authHandler *handler.AuthHandler,

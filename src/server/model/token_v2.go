@@ -143,18 +143,22 @@ func ValidateTokenFormat(token string) error {
 
 // TokenModelV2 handles token database operations per TEMPLATE.md PART 11
 type TokenModelV2 struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the DB handle this model was constructed with. Fallback to
-// database.GetUsersDB() when the injected handle is nil (unit tests, or
+// database.GetUsersStore() when the injected handle is nil (unit tests, or
 // construction before the global dual DB is wired).
-func (m *TokenModelV2) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *TokenModelV2) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateToken creates a new token per TEMPLATE.md PART 11
@@ -287,7 +291,7 @@ func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
 func (m *TokenModelV2) QueueLastUsed(tokenID int64) error {
 	db := m.getDB()
 	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
 		return err
 	}
@@ -378,32 +382,10 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 		return nil, fmt.Errorf("owner type %s is not supported", ownerType)
 	}
 
-	// Get existing token
 	var existing Token
 	var expiresAt sql.NullTime
 	var name sql.NullString
 	var scopes sql.NullString
-
-	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, owner_id, name, scope, expires_at, created_at
-		FROM tokens
-		WHERE id = ? AND owner_type = ? AND owner_id = ?
-	`, id, ownerType, ownerID).Scan(
-		&existing.ID, &existing.OwnerID,
-		&name, &scopes, &expiresAt, &existing.CreatedAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("token not found")
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	existing.OwnerType = ownerType
-	existing.Name = name.String
-	existing.Scope = scopes.String
-
 	fullToken, err := GenerateTokenWithPrefix(ownerTokenPrefix(ownerType))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -412,16 +394,40 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	tokenHash := HashToken(fullToken)
 	tokenPrefix := GetTokenPrefix(fullToken)
 
-	// Update token
-	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		UPDATE tokens
-		SET token_hash = ?, token_prefix = ?, last_used_at = NULL
-		WHERE id = ?
-	`, tokenHash, tokenPrefix, id)
-
+	err = database.WithTransaction(context.Background(), m.getDB(), func(tx *sql.Tx) error {
+		if err := tx.QueryRow(`
+			SELECT id, owner_id, name, scope, expires_at, created_at
+			FROM tokens
+			WHERE id = ? AND owner_type = ? AND owner_id = ?
+		`, id, ownerType, ownerID).Scan(
+			&existing.ID, &existing.OwnerID, &name, &scopes, &expiresAt, &existing.CreatedAt,
+		); err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("token not found")
+			}
+			return err
+		}
+		result, err := tx.Exec(`
+			UPDATE tokens
+			SET token_hash = ?, token_prefix = ?, last_used_at = NULL
+			WHERE id = ? AND owner_type = ? AND owner_id = ?
+		`, tokenHash, tokenPrefix, id, ownerType, ownerID)
+		if err != nil {
+			return fmt.Errorf("failed to update token: %w", err)
+		}
+		if affected, err := result.RowsAffected(); err != nil {
+			return err
+		} else if affected != 1 {
+			return fmt.Errorf("token not found")
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to update token: %w", err)
+		return nil, err
 	}
+	existing.OwnerType = ownerType
+	existing.Name = name.String
+	existing.Scope = scopes.String
 
 	// Return updated token with full token value
 	existing.TokenHash = tokenHash

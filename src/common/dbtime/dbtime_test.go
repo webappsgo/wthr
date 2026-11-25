@@ -1,12 +1,31 @@
 package dbtime
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+type transactionTestStore struct {
+	db     *sql.DB
+	writes int
+}
+
+func (s *transactionTestStore) Write(ctx context.Context, fn func(*sql.Tx) error) error {
+	s.writes++
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
 
 // zoneWest and zoneEast are deliberately extreme fixed offsets. A timestamp
 // rendered in either zone has wall-clock text that disagrees with its true
@@ -307,6 +326,13 @@ func TestSelectRowIDsWithTimestampBefore(t *testing.T) {
 	})
 }
 
+func TestSelectRowIDsWithTimestampBeforeRejectsInvalidIdentifiers(t *testing.T) {
+	db := openTestDB(t)
+	if _, err := SelectRowIDsWithTimestampBefore(db, "items; DROP TABLE items", "id", "expires_at", reference, false); err == nil {
+		t.Fatal("SelectRowIDsWithTimestampBefore accepted an invalid table identifier")
+	}
+}
+
 func TestDeleteRowsWithTimestampBefore(t *testing.T) {
 	db := openTestDB(t)
 
@@ -320,7 +346,8 @@ func TestDeleteRowsWithTimestampBefore(t *testing.T) {
 		t.Fatalf("INSERT error = %v", err)
 	}
 
-	deleted, err := DeleteRowsWithTimestampBefore(db, "items", "id", "expires_at", reference, false)
+	store := &transactionTestStore{db: db}
+	deleted, err := DeleteRowsWithTimestampBefore(context.Background(), store, "items", "id", "expires_at", reference, false)
 	if err != nil {
 		t.Fatalf("DeleteRowsWithTimestampBefore() error = %v", err)
 	}
@@ -342,5 +369,25 @@ func TestDeleteRowsWithTimestampBefore(t *testing.T) {
 	}
 	if remainingID != 2 {
 		t.Fatalf("remaining row id = %d, want 2 (the future row)", remainingID)
+	}
+}
+
+func TestDeleteRowsWithTimestampBeforeUsesBoundedWriteBatches(t *testing.T) {
+	db := openTestDB(t)
+	for id := 1; id <= 1100; id++ {
+		if _, err := db.Exec("INSERT INTO items (id, expires_at) VALUES (?, ?)", id, FormatSQLTimestamp(reference.Add(-time.Hour))); err != nil {
+			t.Fatalf("insert row %d: %v", id, err)
+		}
+	}
+	store := &transactionTestStore{db: db}
+	deleted, err := DeleteRowsWithTimestampBefore(context.Background(), store, "items", "id", "expires_at", reference, false)
+	if err != nil {
+		t.Fatalf("DeleteRowsWithTimestampBefore() error = %v", err)
+	}
+	if deleted != 1100 {
+		t.Fatalf("DeleteRowsWithTimestampBefore() deleted = %d, want 1100", deleted)
+	}
+	if store.writes != 3 {
+		t.Fatalf("Write transactions = %d, want 3 batches for 1100 rows", store.writes)
 	}
 }

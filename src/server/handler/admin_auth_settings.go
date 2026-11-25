@@ -427,7 +427,7 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(w http.ResponseWriter, r *
 			return
 		}
 	}
-	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &models.SettingsModel{Store: database.GetServerStore()}
 	settingsErr := settingsModel.SetBool("server.auth.saml.enabled", req.SAMLEnabled)
 	if settingsErr == nil {
 		settingsErr = settingsModel.SetJSON("server.auth.saml.providers", req.SAMLProviders)

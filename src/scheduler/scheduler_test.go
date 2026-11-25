@@ -227,6 +227,10 @@ func TestScheduler_TriggerTask(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("AddTask() error: %v", err)
 		}
+		task := s.GetTask("manual-trigger")
+		task.mu.Lock()
+		task.enabled = false
+		task.mu.Unlock()
 
 		if err := s.TriggerTask("manual-trigger"); err != nil {
 			t.Fatalf("TriggerTask() error: %v", err)
@@ -1515,7 +1519,7 @@ func TestLogBackupSkippedDiskFullAudit(t *testing.T) {
 		serverDB, _ := newSchedulerTestDBs(t)
 
 		const reason = "backup.skipped_disk_full: disk usage 95.0% exceeds threshold 90%"
-		logBackupSkippedDiskFullAudit(serverDB, reason)
+		logBackupSkippedDiskFullAudit(database.NewStore(serverDB), reason)
 
 		var action, status, detailsJSON string
 		if err := serverDB.QueryRow(
@@ -1548,7 +1552,7 @@ func TestLogBackupDailyUpdatedAudit(t *testing.T) {
 	t.Run("writes the audit row with the daily incremental's filename", func(t *testing.T) {
 		serverDB, _ := newSchedulerTestDBs(t)
 
-		logBackupDailyUpdatedAudit(serverDB, "/var/lib/wthr/backups/wthr-daily.tar.gz.enc")
+		logBackupDailyUpdatedAudit(database.NewStore(serverDB), "/var/lib/wthr/backups/wthr-daily.tar.gz.enc")
 
 		var status, resourceID, detailsJSON string
 		if err := serverDB.QueryRow(
@@ -1583,7 +1587,7 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 	serverDB, usersDB := newSchedulerTestDBs(t)
 
 	t.Run("state row created on server DB", func(t *testing.T) {
-		s := NewScheduler(serverDB)
+		s := NewScheduler(database.NewStore(serverDB))
 		if err := s.AddTask("regression-task", "@daily", func() error { return nil }); err != nil {
 			t.Fatalf("AddTask: %v", err)
 		}
@@ -1605,7 +1609,7 @@ func TestScheduler_ServerStateOnServerDB(t *testing.T) {
 	})
 
 	t.Run("run outcome persisted on server DB", func(t *testing.T) {
-		s := NewScheduler(serverDB)
+		s := NewScheduler(database.NewStore(serverDB))
 		if err := s.AddTask("persist-task", "@hourly", func() error { return nil }); err != nil {
 			t.Fatalf("AddTask: %v", err)
 		}

@@ -70,7 +70,7 @@ type Node struct {
 // TEMPLATE.md PART 23: Cluster support with heartbeat, primary election, config sync
 type ClusterManager struct {
 	mu     sync.RWMutex
-	db     *sql.DB
+	db     *database.Store
 	nodeID string
 	// Runtime-detected node address (host:port)
 	nodeAddress       string
@@ -86,7 +86,7 @@ type ClusterManager struct {
 
 // NewClusterManager creates a new cluster manager
 // nodeAddress should be the runtime-detected address (e.g., "192.168.1.100:8080")
-func NewClusterManager(db *sql.DB, nodeID, nodeAddress string, enabled bool) *ClusterManager {
+func NewClusterManager(db *database.Store, nodeID, nodeAddress string, enabled bool) *ClusterManager {
 	return &ClusterManager{
 		db:           db,
 		nodeID:       nodeID,
@@ -406,7 +406,7 @@ func (cm *ClusterManager) initializeConfigSyncTables() error {
 	}
 	defer release()
 	configValueType := "TEXT"
-	if database.RemoteDatabaseDialect(cm.db) == "mysql" || database.RemoteDatabaseDialect(cm.db) == "mariadb" {
+	if cm.db.Dialect() == "mysql" || cm.db.Dialect() == "mariadb" {
 		configValueType = "MEDIUMTEXT"
 	}
 	statements := []string{
@@ -700,12 +700,12 @@ func (cm *ClusterManager) markPendingConfigSync() {
 
 func (cm *ClusterManager) acquireConfigSyncLock() (*sql.Conn, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	conn, err := cm.db.Conn(ctx)
+	conn, err := cm.db.DB().Conn(ctx)
 	if err != nil {
 		cancel()
 		return nil, nil, err
 	}
-	dialect := database.RemoteDatabaseDialect(cm.db)
+	dialect := cm.db.Dialect()
 	switch dialect {
 	case "postgres":
 		for {

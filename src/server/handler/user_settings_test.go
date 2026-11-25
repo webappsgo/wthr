@@ -78,7 +78,7 @@ func seedUserAccountRow(t *testing.T, db *sql.DB, id int64, email, username stri
 func TestUserSettingsHandler_GetSettings(t *testing.T) {
 	t.Run("unauthenticated returns 401 with canonical error shape", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
 
 		h.GetSettings(w, r)
@@ -100,7 +100,7 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 
 	t.Run("authenticated user with no users row gets 500, not a panic", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
 		r = withUSCurrentUser(r, 999)
 
@@ -125,7 +125,7 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 	// (and its models.UserPreferences.Scan target list) drops the `id` column.
 	t.Run("BUG: success returns full settings and auto-creates default preferences", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "a@example.com", "alice")
 
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
@@ -159,7 +159,7 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", "{}")
 
 		h.UpdateSettings(w, r)
@@ -171,7 +171,7 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 
 	t.Run("malformed JSON body returns 400", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "b@example.com", "bob")
 		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", "{not json")
 		r = withUSCurrentUser(r, 1)
@@ -185,7 +185,7 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 
 	t.Run("bio over 500 characters returns validation 400", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "c@example.com", "carol")
 
 		longBio := make([]byte, 501)
@@ -205,7 +205,7 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 
 	t.Run("invalid theme returns validation 400", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "d@example.com", "dave")
 
 		req := UpdateSettingsRequest{Appearance: &AppearanceSettings{Theme: "rainbow"}}
@@ -221,7 +221,7 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 
 	t.Run("success updates account settings and returns 200", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "e@example.com", "erin")
 
 		req := UpdateSettingsRequest{Account: &AccountSettings{Bio: "hello world"}}
@@ -239,7 +239,7 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 func TestUserSettingsHandler_Tokens(t *testing.T) {
 	t.Run("CreateToken unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", "{}")
 
 		h.CreateToken(w, r)
@@ -251,7 +251,7 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 
 	t.Run("CreateToken success returns plaintext token once", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "f@example.com", "frank")
 
 		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "my token"})
@@ -273,7 +273,7 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 
 	t.Run("CreateToken rejects a duplicate token name for the same user", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "g@example.com", "gina")
 
 		for i, want := range []int{http.StatusOK, http.StatusConflict} {
@@ -288,7 +288,7 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 
 	t.Run("CreateToken enforces max 5 tokens per user", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "g@example.com", "gina")
 
 		for i := 0; i < 5; i++ {
@@ -311,7 +311,7 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 
 	t.Run("RevokeToken not found returns 404", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "h@example.com", "hank")
 
 		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/tokens/999", "")
@@ -327,7 +327,7 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 
 	t.Run("ListTokens success returns empty list for a fresh user", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		seedUserAccountRow(t, db, 1, "i@example.com", "ivan")
 
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/tokens", "")
@@ -351,12 +351,12 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		usersDB := newTestUsersDB(t)
 		setGlobalTestDualDB(t, serverDB, usersDB)
-		return NewUserSettingsHandler(usersDB), usersDB
+		return NewUserSettingsHandler(storeForDB(usersDB)), usersDB
 	}
 
 	t.Run("ListSessions unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/sessions", "")
 
 		h.ListSessions(w, r)
@@ -507,7 +507,7 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 
 	t.Run("RevokeAllSessions unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
-		h := NewUserSettingsHandler(db)
+		h := NewUserSettingsHandler(storeForDB(db))
 		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions", "")
 
 		h.RevokeAllSessions(w, r)
@@ -536,7 +536,7 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 // an unauthenticated request (no user in the request context) is redirected
 // to the login page rather than attempting a template render.
 func TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated(t *testing.T) {
-	h := &UserSettingsHandler{DB: newTestServerDB(t)}
+	h := &UserSettingsHandler{DB: storeForDB(newTestServerDB(t))}
 
 	r, w := newUSTestRequest(t, http.MethodGet, "/users/settings/notifications", nil)
 	h.ShowNotificationSettings(w, r)
@@ -561,7 +561,7 @@ func TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated(t *testing
 func TestGetUserTokens_LegacyTimestampLayoutsSurvive(t *testing.T) {
 	db := newTestUsersDB(t)
 	seedUserAccountRow(t, db, 1, "tokenzone@example.com", "tokenzone")
-	h := NewUserSettingsHandler(db)
+	h := NewUserSettingsHandler(storeForDB(db))
 
 	now := time.Now().Truncate(time.Second)
 	rows := []struct {

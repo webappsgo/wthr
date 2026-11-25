@@ -21,7 +21,7 @@ import (
 func TestPGPKeyserverPublishPersistsRetriesAndSkipsAcceptedServers(t *testing.T) {
 	db := setupSecurityTxtServerDB(t)
 	dir := t.TempDir()
-	manager := NewPGPKeyManager(db, dir)
+	manager := NewPGPKeyManager(serviceStoreForDB(db), dir)
 	if _, err := manager.Generate("Weather", "security@example.com", false); err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestPGPKeyserverPublishPersistsRetriesAndSkipsAcceptedServers(t *testing.T)
 
 func TestPGPKeyserverPermanentFailureIsFinal(t *testing.T) {
 	db := setupSecurityTxtServerDB(t)
-	manager := NewPGPKeyManager(db, t.TempDir())
+	manager := NewPGPKeyManager(serviceStoreForDB(db), t.TempDir())
 	if _, err := manager.Generate("Weather", "security@example.com", false); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func newSecurityTxtService(t *testing.T) (*SecurityTxtService, *sql.DB) {
 	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 	db := setupSecurityTxtServerDB(t)
 	wireSecurityTxtGlobalDB(t, db)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	return NewSecurityTxtService(sm), db
 }
 
@@ -171,7 +171,7 @@ func TestSecurityTxt_Generate_DefaultContact(t *testing.T) {
 // contain "@" and are not already a mailto:/http(s) URI.
 func TestSecurityTxt_Generate_MultiContactAndMailtoPrefix(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	if err := sm.SetString("security.contact", "security@example.com, https://example.com/report, mailto:already@example.com"); err != nil {
 		t.Fatalf("seed contact: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestSecurityTxt_Generate_ExpiresAutoRenew_Empty(t *testing.T) {
 // and persist).
 func TestSecurityTxt_Generate_ExpiresAutoRenew_Unparsable(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	if err := sm.SetString("security.expires", "not-a-date"); err != nil {
 		t.Fatalf("seed expires: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestSecurityTxt_Generate_ExpiresAutoRenew_Unparsable(t *testing.T) {
 // is a valid timestamp but already in the past: must be renewed, not kept.
 func TestSecurityTxt_Generate_ExpiresAutoRenew_Past(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	past := time.Now().AddDate(0, 0, -1).Format(time.RFC3339)
 	if err := sm.SetString("security.expires", past); err != nil {
 		t.Fatalf("seed expires: %v", err)
@@ -255,7 +255,7 @@ func TestSecurityTxt_Generate_ExpiresAutoRenew_Past(t *testing.T) {
 // a valid future Expires is already stored: Generate must NOT overwrite it.
 func TestSecurityTxt_Generate_ExpiresPreservedWhenValid(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	future := time.Now().AddDate(0, 6, 0).Format(time.RFC3339)
 	if err := sm.SetString("security.expires", future); err != nil {
 		t.Fatalf("seed expires: %v", err)
@@ -275,7 +275,7 @@ func TestSecurityTxt_Generate_ExpiresPreservedWhenValid(t *testing.T) {
 // in that order.
 func TestSecurityTxt_Generate_OptionalFields(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	svc.keyDir = t.TempDir()
 
 	out := svc.Generate("https://example.com")
@@ -290,7 +290,7 @@ func TestSecurityTxt_Generate_OptionalFields(t *testing.T) {
 		}
 	}
 
-	if _, err := NewPGPKeyManager(db, svc.keyDir).Generate("Weather", "security@example.com", false); err != nil {
+	if _, err := NewPGPKeyManager(serviceStoreForDB(db), svc.keyDir).Generate("Weather", "security@example.com", false); err != nil {
 		t.Fatalf("generate keypair: %v", err)
 	}
 	if err := sm.SetString("security.hiring", "https://example.com/jobs"); err != nil {
@@ -303,7 +303,7 @@ func TestSecurityTxt_Generate_OptionalFields(t *testing.T) {
 		t.Fatalf("seed contact: %v", err)
 	}
 	out = svc.Generate("https://example.com")
-	id, _ := CurrentSecurityID(db)
+	id, _ := CurrentSecurityID(serviceStoreForDB(db))
 	for _, want := range []string{
 		"Encryption: https://example.com/.well-known/pgp-key.asc",
 		"Hiring: https://example.com/jobs",
@@ -339,7 +339,7 @@ func TestSecurityTxt_GetConfig(t *testing.T) {
 		t.Errorf("contact default = %v, want empty string", cfg["contact"])
 	}
 
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	if err := sm.SetString("security.contact", "sec@example.com"); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestSecurityTxt_CheckExpiry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, db := newSecurityTxtService(t)
 			if tt.seed != "" {
-				sm := &models.SettingsModel{DB: db}
+				sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 				if err := sm.SetString("security.expires", tt.seed); err != nil {
 					t.Fatalf("seed: %v", err)
 				}
@@ -422,7 +422,7 @@ func TestSecurityTxt_AutoRenew(t *testing.T) {
 	if err := svc.AutoRenew(); err != nil {
 		t.Fatalf("AutoRenew: %v", err)
 	}
-	sm := &models.SettingsModel{DB: db}
+	sm := &models.SettingsModel{Store: serviceStoreForDB(db)}
 	got := sm.GetString("security.expires", "")
 	parsed, err := time.Parse(time.RFC3339, got)
 	if err != nil {

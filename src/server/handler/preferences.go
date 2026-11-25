@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
@@ -26,7 +27,7 @@ import (
 type PreferencesHandler struct{}
 
 // NewPreferencesHandler creates a preferences handler bound to the user database.
-func NewPreferencesHandler(_ *sql.DB) *PreferencesHandler {
+func NewPreferencesHandler(_ *database.Store) *PreferencesHandler {
 	return &PreferencesHandler{}
 }
 

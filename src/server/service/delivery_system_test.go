@@ -130,7 +130,7 @@ func TestDeliverySystem_LoadSettings(t *testing.T) {
 			t.Fatalf("write retry backoff: %v", err)
 		}
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		if err := ds.LoadSettings(); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -159,7 +159,7 @@ func TestDeliverySystem_LoadSettings(t *testing.T) {
 		config.SetGlobalConfig(nil)
 		t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		if err := ds.LoadSettings(); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -176,7 +176,7 @@ func TestDeliverySystem_Enqueue(t *testing.T) {
 	database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-	ds := NewDeliverySystem(serverDB, nil, nil)
+	ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 
 	t.Run("happy path returns a valid id", func(t *testing.T) {
 		id, err := ds.Enqueue(intPtr(1), "email", "Subject", "Body", 2, map[string]interface{}{"k": "v"})
@@ -236,10 +236,10 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
 		fc := &deliveryFakeChannel{channelType: "email"}
 		cm.RegisterChannel(fc)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "email", "S", "B", 1, map[string]interface{}{"recipient": "user@example.com"})
 		if err != nil {
@@ -281,8 +281,8 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "sms", "S", "B", 1, nil)
 		if err != nil {
@@ -306,10 +306,10 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
 		fc := &deliveryFakeChannel{channelType: "email"}
 		cm.RegisterChannel(fc)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "email", "S", "B", 1, nil)
 		if err != nil {
@@ -337,10 +337,10 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
 		fc := &deliveryFakeChannel{channelType: "email", sendErr: sql.ErrConnDone}
 		cm.RegisterChannel(fc)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "email", "S", "B", 1, map[string]interface{}{"recipient": "a@b.com"})
 		if err != nil {
@@ -371,10 +371,10 @@ func TestDeliverySystem_ProcessQueue(t *testing.T) {
 	database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-	cm := NewChannelManager(serverDB)
+	cm := NewChannelManager(serviceStoreForDB(serverDB))
 	fc := &deliveryFakeChannel{channelType: "email"}
 	cm.RegisterChannel(fc)
-	ds := NewDeliverySystem(serverDB, cm, nil)
+	ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 	// nil userID is required here: getRecipient returns immediately inside
 	// its UserID.Valid branch for channel_type "email" (querying
@@ -435,8 +435,8 @@ func TestDeliverySystem_handleFailure(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "email", "S", "B", 1, nil)
 		if err != nil {
@@ -464,8 +464,8 @@ func TestDeliverySystem_handleFailure(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, nil)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, nil)
 
 		id, err := ds.Enqueue(intPtr(1), "email", "S", "B", 1, nil)
 		if err != nil {
@@ -538,7 +538,7 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 			t.Fatalf("seed failed: %v", err)
 		}
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		nq := &NotificationQueue{ChannelType: "webhook", UserID: sql.NullInt64{Int64: 1, Valid: true}}
 		got := ds.getRecipient(nq)
 		if got != "https://hook.example.com" {
@@ -553,7 +553,7 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 
 		seedDeliveryUser(t, usersDB, 2, "user2@example.com")
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		nq := &NotificationQueue{ChannelType: "email", UserID: sql.NullInt64{Int64: 2, Valid: true}}
 		got := ds.getRecipient(nq)
 		if got != "user2@example.com" {
@@ -566,7 +566,7 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		nq := &NotificationQueue{ChannelType: "webhook", Variables: map[string]interface{}{"recipient": "fallback@example.com"}}
 		got := ds.getRecipient(nq)
 		if got != "fallback@example.com" {
@@ -579,7 +579,7 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		nq := &NotificationQueue{ChannelType: "webhook"}
 		got := ds.getRecipient(nq)
 		if got != "" {
@@ -596,7 +596,7 @@ func TestDeliverySystem_GetQueueStats(t *testing.T) {
 	database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-	ds := NewDeliverySystem(serverDB, nil, nil)
+	ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 
 	// channel_type and body are NOT NULL in the real ServerSchema, so every
 	// notification_queue seed must supply them even when the assertion only
@@ -654,7 +654,7 @@ func TestDeliverySystem_CleanupOld(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 
 		old := time.Now().AddDate(0, 0, -10)
 		recent := time.Now().AddDate(0, 0, -1)
@@ -682,7 +682,7 @@ func TestDeliverySystem_CleanupOld(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		if err := ds.CleanupOld(30); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -700,7 +700,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		if err := ds.RequeueDeadLetters(nil); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -714,7 +714,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		res, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, retry_count, error_message, created_at, updated_at) VALUES ('email', 'B', 'dead_letter', 3, 'boom', ?, ?)`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("seed failed: %v", err)
@@ -740,7 +740,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 
 		var ids []int
 		for i := 0; i < 3; i++ {
@@ -770,7 +770,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		ds := NewDeliverySystem(serverDB, nil, nil)
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), nil, nil)
 		res, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, retry_count, created_at, updated_at) VALUES ('email', 'B', 'delivered', 1, ?, ?)`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("seed failed: %v", err)
@@ -828,7 +828,7 @@ func TestDeliverySystem_UsesInjectedServerDB(t *testing.T) {
 		t.Fatalf("write retry max: %v", err)
 	}
 
-	ds := NewDeliverySystem(injected, nil, nil)
+	ds := NewDeliverySystem(serviceStoreForDB(injected), nil, nil)
 
 	if err := ds.LoadSettings(); err != nil {
 		t.Fatalf("LoadSettings: %v", err)

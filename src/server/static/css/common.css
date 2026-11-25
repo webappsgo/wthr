@@ -935,12 +935,26 @@ a:hover {
   margin: var(--space-xs) 0;
 }
 
-/* Sign out link (last item) */
-a.profile-dropdown-item[href="/server/auth/logout"] {
+.profile-dropdown-menu > form.profile-dropdown-item {
+  margin: 0;
+}
+
+.nav-logout {
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.logout-form {
   color: var(--color-error);
 }
 
-a.profile-dropdown-item[href="/server/auth/logout"]:hover {
+.logout-form:hover {
   background: var(--color-error);
   color: var(--color-bg);
 }

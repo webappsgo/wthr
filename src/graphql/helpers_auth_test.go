@@ -46,7 +46,7 @@ func newAuthMutationTestDB(t *testing.T) *database.DualDB {
 
 func seedGraphQLUser(t *testing.T, ddb *database.DualDB, username, email, password string) *models.User {
 	t.Helper()
-	user, err := (&models.UserModel{DB: ddb.Users}).CreateUserAccount(username, email, password, "user")
+	user, err := (&models.UserModel{Store: ddb.GetUsersStore()}).CreateUserAccount(username, email, password, "user")
 	if err != nil {
 		t.Fatalf("seed user %q: %v", username, err)
 	}

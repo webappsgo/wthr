@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	_ "modernc.org/sqlite"
 )
@@ -77,7 +78,7 @@ func setupNotificationCleanupDBs(t *testing.T) (userDB, serverDB *sql.DB) {
 func newTestNotificationCleaner(t *testing.T) (*NotificationCleaner, *sql.DB, *sql.DB) {
 	t.Helper()
 	userDB, serverDB := setupNotificationCleanupDBs(t)
-	svc := service.NewNotificationService(userDB, serverDB, service.NewWebSocketHub())
+	svc := service.NewNotificationService(database.NewStore(userDB), database.NewStore(serverDB), service.NewWebSocketHub())
 	return NewNotificationCleaner(svc), userDB, serverDB
 }
 

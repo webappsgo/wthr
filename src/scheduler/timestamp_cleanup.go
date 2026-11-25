@@ -1,10 +1,11 @@
 package scheduler
 
 import (
-	"database/sql"
+	"context"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // The timestamp helpers below are thin aliases over src/common/dbtime, the
@@ -36,6 +37,6 @@ func parseStoredTimestamp(value interface{}) (time.Time, bool) {
 // timestampColumn holds an instant strictly earlier than cutoff, comparing in
 // Go so that mixed on-disk layouts and mixed timezones all resolve to the same
 // absolute instant. It returns the number of rows deleted.
-func deleteRowsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn string, cutoff time.Time) (int64, error) {
-	return dbtime.DeleteRowsWithTimestampBefore(db, table, idColumn, timestampColumn, cutoff, false)
+func deleteRowsWithTimestampBefore(store *database.Store, table, idColumn, timestampColumn string, cutoff time.Time) (int64, error) {
+	return dbtime.DeleteRowsWithTimestampBefore(context.Background(), store, table, idColumn, timestampColumn, cutoff, false)
 }

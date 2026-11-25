@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,11 +126,11 @@ func UpdateSecurityPolicy(w http.ResponseWriter, r *http.Request) {
 	back := adminPagePath(r, adminSecurityPath+"/policy")
 	text := strings.TrimSpace(r.PostFormValue("policy"))
 	var err error
-	switch db := database.GetServerDB(); {
+	switch db := database.GetServerStore(); {
 	case db == nil, len([]rune(text)) > 20000:
 		err = errors.New("invalid policy")
 	default:
-		err = (&model.SettingsModel{DB: db}).SetString("security.policy_text", text)
+		err = (&model.SettingsModel{Store: db}).SetString("security.policy_text", text)
 	}
 	redirectAdminForm(w, r, back, "flash.settings_saved", "flash.settings_save_failed", err)
 }
@@ -178,8 +177,8 @@ func ShowSecurityKeypair(w http.ResponseWriter, r *http.Request) {
 // keyserverList returns web.security.keyservers (comma separated), defaulting to keys.openpgp.org.
 func keyserverList() []string {
 	raw := "https://keys.openpgp.org"
-	if db := database.GetServerDB(); db != nil {
-		raw = (&model.SettingsModel{DB: db}).GetString("web.security.keyservers", raw)
+	if db := database.GetServerStore(); db != nil {
+		raw = (&model.SettingsModel{Store: db}).GetString("web.security.keyservers", raw)
 	}
 	var out []string
 	for _, ks := range strings.Split(raw, ",") {
@@ -192,9 +191,9 @@ func keyserverList() []string {
 
 // verifyAdminPassword re-prompts the signed-in admin's password for a sensitive operation.
 func verifyAdminPassword(r *http.Request, password string) bool {
-	db := database.GetUsersDB()
+	db := database.GetUsersStore()
 	username := AdminUsername(r)
-	if db == nil || username == "" || password == "" {
+	if db == nil || username == "" || password == "" || passwordHasSurroundingWhitespace(password) {
 		return false
 	}
 	var hash string
@@ -250,7 +249,7 @@ func SecurityKeypairAction(w http.ResponseWriter, r *http.Request) {
 	case "rotate_installation_secret":
 		// PART 11 "installation_secret": the PGP private key is re-encrypted under the new secret and
 		// the previous secret stays valid for 7 days so in-flight {security_id} URLs keep working
-		if err = service.RotateInstallationSecret(store.DB, store.PGP); err == nil {
+		if err = service.RotateInstallationSecret(store.Store, store.PGP); err == nil {
 			logSecurityAudit(r, "security.installation_secret_rotated", "installation_secret", "")
 		}
 	case "export_private":
@@ -268,11 +267,11 @@ func SecurityKeypairAction(w http.ResponseWriter, r *http.Request) {
 // It returns true when the download was written.
 func exportPrivateKey(w http.ResponseWriter, r *http.Request, store *service.SecurityReportStore) bool {
 	reason := strings.TrimSpace(r.PostFormValue("reason"))
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if reason == "" || len([]rune(reason)) > 500 || db == nil {
 		return false
 	}
-	settings := &model.SettingsModel{DB: db}
+	settings := &model.SettingsModel{Store: db}
 	key := "security.private_key_export." + AdminUsername(r)
 	if last, err := time.Parse(time.RFC3339, settings.GetString(key, "")); err == nil && time.Since(last) < time.Hour {
 		return false
@@ -309,6 +308,6 @@ func DownloadSecurityPublicKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // PurgeSecurityReports is the daily cleanup task body: closed reports past retention are deleted.
-func PurgeSecurityReports(db *sql.DB, retentionDays int) (int64, error) {
-	return (&service.SecurityReportStore{DB: db}).Purge(retentionDays)
+func PurgeSecurityReports(db *database.Store, retentionDays int) (int64, error) {
+	return (&service.SecurityReportStore{Store: db}).Purge(retentionDays)
 }

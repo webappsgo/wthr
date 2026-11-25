@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -351,12 +352,12 @@ func TestOpenDatabase_Succeeds(t *testing.T) {
 	}
 	_ = setupDB.Close()
 
-	db, err := openDatabase(dbPath)
+	store, err := openDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("openDatabase() error = %v, want nil", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
+		if err := store.Close(); err != nil {
 			t.Errorf("close opened database: %v", err)
 		}
 	})
@@ -545,28 +546,28 @@ func TestClearAdminCredentials(t *testing.T) {
 	execFixture(t, usersPath, "INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix) VALUES ('user', 5, 'cli', 'usr-hash', 'usr_1234')")
 	execFixture(t, serverPath, "INSERT INTO admin_sessions (id, token_hash, admin_id, expires_at) VALUES ('s1', 'h1', 1, '2099-01-01 00:00:00')")
 
-	usersDB, err := openDatabase(usersPath)
+	usersStore, err := openDatabase(usersPath)
 	if err != nil {
 		t.Fatalf("open users db: %v", err)
 	}
-	defer func() { _ = usersDB.Close() }()
+	defer func() { _ = usersStore.Close() }()
 
-	if err := clearAdminCredentials(usersDB, serverPath); err != nil {
+	if err := clearAdminCredentials(usersStore, serverPath); err != nil {
 		t.Fatalf("clearAdminCredentials: %v", err)
 	}
 
 	count := func(dbPath, query string) int {
-		db, err := openDatabase(dbPath)
+		store, err := openDatabase(dbPath)
 		if err != nil {
 			t.Fatalf("open %s: %v", dbPath, err)
 		}
 		t.Cleanup(func() {
-			if err := db.Close(); err != nil {
+			if err := store.Close(); err != nil {
 				t.Errorf("close verification database: %v", err)
 			}
 		})
 		var n int
-		if err := db.QueryRow(query).Scan(&n); err != nil {
+		if err := database.QueryRowContext(context.Background(), store, database.TimeoutSimpleSelect, query).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", query, err)
 		}
 		return n

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,12 +16,12 @@ import (
 
 // DebugHandlers provides debug endpoints when DEBUG mode is enabled
 type DebugHandlers struct {
-	db     *sql.DB
+	db     *database.Store
 	router chi.Router
 }
 
 // NewDebugHandlers creates debug endpoint handlers
-func NewDebugHandlers(db *sql.DB, router chi.Router) *DebugHandlers {
+func NewDebugHandlers(db *database.Store, router chi.Router) *DebugHandlers {
 	return &DebugHandlers{
 		db:     db,
 		router: router,
@@ -117,21 +116,23 @@ func (h *DebugHandlers) ShowMemory(w http.ResponseWriter, r *http.Request) {
 
 // ShowDatabase shows database statistics
 func (h *DebugHandlers) ShowDatabase(w http.ResponseWriter, r *http.Request) {
-	stats := database.GetServerDB().Stats()
+	store := database.GetServerStore()
+	stats := store.Stats()
 
 	// Count tables
 	var tableCount int
 	// Get table names and row counts
 	tables := make([]map[string]interface{}, 0)
 	tableQuery := "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-	if database.IsRemoteDatabase(database.GetServerDB()) {
-		if database.RemoteDatabaseDialect(database.GetServerDB()) == "mysql" || database.RemoteDatabaseDialect(database.GetServerDB()) == "mariadb" {
+	dialect := store.Dialect()
+	if dialect != "sqlite" {
+		if dialect == "mysql" || dialect == "mariadb" {
 			tableQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND (table_name LIKE 'srv!_%' ESCAPE '!' OR table_name LIKE 'usr!_%' ESCAPE '!') ORDER BY table_name`
 		} else {
 			tableQuery = `SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND (tablename LIKE 'srv!_%' ESCAPE '!' OR tablename LIKE 'usr!_%' ESCAPE '!') ORDER BY tablename`
 		}
 	}
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, tableQuery)
+	rows, err := database.QueryContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, tableQuery)
 	if err == nil {
 		defer func() {
 			if err := rows.Close(); err != nil {
@@ -144,10 +145,10 @@ func (h *DebugHandlers) ShowDatabase(w http.ResponseWriter, r *http.Request) {
 				tableCount++
 				var rowCount int
 				query := fmt.Sprintf("SELECT COUNT(*) FROM \"%s\"", tableName)
-				if database.RemoteDatabaseDialect(database.GetServerDB()) == "mysql" || database.RemoteDatabaseDialect(database.GetServerDB()) == "mariadb" {
+				if dialect == "mysql" || dialect == "mariadb" {
 					query = fmt.Sprintf("SELECT COUNT(*) FROM `%s`", tableName)
 				}
-				if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, query).Scan(&rowCount); err != nil {
+				if err := database.QueryRowContext(context.Background(), database.GetServerStore(), database.TimeoutSimpleSelect, query).Scan(&rowCount); err != nil {
 					log.Printf("ERROR: ShowDatabase: failed to count rows in table %s: %v", tableName, err)
 				}
 

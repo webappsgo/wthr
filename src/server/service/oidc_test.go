@@ -64,7 +64,7 @@ func setConfig(t *testing.T, db *sql.DB, key, value, typ string) {
 	if typ == "json" {
 		err = config.WriteSetting(key, value)
 	} else {
-		err = (&models.SettingsModel{DB: db}).SetSetting(key, value, typ)
+		err = (&models.SettingsModel{Store: serviceStoreForDB(db)}).SetSetting(key, value, typ)
 	}
 	if err != nil {
 		t.Fatalf("failed to seed config %q: %v", key, err)

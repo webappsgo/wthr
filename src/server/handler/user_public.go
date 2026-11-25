@@ -66,11 +66,11 @@ func avatarValidationKey(err error) (string, bool) {
 
 // UserPublicHandler handles public user profiles and avatars
 type UserPublicHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // NewUserPublicHandler creates a new UserPublicHandler
-func NewUserPublicHandler(db *sql.DB) *UserPublicHandler {
+func NewUserPublicHandler(db *database.Store) *UserPublicHandler {
 	return &UserPublicHandler{DB: db}
 }
 
@@ -94,7 +94,7 @@ type AvatarInfo struct {
 }
 
 // LoadPublicUserProfile returns the same public profile payload used by GET /api/v1/public/users/:username.
-func LoadPublicUserProfile(db *sql.DB, username string, viewerUserID int64) (*PublicUserProfile, error) {
+func LoadPublicUserProfile(db *database.Store, username string, viewerUserID int64) (*PublicUserProfile, error) {
 	h := NewUserPublicHandler(db)
 	return h.loadPublicProfile(username, viewerUserID)
 }
@@ -244,13 +244,13 @@ type AvatarUploadRequest struct {
 }
 
 // LoadCurrentUserAvatar returns the same avatar payload used by GET /api/v1/users/avatar.
-func LoadCurrentUserAvatar(db *sql.DB, userID int64) (*AvatarResponse, error) {
+func LoadCurrentUserAvatar(db *database.Store, userID int64) (*AvatarResponse, error) {
 	h := NewUserPublicHandler(db)
 	return h.loadCurrentUserAvatar(userID)
 }
 
 // UpdateCurrentUserAvatar applies the same avatar update used by PATCH /api/v1/users/avatar.
-func UpdateCurrentUserAvatar(db *sql.DB, userID int64, req *UpdateAvatarRequest) (*AvatarResponse, error) {
+func UpdateCurrentUserAvatar(db *database.Store, userID int64, req *UpdateAvatarRequest) (*AvatarResponse, error) {
 	h := NewUserPublicHandler(db)
 	if err := h.updateCurrentUserAvatar(userID, req); err != nil {
 		return nil, err
@@ -259,13 +259,13 @@ func UpdateCurrentUserAvatar(db *sql.DB, userID int64, req *UpdateAvatarRequest)
 }
 
 // ResetCurrentUserAvatar applies the same avatar reset used by DELETE /api/v1/users/avatar.
-func ResetCurrentUserAvatar(db *sql.DB, userID int64) error {
+func ResetCurrentUserAvatar(db *database.Store, userID int64) error {
 	h := NewUserPublicHandler(db)
 	return h.resetCurrentUserAvatar(userID)
 }
 
 // UploadCurrentUserAvatar applies the same avatar upload used by POST /api/v1/users/avatar.
-func UploadCurrentUserAvatar(db *sql.DB, userID int64, upload *AvatarUploadRequest) (*AvatarResponse, error) {
+func UploadCurrentUserAvatar(db *database.Store, userID int64, upload *AvatarUploadRequest) (*AvatarResponse, error) {
 	h := NewUserPublicHandler(db)
 	if err := h.uploadCurrentUserAvatar(userID, upload); err != nil {
 		return nil, err
@@ -566,7 +566,7 @@ type ChangePasswordRequest struct {
 }
 
 // ChangeCurrentUserPassword applies the same password change used by POST /api/v1/users/security/password.
-func ChangeCurrentUserPassword(db *sql.DB, userID int64, req *ChangePasswordRequest) error {
+func ChangeCurrentUserPassword(db *database.Store, userID int64, req *ChangePasswordRequest) error {
 	h := NewUserPublicHandler(db)
 	return h.changeCurrentUserPassword(userID, req)
 }
@@ -574,6 +574,9 @@ func ChangeCurrentUserPassword(db *sql.DB, userID int64, req *ChangePasswordRequ
 func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangePasswordRequest) error {
 	if req == nil {
 		return fmt.Errorf("invalid request")
+	}
+	if passwordHasSurroundingWhitespace(req.CurrentPassword) {
+		return fmt.Errorf("current password is invalid")
 	}
 
 	var passwordHash string
@@ -688,6 +691,10 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
 		return
 	}
+	if passwordHasSurroundingWhitespace(req.CurrentPassword) {
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
+		return
+	}
 	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
 		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
@@ -760,6 +767,10 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 		BadRequest(w, r, Translate(r, "errors.user.public.confirmation_must_be_delete"))
 		return
 	}
+	if passwordHasSurroundingWhitespace(req.CurrentPassword) {
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
+		return
+	}
 
 	// Verify password before allowing deletion
 	var passwordHash string
@@ -774,7 +785,7 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 	}
 
 	// Delete the account (cascades to sessions, preferences, locations, etc.)
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &models.UserModel{Store: h.DB}
 	if err := userModel.DeleteUserAccount(user.ID); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_delete_account"))
 		return

@@ -43,7 +43,7 @@ type TorService struct {
 	tor               *tor.Tor
 	onionServiceID    string
 	dataDir           string
-	db                *database.DB
+	db                *database.Store
 	ctx               context.Context
 	cancel            context.CancelFunc
 	onionAddress      string
@@ -64,7 +64,7 @@ type TorService struct {
 }
 
 // NewTorService creates a new Tor service instance
-func NewTorService(db *database.DB, dataDir string) *TorService {
+func NewTorService(db *database.Store, dataDir string) *TorService {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	torDataDir := filepath.Join(dataDir, "tor")
@@ -131,7 +131,7 @@ func (ts *TorService) setLifecycle(state string) {
 
 // startTorService launches the dedicated Tor process and the hidden service.
 func (ts *TorService) startTorService(httpPort int) error {
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{Store: database.GetServerStore()}
 
 	// Check if Tor is enabled
 	enabled := settingsModel.GetBool("tor.enabled", true)

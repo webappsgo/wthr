@@ -31,7 +31,7 @@ type LDAPService struct {
 
 // NewLDAPService creates an LDAP service backed by file-based settings.
 func NewLDAPService() *LDAPService {
-	return &LDAPService{settings: &models.SettingsModel{DB: database.GetServerDB()}}
+	return &LDAPService{settings: &models.SettingsModel{Store: database.GetServerStore()}}
 }
 
 // Config reads LDAP settings from accounts.yml and bind credentials from secrets.yml.

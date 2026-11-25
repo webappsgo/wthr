@@ -90,7 +90,7 @@ func TestAuthHandler_Register(t *testing.T) {
 	r, dualDB, cleanup := setupTestRouter(t)
 	defer cleanup()
 
-	authHandler := &handler.AuthHandler{DB: dualDB.Users}
+	authHandler := &handler.AuthHandler{DB: dualDB.GetUsersStore()}
 
 	r.Post("/register", authHandler.HandleRegister)
 
@@ -165,7 +165,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	r, dualDB, cleanup := setupTestRouter(t)
 	defer cleanup()
 
-	authHandler := &handler.AuthHandler{DB: dualDB.Users}
+	authHandler := &handler.AuthHandler{DB: dualDB.GetUsersStore()}
 
 	// Setup routes
 	r.Post("/register", authHandler.HandleRegister)

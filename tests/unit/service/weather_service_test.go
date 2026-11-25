@@ -1,8 +1,10 @@
 package service_test
 
 import (
-	"github.com/webappsgo/wthr/src/server/service"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 func TestWeatherService_GetWeatherDescription(t *testing.T) {
@@ -13,7 +15,7 @@ func TestWeatherService_GetWeatherDescription(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 	ws := service.NewWeatherService(enhancer, nil)
 
 	tests := []struct {
@@ -51,7 +53,7 @@ func TestWeatherService_GetWeatherIcon(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 	ws := service.NewWeatherService(enhancer, nil)
 
 	tests := []struct {
@@ -88,7 +90,7 @@ func TestWeatherService_ParseLocation(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 	ws := service.NewWeatherService(enhancer, nil)
 
 	tests := []struct {
@@ -131,7 +133,7 @@ func TestWeatherService_IPGeolocation(t *testing.T) {
 		}
 	})
 
-	enhancer := service.NewLocationEnhancer(db)
+	enhancer := service.NewLocationEnhancer(database.NewStore(db))
 	ws := service.NewWeatherService(enhancer, nil)
 
 	tests := []struct {

@@ -112,7 +112,7 @@ func EnableClusterMode(w http.ResponseWriter, r *http.Request) {
 		renderClusterAddError(w, r, http.StatusInternalServerError, "Could not resolve application directories.")
 		return
 	}
-	remoteDB := database.GetServerDB()
+	remoteDB := database.GetServerStore()
 	var temporaryRemote *database.DualDB
 	if !existingRemote {
 		temporaryRemote, err = database.InitDualDB(paths.Data)
@@ -121,7 +121,7 @@ func EnableClusterMode(w http.ResponseWriter, r *http.Request) {
 			renderClusterAddError(w, r, http.StatusServiceUnavailable, "Could not connect to the shared database or migrate local data.")
 			return
 		}
-		remoteDB = temporaryRemote.Server
+		remoteDB = temporaryRemote.GetServerStore()
 	}
 	nodeID, _ := os.Hostname()
 	if err := cluster.PrepareClusterDatabase(remoteDB, nodeID, ""); err != nil {
@@ -172,7 +172,7 @@ func ShowClusterRemovePage(w http.ResponseWriter, r *http.Request) {
 func LeaveClusterForm(w http.ResponseWriter, r *http.Request) {
 	paths, err := util.GetDirectoryPaths()
 	if err == nil {
-		err = cluster.LeaveCluster(r.Context(), database.GetServerDB(), paths.Data, paths.Config, hostnameOrEmpty())
+		err = cluster.LeaveCluster(r.Context(), database.GetServerStore(), paths.Data, paths.Config, hostnameOrEmpty())
 	}
 	if err != nil {
 		renderClusterAddError(w, r, http.StatusInternalServerError, "Could not remove this node from the cluster.")
@@ -184,7 +184,7 @@ func LeaveClusterForm(w http.ResponseWriter, r *http.Request) {
 func LeaveClusterAPI(w http.ResponseWriter, r *http.Request) {
 	paths, err := util.GetDirectoryPaths()
 	if err == nil {
-		err = cluster.LeaveCluster(r.Context(), database.GetServerDB(), paths.Data, paths.Config, hostnameOrEmpty())
+		err = cluster.LeaveCluster(r.Context(), database.GetServerStore(), paths.Data, paths.Config, hostnameOrEmpty())
 	}
 	if err != nil {
 		RespondError(w, r, http.StatusConflict, "CLUSTER_LEAVE_FAILED", "This node could not leave the cluster")
@@ -211,7 +211,7 @@ func GenerateClusterJoinTokenForm(w http.ResponseWriter, r *http.Request) {
 }
 
 func createClusterJoinTokenPage(w http.ResponseWriter, r *http.Request) {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	token, expires, err := cluster.CreateJoinToken(r.Context(), db, AdminUsername(r))
 	data := map[string]interface{}{"title": "Add Cluster Node - Admin", "page": "server-cluster-add"}
 	if err != nil {
@@ -226,7 +226,7 @@ func createClusterJoinTokenPage(w http.ResponseWriter, r *http.Request) {
 
 // GenerateClusterJoinTokenAPI issues a one-time token to an authenticated admin.
 func GenerateClusterJoinTokenAPI(w http.ResponseWriter, r *http.Request) {
-	token, expires, err := cluster.CreateJoinToken(r.Context(), database.GetServerDB(), AdminUsername(r))
+	token, expires, err := cluster.CreateJoinToken(r.Context(), database.GetServerStore(), AdminUsername(r))
 	if err != nil {
 		RespondError(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Cluster joining is unavailable")
 		return

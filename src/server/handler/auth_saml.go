@@ -59,7 +59,7 @@ type pendingSAMLIdentity struct {
 // SAMLAuthHandler implements browser SSO and shares the existing external
 // username confirmation URL with OIDC.
 type SAMLAuthHandler struct {
-	DB         *sql.DB
+	DB         *database.Store
 	Service    *service.SAMLService
 	OIDC       *OIDCAuthHandler
 	mu         sync.Mutex
@@ -153,7 +153,7 @@ func (h *SAMLAuthHandler) StartAPILogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	expires := dbtime.FormatSQLTimestamp(time.Now().Add(5 * time.Minute))
-	_, err = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `INSERT INTO saml_api_requests(request_id,authn_request_id,provider_name,relay_state,client_binding,expires_at) VALUES(?,?,?,?,?,?)`, requestID, pending.RequestID, provider, relayState, samlAPIClientBinding(r), expires)
+	_, err = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `INSERT INTO saml_api_requests(request_id,authn_request_id,provider_name,relay_state,client_binding,expires_at) VALUES(?,?,?,?,?,?)`, requestID, pending.RequestID, provider, relayState, samlAPIClientBinding(r), expires)
 	if err != nil {
 		RespondNegotiatedData(w, r, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "SAML_START_FAILED"})
 		return
@@ -189,7 +189,7 @@ func (h *SAMLAuthHandler) ExchangeAPILogin(w http.ResponseWriter, r *http.Reques
 	}
 	var clientBinding, codeHash, sessionToken, expires string
 	var completed, usernameRequired, consumed bool
-	err := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT client_binding,code_hash,session_token,completed,username_required,consumed,expires_at FROM saml_api_requests WHERE request_id=? AND provider_name=?`, request.RequestID, provider).Scan(&clientBinding, &codeHash, &sessionToken, &completed, &usernameRequired, &consumed, &expires)
+	err := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT client_binding,code_hash,session_token,completed,username_required,consumed,expires_at FROM saml_api_requests WHERE request_id=? AND provider_name=?`, request.RequestID, provider).Scan(&clientBinding, &codeHash, &sessionToken, &completed, &usernameRequired, &consumed, &expires)
 	if err == sql.ErrNoRows {
 		RespondNegotiatedData(w, r, http.StatusGone, map[string]interface{}{"ok": false, "error": "EXPIRED"})
 		return
@@ -199,7 +199,7 @@ func (h *SAMLAuthHandler) ExchangeAPILogin(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !time.Now().Before(parseSAMLAPITime(expires)) {
-		_, _ = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `DELETE FROM saml_api_requests WHERE request_id=?`, request.RequestID)
+		_, _ = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `DELETE FROM saml_api_requests WHERE request_id=?`, request.RequestID)
 		RespondNegotiatedData(w, r, http.StatusGone, map[string]interface{}{"ok": false, "error": "EXPIRED"})
 		return
 	}
@@ -227,7 +227,7 @@ func (h *SAMLAuthHandler) ExchangeAPILogin(w http.ResponseWriter, r *http.Reques
 		RespondNegotiatedData(w, r, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR"})
 		return
 	}
-	result, err := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `UPDATE saml_api_requests SET consumed=1 WHERE request_id=? AND consumed=0 AND completed=1`, request.RequestID)
+	result, err := database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `UPDATE saml_api_requests SET consumed=1 WHERE request_id=? AND consumed=0 AND completed=1`, request.RequestID)
 	if err != nil {
 		RespondNegotiatedData(w, r, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR"})
 		return
@@ -251,11 +251,11 @@ func (h *SAMLAuthHandler) APIAuthMiddleware(next http.Handler) http.Handler {
 		}
 		token := parts[1]
 		if middleware.DetectTokenType(token) == middleware.TokenTypeAdmin || middleware.DetectTokenType(token) == middleware.TokenTypeUser {
-			middleware.TokenAuthMiddleware(database.GetServerDB(), database.GetUsersDB())(next).ServeHTTP(w, r)
+			middleware.TokenAuthMiddleware(database.GetServerStore(), database.GetUsersStore())(next).ServeHTTP(w, r)
 			return
 		}
-		if adminSession, err := (&models.AdminSessionModel{DB: database.GetServerDB()}).GetSession(token); err == nil {
-			admin, loadErr := (&models.AdminModel{DB: database.GetUsersDB()}).GetByID(adminSession.AdminID)
+		if adminSession, err := (&models.AdminSessionModel{Store: database.GetServerStore()}).GetSession(token); err == nil {
+			admin, loadErr := (&models.AdminModel{Store: database.GetUsersStore()}).GetByID(adminSession.AdminID)
 			if loadErr == nil && admin.IsActive {
 				ctx := reqctx.SetValue(r.Context(), "admin_id", int(admin.ID))
 				ctx = reqctx.SetValue(ctx, "admin", admin)
@@ -263,8 +263,8 @@ func (h *SAMLAuthHandler) APIAuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if userSession, err := (&models.UserSessionModel{DB: database.GetUsersDB()}).GetSession(token); err == nil {
-			user, loadErr := (&models.UserModel{DB: database.GetUsersDB()}).GetByID(int64(userSession.UserID))
+		if userSession, err := (&models.UserSessionModel{Store: database.GetUsersStore()}).GetSession(token); err == nil {
+			user, loadErr := (&models.UserModel{Store: database.GetUsersStore()}).GetByID(int64(userSession.UserID))
 			if loadErr == nil && user.IsActive && !user.IsBanned {
 				ctx := reqctx.SetValue(r.Context(), middleware.UserContextKey, user)
 				ctx = reqctx.SetValue(ctx, middleware.UserIDContextKey, int(user.ID))
@@ -303,7 +303,7 @@ func markSAMLAPIRequest(ctx context.Context, relayState, sessionToken string) (s
 		return "", err
 	}
 	sum := sha256.Sum256([]byte(code))
-	result, err := database.ExecContext(ctx, database.GetServerDB(), database.TimeoutWrite, `UPDATE saml_api_requests SET completed=1,username_required=0,session_token=?,code_hash=? WHERE relay_state=? AND completed=0 AND expires_at>?`, sealedSessionToken, hex.EncodeToString(sum[:]), relayState, dbtime.FormatSQLTimestamp(time.Now()))
+	result, err := database.ExecContext(ctx, database.GetServerStore(), database.TimeoutWrite, `UPDATE saml_api_requests SET completed=1,username_required=0,session_token=?,code_hash=? WHERE relay_state=? AND completed=0 AND expires_at>?`, sealedSessionToken, hex.EncodeToString(sum[:]), relayState, dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
 		return "", err
 	}
@@ -333,7 +333,7 @@ func markSAMLAPIUsernameRequired(ctx context.Context, relayState string) error {
 	if relayState == "" {
 		return nil
 	}
-	_, err := database.ExecContext(ctx, database.GetServerDB(), database.TimeoutWrite, `UPDATE saml_api_requests SET username_required=1 WHERE relay_state=? AND completed=0`, relayState)
+	_, err := database.ExecContext(ctx, database.GetServerStore(), database.TimeoutWrite, `UPDATE saml_api_requests SET username_required=1 WHERE relay_state=? AND completed=0`, relayState)
 	return err
 }
 
@@ -386,7 +386,7 @@ func (h *SAMLAuthHandler) ACS(w http.ResponseWriter, r *http.Request) {
 		apiRequestID := ""
 		stateCookie, cookieErr := r.Cookie(samlStateCookie)
 		if cookieErr != nil || stateCookie.Value != state {
-			apiErr := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT request_id FROM saml_api_requests WHERE provider_name=? AND relay_state=? AND completed=0`, provider, state).Scan(&apiRequestID)
+			apiErr := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT request_id FROM saml_api_requests WHERE provider_name=? AND relay_state=? AND completed=0`, provider, state).Scan(&apiRequestID)
 			if apiErr != nil {
 				h.failed(w, r, provider)
 				return
@@ -399,7 +399,7 @@ func (h *SAMLAuthHandler) ACS(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 		if !ok && apiRelayState != "" {
 			var authnRequestID, expiry string
-			if dbErr := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT authn_request_id,expires_at FROM saml_api_requests WHERE request_id=? AND provider_name=?`, apiRequestID, provider).Scan(&authnRequestID, &expiry); dbErr == nil && time.Now().Before(parseSAMLAPITime(expiry)) {
+			if dbErr := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT authn_request_id,expires_at FROM saml_api_requests WHERE request_id=? AND provider_name=?`, apiRequestID, provider).Scan(&authnRequestID, &expiry); dbErr == nil && time.Now().Before(parseSAMLAPITime(expiry)) {
 				request = pendingSAMLLogin{Provider: provider, RequestID: authnRequestID, Expires: parseSAMLAPITime(expiry)}
 				ok = true
 			}
@@ -463,7 +463,7 @@ func (h *SAMLAuthHandler) ACS(w http.ResponseWriter, r *http.Request) {
 	if len(assertion.AuthnStatements) > 0 {
 		sessionIndex = assertion.AuthnStatements[0].SessionIndex
 	}
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 	if samlGroupMatch(groups, cfg.AdminGroups) {
 		var adminID int64
 		adminErr := database.QueryRowContext(r.Context(), usersDB, database.TimeoutSimpleSelect, `SELECT admin_id FROM admin_saml_mappings WHERE provider_name=? AND external_id=?`, provider, externalID).Scan(&adminID)
@@ -492,13 +492,13 @@ func (h *SAMLAuthHandler) ACS(w http.ResponseWriter, r *http.Request) {
 			h.failed(w, r, provider)
 			return
 		}
-		admin, loadErr := (&models.AdminModel{DB: usersDB}).GetByID(adminID)
+		admin, loadErr := (&models.AdminModel{Store: usersDB}).GetByID(adminID)
 		if loadErr != nil || !admin.IsActive {
 			http.Error(w, "Admin account is unavailable", http.StatusForbidden)
 			return
 		}
 		mfaStatus, mfaErr := models.AdminTOTPStatusFor(usersDB, adminID)
-		hasPasskeys, passkeyErr := (&models.AdminPasskeyModel{DB: usersDB}).HasPasskeys(adminID)
+		hasPasskeys, passkeyErr := (&models.AdminPasskeyModel{Store: usersDB}).HasPasskeys(adminID)
 		if mfaErr != nil || passkeyErr != nil {
 			h.failed(w, r, provider)
 			return
@@ -597,11 +597,11 @@ func (h *SAMLAuthHandler) ShowExternalUsername(w http.ResponseWriter, r *http.Re
 	}
 	username := normalizeSAMLUsername(pending.Username, pending.Email)
 	if pending.IsAdmin {
-		if util.ValidateAdminUsername(username) != nil || !availableSAMLAdminUsername(r.Context(), database.GetUsersDB(), username) {
-			username = suggestSAMLAdminUsername(r.Context(), database.GetUsersDB(), username)
+		if util.ValidateAdminUsername(username) != nil || !availableSAMLAdminUsername(r.Context(), database.GetUsersStore(), username) {
+			username = suggestSAMLAdminUsername(r.Context(), database.GetUsersStore(), username)
 		}
-	} else if util.ValidateUsername(username) != nil || !availableSAMLUsername(r.Context(), database.GetUsersDB(), username) {
-		username = suggestSAMLUsername(r.Context(), database.GetUsersDB(), username)
+	} else if util.ValidateUsername(username) != nil || !availableSAMLUsername(r.Context(), database.GetUsersStore(), username) {
+		username = suggestSAMLUsername(r.Context(), database.GetUsersStore(), username)
 	}
 	middleware.RenderHTML(w, r, http.StatusOK, "page/external_username.tmpl", util.TemplateData(r, map[string]interface{}{"title": "Choose your username", "username": username, "RequireAdminMFA": pending.RequireAdminMFA, "IsAdmin": pending.IsAdmin}))
 }
@@ -617,7 +617,7 @@ func (h *SAMLAuthHandler) CompleteExternalUsername(w http.ResponseWriter, r *htt
 		return
 	}
 	username := strings.TrimSpace(r.PostFormValue("username"))
-	usersDB := database.GetUsersDB()
+	usersDB := database.GetUsersStore()
 	if pending.IsAdmin {
 		h.completeSAMLAdminUsername(w, r, pending, username, r.PostFormValue("password"), r.PostFormValue("confirm_password"), usersDB)
 		return
@@ -646,35 +646,32 @@ func (h *SAMLAuthHandler) CompleteExternalUsername(w http.ResponseWriter, r *htt
 	if name == "" {
 		name = username
 	}
-	tx, err := usersDB.BeginTx(ctx, nil)
-	if err != nil {
-		h.failed(w, r, pending.Provider)
-		return
-	}
 	role := pending.Role
 	if role == "" {
 		role = "user"
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO users (username,email,display_name,password_hash,role,is_active,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)`, username, email, name, hash, role, now, now)
-	if err != nil {
-		_ = tx.Rollback()
+	var userID int64
+	writeStage := "user"
+	err = usersDB.Write(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `INSERT INTO users (username,email,display_name,password_hash,role,is_active,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)`, username, email, name, hash, role, now, now)
+		if err != nil {
+			return err
+		}
+		userID, err = result.LastInsertId()
+		if err != nil {
+			writeStage = "id"
+			return err
+		}
+		writeStage = "mapping"
+		groups, _ := json.Marshal(pending.Groups)
+		_, err = tx.ExecContext(ctx, `INSERT INTO user_saml_mappings (user_id,provider_name,external_id,email,name,groups_json,last_sync_at) VALUES (?,?,?,?,?,?,?)`, userID, pending.Provider, pending.ExternalID, email, name, string(groups), now)
+		return err
+	})
+	if err != nil && writeStage == "user" {
 		middleware.RenderHTML(w, r, http.StatusConflict, "page/external_username.tmpl", util.TemplateData(r, map[string]interface{}{"title": "Choose your username", "username": suggestSAMLUsername(ctx, usersDB, username), "error": "That username is unavailable. Choose another."}))
 		return
 	}
-	userID, err := result.LastInsertId()
 	if err != nil {
-		_ = tx.Rollback()
-		h.failed(w, r, pending.Provider)
-		return
-	}
-	groups, _ := json.Marshal(pending.Groups)
-	_, err = tx.ExecContext(ctx, `INSERT INTO user_saml_mappings (user_id,provider_name,external_id,email,name,groups_json,last_sync_at) VALUES (?,?,?,?,?,?,?)`, userID, pending.Provider, pending.ExternalID, email, name, string(groups), now)
-	if err != nil {
-		_ = tx.Rollback()
-		h.failed(w, r, pending.Provider)
-		return
-	}
-	if err := tx.Commit(); err != nil {
 		h.failed(w, r, pending.Provider)
 		return
 	}
@@ -684,27 +681,27 @@ func (h *SAMLAuthHandler) CompleteExternalUsername(w http.ResponseWriter, r *htt
 }
 
 func (h *SAMLAuthHandler) completeSAMLAdminMFA(w http.ResponseWriter, r *http.Request, pending pendingSAMLIdentity) {
-	valid, err := VerifyAdminTOTP(database.GetUsersDB(), pending.AdminID, strings.TrimSpace(r.PostFormValue("two_factor_code")), r.PostFormValue("use_recovery_key") == "true")
+	valid, err := VerifyAdminTOTP(database.GetUsersStore(), pending.AdminID, strings.TrimSpace(r.PostFormValue("two_factor_code")), r.PostFormValue("use_recovery_key") == "true")
 	if err != nil || !valid {
 		middleware.RenderHTML(w, r, http.StatusUnauthorized, "page/external_username.tmpl", util.TemplateData(r, map[string]interface{}{"title": "Verify administrator sign-in", "RequireAdminMFA": true, "error": Translate(r, "errors.user.public.invalid_two_factor_code")}))
 		return
 	}
 	h.consumePending(r)
 	http.SetCookie(w, &http.Cookie{Name: "saml_pending_identity", Value: "", Path: "/server/auth/external/username", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode})
-	admin, err := (&models.AdminModel{DB: database.GetUsersDB()}).GetByID(pending.AdminID)
+	admin, err := (&models.AdminModel{Store: database.GetUsersStore()}).GetByID(pending.AdminID)
 	if err != nil || !admin.IsActive {
 		http.Error(w, "Admin account is unavailable", http.StatusForbidden)
 		return
 	}
-	h.createAdminSession(w, r, database.GetUsersDB(), admin, pending)
+	h.createAdminSession(w, r, database.GetUsersStore(), admin, pending)
 }
 
-func (h *SAMLAuthHandler) completeSAMLAdminUsername(w http.ResponseWriter, r *http.Request, pending pendingSAMLIdentity, username, password, confirmPassword string, db *sql.DB) {
+func (h *SAMLAuthHandler) completeSAMLAdminUsername(w http.ResponseWriter, r *http.Request, pending pendingSAMLIdentity, username, password, confirmPassword string, db *database.Store) {
 	if util.ValidateAdminUsername(username) != nil || !availableSAMLAdminUsername(r.Context(), db, username) {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/external_username.tmpl", util.TemplateData(r, map[string]interface{}{"title": "Choose your username", "username": suggestSAMLAdminUsername(r.Context(), db, username), "IsAdmin": true, "error": Translate(r, "errors.auth.external_admin_username_invalid")}))
 		return
 	}
-	passwordMinLength := (&models.SettingsModel{DB: database.GetServerDB()}).GetInt("security.password_min_length", 8)
+	passwordMinLength := (&models.SettingsModel{Store: database.GetServerStore()}).GetInt("security.password_min_length", 8)
 	if passwordMinLength < 8 {
 		passwordMinLength = 8
 	}
@@ -739,7 +736,7 @@ func (h *SAMLAuthHandler) completeSAMLAdminUsername(w http.ResponseWriter, r *ht
 	if err := database.QueryRowContext(r.Context(), db, database.TimeoutSimpleSelect, `SELECT 1 FROM admins WHERE email=?`, email).Scan(&emailExists); err == nil {
 		email = username + "@" + pending.Provider + ".saml"
 	}
-	admin, err := (&models.AdminModel{DB: db}).CreateAdminAccount(username, email, password, false)
+	admin, err := (&models.AdminModel{Store: db}).CreateAdminAccount(username, email, password, false)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusConflict, "page/external_username.tmpl", util.TemplateData(r, map[string]interface{}{"title": "Choose your username", "username": suggestSAMLAdminUsername(r.Context(), db, username), "IsAdmin": true, "error": Translate(r, "errors.auth.external_admin_create_failed")}))
 		return
@@ -747,7 +744,7 @@ func (h *SAMLAuthHandler) completeSAMLAdminUsername(w http.ResponseWriter, r *ht
 	groups, _ := json.Marshal(pending.Groups)
 	now := dbtime.FormatSQLTimestamp(time.Now())
 	if _, err = database.ExecContext(r.Context(), db, database.TimeoutWrite, `INSERT INTO admin_saml_mappings (admin_id,provider_name,external_id,email,name,groups_json,created_at,updated_at,last_sync_at) VALUES (?,?,?,?,?,?,?,?,?)`, admin.ID, pending.Provider, pending.ExternalID, email, pending.Name, string(groups), now, now, now); err != nil {
-		_ = (&models.AdminModel{DB: db}).DeleteAdminAccount(admin.ID)
+		_ = (&models.AdminModel{Store: db}).DeleteAdminAccount(admin.ID)
 		h.failed(w, r, pending.Provider)
 		return
 	}
@@ -756,7 +753,7 @@ func (h *SAMLAuthHandler) completeSAMLAdminUsername(w http.ResponseWriter, r *ht
 	h.createAdminSession(w, r, db, admin, pending)
 }
 
-func availableSAMLAdminUsername(ctx context.Context, db *sql.DB, name string) bool {
+func availableSAMLAdminUsername(ctx context.Context, db *database.Store, name string) bool {
 	if util.ValidateAdminUsername(name) != nil {
 		return false
 	}
@@ -764,7 +761,7 @@ func availableSAMLAdminUsername(ctx context.Context, db *sql.DB, name string) bo
 	return database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, `SELECT 1 FROM admins WHERE username=?`, name).Scan(&exists) == sql.ErrNoRows
 }
 
-func suggestSAMLAdminUsername(ctx context.Context, db *sql.DB, raw string) string {
+func suggestSAMLAdminUsername(ctx context.Context, db *database.Store, raw string) string {
 	base := normalizeOIDCUsernameCandidate(raw)
 	if availableSAMLAdminUsername(ctx, db, base) {
 		return base
@@ -834,10 +831,10 @@ func (h *SAMLAuthHandler) prune() {
 }
 func (h *SAMLAuthHandler) failed(w http.ResponseWriter, r *http.Request, provider string) {
 	now := dbtime.FormatSQLTimestamp(time.Now())
-	_, _ = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `INSERT INTO audit_log (ulid,timestamp,actor_type,actor_id,action,resource_type,resource_id,ip_address,user_agent,source,status,error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, ulid.Make().String(), now, "external", provider, "saml.login_failed", "saml_provider", provider, util.TrustedGetClientIP(r), r.UserAgent(), "web", "failure", "SAML authentication failed")
+	_, _ = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `INSERT INTO audit_log (ulid,timestamp,actor_type,actor_id,action,resource_type,resource_id,ip_address,user_agent,source,status,error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, ulid.Make().String(), now, "external", provider, "saml.login_failed", "saml_provider", provider, util.TrustedGetClientIP(r), r.UserAgent(), "web", "failure", "SAML authentication failed")
 	http.Error(w, "SAML authentication failed", http.StatusUnauthorized)
 }
-func (h *SAMLAuthHandler) syncMapping(ctx context.Context, db *sql.DB, userID int64, provider, externalID, email, name string, groups []string, role string) error {
+func (h *SAMLAuthHandler) syncMapping(ctx context.Context, db *database.Store, userID int64, provider, externalID, email, name string, groups []string, role string) error {
 	b, _ := json.Marshal(groups)
 	now := dbtime.FormatSQLTimestamp(time.Now())
 	if _, err := database.ExecContext(ctx, db, database.TimeoutWrite, `UPDATE user_saml_mappings SET email=?,name=?,groups_json=?,last_sync_at=? WHERE provider_name=? AND external_id=? AND user_id=?`, email, name, string(b), now, provider, externalID, userID); err != nil {
@@ -846,9 +843,9 @@ func (h *SAMLAuthHandler) syncMapping(ctx context.Context, db *sql.DB, userID in
 	_, err := database.ExecContext(ctx, db, database.TimeoutWrite, `UPDATE users SET role=?,updated_at=? WHERE id=?`, role, now, userID)
 	return err
 }
-func (h *SAMLAuthHandler) createSAMLUserSession(w http.ResponseWriter, r *http.Request, db *sql.DB, userID int64, identity pendingSAMLIdentity) {
+func (h *SAMLAuthHandler) createSAMLUserSession(w http.ResponseWriter, r *http.Request, db *database.Store, userID int64, identity pendingSAMLIdentity) {
 	duration := middleware.SessionSettingsFor(middleware.SessionAccountUser).MaxAge
-	session, err := (&models.UserSessionModel{DB: db}).CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
+	session, err := (&models.UserSessionModel{Store: db}).CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
 	if err != nil {
 		http.Error(w, "Could not create session", http.StatusInternalServerError)
 		return
@@ -857,7 +854,7 @@ func (h *SAMLAuthHandler) createSAMLUserSession(w http.ResponseWriter, r *http.R
 	var sessionRowID int64
 	err = database.QueryRowContext(r.Context(), db, database.TimeoutSimpleSelect, `SELECT id FROM user_sessions WHERE token_hash=?`, hex.EncodeToString(tokenHash[:])).Scan(&sessionRowID)
 	if err != nil {
-		_ = (&models.UserSessionModel{DB: db}).DeleteSession(session.SessionID)
+		_ = (&models.UserSessionModel{Store: db}).DeleteSession(session.SessionID)
 		http.Error(w, "Could not create session", http.StatusInternalServerError)
 		return
 	}
@@ -867,13 +864,13 @@ func (h *SAMLAuthHandler) createSAMLUserSession(w http.ResponseWriter, r *http.R
 	}
 	_, err = database.ExecContext(r.Context(), db, database.TimeoutWrite, `INSERT INTO user_saml_sessions(session_id,provider_name,external_id,name_id,session_index) VALUES(?,?,?,?,?)`, sessionRowID, identity.Provider, identity.ExternalID, nameID, identity.SessionIndex)
 	if err != nil {
-		_ = (&models.UserSessionModel{DB: db}).DeleteSession(session.SessionID)
+		_ = (&models.UserSessionModel{Store: db}).DeleteSession(session.SessionID)
 		http.Error(w, "Could not create session", http.StatusInternalServerError)
 		return
 	}
 	code, err := markSAMLAPIRequest(r.Context(), identity.APIRelayState, session.SessionID)
 	if err != nil {
-		_ = (&models.UserSessionModel{DB: db}).DeleteSession(session.SessionID)
+		_ = (&models.UserSessionModel{Store: db}).DeleteSession(session.SessionID)
 		http.Error(w, "Could not create session", http.StatusInternalServerError)
 		return
 	}
@@ -885,9 +882,9 @@ func (h *SAMLAuthHandler) createSAMLUserSession(w http.ResponseWriter, r *http.R
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func (h *SAMLAuthHandler) createAdminSession(w http.ResponseWriter, r *http.Request, db *sql.DB, admin *models.Admin, identity pendingSAMLIdentity) {
+func (h *SAMLAuthHandler) createAdminSession(w http.ResponseWriter, r *http.Request, db *database.Store, admin *models.Admin, identity pendingSAMLIdentity) {
 	duration := middleware.SessionSettingsFor(middleware.SessionAccountAdmin).MaxAge
-	session, err := (&models.AdminSessionModel{DB: database.GetServerDB()}).CreateSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
+	session, err := (&models.AdminSessionModel{Store: database.GetServerStore()}).CreateSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
 	if err != nil {
 		http.Error(w, "Could not create admin session", http.StatusInternalServerError)
 		return
@@ -896,19 +893,19 @@ func (h *SAMLAuthHandler) createAdminSession(w http.ResponseWriter, r *http.Requ
 	if nameID == "" {
 		nameID = identity.ExternalID
 	}
-	_, err = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `INSERT INTO admin_saml_sessions(session_id,provider_name,external_id,name_id,session_index) VALUES(?,?,?,?,?)`, session.ID, identity.Provider, identity.ExternalID, nameID, identity.SessionIndex)
+	_, err = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `INSERT INTO admin_saml_sessions(session_id,provider_name,external_id,name_id,session_index) VALUES(?,?,?,?,?)`, session.ID, identity.Provider, identity.ExternalID, nameID, identity.SessionIndex)
 	if err != nil {
-		_ = (&models.AdminSessionModel{DB: database.GetServerDB()}).DeleteSession(session.SessionID)
+		_ = (&models.AdminSessionModel{Store: database.GetServerStore()}).DeleteSession(session.SessionID)
 		http.Error(w, "Could not create admin session", http.StatusInternalServerError)
 		return
 	}
 	code, err := markSAMLAPIRequest(r.Context(), identity.APIRelayState, session.SessionID)
 	if err != nil {
-		_ = (&models.AdminSessionModel{DB: database.GetServerDB()}).DeleteSession(session.SessionID)
+		_ = (&models.AdminSessionModel{Store: database.GetServerStore()}).DeleteSession(session.SessionID)
 		http.Error(w, "Could not create admin session", http.StatusInternalServerError)
 		return
 	}
-	_ = (&models.AdminModel{DB: db}).UpdateLastLogin(admin.ID)
+	_ = (&models.AdminModel{Store: db}).UpdateLastLogin(admin.ID)
 	http.SetCookie(w, middleware.NewSessionCookie(r, middleware.SessionAccountAdmin, session.SessionID, duration))
 	if identity.APIRelayState != "" {
 		h.renderSAMLAPIComplete(w, r, identity.APIRelayState, code)
@@ -924,7 +921,7 @@ func (h *SAMLAuthHandler) createAdminSession(w http.ResponseWriter, r *http.Requ
 
 func (h *SAMLAuthHandler) renderSAMLAPIComplete(w http.ResponseWriter, r *http.Request, relayState, code string) {
 	var requestID string
-	if err := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT request_id FROM saml_api_requests WHERE relay_state=?`, relayState).Scan(&requestID); err != nil {
+	if err := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT request_id FROM saml_api_requests WHERE relay_state=?`, relayState).Scan(&requestID); err != nil {
 		http.Error(w, "SAML sign-in completed. Return to your app to continue.", http.StatusOK)
 		return
 	}
@@ -952,9 +949,9 @@ func mappedSAMLRole(groups []string, mapping map[string][]string) string {
 	}
 	return "user"
 }
-func availableSAMLUsername(ctx context.Context, db *sql.DB, name string) bool {
+func availableSAMLUsername(ctx context.Context, db *database.Store, name string) bool {
 	return oidcUsernameAvailable(ctx, db, name)
 }
-func suggestSAMLUsername(ctx context.Context, db *sql.DB, base string) string {
+func suggestSAMLUsername(ctx context.Context, db *database.Store, base string) string {
 	return suggestOIDCUsername(ctx, db, normalizeSAMLUsername(base, ""))
 }

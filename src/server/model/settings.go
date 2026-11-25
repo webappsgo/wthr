@@ -28,8 +28,8 @@ type Setting struct {
 
 // SettingsModel handles settings operations
 type SettingsModel struct {
-	// DB is retained for source compatibility. Settings use the config files.
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // GetSetting retrieves a setting by key
@@ -201,12 +201,15 @@ func settingFromValue(key string, value any) *Setting {
 // canonical file that owns each key. Existing file values win and the legacy
 // table is retained until the complete schema migration can remove it.
 func (m *SettingsModel) MigrateLegacyDatabaseSettings() error {
-	db := m.DB
-	if db == nil {
-		db = database.GetServerDB()
+	store := m.Store
+	if store == nil && m.testDB != nil {
+		store = database.NewStore(m.testDB)
 	}
-	if database.IsRemoteDatabase(db) {
+	if store == nil {
+		store = database.GetServerStore()
+	}
+	if store == nil || !store.IsSQLite() {
 		return nil
 	}
-	return config.MigrateLegacyDatabaseSettings(db)
+	return config.MigrateLegacyDatabaseSettings(store)
 }

@@ -13,7 +13,7 @@ import (
 func TestSaveAdminPreferencesFormResetRestoresDefaults(t *testing.T) {
 	usersDB := newNotificationPreferencesTestDB(t)
 	setGlobalTestDualDB(t, newTestServerDB(t), usersDB)
-	handler := &AdminNotificationsHandler{UsersDB: usersDB}
+	handler := &AdminNotificationsHandler{UsersDB: storeForDB(usersDB)}
 	form := url.Values{"reset": {"true"}}
 	r, w := newTestContext(http.MethodPost, "/server/administration/admin/notifications/preferences")
 	r = withAdminID(r, 42)
@@ -23,7 +23,7 @@ func TestSaveAdminPreferencesFormResetRestoresDefaults(t *testing.T) {
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303; body=%s", w.Code, w.Body.String())
 	}
-	prefs, err := (&model.NotificationPreferencesModel{UserDB: usersDB}).GetAdminPreferences(42)
+	prefs, err := (&model.NotificationPreferencesModel{UserStore: storeForDB(usersDB)}).GetAdminPreferences(42)
 	if err != nil {
 		t.Fatalf("load reset preferences: %v", err)
 	}

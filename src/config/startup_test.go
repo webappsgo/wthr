@@ -59,3 +59,14 @@ func TestLoadStartupSettingsIgnoresInvalidAddressUntilFullValidation(t *testing.
 		t.Fatalf("full config address = %q, want [::]", cfg.Server.Address)
 	}
 }
+
+func TestLoadStartupSettingsReadsPIDFileFromMergedView(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "server.yml"), []byte("server:\n  pidfile: false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := LoadStartupSettings(dir)
+	if enabled, ok := got.PIDFile.(bool); !ok || enabled {
+		t.Fatalf("LoadStartupSettings().PIDFile = %#v, want false", got.PIDFile)
+	}
+}

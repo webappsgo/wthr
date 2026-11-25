@@ -73,7 +73,7 @@ func SaveSecuritySettingsForm(w http.ResponseWriter, r *http.Request) {
 		}
 		values[key] = value
 	}
-	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	settings := &model.SettingsModel{Store: database.GetServerStore()}
 	for key, value := range values {
 		if err := settings.SetSetting(key, value, "string"); err != nil {
 			redirectAdminForm(w, r, adminPagePath(r, "/security"), "flash.settings_saved", "flash.settings_save_failed", err)

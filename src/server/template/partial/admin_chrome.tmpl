@@ -45,10 +45,13 @@
       <span class="admin-account__name">{{if .user.Username}}{{.user.Username}}{{else}}{{.user.Email}}{{end}}</span>
     </a>
     {{end}}
-    <a class="admin-logout" href="/server/auth/logout">
+    <form class="admin-logout-form" action="/server/auth/logout" method="post">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <button class="admin-logout" type="submit">
       <span class="admin-logout__icon" aria-hidden="true">&#9099;</span>
       <span class="admin-logout__label">{{t $lang "nav.logout"}}</span>
-    </a>
+      </button>
+    </form>
   </header>
   <div class="admin-body">
     <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}" data-nav-state-url="{{$ap}}/settings/nav-state" data-nav-state-csrf="{{.csrf_token}}">

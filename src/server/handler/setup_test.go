@@ -31,7 +31,7 @@ func newSetupTestHandler(t *testing.T) (*SetupHandler, *sql.DB) {
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
-	return &SetupHandler{DB: serverDB}, serverDB
+	return &SetupHandler{DB: storeForDB(serverDB)}, serverDB
 }
 
 // writeRealSetupToken writes a real setup_token.txt at the process-wide

@@ -26,7 +26,7 @@ func TestSMTPEmailForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, adminPagePath(r, "/email"), "flash.test_email_sent", "flash.test_email_failed", fmt.Errorf("invalid recipient address"))
 		return
 	}
-	smtp := service.SharedSMTPService(database.GetServerDB())
+	smtp := service.SharedSMTPService(database.GetServerStore())
 	if err := smtp.VerifyConfiguredConnection(); err != nil {
 		log.Printf("WARNING: SMTP test email connection verification failed: %v", err)
 		redirectAdminForm(w, r, adminPagePath(r, "/email"), "flash.test_email_sent", "flash.test_email_failed", err)
@@ -43,7 +43,7 @@ func TestSMTPEmailForm(w http.ResponseWriter, r *http.Request) {
 // AutoDetectSMTPForm runs the configured SMTP discovery and returns to the
 // email page with a one-shot status message.
 func AutoDetectSMTPForm(w http.ResponseWriter, r *http.Request) {
-	smtp := service.SharedSMTPService(database.GetServerDB())
+	smtp := service.SharedSMTPService(database.GetServerStore())
 	found, err := smtp.AutoDetect()
 	if err == nil && !found {
 		err = fmt.Errorf("no SMTP server detected")
@@ -82,7 +82,11 @@ func DatabaseActionForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, adminPagePath(r, "/database"), "flash.settings_saved", "flash.settings_save_failed", fmt.Errorf("database operation failed"))
 		return
 	}
-	redirectAdminForm(w, r, adminPagePath(r, "/database"), "flash.settings_saved", "flash.settings_save_failed", nil)
+	successKey := "flash.settings_saved"
+	if r.FormValue("operation") == "vacuum" {
+		successKey = "admin.database.vacuum_queued"
+	}
+	redirectAdminForm(w, r, adminPagePath(r, "/database"), successKey, "flash.settings_save_failed", nil)
 }
 
 // TestDatabaseConfigForm validates connection settings entered in the database

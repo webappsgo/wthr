@@ -108,7 +108,7 @@ func TestAdminHasPasskeys(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	admin := newAdminPasskeyTestAdmin(t, serverDB, "haspasskeysadmin", "password123")
 
-	has, err := AdminHasPasskeys(serverDB, admin.ID)
+	has, err := AdminHasPasskeys(storeForDB(serverDB), admin.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestBeginAdminPasskeyLoginToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("invalid pending session token errors", func(t *testing.T) {
-		if _, err := BeginAdminPasskeyLoginToken(serverDB, env, "no-such-token"); err == nil {
+		if _, err := BeginAdminPasskeyLoginToken(storeForDB(serverDB), env, "no-such-token"); err == nil {
 			t.Fatalf("expected error for invalid pending session token")
 		}
 	})
@@ -135,7 +135,7 @@ func TestBeginAdminPasskeyLoginToken(t *testing.T) {
 		}
 		defer DeleteAdminPendingSession(token)
 
-		if _, err := BeginAdminPasskeyLoginToken(serverDB, env, token); err == nil {
+		if _, err := BeginAdminPasskeyLoginToken(storeForDB(serverDB), env, token); err == nil {
 			t.Fatalf("expected error for unknown admin id")
 		}
 	})
@@ -147,7 +147,7 @@ func TestBeginAdminPasskeyLoginToken(t *testing.T) {
 		}
 		defer DeleteAdminPendingSession(token)
 
-		if _, err := BeginAdminPasskeyLoginToken(serverDB, env, token); err == nil {
+		if _, err := BeginAdminPasskeyLoginToken(storeForDB(serverDB), env, token); err == nil {
 			t.Fatalf("expected error for admin with no registered passkeys")
 		}
 	})
@@ -159,13 +159,13 @@ func TestFinishAdminPasskeyLoginToken(t *testing.T) {
 	env := PasskeyEnvelope{Host: "example.com", HTTPS: true}
 
 	t.Run("empty body errors", func(t *testing.T) {
-		if _, err := FinishAdminPasskeyLoginToken(serverDB, env, "some-token", nil, "127.0.0.1", "test-agent", time.Hour); err == nil {
+		if _, err := FinishAdminPasskeyLoginToken(storeForDB(serverDB), env, "some-token", nil, "127.0.0.1", "test-agent", time.Hour); err == nil {
 			t.Fatalf("expected error for empty body")
 		}
 	})
 
 	t.Run("unknown ceremony token errors", func(t *testing.T) {
-		if _, err := FinishAdminPasskeyLoginToken(serverDB, env, "no-such-token", []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
+		if _, err := FinishAdminPasskeyLoginToken(storeForDB(serverDB), env, "no-such-token", []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
 			t.Fatalf("expected error for unknown ceremony token")
 		}
 	})
@@ -177,7 +177,7 @@ func TestFinishAdminPasskeyLoginToken(t *testing.T) {
 		}
 		defer passkeyCeremonyCache.Delete(token)
 
-		if _, err := FinishAdminPasskeyLoginToken(serverDB, env, token, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
+		if _, err := FinishAdminPasskeyLoginToken(storeForDB(serverDB), env, token, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
 			t.Fatalf("expected error for mismatched ceremony kind")
 		}
 	})
@@ -193,7 +193,7 @@ func TestFinishAdminPasskeyLoginToken(t *testing.T) {
 		}
 		defer passkeyCeremonyCache.Delete(token)
 
-		if _, err := FinishAdminPasskeyLoginToken(serverDB, env, token, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
+		if _, err := FinishAdminPasskeyLoginToken(storeForDB(serverDB), env, token, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
 			t.Fatalf("expected error for stale pending session")
 		}
 	})
@@ -215,7 +215,7 @@ func TestFinishAdminPasskeyLoginToken(t *testing.T) {
 		}
 		defer passkeyCeremonyCache.Delete(ceremonyToken)
 
-		if _, err := FinishAdminPasskeyLoginToken(serverDB, env, ceremonyToken, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
+		if _, err := FinishAdminPasskeyLoginToken(storeForDB(serverDB), env, ceremonyToken, []byte(`{}`), "127.0.0.1", "test-agent", time.Hour); err == nil {
 			t.Fatalf("expected error for pending session/admin id mismatch")
 		}
 	})

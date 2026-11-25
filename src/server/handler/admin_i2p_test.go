@@ -24,7 +24,7 @@ func newI2PTestHandler(t *testing.T) *I2PAdminHandler {
 	dataDir := t.TempDir()
 	cfg := config.DefaultI2PConfig()
 	i2pManager := service.NewI2PManager(context.Background(), &cfg)
-	settingsModel := &models.SettingsModel{DB: serverDB}
+	settingsModel := &models.SettingsModel{Store: storeForDB(serverDB)}
 	return NewI2PAdminHandler(i2pManager, settingsModel, dataDir)
 }
 

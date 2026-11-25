@@ -263,7 +263,14 @@ func OpenConfigured(driver, connectionURL, host string, port int, name, username
 	}
 }
 
-func ColumnExists(db *sql.DB, table, column string) (bool, error) {
+func ColumnExists(handle interface{}, table, column string) (bool, error) {
+	var db *sql.DB
+	switch value := handle.(type) {
+	case *sql.DB:
+		db = value
+	case *Store:
+		db = value.DB()
+	}
 	if db == nil || !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`).MatchString(table) || !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`).MatchString(column) {
 		return false, fmt.Errorf("invalid database table or column")
 	}
@@ -281,6 +288,33 @@ func ColumnExists(db *sql.DB, table, column string) (bool, error) {
 	}
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ColumnExistsTx checks a column inside the caller's write transaction so
+// schema inspection and migration changes share one transaction.
+func ColumnExistsTx(tx *sql.Tx, store *Store, table, column string) (bool, error) {
+	if tx == nil || store == nil || !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`).MatchString(table) || !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`).MatchString(column) {
+		return false, fmt.Errorf("invalid database table or column")
+	}
+	db := store.DB()
+	if db == nil {
+		return false, fmt.Errorf("database store is unavailable")
+	}
+	query := `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`
+	args := []interface{}{table, column}
+	if IsRemoteDatabase(db) {
+		table = remoteTableName(table)
+		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`
+		if dialect := RemoteDatabaseDialect(db); dialect == "mysql" || dialect == "mariadb" {
+			query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`
+		}
+		args = []interface{}{table, column}
+	}
+	var count int
+	if err := tx.QueryRow(query, args...).Scan(&count); err != nil {
 		return false, err
 	}
 	return count > 0, nil

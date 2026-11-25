@@ -27,14 +27,14 @@ func newUserPublicTestHandler(t *testing.T) (*UserPublicHandler, *sql.DB) {
 	t.Helper()
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, newTestServerDB(t), usersDB)
-	return NewUserPublicHandler(usersDB), usersDB
+	return NewUserPublicHandler(storeForDB(usersDB)), usersDB
 }
 
 // seedPublicUser creates a user via UserModel.CreateUserAccount (real Argon2id
 // hashing) and returns it.
 func seedPublicUser(t *testing.T, usersDB *sql.DB, username, email, password string) *models.User {
 	t.Helper()
-	u, err := (&models.UserModel{DB: usersDB}).CreateUserAccount(username, email, password, "user")
+	u, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount(username, email, password, "user")
 	if err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
@@ -52,8 +52,8 @@ func withChiParam(r *http.Request, key, value string) *http.Request {
 
 func TestNewUserPublicHandler(t *testing.T) {
 	db := newTestUsersDB(t)
-	h := NewUserPublicHandler(db)
-	if h == nil || h.DB != db {
+	h := NewUserPublicHandler(storeForDB(db))
+	if h == nil || h.DB.DB() != db {
 		t.Fatalf("NewUserPublicHandler did not wire DB correctly")
 	}
 }
@@ -153,7 +153,7 @@ func TestLoadPublicUserProfile_PackageFunc(t *testing.T) {
 	_, usersDB := newUserPublicTestHandler(t)
 	seedPublicUser(t, usersDB, "wrapperuser", "wrapper@example.com", "password123")
 
-	profile, err := LoadPublicUserProfile(usersDB, "wrapperuser", 0)
+	profile, err := LoadPublicUserProfile(storeForDB(usersDB), "wrapperuser", 0)
 	if err != nil {
 		t.Fatalf("LoadPublicUserProfile: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestUserPublicHandler_AvatarLifecycle(t *testing.T) {
 	})
 
 	t.Run("UpdateCurrentUserAvatar package wrapper success", func(t *testing.T) {
-		resp, err := UpdateCurrentUserAvatar(usersDB, u.ID, &UpdateAvatarRequest{Type: "url", URL: "https://cdn.example.com/b.png"})
+		resp, err := UpdateCurrentUserAvatar(storeForDB(usersDB), u.ID, &UpdateAvatarRequest{Type: "url", URL: "https://cdn.example.com/b.png"})
 		if err != nil {
 			t.Fatalf("UpdateCurrentUserAvatar: %v", err)
 		}
@@ -386,7 +386,7 @@ func TestUserPublicHandler_AvatarLifecycle(t *testing.T) {
 	})
 
 	t.Run("ResetCurrentUserAvatar package wrapper success", func(t *testing.T) {
-		if err := ResetCurrentUserAvatar(usersDB, u.ID); err != nil {
+		if err := ResetCurrentUserAvatar(storeForDB(usersDB), u.ID); err != nil {
 			t.Fatalf("ResetCurrentUserAvatar: %v", err)
 		}
 	})
@@ -423,7 +423,7 @@ func TestUserPublicHandler_AvatarLifecycle(t *testing.T) {
 	})
 
 	t.Run("UploadCurrentUserAvatar package wrapper success", func(t *testing.T) {
-		resp, err := UploadCurrentUserAvatar(usersDB, u.ID, &AvatarUploadRequest{Size: 100, ContentType: "image/gif"})
+		resp, err := UploadCurrentUserAvatar(storeForDB(usersDB), u.ID, &AvatarUploadRequest{Size: 100, ContentType: "image/gif"})
 		if err != nil {
 			t.Fatalf("UploadCurrentUserAvatar: %v", err)
 		}
@@ -693,7 +693,7 @@ func TestUserPublicHandler_ChangeCurrentUserPassword(t *testing.T) {
 	t.Run("ChangeCurrentUserPassword package wrapper success", func(t *testing.T) {
 		_, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "chpwwrap", "chpwwrap@example.com", "password123")
-		if err := ChangeCurrentUserPassword(usersDB, u.ID, &ChangePasswordRequest{CurrentPassword: "password123", NewPassword: "newpassword789"}); err != nil {
+		if err := ChangeCurrentUserPassword(storeForDB(usersDB), u.ID, &ChangePasswordRequest{CurrentPassword: "password123", NewPassword: "newpassword789"}); err != nil {
 			t.Fatalf("ChangeCurrentUserPassword: %v", err)
 		}
 	})

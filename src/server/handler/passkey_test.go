@@ -25,7 +25,7 @@ func newPasskeyHandlerTestSetup(t *testing.T) (*PasskeyHandler, *models.User) {
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, usersDB, usersDB)
 	user := newPasskeyTestUser(t, usersDB, "pkhandleruser", "password123")
-	return NewPasskeyHandler(usersDB), user
+	return NewPasskeyHandler(storeForDB(usersDB)), user
 }
 
 // withPasskeyHost sets a valid Host on the test request so buildWebAuthn

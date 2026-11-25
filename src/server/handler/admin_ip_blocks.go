@@ -40,7 +40,7 @@ type ipBlockInput struct {
 
 // ListIPBlocks returns active and expired IP/CIDR block records for admins.
 func ListIPBlocks(w http.ResponseWriter, r *http.Request) {
-	records, err := readIPBlocks(r.Context(), database.GetServerDB(), false)
+	records, err := readIPBlocks(r.Context(), database.GetServerStore(), false)
 	if err != nil {
 		InternalError(w, r, err.Error())
 		return
@@ -51,7 +51,7 @@ func ListIPBlocks(w http.ResponseWriter, r *http.Request) {
 // GetIPBlock returns one block record matching an IP address or CIDR.
 func GetIPBlock(w http.ResponseWriter, r *http.Request) {
 	value := chi.URLParam(r, "ip")
-	records, err := readIPBlocks(r.Context(), database.GetServerDB(), true)
+	records, err := readIPBlocks(r.Context(), database.GetServerStore(), true)
 	if err != nil {
 		InternalError(w, r, err.Error())
 		return
@@ -97,7 +97,7 @@ func CreateIPBlock(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		expiresAt, err = parseBlockExpiry(input.ExpiresAt, blockType)
 	}
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if err == nil && db == nil {
 		err = fmt.Errorf("server database is not available")
 	}
@@ -124,7 +124,7 @@ func CreateIPBlock(w http.ResponseWriter, r *http.Request) {
 
 // DeleteIPBlock removes a block by its IP/CIDR value or numeric database ID.
 func DeleteIPBlock(w http.ResponseWriter, r *http.Request) {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	value := chi.URLParam(r, "ip")
 	var result sql.Result
 	var err error
@@ -157,7 +157,7 @@ func DeleteIPBlock(w http.ResponseWriter, r *http.Request) {
 
 // PurgeExpiredIPBlocks removes expired block records from the audit table.
 func PurgeExpiredIPBlocks(w http.ResponseWriter, r *http.Request) {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		InternalError(w, r, "server database is not available")
 		return
@@ -181,7 +181,7 @@ func PurgeExpiredIPBlocks(w http.ResponseWriter, r *http.Request) {
 	RespondSuccess(w, r, "Expired IP blocks purged", map[string]interface{}{"removed": removed})
 }
 
-func readIPBlocks(ctx context.Context, db *sql.DB, activeOnly bool) ([]ipBlockRecord, error) {
+func readIPBlocks(ctx context.Context, db *database.Store, activeOnly bool) ([]ipBlockRecord, error) {
 	if db == nil {
 		return nil, fmt.Errorf("server database is not available")
 	}
@@ -235,7 +235,7 @@ func readIPBlocks(ctx context.Context, db *sql.DB, activeOnly bool) ([]ipBlockRe
 	return records, nil
 }
 
-func expiredIPBlockIDs(ctx context.Context, db *sql.DB, now time.Time) ([]int64, error) {
+func expiredIPBlockIDs(ctx context.Context, db *database.Store, now time.Time) ([]int64, error) {
 	rows, err := database.QueryContext(ctx, db, database.TimeoutSimpleSelect, `SELECT id, expires_at FROM server_blocklists WHERE expires_at IS NOT NULL`)
 	if err != nil {
 		return nil, err

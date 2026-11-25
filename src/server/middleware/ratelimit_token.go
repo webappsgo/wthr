@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -23,19 +22,19 @@ const (
 
 var (
 	tokenKeyMu      sync.Mutex
-	tokenKeyServer  *sql.DB
-	tokenKeyUsers   *sql.DB
+	tokenKeyServer  *database.Store
+	tokenKeyUsers   *database.Store
 	tokenKeyExpires = map[string]time.Time{}
 )
 
 // SetRateLimitTokenDBs gives the rate limiter the databases it needs to tell a
 // valid Bearer token from a forged one. Until it is called every request is
 // limited per IP.
-func SetRateLimitTokenDBs(serverDB, usersDB *sql.DB) {
+func SetRateLimitTokenDBs(serverStore, usersStore *database.Store) {
 	tokenKeyMu.Lock()
 	defer tokenKeyMu.Unlock()
-	tokenKeyServer = serverDB
-	tokenKeyUsers = usersDB
+	tokenKeyServer = serverStore
+	tokenKeyUsers = usersStore
 	tokenKeyExpires = map[string]time.Time{}
 }
 
@@ -74,7 +73,7 @@ func validTokenForRateLimit(token string) bool {
 	id := hex.EncodeToString(sum[:])
 
 	tokenKeyMu.Lock()
-	serverDB, usersDB := tokenKeyServer, tokenKeyUsers
+	serverStore, usersStore := tokenKeyServer, tokenKeyUsers
 	if expires, ok := tokenKeyExpires[id]; ok && time.Now().Before(expires) {
 		tokenKeyMu.Unlock()
 		return true
@@ -84,13 +83,16 @@ func validTokenForRateLimit(token string) bool {
 	valid := false
 	switch DetectTokenType(token) {
 	case TokenTypeAdmin:
-		if serverDB != nil {
-			_, err := (&model.AdminModel{DB: database.UsersDBOr(serverDB)}).GetByAPIToken(token)
+		if usersStore == nil {
+			usersStore = serverStore
+		}
+		if usersStore != nil {
+			_, err := (&model.AdminModel{Store: usersStore}).GetByAPIToken(token)
 			valid = err == nil
 		}
 	case TokenTypeUser:
-		if usersDB != nil {
-			_, err := (&model.TokenModelV2{DB: usersDB}).ValidateToken(token)
+		if usersStore != nil {
+			_, err := (&model.TokenModelV2{Store: usersStore}).ValidateToken(token)
 			valid = err == nil
 		}
 	}

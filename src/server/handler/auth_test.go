@@ -35,7 +35,7 @@ func newAuthTestHandler(t *testing.T) (*AuthHandler, *sql.DB, *sql.DB) {
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
-	return &AuthHandler{DB: usersDB}, serverDB, usersDB
+	return &AuthHandler{DB: storeForDB(usersDB)}, serverDB, usersDB
 }
 
 // seedAdmin inserts an active, passkey-less super admin directly into
@@ -60,7 +60,9 @@ func seedAdmin(t *testing.T, db *sql.DB, username, email, password string) int64
 
 // seedAuthUser inserts an active user account directly into users
 // with a real Argon2id hash, mirroring UserModel.Create's column set.
-func seedAuthUser(t *testing.T, db *sql.DB, username, email, password string) int64 {
+func seedAuthUser(t *testing.T, db interface {
+	Exec(string, ...any) (sql.Result, error)
+}, username, email, password string) int64 {
 	t.Helper()
 	hash, err := models.HashPassword(password)
 	if err != nil {
@@ -131,10 +133,10 @@ func TestHandleLogin_Admin(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := models.StorePendingAdminTOTPSecret(usersDB, adminID, secret.Secret()); err != nil {
+		if err := models.StorePendingAdminTOTPSecret(storeForDB(usersDB), adminID, secret.Secret()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := models.EnableAdminTOTP(usersDB, adminID, secret.Secret()); err != nil {
+		if _, err := models.EnableAdminTOTP(storeForDB(usersDB), adminID, secret.Secret()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -426,6 +428,18 @@ func TestHandleRegister(t *testing.T) {
 // TestHandleLogout covers the authenticated (session deleted + cookie
 // cleared) and unauthenticated (cookie still cleared, no panic) paths.
 func TestHandleLogout(t *testing.T) {
+	t.Run("GET cannot mutate logout state", func(t *testing.T) {
+		h, _, _ := newAuthTestHandler(t)
+		r, w := newTestContext(http.MethodGet, "/server/auth/logout")
+		h.HandleLogout(w, r)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+		}
+		if got := w.Header().Get("Allow"); got != http.MethodPost {
+			t.Errorf("Allow = %q, want POST", got)
+		}
+	})
+
 	t.Run("clears session cookie even with no active session", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
 		r, w := newTestContext(http.MethodPost, "/server/auth/logout")
@@ -448,7 +462,7 @@ func TestHandleLogout(t *testing.T) {
 
 	t.Run("clears the admin session cookie and returns to the login page", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
-		r, w := newTestContext(http.MethodGet, "/server/auth/logout")
+		r, w := newTestContext(http.MethodPost, "/server/auth/logout")
 		r.AddCookie(&http.Cookie{Name: "admin_session", Value: "not-a-real-admin-session"})
 		h.HandleLogout(w, r)
 
@@ -472,7 +486,7 @@ func TestHandleLogout(t *testing.T) {
 	t.Run("deletes session row when an active session is present", func(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "logoutuser", "logout@example.com", "supersecret1")
-		sessionModel := &models.SessionModel{DB: usersDB}
+		sessionModel := &models.SessionModel{Store: storeForDB(usersDB)}
 		session, err := sessionModel.CreateSession(uid, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
@@ -575,7 +589,7 @@ func TestUpdateProfile(t *testing.T) {
 
 	t.Run("nil request to UpdateCurrentUserProfile returns an error instead of panicking", func(t *testing.T) {
 		_, _, usersDB := newAuthTestHandler(t)
-		if err := UpdateCurrentUserProfile(usersDB, 1, nil); err == nil {
+		if err := UpdateCurrentUserProfile(storeForDB(usersDB), 1, nil); err == nil {
 			t.Errorf("expected error for nil request, got nil")
 		}
 	})
@@ -586,7 +600,7 @@ func TestUpdateProfile(t *testing.T) {
 // and this call).
 func TestLoadCurrentUserProfile_UnknownUser(t *testing.T) {
 	_, _, usersDB := newAuthTestHandler(t)
-	if _, err := LoadCurrentUserProfile(usersDB, 999999); err == nil {
+	if _, err := LoadCurrentUserProfile(storeForDB(usersDB), 999999); err == nil {
 		t.Errorf("expected error looking up a non-existent user ID, got nil")
 	}
 }
@@ -836,7 +850,7 @@ func TestRequiresEmailVerification(t *testing.T) {
 		}
 		replaceServerConfigRow(t, serverDB, "smtp.host", "127.0.0.1")
 		seedServerConfigRow(t, serverDB, "smtp.port", port, "string")
-		if err := service.SharedSMTPService(serverDB).VerifyConfiguredConnection(); err != nil {
+		if err := service.SharedSMTPService(database.GetServerStore()).VerifyConfiguredConnection(); err != nil {
 			t.Fatalf("VerifyConfiguredConnection: %v", err)
 		}
 

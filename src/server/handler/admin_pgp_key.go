@@ -1,16 +1,16 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // AdminPGPKeyHandler manages the authenticated administrator's personal report key.
-type AdminPGPKeyHandler struct{ DB *sql.DB }
+type AdminPGPKeyHandler struct{ DB *database.Store }
 
 // Save validates and stores the current administrator's armored public key.
 func (h AdminPGPKeyHandler) Save(w http.ResponseWriter, r *http.Request) {

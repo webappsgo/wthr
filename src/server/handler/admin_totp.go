@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,10 +20,10 @@ import (
 )
 
 // AdminTOTPHandler manages each administrator's own TOTP and recovery codes.
-type AdminTOTPHandler struct{ DB *sql.DB }
+type AdminTOTPHandler struct{ DB *database.Store }
 
 // NewAdminTOTPHandler creates an admin MFA handler using the admins database.
-func NewAdminTOTPHandler(db *sql.DB) *AdminTOTPHandler { return &AdminTOTPHandler{DB: db} }
+func NewAdminTOTPHandler(db *database.Store) *AdminTOTPHandler { return &AdminTOTPHandler{DB: db} }
 
 func (h *AdminTOTPHandler) currentAdmin(r *http.Request) (*model.Admin, bool) {
 	raw, ok := reqctx.GetValue(r.Context(), "admin_id")
@@ -43,7 +42,7 @@ func (h *AdminTOTPHandler) currentAdmin(r *http.Request) (*model.Admin, bool) {
 	if id <= 0 {
 		return nil, false
 	}
-	admin, err := (&model.AdminModel{DB: h.DB}).GetByID(id)
+	admin, err := (&model.AdminModel{Store: h.DB}).GetByID(id)
 	return admin, err == nil && admin != nil
 }
 
@@ -90,6 +89,10 @@ func (h *AdminTOTPHandler) SetupTOTP(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if !decodeAdminTOTPRequest(w, r, &req) {
+		return
+	}
+	if passwordHasSurroundingWhitespace(req.Password) {
+		totpJSON(w, http.StatusUnauthorized, false, Translate(r, "errors.admin.totp.password_invalid"), nil)
 		return
 	}
 	if valid, _ := model.VerifyPassword(req.Password, admin.PasswordHash); !valid {
@@ -227,7 +230,7 @@ func (h *AdminTOTPHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func logAdminTOTPEvent(r *http.Request, adminID int64, action string) {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		log.Printf("audit log unavailable: action=%s admin_id=%d", action, adminID)
 		return
@@ -248,8 +251,8 @@ func (h *AdminTOTPHandler) renderSecurity(w http.ResponseWriter, r *http.Request
 }
 
 // VerifyAdminTOTP is the login-flow verification entry point.
-func VerifyAdminTOTP(db *sql.DB, adminID int64, code string, useRecoveryKey bool) (bool, error) {
-	return model.VerifyAdminTOTP(db, adminID, code, useRecoveryKey)
+func VerifyAdminTOTP(store *database.Store, adminID int64, code string, useRecoveryKey bool) (bool, error) {
+	return model.VerifyAdminTOTP(store, adminID, code, useRecoveryKey)
 }
 
 func decodeAdminTOTPRequest(w http.ResponseWriter, r *http.Request, dst interface{}) bool {

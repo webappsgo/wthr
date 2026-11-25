@@ -24,7 +24,7 @@ const DefaultTemplateName = "default"
 
 // TemplateEngine handles notification template processing
 type TemplateEngine struct {
-	db *sql.DB
+	db *database.Store
 }
 
 // NotificationTemplate represents a notification template. SubjectTemplate and
@@ -43,7 +43,7 @@ type NotificationTemplate struct {
 }
 
 // NewTemplateEngine creates a new template engine
-func NewTemplateEngine(db *sql.DB) *TemplateEngine {
+func NewTemplateEngine(db *database.Store) *TemplateEngine {
 	return &TemplateEngine{db: db}
 }
 

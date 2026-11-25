@@ -16,7 +16,7 @@ import (
 func setSAMLLogoutProvider(t *testing.T, provider service.SAMLProviderConfig) *SAMLAuthHandler {
 	t.Helper()
 	h := newSAMLHandlerTest(t, true)
-	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	settings := &model.SettingsModel{Store: database.GetServerStore()}
 	if err := settings.SetJSON("server.auth.saml.providers", []service.SAMLProviderConfig{provider}); err != nil {
 		t.Fatal(err)
 	}

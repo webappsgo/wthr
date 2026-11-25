@@ -35,9 +35,9 @@ func encryptionRotationFixture(t *testing.T) (*EncryptionKeyRotator, *SecurityRe
 		util.SetPreviousEncryptionKeyProvider(nil)
 	})
 
-	rotator := &EncryptionKeyRotator{ServerDB: ddb.Server, UsersDB: ddb.Users}
+	rotator := &EncryptionKeyRotator{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}
 	rotator.InstallGraceReads()
-	reports := &SecurityReportStore{DB: ddb.Server, EncryptionKey: key}
+	reports := &SecurityReportStore{Store: ddb.GetServerStore(), EncryptionKey: key}
 	return rotator, reports, key
 }
 

@@ -18,11 +18,11 @@ import (
 
 // NotificationPreferencesHandler handles user notification preferences
 type NotificationPreferencesHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // NewNotificationPreferencesHandler creates a new handler
-func NewNotificationPreferencesHandler(db *sql.DB) *NotificationPreferencesHandler {
+func NewNotificationPreferencesHandler(db *database.Store) *NotificationPreferencesHandler {
 	return &NotificationPreferencesHandler{DB: db}
 }
 

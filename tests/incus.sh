@@ -21,7 +21,7 @@
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # AI.md PART 29: Full integration testing in Incus system containers, once per init system
-set -eo pipefail
+set -euo pipefail
 
 if ! command -v incus >/dev/null 2>&1; then
     echo "ERROR: incus not found. Install incus or use tests/docker.sh"
@@ -41,49 +41,76 @@ PROJECT_NAME=$(basename "$PWD")
 PROJECT_ORG=$(basename "$(dirname "$PWD")")
 INTERNAL_NAME="${INTERNAL_NAME:-$PROJECT_NAME}"
 INTERNAL_ORG="${INTERNAL_ORG:-$PROJECT_ORG}"
-CONTAINER_PREFIX="test-${PROJECT_NAME}-$$"
+CONTAINER_SUFFIX=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+CONTAINER_PREFIX="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 CONTAINERS=()
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
 # Incus images, one per init system: systemd uses the latest Debian stable, OpenRC uses the
 # latest stable Alpine release (update both when new stable releases ship)
 INCUS_IMAGE_SYSTEMD="images:debian/trixie"
-INCUS_IMAGE_OPENRC="images:alpine/3.24"
+INCUS_IMAGE_OPENRC="images:alpine/latest_stable"
+
+INCUS_CPUS="${INCUS_CPUS:-2}"
+INCUS_MEM="${INCUS_MEM:-4GiB}"
+INCUS_CPU_PRIORITY="${INCUS_CPU_PRIORITY:-2}"
+INCUS_OP_TIMEOUT="${INCUS_OP_TIMEOUT:-60}"
+INCUS_INSTALL_TIMEOUT="${INCUS_INSTALL_TIMEOUT:-900}"
+INCUS_RUN_TIMEOUT="${INCUS_RUN_TIMEOUT:-3600}"
+DOCKER_TIMEOUT="${DOCKER_TIMEOUT:-3600}"
 
 mkdir -p "${TMPDIR:-/tmp}/${PROJECT_ORG}"
-BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECT_ORG}/${PROJECT_NAME}-XXXXXX")
+BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECT_ORG}/${INTERNAL_NAME}-XXXXXX")
+BUILD_DIR=$(cd -- "$BUILD_DIR" && pwd)
+BUILD_CONTAINER="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 
 cleanup() {
     local c
-    for c in "${CONTAINERS[@]}"; do incus delete "$c" --force >/dev/null 2>&1 || true; done
+    for c in "${CONTAINERS[@]}"; do timeout -k 5 "$INCUS_OP_TIMEOUT" incus delete --force "$c" >/dev/null 2>&1 || true; done
     rm -rf "$BUILD_DIR"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
-GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$PROJECT_NAME}"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$INTERNAL_NAME}"
 mkdir -p "$GO_CACHE" "$GO_BUILD"
 
-echo "=== Building server and CLI binaries in Docker ==="
-docker run --rm \
-  --name "${PROJECT_NAME}-incusbuild-$$" \
-  -v "$PWD:/build" \
-  -v "$BUILD_DIR:/output" \
-  -v "$GO_CACHE:/usr/local/share/go/pkg/mod" \
-  -v "$GO_BUILD:/usr/local/share/go/cache" \
-  -w /build \
-  -e CGO_ENABLED=0 \
-  -e GOFLAGS=-buildvcs=false \
-  casjaysdev/go:latest sh -c "
-    set -e
-    go build -buildvcs=false -trimpath -ldflags '-s -w' -o /output/$PROJECT_NAME ./src
-    go build -buildvcs=false -trimpath -ldflags '-s -w' -o /output/${PROJECT_NAME}-cli ./src/client
-    if [ -d ./src/agent ]; then
-      go build -buildvcs=false -trimpath -ldflags '-s -w' -o /output/${PROJECT_NAME}-agent ./src/agent
-    fi
-  "
+echo "=== Building binaries through the Makefile in Docker ==="
+mkdir -p "$BUILD_DIR/binaries" "$BUILD_DIR/releases"
+timeout -k 30 "$DOCKER_TIMEOUT" make \
+  BINDIR="$BUILD_DIR/binaries" \
+  RELDIR="$BUILD_DIR/releases" \
+  GO_CACHE="$GO_CACHE" \
+  GO_BUILD="$GO_BUILD" \
+  GO_DOCKER_RUN="timeout -k 30 $DOCKER_TIMEOUT docker run --rm --no-healthcheck --memory=4g --cpus=2 --cpu-shares=512 --name $BUILD_CONTAINER -v $PWD:/app -v $BUILD_DIR:$BUILD_DIR -v $GO_CACHE:/usr/local/share/go/pkg/mod -v $GO_BUILD:/usr/local/share/go/cache -w /app -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false" \
+  build
+cp "$BUILD_DIR/binaries/${PROJECT_NAME}-cli-linux-amd64" "$BUILD_DIR/binaries/${PROJECT_NAME}-cli"
 
-BIN_DIR="$BUILD_DIR"
+BIN_DIR="$BUILD_DIR/binaries"
+
+iexec() {
+    local container="$1"
+    shift
+    timeout -k 5 "$INCUS_OP_TIMEOUT" incus exec "$container" -- "$@"
+}
+
+iexec_install() {
+    local container="$1"
+    shift
+    timeout -k 30 "$INCUS_INSTALL_TIMEOUT" incus exec "$container" -- "$@"
+}
+
+iexec_run() {
+    local container="$1"
+    shift
+    timeout -k 30 "$INCUS_RUN_TIMEOUT" incus exec "$container" -- "$@"
+}
+
+ipush() {
+    timeout -k 5 "$INCUS_OP_TIMEOUT" incus file push "$@"
+}
 
 REMOTE_LIB=$(cat <<'REMOTE_LIB_EOF'
 INTERNAL_NAME="${INTERNAL_NAME:-$PROJECT_NAME}"
@@ -313,7 +340,7 @@ REMOTE_AFTER_EOF
 # Run a script inside the container with the init mode and project names
 remote() {
     local container="$1" init="$2" script="$3"
-    printf '%s\n' "$script" | incus exec "$container" -- env INIT_MODE="$init" PROJECT_NAME="$PROJECT_NAME" PROJECT_ORG="$PROJECT_ORG" \
+    printf '%s\n' "$script" | timeout -k 30 "$INCUS_RUN_TIMEOUT" incus exec "$container" -- env INIT_MODE="$init" PROJECT_NAME="$PROJECT_NAME" PROJECT_ORG="$PROJECT_ORG" \
         INTERNAL_NAME="$INTERNAL_NAME" INTERNAL_ORG="$INTERNAL_ORG" REQUIRE_OVERLAY="${REQUIRE_OVERLAY:-0}" \
         TOR_WAIT="${TOR_WAIT:-300}" I2P_WAIT="${I2P_WAIT:-600}" bash -s
 }
@@ -321,18 +348,18 @@ remote() {
 # Wait until the container accepts commands, its init system finished booting and the network is up
 wait_boot() {
     local container="$1" init="$2" state
-    for _ in $(seq 1 60); do incus exec "$container" -- true 2>/dev/null && break; sleep 1; done
+    for _ in $(seq 1 60); do timeout -k 2 10 incus exec "$container" -- true 2>/dev/null && break; sleep 1; done
     if [ "$init" = "systemd" ]; then
         # "degraded" is normal in a container; only "starting" means boot is unfinished
         for _ in $(seq 1 90); do
-            state=$(incus exec "$container" -- systemctl is-system-running 2>/dev/null || true)
+            state=$(timeout -k 2 10 incus exec "$container" -- systemctl is-system-running 2>/dev/null || true)
             [ -n "$state" ] && [ "$state" != "starting" ] && break
             sleep 1
         done
     else
-        for _ in $(seq 1 60); do incus exec "$container" -- test -d /run/openrc 2>/dev/null && break; sleep 1; done
+        for _ in $(seq 1 60); do timeout -k 2 10 incus exec "$container" -- test -d /run/openrc 2>/dev/null && break; sleep 1; done
     fi
-    for _ in $(seq 1 60); do incus exec "$container" -- sh -c 'ip route | grep -q "^default"' 2>/dev/null && break; sleep 1; done
+    for _ in $(seq 1 60); do timeout -k 2 10 incus exec "$container" -- sh -c 'ip route | grep -q "^default"' 2>/dev/null && break; sleep 1; done
 }
 
 run_mode() {
@@ -342,44 +369,47 @@ run_mode() {
     CONTAINERS+=("$container")
 
     echo "=== [$init] Launching Incus container ($image) ==="
-    incus launch "$image" "$container"
+    timeout -k 30 "$INCUS_INSTALL_TIMEOUT" incus launch "$image" "$container" \
+        -c "limits.cpu=$INCUS_CPUS" \
+        -c "limits.memory=$INCUS_MEM" \
+        -c "limits.cpu.priority=$INCUS_CPU_PRIORITY"
     wait_boot "$container" "$init"
 
     echo "=== [$init] Installing test tools, tor and i2pd ==="
     if [ "$init" = "systemd" ]; then
-        incus exec "$container" -- bash -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq file tor i2pd' >/dev/null
+        iexec_install "$container" bash -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq file tor i2pd' >/dev/null
         # The distro tor/i2pd services are NOT what is tested: the server runs its own dedicated, isolated instances
-        incus exec "$container" -- systemctl disable --now tor.service tor@default.service i2pd.service 2>/dev/null || true
+        iexec "$container" systemctl disable --now tor.service tor@default.service i2pd.service 2>/dev/null || true
     else
-        incus exec "$container" -- sh -c 'apk add --no-cache bash curl jq file tor i2pd' >/dev/null
-        incus exec "$container" -- sh -c 'rc-service tor stop; rc-service i2pd stop; rc-update del tor; rc-update del i2pd' 2>/dev/null || true
+        iexec_install "$container" sh -c 'apk add --no-cache bash curl jq file tor i2pd' >/dev/null
+        iexec "$container" sh -c 'rc-service tor stop; rc-service i2pd stop; rc-update del tor; rc-update del i2pd' 2>/dev/null || true
     fi
 
     echo "=== [$init] Copying binaries to container ==="
-    incus file push "${BIN_DIR}/${PROJECT_NAME}" "$container/usr/local/bin/"
-    incus exec "$container" -- chmod +x "/usr/local/bin/${PROJECT_NAME}"
+    ipush "${BIN_DIR}/${PROJECT_NAME}" "$container/usr/local/bin/"
+    iexec "$container" chmod +x "/usr/local/bin/${PROJECT_NAME}"
     if [ -f "${BIN_DIR}/${PROJECT_NAME}-cli" ]; then
-        incus file push "${BIN_DIR}/${PROJECT_NAME}-cli" "$container/usr/local/bin/"
-        incus exec "$container" -- chmod +x "/usr/local/bin/${PROJECT_NAME}-cli"
+        ipush "${BIN_DIR}/${PROJECT_NAME}-cli" "$container/usr/local/bin/"
+        iexec "$container" chmod +x "/usr/local/bin/${PROJECT_NAME}-cli"
     fi
-    incus file push "${SCRIPT_DIR}/lib/matrix.sh" "$container/usr/local/bin/matrix.sh"
-    incus exec "$container" -- chmod +x /usr/local/bin/matrix.sh
+    ipush "${SCRIPT_DIR}/lib/matrix.sh" "$container/usr/local/bin/matrix.sh"
+    iexec "$container" chmod +x /usr/local/bin/matrix.sh
 
     echo "=== [$init] Running tests in Incus ==="
     remote "$container" "$init" "${REMOTE_LIB}"$'\n'"${REMOTE_MAIN}"
 
     echo "=== [$init] Restarting the container (boot persistence) ==="
-    incus restart "$container"
+    timeout -k 30 "$INCUS_OP_TIMEOUT" incus restart "$container"
     wait_boot "$container" "$init"
     remote "$container" "$init" "${REMOTE_LIB}"$'\n'"${REMOTE_AFTER}"
 
     # The shared route/header/auth matrix starts its own server on port 80, so it runs after the
     # service is uninstalled and nothing else holds the port
     echo "=== [$init] Running the route/header matrix ==="
-    incus exec "$container" -- mkdir -p /matrix-logs
-    if ! incus exec "$container" -- /usr/local/bin/matrix.sh "$PROJECT_NAME" "$PROJECT_ORG"; then
+    iexec "$container" mkdir -p /matrix-logs
+    if ! iexec_run "$container" /usr/local/bin/matrix.sh "$PROJECT_NAME" "$PROJECT_ORG"; then
         echo "=== [$init] Route/header matrix server logs ===" >&2
-        incus exec "$container" -- sh -c 'for log_file in /matrix-logs/stdout-server.log /matrix-logs/app-server.log; do if [ -f "$log_file" ]; then echo "--- $log_file"; grep -n -C 4 -E "template .* failed|panic:" "$log_file" || tail -n 200 "$log_file"; fi; done' >&2 || true
+        iexec "$container" sh -c 'for log_file in /matrix-logs/stdout-server.log /matrix-logs/app-server.log; do if [ -f "$log_file" ]; then echo "--- $log_file"; grep -n -C 4 -E "template .* failed|panic:" "$log_file" || tail -n 200 "$log_file"; fi; done' >&2 || true
         return 1
     fi
 }

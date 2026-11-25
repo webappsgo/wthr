@@ -22,10 +22,10 @@ var blocklistUnavailable atomic.Bool
 // BlocklistMiddleware checks active IP and CIDR blocks before rate limiting.
 // Database errors fail open and are logged once per outage; authentication
 // still runs for every request that continues.
-func BlocklistMiddleware(db *sql.DB) func(http.Handler) http.Handler {
+func BlocklistMiddleware(store *database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if db == nil || reqctx.GetBool(r.Context(), "allowlisted") {
+			if store == nil || reqctx.GetBool(r.Context(), "allowlisted") {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -34,7 +34,7 @@ func BlocklistMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			blocked, err := ipAddressBlocked(r.Context(), db, address.Unmap())
+			blocked, err := ipAddressBlocked(r.Context(), store, address.Unmap())
 			if err != nil {
 				if blocklistUnavailable.CompareAndSwap(false, true) {
 					log.Printf("WARNING: IP blocklist lookup unavailable; requests continue through the remaining security checks: %v", err)
@@ -82,8 +82,8 @@ func writeIPBlockError(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, message, http.StatusForbidden)
 }
 
-func ipAddressBlocked(ctx context.Context, db *sql.DB, address netip.Addr) (bool, error) {
-	rows, err := database.QueryContext(ctx, db, database.TimeoutSimpleSelect,
+func ipAddressBlocked(ctx context.Context, store *database.Store, address netip.Addr) (bool, error) {
+	rows, err := database.QueryContext(ctx, store, database.TimeoutSimpleSelect,
 		`SELECT type, value, expires_at FROM server_blocklists
 		 WHERE type IN ('ip', 'cidr') ORDER BY id`)
 	if err != nil {

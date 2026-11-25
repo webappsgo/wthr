@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/go-chi/chi/v5"
 
@@ -98,7 +99,7 @@ func AdminUsername(r *http.Request) string {
 		return ""
 	}
 
-	db := database.GetUsersDB()
+	db := database.GetUsersStore()
 	if db == nil {
 		return ""
 	}

@@ -12,11 +12,11 @@ import (
 // passed.
 func TestNewLogFormatHandler(t *testing.T) {
 	db := newTestServerDB(t)
-	h := NewLogFormatHandler(db)
+	h := NewLogFormatHandler(storeForDB(db))
 	if h == nil {
 		t.Fatal("expected non-nil handler")
 	}
-	if h.DB != db {
+	if h.DB.DB() != db {
 		t.Error("expected DB field to be the passed *sql.DB")
 	}
 }
@@ -94,7 +94,7 @@ func TestLogFormatHandler_GetLogFormat_DefaultsToApache(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
 
-	h := &LogFormatHandler{DB: serverDB}
+	h := &LogFormatHandler{DB: storeForDB(serverDB)}
 	c, w := newAPITestContext("/server/administration/logs/format")
 	h.GetLogFormat(w, c)
 
@@ -117,7 +117,7 @@ func TestLogFormatHandler_GetLogFormat_ReflectsStoredValue(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
 
-	h := &LogFormatHandler{DB: serverDB}
+	h := &LogFormatHandler{DB: storeForDB(serverDB)}
 
 	setC, setW := newTestContextJSON(t, http.MethodPost, "/server/administration/logs/format", map[string]string{"format": "syslog"})
 	h.SetLogFormat(setW, setC)
@@ -143,7 +143,7 @@ func TestLogFormatHandler_ShowLogFormatPage_LoadsData(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
 
-	h := &LogFormatHandler{DB: serverDB}
+	h := &LogFormatHandler{DB: storeForDB(serverDB)}
 	c, w := newAPITestContext("/server/administration/logs/format/page")
 	defer htmlRenderGuard(t)
 	h.ShowLogFormatPage(w, c)

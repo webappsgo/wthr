@@ -15,7 +15,7 @@ func TestNotificationModel_GetUnreadCount(t *testing.T) {
 			t.Errorf("close notification test database: %v", err)
 		}
 	})
-	model := &NotificationModel{DB: db}
+	model := &NotificationModel{testDB: db}
 
 	insert := func(id string, read, dismissed bool, expiresAt interface{}) {
 		t.Helper()

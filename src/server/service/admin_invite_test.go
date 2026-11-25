@@ -49,13 +49,13 @@ func wireAdminInviteGlobalDB(t *testing.T, serverDB *sql.DB) {
 // newAdminInviteTestService builds an AdminInviteService wired to db with no
 // email service, so CreateInvite never attempts to touch the network.
 func newAdminInviteTestService(db *sql.DB) *AdminInviteService {
-	return NewAdminInviteService(db, "https://weather.example.com", nil)
+	return NewAdminInviteService(serviceStoreForDB(db), "https://weather.example.com", nil)
 }
 
 // seedInviterAdmin creates a real admin row (the "inviter") and returns its ID.
 func seedInviterAdmin(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
-	am := &models.AdminModel{DB: db}
+	am := &models.AdminModel{Store: serviceStoreForDB(db)}
 	admin, err := am.CreateAdminAccount("inviter", "inviter@example.com", "correct-horse-battery-staple", true)
 	if err != nil {
 		t.Fatalf("seed inviter admin: %v", err)

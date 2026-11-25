@@ -22,7 +22,7 @@ import (
 
 func TestQueryResolver_CurrentUser(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "currentuserqry", "currentuserqry@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -43,7 +43,7 @@ func TestQueryResolver_CurrentUser(t *testing.T) {
 
 func TestQueryResolver_CurrentUserAvatar(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "avatarqryuser", "avatarqryuser@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -61,7 +61,7 @@ func TestQueryResolver_CurrentUserAvatar(t *testing.T) {
 
 func TestQueryResolver_CurrentUserTwoFactorStatus(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "twofastatususer", "twofastatususer@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -83,7 +83,7 @@ func TestQueryResolver_CurrentUserTwoFactorStatus(t *testing.T) {
 
 func TestQueryResolver_CurrentUserTwoFactorSetup(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "twofasetupuser", "twofasetupuser@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -104,7 +104,7 @@ func TestQueryResolver_CurrentUserTwoFactorSetup(t *testing.T) {
 
 func TestQueryResolver_CurrentUserPasskeys(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "passkeylistuser", "passkeylistuser@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -122,7 +122,7 @@ func TestQueryResolver_CurrentUserPasskeys(t *testing.T) {
 
 func TestQueryResolver_UserSettings(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "settingsqryuser", "settingsqryuser@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -140,7 +140,7 @@ func TestQueryResolver_UserSettings(t *testing.T) {
 
 func TestQueryResolver_UserTokens(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	user := seedGraphQLUser(t, ddb, "tokenqryowner", "tokenqryowner@example.com", "correctpass1")
 	userCtx := withGraphQLUserContext(context.Background(), user)
@@ -196,7 +196,7 @@ func TestQueryResolver_UserTokens(t *testing.T) {
 
 func TestQueryResolver_Notifications(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	owner := seedGraphQLUser(t, ddb, "notifqryowner", "notifqryowner@example.com", "correctpass1")
 	other := seedGraphQLUser(t, ddb, "notifqryother", "notifqryother@example.com", "correctpass1")
@@ -219,7 +219,7 @@ func TestQueryResolver_Notifications(t *testing.T) {
 
 func TestQueryResolver_UnreadNotifications(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	owner := seedGraphQLUser(t, ddb, "unreadqryowner", "unreadqryowner@example.com", "correctpass1")
 	ownerCtx := withGraphQLUserContext(context.Background(), owner)
@@ -255,7 +255,7 @@ func TestQueryResolver_UnreadNotifications(t *testing.T) {
 
 func TestQueryResolver_ValidateUserInvite(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	t.Run("unknown token rejected", func(t *testing.T) {
 		if _, err := q.ValidateUserInvite(context.Background(), "does-not-exist"); err == nil {
@@ -264,7 +264,7 @@ func TestQueryResolver_ValidateUserInvite(t *testing.T) {
 	})
 
 	t.Run("happy path returns masked email", func(t *testing.T) {
-		invite, err := (&models.UserInviteModel{DB: ddb.Users}).CreateInvite("invitee", "invitee@example.com", "user", 7)
+		invite, err := (&models.UserInviteModel{Store: ddb.GetUsersStore()}).CreateInvite("invitee", "invitee@example.com", "user", 7)
 		if err != nil {
 			t.Fatalf("seed invite: %v", err)
 		}
@@ -284,7 +284,7 @@ func TestQueryResolver_ValidateUserInvite(t *testing.T) {
 
 func TestQueryResolver_ValidateServerInvite(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	t.Run("unknown token rejected", func(t *testing.T) {
 		if _, err := q.ValidateServerInvite(context.Background(), "does-not-exist"); err == nil {
@@ -293,12 +293,12 @@ func TestQueryResolver_ValidateServerInvite(t *testing.T) {
 	})
 
 	t.Run("happy path returns masked email", func(t *testing.T) {
-		inviter, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("srvinviteradmin", "srvinviteradmin@example.com", "password123", true)
+		inviter, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("srvinviteradmin", "srvinviteradmin@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed inviting admin: %v", err)
 		}
 
-		invite, _, err := service.NewAdminInviteService(ddb.Users, "", nil).CreateInvite("invitedadmin@example.com", int(inviter.ID), "7d")
+		invite, _, err := service.NewAdminInviteService(ddb.GetUsersStore(), "", nil).CreateInvite("invitedadmin@example.com", int(inviter.ID), "7d")
 		if err != nil {
 			t.Fatalf("seed server invite: %v", err)
 		}
@@ -320,7 +320,7 @@ func TestQueryResolver_ValidateServerInvite(t *testing.T) {
 
 func TestQueryResolver_AdminUsers(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
 	seedGraphQLUser(t, ddb, "adminlistuser1", "adminlistuser1@example.com", "correctpass1")
 	seedGraphQLUser(t, ddb, "adminlistuser2", "adminlistuser2@example.com", "correctpass1")
@@ -344,9 +344,9 @@ func TestQueryResolver_AdminUsers(t *testing.T) {
 
 func TestQueryResolver_AdminServerAdmins(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("overviewadmin", "overviewadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("overviewadmin", "overviewadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -366,13 +366,13 @@ func TestQueryResolver_AdminServerAdmins(t *testing.T) {
 
 func TestQueryResolver_AdminServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
-	self, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("selfadmin", "selfadmin@example.com", "password123", true)
+	self, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("selfadmin", "selfadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed self admin: %v", err)
 	}
-	other, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("otheradmin", "otheradmin@example.com", "password123", true)
+	other, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("otheradmin", "otheradmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed other admin: %v", err)
 	}
@@ -407,9 +407,9 @@ func TestQueryResolver_AdminServerAdmin(t *testing.T) {
 
 func TestQueryResolver_AdminUserInvites(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
-	if _, err := (&models.UserInviteModel{DB: ddb.Users}).CreateInvite("invitedqryuser", "invitedqryuser@example.com", "user", 7); err != nil {
+	if _, err := (&models.UserInviteModel{Store: ddb.GetUsersStore()}).CreateInvite("invitedqryuser", "invitedqryuser@example.com", "user", 7); err != nil {
 		t.Fatalf("seed invite: %v", err)
 	}
 
@@ -425,9 +425,9 @@ func TestQueryResolver_AdminUserInvites(t *testing.T) {
 
 func TestQueryResolver_AdminUserInvite(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{UsersDB: ddb.GetUsersStore()}}
 
-	invite, err := (&models.UserInviteModel{DB: ddb.Users}).CreateInvite("singleinviteqry", "singleinviteqry@example.com", "user", 7)
+	invite, err := (&models.UserInviteModel{Store: ddb.GetUsersStore()}).CreateInvite("singleinviteqry", "singleinviteqry@example.com", "user", 7)
 	if err != nil {
 		t.Fatalf("seed invite: %v", err)
 	}
@@ -465,9 +465,9 @@ func TestQueryResolver_AdminUserInvite(t *testing.T) {
 
 func TestQueryResolver_AdminSettings(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
-	if err := (&models.SettingsModel{DB: ddb.Server}).SetString("qry_test_setting", "some-value"); err != nil {
+	if err := (&models.SettingsModel{Store: ddb.GetServerStore()}).SetString("qry_test_setting", "some-value"); err != nil {
 		t.Fatalf("seed setting: %v", err)
 	}
 
@@ -489,9 +489,9 @@ func TestQueryResolver_AdminSettings(t *testing.T) {
 
 func TestQueryResolver_AdminSetting(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
-	if err := (&models.SettingsModel{DB: ddb.Server}).SetString("qry_single_setting", "abc"); err != nil {
+	if err := (&models.SettingsModel{Store: ddb.GetServerStore()}).SetString("qry_single_setting", "abc"); err != nil {
 		t.Fatalf("seed setting: %v", err)
 	}
 
@@ -518,9 +518,9 @@ func TestQueryResolver_AdminSetting(t *testing.T) {
 
 func TestQueryResolver_AdminTokens(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("tokenqryadmin", "tokenqryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("tokenqryadmin", "tokenqryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestQueryResolver_AdminTokens(t *testing.T) {
 	})
 
 	t.Run("lists the admin's regenerated API token prefix", func(t *testing.T) {
-		if _, err := (&models.AdminModel{DB: ddb.Users}).RegenerateAPIToken(admin.ID); err != nil {
+		if _, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).RegenerateAPIToken(admin.ID); err != nil {
 			t.Fatalf("regenerate token: %v", err)
 		}
 
@@ -566,7 +566,7 @@ func TestQueryResolver_AdminTokens(t *testing.T) {
 
 func TestQueryResolver_AdminAuditLogs(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	if _, err := database.ExecContext(context.Background(), ddb.Server, database.TimeoutWrite,
 		`INSERT INTO audit_log (ulid, actor_type, actor_id, action, resource_type, resource_id) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -589,7 +589,7 @@ func TestQueryResolver_AdminAuditLogs(t *testing.T) {
 
 func TestQueryResolver_AdminTasks(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	if _, err := database.ExecContext(context.Background(), ddb.Server, database.TimeoutWrite,
 		`INSERT INTO scheduler_tasks (id, name, schedule, enabled, run_count, fail_count) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -625,7 +625,7 @@ func TestQueryResolver_AdminTaskHistory_SchedulerUnavailable(t *testing.T) {
 
 func TestQueryResolver_AdminChannels(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	if _, err := database.ExecContext(context.Background(), ddb.Server, database.TimeoutWrite,
 		`INSERT INTO server_notification_channels (channel_type, channel_name, enabled, config) VALUES (?, ?, ?, ?)`,
@@ -646,7 +646,7 @@ func TestQueryResolver_AdminChannels(t *testing.T) {
 
 func TestQueryResolver_AdminChannel(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	if _, err := database.ExecContext(context.Background(), ddb.Server, database.TimeoutWrite,
 		`INSERT INTO server_notification_channels (channel_type, channel_name, enabled, config) VALUES (?, ?, ?, ?)`,
@@ -676,7 +676,7 @@ func TestQueryResolver_AdminChannel(t *testing.T) {
 
 func TestQueryResolver_AdminChannelStats(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	adminCtx := withGraphQLAdminValues(context.Background(), 1, "admin@example.com")
 
@@ -691,7 +691,7 @@ func TestQueryResolver_AdminChannelStats(t *testing.T) {
 
 func TestQueryResolver_AdminQueueStats(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore()}}
 
 	adminCtx := withGraphQLAdminValues(context.Background(), 1, "admin@example.com")
 	got, err := q.AdminQueueStats(adminCtx)
@@ -727,9 +727,9 @@ func TestQueryResolver_AdminSMTPProviders(t *testing.T) {
 
 func TestQueryResolver_AdminPasskeys(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("passkeyqryadmin", "passkeyqryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("passkeyqryadmin", "passkeyqryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -751,9 +751,9 @@ func TestQueryResolver_AdminPasskeys(t *testing.T) {
 // elsewhere composing context values) reaching admin-only data.
 func TestQueryResolver_AdminPasskeys_ChecksUserRole(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("roleasymmetryadmin", "roleasymmetryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("roleasymmetryadmin", "roleasymmetryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}

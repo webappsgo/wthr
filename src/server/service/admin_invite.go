@@ -2,12 +2,12 @@ package service
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -24,7 +24,7 @@ var adminInviteExpirations = map[string]time.Duration{
 
 // AdminInviteService handles admin invitation logic
 type AdminInviteService struct {
-	DB           *sql.DB
+	Store        *database.Store
 	InviteModel  *model.AdminInviteModel
 	AdminModel   *model.AdminModel
 	EmailService *SMTPService
@@ -32,11 +32,11 @@ type AdminInviteService struct {
 }
 
 // NewAdminInviteService creates a new admin invite service
-func NewAdminInviteService(db *sql.DB, baseURL string, emailService *SMTPService) *AdminInviteService {
+func NewAdminInviteService(db *database.Store, baseURL string, emailService *SMTPService) *AdminInviteService {
 	return &AdminInviteService{
-		DB:           db,
-		InviteModel:  &model.AdminInviteModel{DB: db},
-		AdminModel:   &model.AdminModel{DB: db},
+		Store:        db,
+		InviteModel:  &model.AdminInviteModel{Store: db},
+		AdminModel:   &model.AdminModel{Store: db},
 		EmailService: emailService,
 		BaseURL:      baseURL,
 	}

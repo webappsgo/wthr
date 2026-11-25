@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
@@ -20,12 +21,12 @@ const (
 )
 
 // AuthMiddleware checks for valid session or API token
-func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
+func AuthMiddleware(store *database.Store, required bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			sessionModel := &model.SessionModel{DB: db}
-			userModel := &model.UserModel{DB: db}
-			tokenModel := &model.TokenModel{DB: db}
+			sessionModel := &model.SessionModel{Store: store}
+			userModel := &model.UserModel{Store: store}
+			tokenModel := &model.TokenModel{Store: store}
 
 			var user *model.User
 			var session *model.Session
@@ -111,13 +112,13 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 }
 
 // RequireAuth is a convenience wrapper for required authentication
-func RequireAuth(db *sql.DB) func(http.Handler) http.Handler {
-	return AuthMiddleware(db, true)
+func RequireAuth(store *database.Store) func(http.Handler) http.Handler {
+	return AuthMiddleware(store, true)
 }
 
 // OptionalAuth is a convenience wrapper for optional authentication
-func OptionalAuth(db *sql.DB) func(http.Handler) http.Handler {
-	return AuthMiddleware(db, false)
+func OptionalAuth(store *database.Store) func(http.Handler) http.Handler {
+	return AuthMiddleware(store, false)
 }
 
 // RequireAdmin checks if user has admin role

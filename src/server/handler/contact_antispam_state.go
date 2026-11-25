@@ -37,14 +37,14 @@ func recordContactAntispamBlock(r *http.Request, manager *ContactAntispam, reaso
 	}
 }
 
-func getContactAntispam(db *database.DB, cfg *config.AppConfig) (*ContactAntispam, error) {
-	if db == nil || db.DB == nil {
-		db = &database.DB{DB: database.GetServerDB()}
-		if db.DB == nil {
+func getContactAntispam(db *database.Store, cfg *config.AppConfig) (*ContactAntispam, error) {
+	if db == nil {
+		db = database.GetServerStore()
+		if db == nil {
 			return nil, errors.New("contact antispam requires the server database")
 		}
 	}
-	secret, err := service.InstallationSecret(db.DB)
+	secret, err := service.InstallationSecret(db)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -76,7 +77,11 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			// dbtime.IsAfter resolves both layouts to the same absolute instant and
 			// reports false for a NULL or unparseable value, so a session this
 			// project cannot interpret is rejected rather than trusted.
-			activity, err := model.LookupAdminSessionActivity(db, database.UsersDBOr(db), model.HashAdminSessionToken(session))
+			usersStore := database.GetUsersStore()
+			if usersStore == nil {
+				usersStore = db
+			}
+			activity, err := model.LookupAdminSessionActivity(db, usersStore, model.HashAdminSessionToken(session))
 			now := time.Now().UTC()
 			createdAt, createdAtOK := dbtime.ParseStoredTimestamp(activity.CreatedAt)
 			lastUsedAt, lastUsedAtOK := dbtime.ParseStoredTimestamp(activity.LastUsedAt)
@@ -92,13 +97,13 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			idleExpired := settings.IdleTimeout > 0 && (!lastUsedAtOK || !now.Before(lastUsedAt.Add(settings.IdleTimeout)))
 			if err == nil && !idleExpired && dbtime.IsAfter(activity.ExpiresAt, now) &&
 				sessionConfig().ExtendOnActivity && model.ShouldUpdateLastUsed(storedLastUsedAt, now) {
-				err = (&model.AdminSessionModel{DB: db}).QueueSessionLastUsed(session)
+				err = (&model.AdminSessionModel{Store: db}).QueueSessionLastUsed(session)
 			}
 
 			if err != nil || idleExpired || !dbtime.IsAfter(activity.ExpiresAt, now) {
 				// Invalid or expired session
 				if idleExpired {
-					_ = (&model.AdminSessionModel{DB: db}).DeleteSession(session)
+					_ = (&model.AdminSessionModel{Store: db}).DeleteSession(session)
 				}
 				redirectAdminUnauthenticated(w, r)
 				return
@@ -134,17 +139,20 @@ func GetVersion() string {
 }
 
 // GetDB returns the database connection from context (helper for middleware)
-func GetDB(r *http.Request) *sql.DB {
+func GetDB(r *http.Request) *database.Store {
 	if db, exists := reqctx.GetValue(r.Context(), "db"); exists {
-		if sqlDB, ok := db.(*sql.DB); ok {
-			return sqlDB
+		if store, ok := db.(*database.Store); ok {
+			return store
 		}
 	}
-	return database.GetServerDB()
+	return database.GetServerStore()
 }
 
 // AdminLoginHandler handles admin login per AI.md PART 18
-func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
+func AdminLoginHandler(store *database.Store) http.HandlerFunc {
+	if store == nil {
+		store = database.GetUsersStore()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Load config for branding and HTTPS detection
 		cfg, _ := config.CurrentConfig()
@@ -170,16 +178,35 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Query users.db admins table for username (AI.md PART 23)
+		// Verify the stored credentials and update last_login together so a
+		// successful authentication cannot race a credential change.
 		var adminID int
-		var passwordHash string
-		err := database.QueryRowContext(context.Background(), database.UsersDBOr(db), database.TimeoutSimpleSelect, `
-			SELECT id, password_hash
-			FROM admins
-			WHERE username = ? AND is_active = 1
-		`, username).Scan(&adminID, &passwordHash)
+		credentialsInvalid := errors.New("invalid admin credentials")
+		if store == nil {
+			RenderHTML(w, r, http.StatusServiceUnavailable, "admin/login.tmpl", map[string]interface{}{
+				"error":    "Service temporarily unavailable",
+				"branding": map[string]interface{}{"Title": title},
+				"version":  version,
+			})
+			return
+		}
+		err := store.Write(r.Context(), func(tx *sql.Tx) error {
+			var passwordHash string
+			if err := tx.QueryRowContext(r.Context(), `
+				SELECT id, password_hash
+				FROM admins
+				WHERE username = ? AND is_active = 1
+			`, username).Scan(&adminID, &passwordHash); err != nil {
+				return err
+			}
+			if !verifyPasswordHash(password, passwordHash) {
+				return credentialsInvalid
+			}
+			_, err := tx.ExecContext(r.Context(), "UPDATE admins SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(time.Now()), adminID)
+			return err
+		})
 
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || errors.Is(err, credentialsInvalid) {
 			// Admin not found - generic error to prevent enumeration
 			RenderHTML(w, r, http.StatusUnauthorized, "admin/login.tmpl", map[string]interface{}{
 				"error": "Invalid credentials",
@@ -203,20 +230,6 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Verify password hash with Argon2id (AI.md PART 3 requirement)
-		// Password verification handled by admin model
-		if !verifyPasswordHash(password, passwordHash) {
-			// Invalid password - generic error
-			RenderHTML(w, r, http.StatusUnauthorized, "admin/login.tmpl", map[string]interface{}{
-				"error": "Invalid credentials",
-				"branding": map[string]interface{}{
-					"Title": title,
-				},
-				"version": version,
-			})
-			return
-		}
-
 		// Calculate expiry time
 		// Remember me: 90 days, normal: 30 days per AI.md PART 18
 		// 30 days in seconds
@@ -226,7 +239,11 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			maxAge = 90 * 24 * 60 * 60
 		}
 
-		sessionModel := &model.AdminSessionModel{DB: db}
+		sessionStore := GetDB(r)
+		if sessionStore == nil {
+			sessionStore = store
+		}
+		sessionModel := &model.AdminSessionModel{Store: sessionStore}
 		adminSession, err := sessionModel.CreateSession(int64(adminID), util.TrustedGetClientIP(r), r.UserAgent(), time.Duration(maxAge)*time.Second)
 		if err != nil {
 			RenderHTML(w, r, http.StatusInternalServerError, "admin/login.tmpl", map[string]interface{}{
@@ -239,7 +256,6 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		sessionToken := adminSession.SessionID
-		now := time.Now()
 
 		// Get admin path from config (AI.md: use configurable admin_path)
 		adminPath := "/server/administration"
@@ -249,13 +265,6 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 
 		// Set admin_session cookie with proper security (AI.md PART 18)
 		http.SetCookie(w, NewSessionCookie(r, SessionAccountAdmin, sessionToken, time.Duration(maxAge)*time.Second))
-
-		// Update last_login timestamp, bound as canonical UTC text so the value
-		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
-		// means to the backend in use.
-		if _, err := database.ExecContext(context.Background(), database.UsersDBOr(db), database.TimeoutWrite, "UPDATE admins SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID); err != nil {
-			log.Printf("Unable to update last login timestamp for admin %d: %v", adminID, err)
-		}
 
 		// Redirect to admin dashboard
 		http.Redirect(w, r, adminPath+"/dashboard", http.StatusFound)
@@ -272,7 +281,7 @@ func AdminLogoutHandler() http.HandlerFunc {
 			adminPath = "/server/" + cfg.GetAdminPath()
 		}
 		if cookie, err := r.Cookie(AdminSessionCookieName()); err == nil && cookie.Value != "" {
-			sessionModel := &model.AdminSessionModel{DB: GetDB(r)}
+			sessionModel := &model.AdminSessionModel{Store: GetDB(r)}
 			if err := sessionModel.DeleteSession(cookie.Value); err != nil {
 				log.Printf("WARNING: admin-logout: failed to delete admin session: %v", err)
 			}
@@ -289,6 +298,9 @@ func AdminLogoutHandler() http.HandlerFunc {
 // verifyPasswordHash verifies a password against its Argon2id hash
 // Per AI.md PART 3: MUST use Argon2id for password verification
 func verifyPasswordHash(password, hash string) bool {
+	if password != strings.TrimSpace(password) {
+		return false
+	}
 	// Use proper Argon2id verification from model package
 	// AI.md PART 3 requirement: MUST use Argon2id with constant-time comparison
 	valid, err := model.VerifyPassword(password, hash)

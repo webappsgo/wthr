@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="wthr-boot-error" content="{{t .server.Lang "boot.error"}}">
+    <meta id="offline-strings-data"
+          data-lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}"
+          data-dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}"
+          data-title="{{t .server.Lang "offline.title"}}"
+          data-heading="{{t .server.Lang "offline.heading"}}"
+          data-message="{{t .server.Lang "offline.message"}}">
     {{if .server.Favicon16}}<link rel="icon" type="image/png" sizes="16x16" href="{{.server.Favicon16}}">{{end}}
     {{if .server.Favicon32}}<link rel="icon" type="image/png" sizes="32x32" href="{{.server.Favicon32}}">{{end}}
     {{if .server.Favicon48}}<link rel="icon" type="image/png" sizes="48x48" href="{{.server.Favicon48}}">{{end}}

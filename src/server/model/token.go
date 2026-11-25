@@ -29,7 +29,8 @@ type APIToken struct {
 // TokenModel handles API token database operations
 // AI.md PART 11: Tokens stored as SHA-256 hash, never plaintext
 type TokenModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -39,12 +40,15 @@ type TokenModel struct {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *TokenModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *TokenModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GenerateToken creates a cryptographically secure random token with usr_ prefix
@@ -187,7 +191,7 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 func (m *TokenModel) QueueLastUsed(tokenID int) error {
 	db := m.getDB()
 	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
 		return err
 	}

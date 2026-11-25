@@ -1,11 +1,12 @@
 package handler
 
 import (
-	"database/sql"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -15,11 +16,11 @@ import (
 // LogFormatHandler handles log format configuration
 // TEMPLATE.md Part 25: Support 7 log formats
 type LogFormatHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // NewLogFormatHandler creates a new log format handler
-func NewLogFormatHandler(db *sql.DB) *LogFormatHandler {
+func NewLogFormatHandler(db *database.Store) *LogFormatHandler {
 	return &LogFormatHandler{DB: db}
 }
 

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -31,9 +30,23 @@ func newTorTestHandler(t *testing.T) *TorAdminHandler {
 	// Enable/Disable/UpdateSettings to hit this in-memory database.
 	setGlobalTestDualDB(t, serverDB, serverDB)
 	dataDir := t.TempDir()
-	torService := service.NewTorService(&database.DB{DB: serverDB}, dataDir)
-	settingsModel := &models.SettingsModel{DB: serverDB}
+	torService := service.NewTorService(storeForDB(serverDB), dataDir)
+	settingsModel := &models.SettingsModel{Store: storeForDB(serverDB)}
 	return NewTorAdminHandler(torService, settingsModel, dataDir)
+}
+
+func stopTorVanityGeneration(t *testing.T, handler *TorAdminHandler) {
+	t.Helper()
+	t.Cleanup(func() {
+		if status := handler.vanityGenerator.GetStatus(); status != nil {
+			if status.Running {
+				if err := handler.vanityGenerator.Cancel(); err != nil {
+					t.Errorf("cancel vanity generation: %v", err)
+				}
+			}
+			handler.vanityGenerator.Wait()
+		}
+	})
 }
 
 func TestTorAdminHandler_GetStatus(t *testing.T) {
@@ -191,13 +204,12 @@ func TestTorAdminHandler_GenerateVanity(t *testing.T) {
 
 	t.Run("valid prefix starts generation", func(t *testing.T) {
 		h := newTorTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/tor/vanity/generate", map[string]interface{}{"prefix": "ab"})
+		stopTorVanityGeneration(t, h)
+		c, w := newTestContextJSON(t, http.MethodPost, "/admin/tor/vanity/generate", map[string]interface{}{"prefix": "zzzzzz"})
 		h.GenerateVanity(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
-		// Cancel immediately so the background goroutine doesn't outlive the test.
-		_ = h.vanityGenerator.Cancel()
 	})
 }
 
@@ -220,14 +232,10 @@ func TestTorAdminHandler_GetVanityStatus(t *testing.T) {
 
 	t.Run("started returns full status fields", func(t *testing.T) {
 		h := newTorTestHandler(t)
-		if err := h.vanityGenerator.StartVanityGeneration("ab"); err != nil {
+		stopTorVanityGeneration(t, h)
+		if err := h.vanityGenerator.StartVanityGeneration("zzzzzz"); err != nil {
 			t.Fatalf("start: %v", err)
 		}
-		defer func() {
-			if err := h.vanityGenerator.Cancel(); err != nil {
-				t.Errorf("cancel vanity generation: %v", err)
-			}
-		}()
 
 		c, w := newTestContext(http.MethodGet, "/admin/tor/vanity/status")
 		h.GetVanityStatus(w, c)
@@ -256,7 +264,8 @@ func TestTorAdminHandler_CancelVanity(t *testing.T) {
 
 	t.Run("running generation cancels successfully", func(t *testing.T) {
 		h := newTorTestHandler(t)
-		if err := h.vanityGenerator.StartVanityGeneration("ab"); err != nil {
+		stopTorVanityGeneration(t, h)
+		if err := h.vanityGenerator.StartVanityGeneration("zzzzzz"); err != nil {
 			t.Fatalf("start: %v", err)
 		}
 		c, w := newTestContext(http.MethodPost, "/admin/tor/vanity/cancel")

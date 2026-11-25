@@ -60,11 +60,11 @@ func (f *fakeChannel) ValidateConfig(config map[string]interface{}) error { retu
 func TestChannelManager_NewChannelManager(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
 
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	if cm == nil {
 		t.Fatal("NewChannelManager returned nil")
 	}
-	if cm.db != db {
+	if cm.db.DB() != db {
 		t.Error("db not wired correctly")
 	}
 	if cm.channels == nil {
@@ -88,7 +88,7 @@ func TestChannelManager_NewChannelManager(t *testing.T) {
 // idempotent re-registration overwriting the same slot rather than growing.
 func TestChannelManager_RegisterAndGetChannel(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	ch := &fakeChannel{channelType: "slack", name: "Slack"}
 	cm.RegisterChannel(ch)
@@ -127,7 +127,7 @@ func TestChannelManager_RegisterAndGetChannel(t *testing.T) {
 // registration, and multiple registrations without duplicates.
 func TestChannelManager_ListChannels(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	if got := cm.ListChannels(); len(got) != 0 {
 		t.Errorf("empty manager ListChannels() = %v, want empty", got)
@@ -156,7 +156,7 @@ func TestChannelManager_ListChannels(t *testing.T) {
 // error or duplicate rows (INSERT only happens when a row doesn't exist).
 func TestChannelManager_InitializeChannels(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	if err := cm.InitializeChannels(); err != nil {
 		t.Fatalf("InitializeChannels() unexpected error: %v", err)
@@ -206,7 +206,7 @@ func TestChannelManager_InitializeChannels_QueryError(t *testing.T) {
 		}
 	})
 
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	if err := cm.InitializeChannels(); err == nil {
 		t.Fatal("expected error when server_notification_channels table does not exist")
 	}
@@ -216,7 +216,7 @@ func TestChannelManager_InitializeChannels_QueryError(t *testing.T) {
 // transitions, including idempotency of repeating the same transition.
 func TestChannelManager_EnableDisableChannel(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "webhook", "Generic Webhook")
 
 	if err := cm.EnableChannel("webhook"); err != nil {
@@ -256,7 +256,7 @@ func TestChannelManager_EnableDisableChannel(t *testing.T) {
 // (matching the real driver semantics) rather than a fabricated error.
 func TestChannelManager_EnableChannel_UnknownType(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	if err := cm.EnableChannel("does-not-exist"); err != nil {
 		t.Errorf("EnableChannel on unknown type should not error (zero rows affected), got: %v", err)
@@ -267,7 +267,7 @@ func TestChannelManager_EnableChannel_UnknownType(t *testing.T) {
 // querying state for a channel_type with no row.
 func TestChannelManager_GetChannelState_MissingRow(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	_, err := cm.GetChannelState("missing")
 	if err == nil {
@@ -279,7 +279,7 @@ func TestChannelManager_GetChannelState_MissingRow(t *testing.T) {
 // idempotency of setting the same state twice.
 func TestChannelManager_UpdateChannelState(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "pushover", "Pushover")
 
 	for i := 0; i < 2; i++ {
@@ -301,7 +301,7 @@ func TestChannelManager_UpdateChannelState(t *testing.T) {
 // 'enabled' and set enabled=1 with failure_count reset.
 func TestChannelManager_TestChannel_Success(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "gotify", "Gotify")
 	cm.RegisterChannel(&fakeChannel{channelType: "gotify", name: "Gotify", testErr: nil})
 
@@ -329,7 +329,7 @@ func TestChannelManager_TestChannel_Success(t *testing.T) {
 // in the DB (state=failed, last_error set, failure_count incremented).
 func TestChannelManager_TestChannel_Failure(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "twilio", "Twilio SMS")
 	wantErr := fmt.Errorf("boom: connection refused")
 	cm.RegisterChannel(&fakeChannel{channelType: "twilio", name: "Twilio SMS", testErr: wantErr})
@@ -363,7 +363,7 @@ func TestChannelManager_TestChannel_Failure(t *testing.T) {
 // mutation.
 func TestChannelManager_TestChannel_UnregisteredChannel(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "matrix", "Matrix")
 
 	if err := cm.TestChannel("matrix", "someone"); err == nil {
@@ -386,7 +386,7 @@ func TestChannelManager_TestChannel_UnregisteredChannel(t *testing.T) {
 // reaches 5 (and not before).
 func TestChannelManager_RecordSuccess_RecordFailure_ThresholdBehavior(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "opsgenie", "Opsgenie")
 
 	// Four failures: state must stay whatever it was (still 'disabled' from seed).
@@ -441,7 +441,7 @@ func TestChannelManager_RecordSuccess_RecordFailure_ThresholdBehavior(t *testing
 // channel_type with no row in the database.
 func TestChannelManager_GetChannelStats_MissingRow(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	if _, err := cm.GetChannelStats("nonexistent"); err == nil {
 		t.Fatal("expected error for channel_type with no row")
@@ -454,7 +454,7 @@ func TestChannelManager_GetChannelStats_MissingRow(t *testing.T) {
 // on the nullable scan targets.
 func TestChannelManager_GetChannelStats_NullFieldsHandled(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 	seedChannelRow(t, db, "fcm", "Firebase Cloud Messaging")
 
 	stats, err := cm.GetChannelStats("fcm")
@@ -477,7 +477,7 @@ func TestChannelManager_GetChannelStats_NullFieldsHandled(t *testing.T) {
 // boundary (a row can be enabled=1 but state != 'enabled', e.g. 'testing').
 func TestChannelManager_ListEnabledChannels(t *testing.T) {
 	db := setupChannelManagerTestDB(t)
-	cm := NewChannelManager(db)
+	cm := NewChannelManager(serviceStoreForDB(db))
 
 	// No rows at all yet.
 	list, err := cm.ListEnabledChannels()

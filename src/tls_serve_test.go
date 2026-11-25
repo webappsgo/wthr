@@ -139,7 +139,7 @@ func TestIsACMEEligibleHost(t *testing.T) {
 }
 
 func TestProvisionAndRenewDoNothingWhenThereIsNothingToDo(t *testing.T) {
-	manager := util.NewSSLManager(nil, t.TempDir())
+	manager := util.NewSSLManager(t.TempDir())
 	if err := manager.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestProvisionAndRenewDoNothingWhenThereIsNothingToDo(t *testing.T) {
 
 func TestPrepareTLSGeneratesAndReusesASelfSignedCertificate(t *testing.T) {
 	ssl := t.TempDir()
-	first := util.NewSSLManager(nil, ssl)
+	first := util.NewSSLManager(ssl)
 	tlsConfig, err := prepareTLS(first, configSSL(false), "example.com")
 	if err != nil || tlsConfig == nil {
 		t.Fatalf("prepareTLS: %v", err)
@@ -168,7 +168,7 @@ func TestPrepareTLSGeneratesAndReusesASelfSignedCertificate(t *testing.T) {
 		t.Errorf("owner = %q, want the user-owned self-signed certificate", first.Owner())
 	}
 
-	second := util.NewSSLManager(nil, ssl)
+	second := util.NewSSLManager(ssl)
 	if _, err := prepareTLS(second, configSSL(false), "example.com"); err != nil {
 		t.Fatalf("second start: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestPrepareTLSGeneratesAndReusesASelfSignedCertificate(t *testing.T) {
 }
 
 func TestPrepareTLSManualCertificate(t *testing.T) {
-	seed := util.NewSSLManager(nil, t.TempDir())
+	seed := util.NewSSLManager(t.TempDir())
 	if err := seed.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -188,17 +188,17 @@ func TestPrepareTLSManualCertificate(t *testing.T) {
 
 	manual := configSSL(false)
 	manual.Cert, manual.Key = certPath, keyPath
-	if _, err := prepareTLS(util.NewSSLManager(nil, t.TempDir()), manual, "another.example.net"); err != nil {
+	if _, err := prepareTLS(util.NewSSLManager(t.TempDir()), manual, "another.example.net"); err != nil {
 		t.Fatalf("a manual certificate is used as given: %v", err)
 	}
 
 	manual.Cert = "relative/cert.pem"
-	if _, err := prepareTLS(util.NewSSLManager(nil, t.TempDir()), manual, "example.com"); err == nil {
+	if _, err := prepareTLS(util.NewSSLManager(t.TempDir()), manual, "example.com"); err == nil {
 		t.Error("a relative manual path must be refused")
 	}
 	manual.Cert = certPath
 	manual.Key = keyPath + ".missing"
-	if _, err := prepareTLS(util.NewSSLManager(nil, t.TempDir()), manual, "example.com"); err == nil {
+	if _, err := prepareTLS(util.NewSSLManager(t.TempDir()), manual, "example.com"); err == nil {
 		t.Error("a missing manual key must be an error, not a silent fallback")
 	}
 }
@@ -215,7 +215,7 @@ func TestNeedsPortBindingIsOffForStatus(t *testing.T) {
 }
 
 func TestProvisionWaitsForADNSProviderOnDNS01(t *testing.T) {
-	manager := util.NewSSLManager(nil, t.TempDir())
+	manager := util.NewSSLManager(t.TempDir())
 	if err := manager.GenerateSelfSignedCert("example.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestProvisionWaitsForADNSProviderOnDNS01(t *testing.T) {
 }
 
 func TestLetsEncryptAndDNSRuntimeHelpers(t *testing.T) {
-	manager := util.NewSSLManager(nil, t.TempDir())
+	manager := util.NewSSLManager(t.TempDir())
 	settings := configSSL(true).LetsEncrypt
 	settings.Email = "  "
 	runtime := newTLSRuntime(manager, config.SSLConfig{LetsEncrypt: settings}, "example.com")
@@ -264,7 +264,7 @@ func TestPrepareChallengeFailsOnBadDNSCredentials(t *testing.T) {
 	config.SetGlobalConfig(cfg)
 	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 
-	runtime := newTLSRuntime(util.NewSSLManager(nil, t.TempDir()), cfg.Server.SSL, "example.com")
+	runtime := newTLSRuntime(util.NewSSLManager(t.TempDir()), cfg.Server.SSL, "example.com")
 	err := runtime.prepareChallenge(nil)
 	if err == nil || !strings.Contains(err.Error(), "CLOUDFLARE_DNS_API_TOKEN") {
 		t.Errorf("the request must fail naming the variable, got %v", err)

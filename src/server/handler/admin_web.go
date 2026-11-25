@@ -18,11 +18,11 @@ import (
 
 // AdminWebHandler handles web settings administration
 type AdminWebHandler struct {
-	db *database.DB
+	db *database.Store
 }
 
 // NewAdminWebHandler creates a new admin web handler
-func NewAdminWebHandler(db *database.DB) *AdminWebHandler {
+func NewAdminWebHandler(db *database.Store) *AdminWebHandler {
 	return &AdminWebHandler{db: db}
 }
 
@@ -42,7 +42,7 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	adminModel := &models.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &models.AdminModel{Store: database.GetUsersStore()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)

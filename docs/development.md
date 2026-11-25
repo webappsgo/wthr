@@ -58,7 +58,7 @@ make test
 ./tests/run_tests.sh
 ```
 
-`make test` runs Go tests in the project Go container and enforces the project coverage threshold. `tests/run_tests.sh` exercises the compiled binaries and server routes. Use `tests/incus.sh` for the full init-system path when Incus is available; `tests/docker.sh` is the container fallback.
+`make test` runs Go tests in the project Go container and enforces the project coverage threshold. `tests/run_tests.sh` runs the Docker basic binary and route suite. Run `tests/incus.sh` separately for full init-system validation when Incus is available; `tests/e2e.sh` is also a separate, on-demand browser suite.
 
 Keep package tests beside the code they cover as `*_test.go`. Integration and binary tests belong under `tests/`. Do not bypass authentication in tests.
 

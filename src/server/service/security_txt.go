@@ -35,8 +35,8 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 	if reportURL := s.settingsModel.GetString("web.security.report_url", ""); reportURL != "" {
 		lines = append(lines, fmt.Sprintf("Contact: %s", reportURL))
 	}
-	if s.settingsModel.DB != nil {
-		if id, err := CurrentSecurityID(s.settingsModel.DB); err == nil {
+	if s.settingsModel.Store != nil {
+		if id, err := CurrentSecurityID(s.settingsModel.Store); err == nil {
 			lines = append(lines, fmt.Sprintf("Contact: %s/server/contact?security_id=%s", baseURL, id))
 		}
 	}
@@ -84,7 +84,7 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 	lines = append(lines, fmt.Sprintf("Canonical: %s", canonical))
 
 	// Encryption (optional)
-	if s.settingsModel.DB != nil && NewPGPKeyManager(s.settingsModel.DB, s.keyDir).Exists() {
+	if s.settingsModel.Store != nil && NewPGPKeyManager(s.settingsModel.Store, s.keyDir).Exists() {
 		lines = append(lines, fmt.Sprintf("Encryption: %s/.well-known/pgp-key.asc", baseURL))
 	}
 

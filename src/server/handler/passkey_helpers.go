@@ -2,12 +2,13 @@ package handler
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	models "github.com/webappsgo/wthr/src/server/model"
 
@@ -119,8 +120,8 @@ func summarizePasskey(passkey *models.UserPasskey) *PasskeySummary {
 
 // ListUserPasskeys returns the authenticated user's passkeys in the same
 // order/shape as GET /api/v1/users/security/passkeys.
-func ListUserPasskeys(db *sql.DB, userID int64) ([]*PasskeySummary, error) {
-	model := &models.UserPasskeyModel{DB: db}
+func ListUserPasskeys(db *database.Store, userID int64) ([]*PasskeySummary, error) {
+	model := &models.UserPasskeyModel{Store: db}
 	passkeys, err := model.ListByUserID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load passkeys: %w", err)
@@ -135,13 +136,13 @@ func ListUserPasskeys(db *sql.DB, userID int64) ([]*PasskeySummary, error) {
 
 // DeleteUserPasskey removes one of the authenticated user's passkeys.
 // Mirrors DELETE /api/v1/users/security/passkeys/:passkey_id.
-func DeleteUserPasskey(db *sql.DB, userID, passkeyID int64) error {
-	model := &models.UserPasskeyModel{DB: db}
+func DeleteUserPasskey(db *database.Store, userID, passkeyID int64) error {
+	model := &models.UserPasskeyModel{Store: db}
 	return model.DeleteByID(userID, passkeyID)
 }
 
-func loadWebAuthnUserForPasskey(db *sql.DB, user *models.User) (*passkeyUser, error) {
-	model := &models.UserPasskeyModel{DB: db}
+func loadWebAuthnUserForPasskey(db *database.Store, user *models.User) (*passkeyUser, error) {
+	model := &models.UserPasskeyModel{Store: db}
 	credentials, err := model.ListCredentialsByUserID(user.ID)
 	if err != nil {
 		return nil, err
@@ -160,14 +161,16 @@ type PasskeyRegistrationOptionsResult struct {
 // returns an opaque ceremony token plus the WebAuthn options the browser
 // should pass to navigator.credentials.create(). The caller is responsible
 // for transporting the token (cookie for REST, mutation argument for GraphQL).
-func BeginPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEnvelope, name, password string) (*PasskeyRegistrationOptionsResult, error) {
+func BeginPasskeyRegistrationToken(db *database.Store, user *models.User, env PasskeyEnvelope, name, password string) (*PasskeyRegistrationOptionsResult, error) {
 	name = strings.TrimSpace(name)
-	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
 		return nil, ErrPasskeyNamePasswordRequired
 	}
+	if passwordHasSurroundingWhitespace(password) {
+		return nil, ErrPasskeyInvalidPassword
+	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	if !userModel.CheckPassword(user, password) {
 		return nil, ErrPasskeyInvalidPassword
 	}
@@ -227,7 +230,7 @@ type PasskeyRegistrationFinalizeResult struct {
 // FinishPasskeyRegistrationToken completes the registration ceremony begun by
 // BeginPasskeyRegistrationToken. The body must be the JSON body produced by
 // the browser's PublicKeyCredential.toJSON() call.
-func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEnvelope, ceremonyToken string, body []byte) (*PasskeyRegistrationFinalizeResult, error) {
+func FinishPasskeyRegistrationToken(db *database.Store, user *models.User, env PasskeyEnvelope, ceremonyToken string, body []byte) (*PasskeyRegistrationFinalizeResult, error) {
 	state, err := loadPasskeyCeremonyByToken(ceremonyToken)
 	if err != nil {
 		return nil, err
@@ -251,7 +254,7 @@ func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEn
 		return nil, err
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: db}
+	passkeyModel := &models.UserPasskeyModel{Store: db}
 	passkey, err := passkeyModel.CreateUserPasskey(user.ID, state.Name, credential)
 	if err != nil {
 		return nil, err
@@ -263,7 +266,7 @@ func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEn
 
 	count, err := passkeyModel.CountByUserID(user.ID)
 	if err == nil && count == 1 {
-		recoveryKeyModel := &models.RecoveryKeyModel{DB: db}
+		recoveryKeyModel := &models.RecoveryKeyModel{Store: db}
 		existingKeys, countErr := recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 		if countErr == nil && existingKeys == 0 {
 			recoveryKeys, generateErr := recoveryKeyModel.GenerateRecoveryKeys(int(user.ID))
@@ -287,7 +290,7 @@ type PasskeyChallengeOptionsResult struct {
 // pendingSessionToken is non-empty, the challenge is bound to that pending
 // 2FA session (passkey-as-second-factor). Otherwise it begins a discoverable
 // login (passkey-as-first-factor).
-func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionToken string) (*PasskeyChallengeOptionsResult, error) {
+func BeginPasskeyChallengeToken(db *database.Store, env PasskeyEnvelope, pendingSessionToken string) (*PasskeyChallengeOptionsResult, error) {
 	wa, err := buildWebAuthnFromEnvelope(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize passkeys: %w", err)
@@ -299,7 +302,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 			return nil, err
 		}
 
-		userModel := &models.UserModel{DB: db}
+		userModel := &models.UserModel{Store: db}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
 			return nil, ErrPasskeyInvalidSessionToken
@@ -354,7 +357,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 // BeginPasskeyChallengeToken and returns a fully-authenticated AuthLoginResponse.
 // The body must be the JSON body produced by the browser's
 // PublicKeyCredential.toJSON() call.
-func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP string) (*AuthLoginResponse, error) {
+func FinishPasskeyChallengeToken(db *database.Store, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP string) (*AuthLoginResponse, error) {
 	if len(body) == 0 {
 		return nil, ErrPasskeyInvalidRequestBody
 	}
@@ -369,8 +372,8 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 		return nil, fmt.Errorf("failed to initialize passkeys: %w", err)
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: db}
-	userModel := &models.UserModel{DB: db}
+	passkeyModel := &models.UserPasskeyModel{Store: db}
+	userModel := &models.UserModel{Store: db}
 
 	var (
 		user       *models.User
@@ -458,7 +461,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 			return nil, fmt.Errorf("failed to create session")
 		}
 
-		sessionModel := &models.SessionModel{DB: db}
+		sessionModel := &models.SessionModel{Store: db}
 		_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	default:

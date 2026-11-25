@@ -3,6 +3,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
 )
@@ -38,4 +39,19 @@ func getDiskUsagePercent(path string) (int, error) {
 	usedBytes := totalBytes - freeBytesAvailable
 	usedPercent := int(float64(usedBytes) / float64(totalBytes) * 100)
 	return usedPercent, nil
+}
+
+// DiskVolumeID returns the volume root containing path.
+func DiskVolumeID(path string) (string, error) {
+	proc := syscall.NewLazyDLL("kernel32.dll").NewProc("GetVolumePathNameW")
+	input, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return "", err
+	}
+	buffer := make([]uint16, 260)
+	ret, _, callErr := proc.Call(uintptr(unsafe.Pointer(input)), uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
+	if ret == 0 {
+		return "", callErr
+	}
+	return fmt.Sprintf("%s", syscall.UTF16ToString(buffer)), nil
 }

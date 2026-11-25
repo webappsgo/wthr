@@ -103,7 +103,7 @@ func TestShowServerStatus_Healthy(t *testing.T) {
 	usersDB := newStatusTestUsersDB(t)
 	wireStatusTestDualDB(t, serverDB, usersDB)
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 
 	var got bool
 	out := captureStatusStdout(t, func() {
@@ -133,7 +133,7 @@ func TestShowServerStatus_UnhealthyOnClosedDB(t *testing.T) {
 	usersDB := newStatusTestUsersDB(t)
 	wireStatusTestDualDB(t, serverDB, usersDB)
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 	if err := serverDB.Close(); err != nil {
 		t.Fatalf("close server db: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestShowServerStatus_CountsReflectRows(t *testing.T) {
 		t.Fatalf("insert users row: %v", err)
 	}
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 
 	out := captureStatusStdout(t, func() {
 		showServerStatus(db, "/tmp/wthr-status-test/server.db", false)
@@ -199,7 +199,7 @@ func TestShowServerStatus_ReverseProxyAddressMode(t *testing.T) {
 	t.Setenv("REVERSE_PROXY", "true")
 	t.Setenv("PORT", "4242")
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 
 	out := captureStatusStdout(t, func() {
 		showServerStatus(db, "/tmp/wthr-status-test/server.db", false)
@@ -224,7 +224,7 @@ func TestShowServerStatus_DefaultAddressMode(t *testing.T) {
 	t.Setenv("REVERSE_PROXY", "")
 	t.Setenv("PORT", "")
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 
 	out := captureStatusStdout(t, func() {
 		showServerStatus(db, "/tmp/wthr-status-test/server.db", false)
@@ -247,7 +247,7 @@ func TestShowServerStatus_ExplicitListenAddress(t *testing.T) {
 	t.Setenv("REVERSE_PROXY", "true")
 	t.Setenv("PORT", "9000")
 
-	db := &database.DB{DB: serverDB}
+	db := database.NewStore(serverDB)
 
 	out := captureStatusStdout(t, func() {
 		showServerStatus(db, "/tmp/wthr-status-test/server.db", false)
@@ -285,7 +285,7 @@ func TestShowServerStatus_EnvironmentModeFallback(t *testing.T) {
 			t.Setenv("MODE", tt.mode)
 			t.Setenv("ENVIRONMENT", tt.environment)
 
-			db := &database.DB{DB: serverDB}
+			db := database.NewStore(serverDB)
 
 			out := captureStatusStdout(t, func() {
 				showServerStatus(db, "/tmp/wthr-status-test/server.db", false)

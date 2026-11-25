@@ -60,7 +60,7 @@ func newAdminTestHandler(t *testing.T) (*AdminHandler, *sql.DB, *sql.DB) {
 	setGlobalTestDualDB(t, serverDB, usersDB)
 	// AdminHandler.DB backs UserModel/TokenModel/SettingsModel struct fields;
 	// in production main.go wires this to dualDB.Users (see src/main.go:923).
-	return &AdminHandler{DB: usersDB}, serverDB, usersDB
+	return &AdminHandler{DB: storeForDB(usersDB)}, serverDB, usersDB
 }
 
 // TestAdminHandler_ListUsers covers the success path (users present) and
@@ -68,7 +68,7 @@ func newAdminTestHandler(t *testing.T) (*AdminHandler, *sql.DB, *sql.DB) {
 func TestAdminHandler_ListUsers(t *testing.T) {
 	t.Run("success returns seeded users", func(t *testing.T) {
 		h, _, usersDB := newAdminTestHandler(t)
-		if _, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("alice", "alice@example.com", "password123", "user"); err != nil {
+		if _, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount("alice", "alice@example.com", "password123", "user"); err != nil {
 			t.Fatalf("seed user: %v", err)
 		}
 
@@ -260,7 +260,7 @@ func TestAdminHandler_DeleteUser_NoCurrentUser_PanicsInsteadOf401(t *testing.T) 
 func TestAdminHandler_UpdateUserPassword(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, _, usersDB := newAdminTestHandler(t)
-		user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("carol", "carol@example.com", "password123", "user")
+		user, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount("carol", "carol@example.com", "password123", "user")
 		if err != nil {
 			t.Fatalf("seed user: %v", err)
 		}
@@ -356,7 +356,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 // token lifecycle (matches real UsersSchema).
 func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
-	user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("dave", "dave@example.com", "password123", "user")
+	user, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount("dave", "dave@example.com", "password123", "user")
 	if err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
 
-	userModel := &models.UserModel{DB: usersDB}
+	userModel := &models.UserModel{Store: storeForDB(usersDB)}
 	frank, err := userModel.CreateUserAccount("frank", "frank@example.com", "password123", "user")
 	if err != nil {
 		t.Fatalf("seed user frank: %v", err)
@@ -608,7 +608,7 @@ func TestAdminHandler_GetTasksStats_Success(t *testing.T) {
 // users) system stats aggregation.
 func TestAdminHandler_GetSystemStats_Success(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
-	if _, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("erin", "erin@example.com", "password123", "user"); err != nil {
+	if _, err := (&models.UserModel{Store: storeForDB(usersDB)}).CreateUserAccount("erin", "erin@example.com", "password123", "user"); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 

@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -159,7 +158,6 @@ func ParseTLSMinVersion(value string) uint16 {
 // SSLManager serves the active certificate and keeps it replaceable at runtime, so a
 // renewal is picked up by the next handshake without a restart.
 type SSLManager struct {
-	db     *sql.DB
 	sslDir string
 
 	mu        sync.RWMutex
@@ -171,8 +169,8 @@ type SSLManager struct {
 }
 
 // NewSSLManager creates a manager rooted at {config_dir}/ssl.
-func NewSSLManager(db *sql.DB, sslDir string) *SSLManager {
-	return &SSLManager{db: db, sslDir: sslDir, challenge: map[string]*tls.Certificate{}}
+func NewSSLManager(sslDir string) *SSLManager {
+	return &SSLManager{sslDir: sslDir, challenge: map[string]*tls.Certificate{}}
 }
 
 // SSLDir returns the {config_dir}/ssl directory the manager reads and writes.

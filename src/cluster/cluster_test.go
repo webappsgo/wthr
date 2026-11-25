@@ -40,7 +40,7 @@ func newTestDB(t *testing.T) *sql.DB {
 func newReadyManager(t *testing.T, nodeID, nodeAddress string) *ClusterManager {
 	t.Helper()
 	db := newTestDB(t)
-	cm := NewClusterManager(db, nodeID, nodeAddress, true)
+	cm := NewClusterManager(database.NewStore(db), nodeID, nodeAddress, true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("initializeClusterTables() error = %v", err)
 	}
@@ -54,7 +54,7 @@ func newReadyManager(t *testing.T, nodeID, nodeAddress string) *ClusterManager {
 // immediately becomes primary, and Stop() is a safe no-op.
 func TestStart_Disabled(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-1", "127.0.0.1:8080", false)
+	cm := NewClusterManager(database.NewStore(db), "node-1", "127.0.0.1:8080", false)
 
 	if err := cm.StartClusterManager(); err != nil {
 		t.Fatalf("Start() error = %v, want nil in standalone mode", err)
@@ -81,7 +81,7 @@ func TestStart_Disabled(t *testing.T) {
 // error (CREATE TABLE IF NOT EXISTS).
 func TestInitializeClusterTables_Idempotent(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-1", "127.0.0.1:8080", true)
+	cm := NewClusterManager(database.NewStore(db), "node-1", "127.0.0.1:8080", true)
 
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("first call error = %v", err)
@@ -145,7 +145,7 @@ func TestUnregisterNode(t *testing.T) {
 // table has no healthy rows.
 func TestElectPrimary_NoHealthyNodes(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-1", "127.0.0.1:8080", true)
+	cm := NewClusterManager(database.NewStore(db), "node-1", "127.0.0.1:8080", true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -164,7 +164,7 @@ func TestElectPrimary_Deterministic(t *testing.T) {
 
 	// Two managers sharing the same underlying cluster table, simulating
 	// two nodes in the same cluster.
-	cmA := NewClusterManager(db, "node-b", "10.0.0.2:8080", true)
+	cmA := NewClusterManager(database.NewStore(db), "node-b", "10.0.0.2:8080", true)
 	if err := cmA.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -172,7 +172,7 @@ func TestElectPrimary_Deterministic(t *testing.T) {
 		t.Fatalf("register node-b error = %v", err)
 	}
 
-	cmB := NewClusterManager(db, "node-a", "10.0.0.1:8080", true)
+	cmB := NewClusterManager(database.NewStore(db), "node-a", "10.0.0.1:8080", true)
 	if err := cmB.registerNode(); err != nil {
 		t.Fatalf("register node-a error = %v", err)
 	}
@@ -200,7 +200,7 @@ func TestElectPrimary_Deterministic(t *testing.T) {
 // marked unhealthy is skipped in favor of the next healthy candidate.
 func TestElectPrimary_IgnoresUnhealthyNodes(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-b", "10.0.0.2:8080", true)
+	cm := NewClusterManager(database.NewStore(db), "node-b", "10.0.0.2:8080", true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -251,7 +251,7 @@ func TestCheckClusterHealth_StaleHeartbeatTriggersElection(t *testing.T) {
 		t.Fatalf("insert fresh secondary error = %v", err)
 	}
 
-	cm := NewClusterManager(db, "node-new", "y", true)
+	cm := NewClusterManager(database.NewStore(db), "node-new", "y", true)
 
 	if err := cm.checkClusterHealth(); err != nil {
 		t.Fatalf("checkClusterHealth() error = %v", err)
@@ -396,7 +396,7 @@ func TestCheckClusterHealth_MixedZoneHeartbeats(t *testing.T) {
 	db := newTestDB(t)
 	// This node is always fresh so the election checkClusterHealth triggers
 	// always has a candidate.
-	cm := NewClusterManager(db, "node-anchor", "10.0.0.1:8080", true)
+	cm := NewClusterManager(database.NewStore(db), "node-anchor", "10.0.0.1:8080", true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("initializeClusterTables() error = %v", err)
 	}
@@ -536,7 +536,7 @@ func TestParseStoredTimestamp_Cluster(t *testing.T) {
 // misrender if it regressed.
 func TestGetClusterInfo_Ordering(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-z", "z", true)
+	cm := NewClusterManager(database.NewStore(db), "node-z", "z", true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -572,7 +572,7 @@ func TestGetClusterInfo_Ordering(t *testing.T) {
 // non-error result rather than nil-panicking downstream consumers.
 func TestGetClusterInfo_Empty(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-1", "x", true)
+	cm := NewClusterManager(database.NewStore(db), "node-1", "x", true)
 	if err := cm.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -590,7 +590,7 @@ func TestGetClusterInfo_Empty(t *testing.T) {
 // cluster manager is not enabled, never touching the database.
 func TestSyncConfig_DisabledIsNoop(t *testing.T) {
 	db := newTestDB(t)
-	cm := NewClusterManager(db, "node-1", "x", false)
+	cm := NewClusterManager(database.NewStore(db), "node-1", "x", false)
 
 	if err := cm.SyncConfig(); err != nil {
 		t.Fatalf("SyncConfig() error = %v, want nil when disabled", err)
@@ -645,7 +645,7 @@ func TestSyncConfig_PrimaryPushesSecondaryPulls(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmPrimary := NewClusterManager(db, "node-a", "10.0.0.1:8080", true)
+	cmPrimary := NewClusterManager(database.NewStore(db), "node-a", "10.0.0.1:8080", true)
 	if err := cmPrimary.initializeClusterTables(); err != nil {
 		t.Fatalf("setup error = %v", err)
 	}
@@ -656,7 +656,7 @@ func TestSyncConfig_PrimaryPushesSecondaryPulls(t *testing.T) {
 		t.Fatalf("register primary error = %v", err)
 	}
 
-	cmSecondary := NewClusterManager(db, "node-b", "10.0.0.2:8080", true)
+	cmSecondary := NewClusterManager(database.NewStore(db), "node-b", "10.0.0.2:8080", true)
 	if err := cmSecondary.registerNode(); err != nil {
 		t.Fatalf("register secondary error = %v", err)
 	}

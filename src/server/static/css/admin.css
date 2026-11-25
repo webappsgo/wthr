@@ -206,6 +206,11 @@
     white-space: nowrap;
 }
 
+.admin-logout-form {
+    display: inline-flex;
+    margin: 0;
+}
+
 .admin-logout {
     display: inline-flex;
     align-items: center;

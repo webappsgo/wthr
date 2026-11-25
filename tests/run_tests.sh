@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608131924-git
+##@Version           :  202611241200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, August 13, 2026 19:24 EDT
 # @@File             :  run_tests.sh
-# @@Description      :  AI.md PART 29 test runner - detects Incus or Docker and dispatches to the right test script
-# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@Description      :  AI.md PART 29 test runner for the Docker basic tier
+# @@Changelog        :  Run the Docker basic tier only; Incus and E2E remain explicit
 # @@TODO             :  none
 # @@Other            :  none
 # @@Resource         :  none
@@ -22,19 +22,12 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
-# Detect available container runtime and run appropriate test
-if command -v incus &>/dev/null; then
-    echo "Incus detected - running full systemd tests..."
-    exec "$(dirname "$0")/incus.sh"
-elif command -v docker &>/dev/null; then
-    echo "Docker detected - running container tests..."
-    exec "$(dirname "$0")/docker.sh"
-else
-    echo "ERROR: Neither incus nor docker found"
-    echo "Please install one of the following:"
-    echo "  - Incus (preferred): https://linuxcontainers.org/incus/"
-    echo "  - Docker (fallback): https://docker.com/"
-    exit 1
+if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: docker not found. Install Docker to run the basic binary-validation suite." >&2
+    exit 69
 fi
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+exec "$SCRIPT_DIR/docker.sh" "$@"
 
 # ex: ts=2 sw=2 et filetype=sh

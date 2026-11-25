@@ -80,7 +80,7 @@ func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := InjectServerContext(db, "1.2.3")(next)
+	handler := InjectServerContext(storeForDB(db), "1.2.3")(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -129,7 +129,7 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := setLang(InjectServerContext(db, "1.2.3")(next))
+	handler := setLang(InjectServerContext(storeForDB(db), "1.2.3")(next))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -185,7 +185,7 @@ func TestInjectServerContextUsesGeneratedBrandingVariants(t *testing.T) {
 			t.Fatal("server context missing")
 		}
 	})
-	InjectServerContext(db, "test")(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	InjectServerContext(storeForDB(db), "test")(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	if got.Logo200 != "/assets/brand-logo-200.png" || got.Logo50 != "/assets/brand-logo-50.png" {
 		t.Fatalf("logo variants = %q, %q", got.Logo200, got.Logo50)
 	}

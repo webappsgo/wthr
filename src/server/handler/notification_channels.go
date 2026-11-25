@@ -18,13 +18,13 @@ import (
 
 // NotificationChannelHandler handles notification channel management
 type NotificationChannelHandler struct {
-	DB             *sql.DB
+	DB             *database.Store
 	ChannelManager *service.ChannelManager
 	SMTP           *service.SMTPService
 }
 
 // NewNotificationChannelHandler creates a new notification channel handler
-func NewNotificationChannelHandler(db *sql.DB) *NotificationChannelHandler {
+func NewNotificationChannelHandler(db *database.Store) *NotificationChannelHandler {
 	cm := service.NewChannelManager(db)
 	smtp := service.SharedSMTPService(db)
 

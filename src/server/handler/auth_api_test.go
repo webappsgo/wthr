@@ -77,7 +77,7 @@ func newAuthAPITestHandler(t *testing.T) *AuthAPIHandler {
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
-	return &AuthAPIHandler{DB: usersDB}
+	return &AuthAPIHandler{DB: storeForDB(usersDB)}
 }
 
 // TestHandleAPILogin covers the happy path (no 2FA), rejection of bad
@@ -259,7 +259,7 @@ func TestHandleAPILogout(t *testing.T) {
 	t.Run("active session is deleted", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "logoutuser", "logoutuser@example.com", "correcthorse123")
-		sessionModel := &models.SessionModel{DB: h.DB}
+		sessionModel := &models.SessionModel{Store: storeForDB(h.DB)}
 		session, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
@@ -352,7 +352,7 @@ func TestHandleAPIRecoveryUse(t *testing.T) {
 		if _, err := h.DB.Exec(`UPDATE users SET two_factor_enabled = 1, two_factor_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?`, userID); err != nil {
 			t.Fatalf("enable 2fa: %v", err)
 		}
-		keys, err := (&models.RecoveryKeyModel{DB: h.DB}).GenerateRecoveryKeys(int(userID))
+		keys, err := (&models.RecoveryKeyModel{Store: storeForDB(h.DB)}).GenerateRecoveryKeys(int(userID))
 		if err != nil || len(keys) == 0 {
 			t.Fatalf("generate recovery keys: %v", err)
 		}
@@ -407,12 +407,12 @@ func TestHandleAPIRefresh(t *testing.T) {
 	t.Run("authenticated session is refreshed", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "refreshuser", "refreshuser@example.com", "correcthorse123")
-		sessionModel := &models.SessionModel{DB: h.DB}
+		sessionModel := &models.SessionModel{Store: storeForDB(h.DB)}
 		session, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
-		userModel := &models.UserModel{DB: h.DB}
+		userModel := &models.UserModel{Store: storeForDB(h.DB)}
 		user, err := userModel.GetByID(userID)
 		if err != nil {
 			t.Fatalf("get user: %v", err)
@@ -550,7 +550,7 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 	t.Run("valid token resets the password and revokes sessions", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "resetuser", "resetuser@example.com", "oldpassword1")
-		sessionModel := &models.SessionModel{DB: h.DB}
+		sessionModel := &models.SessionModel{Store: storeForDB(h.DB)}
 		oldSession, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
@@ -636,7 +636,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 			t.Fatalf("reset verified flag: %v", err)
 		}
 
-		verification, err := (&models.UserEmailVerificationModel{DB: h.DB}).CreateVerification(userID, "rtverify@example.com")
+		verification, err := (&models.UserEmailVerificationModel{Store: storeForDB(h.DB)}).CreateVerification(userID, "rtverify@example.com")
 		if err != nil {
 			t.Fatalf("create verification: %v", err)
 		}
@@ -672,7 +672,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "rtreset", "rtreset@example.com", "oldpassword1")
 
-		reset, err := (&models.UserPasswordResetModel{DB: h.DB}).CreateReset(userID)
+		reset, err := (&models.UserPasswordResetModel{Store: storeForDB(h.DB)}).CreateReset(userID)
 		if err != nil {
 			t.Fatalf("create reset: %v", err)
 		}
@@ -709,7 +709,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 func TestHandleAPIUserInviteValidate(t *testing.T) {
 	t.Run("valid invite token returns invite details", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		invite, err := (&models.UserInviteModel{DB: h.DB}).CreateInvite("inviteduser", "invited@example.com", "user", 7)
+		invite, err := (&models.UserInviteModel{Store: storeForDB(h.DB)}).CreateInvite("inviteduser", "invited@example.com", "user", 7)
 		if err != nil {
 			t.Fatalf("create invite: %v", err)
 		}
@@ -739,7 +739,7 @@ func TestHandleAPIUserInviteValidate(t *testing.T) {
 func TestHandleAPIUserInviteComplete(t *testing.T) {
 	t.Run("valid invite completion creates an account", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		invite, err := (&models.UserInviteModel{DB: h.DB}).CreateInvite("", "completeinvite@example.com", "user", 7)
+		invite, err := (&models.UserInviteModel{Store: storeForDB(h.DB)}).CreateInvite("", "completeinvite@example.com", "user", 7)
 		if err != nil {
 			t.Fatalf("create invite: %v", err)
 		}

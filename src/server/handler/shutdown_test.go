@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/lifecycle"
 )
 
@@ -32,7 +31,7 @@ func TestHealthReportsShuttingDown(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 	r.Header.Set("Accept", "application/json")
 	w := httptest.NewRecorder()
-	APIHealthCheck(&database.DB{DB: serverDB}, time.Now())(w, r)
+	APIHealthCheck(storeForDB(serverDB), time.Now())(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)

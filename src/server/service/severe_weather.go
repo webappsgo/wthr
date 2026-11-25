@@ -37,6 +37,7 @@ type SevereWeatherData struct {
 // Alert represents a severe weather alert
 type Alert struct {
 	ID          string `json:"id"`
+	Country     string `json:"country,omitempty"`
 	Event       string `json:"event"`
 	Headline    string `json:"headline"`
 	Description string `json:"description"`
@@ -334,6 +335,7 @@ func (s *SevereWeatherService) fetchNWSAlerts() ([]Alert, error) {
 	for _, feature := range *nwsData.Features {
 		alert := Alert{
 			ID:          feature.ID,
+			Country:     "US",
 			Event:       feature.Properties.Event,
 			Headline:    feature.Properties.Headline,
 			Description: feature.Properties.Description,
@@ -725,6 +727,7 @@ func (s *SevereWeatherService) fetchEnvironmentCanadaAlerts() ([]Alert, error) {
 
 			alert := Alert{
 				ID:          entry.ID,
+				Country:     "CA",
 				Event:       entry.Title,
 				Headline:    entry.Title,
 				Description: entry.Summary,
@@ -844,6 +847,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 
 		alert := Alert{
 			ID:          item.GUID,
+			Country:     "GB",
 			Event:       event,
 			Headline:    item.Title,
 			Description: item.Description,
@@ -972,6 +976,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 
 		alert := Alert{
 			ID:          entry.ID,
+			Country:     "AU",
 			Event:       event,
 			Headline:    entry.Title,
 			Description: description,
@@ -1147,6 +1152,7 @@ func parseJMAWarningMap(body []byte) ([]Alert, error) {
 		}
 		alerts = append(alerts, Alert{
 			ID:          fmt.Sprintf("jma-%s-%s-%s", state.areaCode, state.code, state.dataType),
+			Country:     "JP",
 			Event:       event,
 			Headline:    fmt.Sprintf("%s for %s", event, state.areaName),
 			Severity:    severity,
@@ -1341,6 +1347,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 
 		alert := Alert{
 			ID:          mxAlert.ID,
+			Country:     "MX",
 			Event:       event,
 			Headline:    mxAlert.Titulo,
 			Description: mxAlert.Descripcion,

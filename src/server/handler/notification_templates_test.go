@@ -17,7 +17,7 @@ import (
 func newNotificationTemplateTestHandler(t *testing.T) *NotificationTemplateHandler {
 	t.Helper()
 	db := newNotificationChannelsTestDB(t)
-	return NewNotificationTemplateHandler(db)
+	return NewNotificationTemplateHandler(storeForDB(db))
 }
 
 // insertTestTemplate seeds one row of server_notification_templates. The table

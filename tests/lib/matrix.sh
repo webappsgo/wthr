@@ -422,7 +422,6 @@ PUBLIC_API_ROUTES=(
     "/api/v1/ip"
     "/api/v1/docs"
     "/api/v1/earthquakes"
-    "/api/v1/hurricanes"
     "/api/v1/severe-weather?location=London"
     "/api/v1/moon?location=London"
     "/api/v1/moon/calendar?location=London&year=2026&month=4"
@@ -445,7 +444,6 @@ TXT_ROUTES=(
     "/api/v1/moon.txt?location=London"
     "/api/v1/sun.txt?location=London"
     "/api/v1/earthquakes.txt"
-    "/api/v1/hurricanes.txt"
     "/api/v1/ip.txt"
 )
 
@@ -643,7 +641,7 @@ __a11y_check_form_labels() {
     while IFS= read -r tag; do
         [ -n "$tag" ] || continue
         case "$tag" in
-            *'type="hidden"'* | *'type="submit"'* | *'type="button"'* | *'type="reset"'* | *'type="image"'*) continue ;;
+            *'type="hidden"'* | *'type="submit"'* | *'type="button"'* | *'type="reset"'* | *'type="image"'* | *' hidden'* | *'aria-hidden="true"'*) continue ;;
             *aria-label=* | *aria-labelledby=*) continue ;;
         esac
 

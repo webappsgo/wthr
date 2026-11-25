@@ -48,7 +48,7 @@ func securityPageData(r *http.Request, extra map[string]interface{}) map[string]
 }
 
 func securitySettingsValues() map[string]string {
-	settings := &model.SettingsModel{DB: database.GetServerDB()}
+	settings := &model.SettingsModel{Store: database.GetServerStore()}
 	keys := []string{
 		"security.csp", "security.hsts", "security.x_frame_options", "security.x_content_type", "security.referrer_policy", "security.permissions_policy",
 		"security.cors_enabled", "security.cors_origins", "security.cors_methods", "security.cors_headers", "security.cors_credentials", "security.cors_max_age",
@@ -95,6 +95,10 @@ func (h *AdminOperatorTokenHandler) GetOperatorToken(w http.ResponseWriter, r *h
 // confirmAdminPassword re-prompts the current admin's password, the sensitive-operation
 // flow of AI.md PART 5. It writes the failure response itself and returns false.
 func confirmAdminPassword(w http.ResponseWriter, r *http.Request, password string) (adminID int64, ok bool) {
+	if password == "" || passwordHasSurroundingWhitespace(password) {
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
+		return 0, false
+	}
 	rawID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
@@ -108,7 +112,7 @@ func confirmAdminPassword(w http.ResponseWriter, r *http.Request, password strin
 	adminID = int64(idValue)
 
 	var hash string
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect,
+	err := database.QueryRowContext(context.Background(), database.GetUsersStore(), database.TimeoutSimpleSelect,
 		"SELECT password_hash FROM admins WHERE id = ?", adminID).Scan(&hash)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_verify_password"))

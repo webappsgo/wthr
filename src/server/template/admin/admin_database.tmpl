@@ -408,6 +408,8 @@
             </section>
 
     <textarea hidden id="admin-database-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</textarea>
+    <span hidden id="database-vacuum-queued-message">{{t $lang "admin.database.vacuum_queued"}}</span>
+    <span hidden id="database-vacuum-failed-message">{{t $lang "flash.settings_save_failed"}}</span>
     <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}

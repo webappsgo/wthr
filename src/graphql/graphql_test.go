@@ -212,7 +212,7 @@ func TestNewResolver(t *testing.T) {
 	moonHandler := &handler.MoonHandler{}
 
 	r := NewResolver(
-		serverDB, usersDB,
+		database.NewStore(serverDB), database.NewStore(usersDB),
 		weatherService,
 		apiHandler,
 		authHandler,
@@ -231,10 +231,10 @@ func TestNewResolver(t *testing.T) {
 	if r == nil {
 		t.Fatal("NewResolver() returned nil")
 	}
-	if r.ServerDB != serverDB {
+	if r.ServerDB.DB() != serverDB {
 		t.Error("ServerDB not wired to the correct argument")
 	}
-	if r.UsersDB != usersDB {
+	if r.UsersDB.DB() != usersDB {
 		t.Error("UsersDB not wired to the correct argument")
 	}
 	if r.WeatherService != weatherService {
@@ -357,7 +357,7 @@ func TestBuildGraphQLAdminSessionContext_ExpiryIsJudgedByInstantNotText(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			ddb := newGraphQLTimestampTestDB(t)
 
-			admin, err := (&models.AdminModel{DB: ddb.Users}).CreateAdminAccount("sessionadmin", "sessionadmin@example.com", "password123", true)
+			admin, err := (&models.AdminModel{Store: ddb.GetUsersStore()}).CreateAdminAccount("sessionadmin", "sessionadmin@example.com", "password123", true)
 			if err != nil {
 				t.Fatalf("create admin: %v", err)
 			}

@@ -98,7 +98,7 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 
 	t.Run("returns only the caller's notifications, newest first", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		seedNotification(t, db, "01JOLDEST0000000000000000", 1, "info", "center", "older", nil, false, false, base)
 		seedNotification(t, db, "01JNEWEST0000000000000000", 1, "warning", "toast", "newer", nil, true, false, base.Add(time.Hour))
@@ -133,7 +133,7 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 
 	t.Run("exposes the action url stored in action_json as link", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		seedNotification(t, db, "01JLINKED0000000000000000", 1, "info", "toast", "linked",
 			`{"label":"Open","url":"/users/alerts"}`, false, false, base)
@@ -159,7 +159,7 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 
 	t.Run("unread filter excludes read and dismissed rows", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		seedNotification(t, db, "01JUNREAD0000000000000000", 1, "info", "toast", "unread", nil, false, false, base)
 		seedNotification(t, db, "01JALREADYREAD0000000000", 1, "info", "toast", "read", nil, true, false, base)
@@ -196,7 +196,7 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				db := newNotificationsTestDB(t)
-				h := &NotificationHandler{DB: db}
+				h := &NotificationHandler{DB: storeForDB(db)}
 
 				r, w := newAPIRequest(t, http.MethodGet, "/api/notifications"+tc.query, "")
 				r = setUserIDContext(r, 1)
@@ -220,7 +220,7 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 
 	t.Run("rejects an unauthenticated request", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications", "")
 
@@ -237,7 +237,7 @@ func TestNotificationHandler_GetUnreadCount(t *testing.T) {
 
 	t.Run("counts only unread, undismissed rows owned by the caller", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		seedNotification(t, db, "01JCOUNTA0000000000000000", 1, "info", "toast", "a", nil, false, false, base)
 		seedNotification(t, db, "01JCOUNTB0000000000000000", 1, "info", "toast", "b", nil, false, false, base)
@@ -267,7 +267,7 @@ func TestNotificationHandler_GetUnreadCount(t *testing.T) {
 
 	t.Run("rejects an unauthenticated request", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications/unread-count", "")
 
@@ -284,7 +284,7 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 
 	t.Run("marks the caller's own notification read", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 		seedNotification(t, db, "01JMARKOWN000000000000000", 1, "info", "toast", "mine", nil, false, false, base)
 
 		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/01JMARKOWN000000000000000/read", "")
@@ -303,7 +303,7 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 
 	t.Run("returns 404 for an unknown id", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/missing/read", "")
 		r = setUserIDContext(r, 1)
@@ -318,7 +318,7 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 
 	t.Run("refuses another user's notification and leaves it unread", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 		seedNotification(t, db, "01JMARKTHEIRS000000000000", 2, "info", "toast", "theirs", nil, false, false, base)
 
 		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/01JMARKTHEIRS000000000000/read", "")
@@ -337,7 +337,7 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 
 	t.Run("rejects an unauthenticated request", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/x/read", "")
 		r = withURLParam(r, "id", "01JANY000000000000000000")
@@ -355,7 +355,7 @@ func TestNotificationHandler_MarkAllAsRead(t *testing.T) {
 
 	t.Run("marks every row of the caller and nobody else's", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		seedNotification(t, db, "01JALLA00000000000000000", 1, "info", "toast", "a", nil, false, false, base)
 		seedNotification(t, db, "01JALLB00000000000000000", 1, "info", "toast", "b", nil, false, false, base)
@@ -385,7 +385,7 @@ func TestNotificationHandler_MarkAllAsRead(t *testing.T) {
 
 	t.Run("rejects an unauthenticated request", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/read-all", "")
 
@@ -402,7 +402,7 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 
 	t.Run("deletes the caller's own notification", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 		seedNotification(t, db, "01JDELMINE000000000000000", 1, "info", "toast", "mine", nil, false, false, base)
 
 		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/01JDELMINE000000000000000", "")
@@ -426,7 +426,7 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 
 	t.Run("refuses another user's notification and keeps the row", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 		seedNotification(t, db, "01JDELTHEIRS0000000000000", 2, "info", "toast", "theirs", nil, false, false, base)
 
 		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/01JDELTHEIRS0000000000000", "")
@@ -450,7 +450,7 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 
 	t.Run("returns 404 for an unknown id", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/missing", "")
 		r = setUserIDContext(r, 1)
@@ -465,7 +465,7 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 
 	t.Run("rejects an unauthenticated request", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/x", "")
 		r = withURLParam(r, "id", "01JANY000000000000000000")
@@ -481,7 +481,7 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 func TestNotificationHandler_CreateNotification(t *testing.T) {
 	t.Run("writes a canonical user_notifications row", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		before := time.Now().UTC().Add(-time.Second)
 		if err := h.CreateNotification(1, "security", "New sign-in", "A new device signed in", "/users/sessions"); err != nil {
@@ -548,7 +548,7 @@ func TestNotificationHandler_CreateNotification(t *testing.T) {
 
 	t.Run("stores no action when the link is empty", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		if err := h.CreateNotification(1, "info", "Plain", "No link here", ""); err != nil {
 			t.Fatalf("CreateNotification: %v", err)
@@ -565,7 +565,7 @@ func TestNotificationHandler_CreateNotification(t *testing.T) {
 
 	t.Run("rejects a type the CHECK constraint would refuse", func(t *testing.T) {
 		db := newNotificationsTestDB(t)
-		h := &NotificationHandler{DB: db}
+		h := &NotificationHandler{DB: storeForDB(db)}
 
 		if err := h.CreateNotification(1, "critical", "Bad", "Not a valid type", ""); err == nil {
 			t.Fatal("CreateNotification returned nil, want an error for an invalid type")
@@ -586,7 +586,7 @@ func TestNotificationHandler_CreateNotification(t *testing.T) {
 		for _, notifType := range types {
 			t.Run(notifType, func(t *testing.T) {
 				db := newNotificationsTestDB(t)
-				h := &NotificationHandler{DB: db}
+				h := &NotificationHandler{DB: storeForDB(db)}
 
 				if err := h.CreateNotification(1, notifType, "T", "M", ""); err != nil {
 					t.Fatalf("CreateNotification(%s): %v", notifType, err)

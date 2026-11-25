@@ -22,7 +22,7 @@ type AdminTOTPStatus struct {
 }
 
 // AdminTOTPStatusFor returns the current MFA status for an administrator.
-func AdminTOTPStatusFor(db *sql.DB, adminID int64) (AdminTOTPStatus, error) {
+func AdminTOTPStatusFor(db *database.Store, adminID int64) (AdminTOTPStatus, error) {
 	var status AdminTOTPStatus
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
 		`SELECT totp_enabled FROM admins WHERE id = ?`, adminID).Scan(&status.Enabled)
@@ -35,7 +35,7 @@ func AdminTOTPStatusFor(db *sql.DB, adminID int64) (AdminTOTPStatus, error) {
 }
 
 // StorePendingAdminTOTPSecret encrypts and stores a setup secret without enabling MFA.
-func StorePendingAdminTOTPSecret(db *sql.DB, adminID int64, secret string) error {
+func StorePendingAdminTOTPSecret(db *database.Store, adminID int64, secret string) error {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil || strings.TrimSpace(cfg.Server.Security.EncryptionKey) == "" {
 		return fmt.Errorf("encryption key is not configured")
@@ -58,7 +58,7 @@ func StorePendingAdminTOTPSecret(db *sql.DB, adminID int64, secret string) error
 }
 
 // PendingAdminTOTPSecret decrypts the staged setup secret for confirmation.
-func PendingAdminTOTPSecret(db *sql.DB, adminID int64) (string, error) {
+func PendingAdminTOTPSecret(db *database.Store, adminID int64) (string, error) {
 	var sealed sql.NullString
 	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
 		`SELECT totp_secret FROM admins WHERE id = ? AND totp_enabled = 0`, adminID).Scan(&sealed); err != nil {
@@ -75,41 +75,39 @@ func PendingAdminTOTPSecret(db *sql.DB, adminID int64) (string, error) {
 }
 
 // EnableAdminTOTP enables TOTP and replaces recovery keys atomically.
-func EnableAdminTOTP(db *sql.DB, adminID int64, secret string) ([]string, error) {
+func EnableAdminTOTP(db *database.Store, adminID int64, secret string) ([]string, error) {
 	keys, hashes, err := generateAdminRecoveryKeys()
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutWrite)
 	defer cancel()
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
-		return nil, err
-	}
-	for _, hash := range hashes {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO admin_recovery_keys (admin_id, key_hash, created_at) VALUES (?, ?, ?)`, adminID, hash, time.Now().UTC()); err != nil {
-			return nil, err
+	err = database.WithTransaction(ctx, db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
+			return err
 		}
-	}
-	result, err := tx.ExecContext(ctx, `UPDATE admins SET totp_enabled = 1 WHERE id = ? AND totp_secret IS NOT NULL`, adminID)
+		for _, hash := range hashes {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO admin_recovery_keys (admin_id, key_hash, created_at) VALUES (?, ?, ?)`, adminID, hash, time.Now().UTC()); err != nil {
+				return err
+			}
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE admins SET totp_enabled = 1 WHERE id = ? AND totp_secret IS NOT NULL`, adminID)
+		if err != nil {
+			return err
+		}
+		if n, _ := result.RowsAffected(); n != 1 {
+			return sql.ErrNoRows
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-	if n, _ := result.RowsAffected(); n != 1 {
-		return nil, sql.ErrNoRows
-	}
-	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 	return keys, nil
 }
 
 // VerifyAdminTOTP checks a TOTP code or consumes a one-time recovery key.
-func VerifyAdminTOTP(db *sql.DB, adminID int64, code string, useRecoveryKey bool) (bool, error) {
+func VerifyAdminTOTP(db *database.Store, adminID int64, code string, useRecoveryKey bool) (bool, error) {
 	if useRecoveryKey {
 		return consumeAdminRecoveryKey(db, adminID, code)
 	}
@@ -140,58 +138,51 @@ func decryptAdminTOTPSecret(currentKey, sealed string) (string, error) {
 }
 
 // DisableAdminTOTP removes the encrypted secret and invalidates every recovery key.
-func DisableAdminTOTP(db *sql.DB, adminID int64) error {
+func DisableAdminTOTP(db *database.Store, adminID int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutWrite)
 	defer cancel()
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
+	return database.WithTransaction(ctx, db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE admins SET totp_enabled = 0, totp_secret = NULL WHERE id = ?`, adminID)
 		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE admins SET totp_enabled = 0, totp_secret = NULL WHERE id = ?`, adminID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	})
 }
 
 // RegenerateAdminRecoveryKeys replaces all existing codes after caller verification.
-func RegenerateAdminRecoveryKeys(db *sql.DB, adminID int64) ([]string, error) {
+func RegenerateAdminRecoveryKeys(db *database.Store, adminID int64) ([]string, error) {
 	keys, hashes, err := generateAdminRecoveryKeys()
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutWrite)
 	defer cancel()
-	tx, err := db.BeginTx(ctx, nil)
+	err = database.WithTransaction(ctx, db, func(tx *sql.Tx) error {
+		var enabled bool
+		if err := tx.QueryRowContext(ctx, `SELECT totp_enabled FROM admins WHERE id = ?`, adminID).Scan(&enabled); err != nil || !enabled {
+			if err != nil {
+				return err
+			}
+			return sql.ErrNoRows
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
+			return err
+		}
+		for _, hash := range hashes {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO admin_recovery_keys (admin_id, key_hash, created_at) VALUES (?, ?, ?)`, adminID, hash, time.Now().UTC()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	var enabled bool
-	if err := tx.QueryRowContext(ctx, `SELECT totp_enabled FROM admins WHERE id = ?`, adminID).Scan(&enabled); err != nil || !enabled {
-		if err != nil {
-			return nil, err
-		}
-		return nil, sql.ErrNoRows
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM admin_recovery_keys WHERE admin_id = ?`, adminID); err != nil {
-		return nil, err
-	}
-	for _, hash := range hashes {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO admin_recovery_keys (admin_id, key_hash, created_at) VALUES (?, ?, ?)`, adminID, hash, time.Now().UTC()); err != nil {
-			return nil, err
-		}
-	}
-	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 	return keys, nil
 }
 
-func consumeAdminRecoveryKey(db *sql.DB, adminID int64, code string) (bool, error) {
+func consumeAdminRecoveryKey(db *database.Store, adminID int64, code string) (bool, error) {
 	code = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(code), " ", ""))
 	plain := strings.ReplaceAll(code, "-", "")
 	if len(plain) != 12 {

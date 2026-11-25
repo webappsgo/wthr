@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -40,8 +40,8 @@ func summarizeAdminPasskey(passkey *models.AdminPasskey) *AdminPasskeySummary {
 }
 
 // ListAdminPasskeys returns the authenticated admin's passkeys.
-func ListAdminPasskeys(db *sql.DB, adminID int64) ([]*AdminPasskeySummary, error) {
-	model := &models.AdminPasskeyModel{DB: db}
+func ListAdminPasskeys(store *database.Store, adminID int64) ([]*AdminPasskeySummary, error) {
+	model := &models.AdminPasskeyModel{Store: store}
 	passkeys, err := model.ListByAdminID(adminID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
@@ -55,13 +55,13 @@ func ListAdminPasskeys(db *sql.DB, adminID int64) ([]*AdminPasskeySummary, error
 }
 
 // DeleteAdminPasskey removes one of the authenticated admin's passkeys.
-func DeleteAdminPasskey(db *sql.DB, adminID, passkeyID int64) error {
-	model := &models.AdminPasskeyModel{DB: db}
+func DeleteAdminPasskey(store *database.Store, adminID, passkeyID int64) error {
+	model := &models.AdminPasskeyModel{Store: store}
 	return model.DeleteByID(adminID, passkeyID)
 }
 
-func loadWebAuthnAdminUser(db *sql.DB, admin *models.Admin) (*adminPasskeyUser, error) {
-	model := &models.AdminPasskeyModel{DB: db}
+func loadWebAuthnAdminUser(store *database.Store, admin *models.Admin) (*adminPasskeyUser, error) {
+	model := &models.AdminPasskeyModel{Store: store}
 	credentials, err := model.ListCredentialsByAdminID(admin.ID)
 	if err != nil {
 		return nil, err
@@ -105,11 +105,13 @@ type AdminPasskeyRegistrationOptionsResult struct {
 // ceremony state goes through the same `passkeyCeremonyCache` as the user
 // side — entries carry the kind (`registration`) plus a separate user-handle
 // prefix (`adm:`) so the two sides cannot be confused at verify time.
-func BeginAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env PasskeyEnvelope, name, password string) (*AdminPasskeyRegistrationOptionsResult, error) {
+func BeginAdminPasskeyRegistrationToken(store *database.Store, admin *models.Admin, env PasskeyEnvelope, name, password string) (*AdminPasskeyRegistrationOptionsResult, error) {
 	name = strings.TrimSpace(name)
-	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
 		return nil, ErrPasskeyNamePasswordRequired
+	}
+	if passwordHasSurroundingWhitespace(password) {
+		return nil, ErrPasskeyInvalidPassword
 	}
 
 	valid, err := models.VerifyPassword(password, admin.PasswordHash)
@@ -117,7 +119,7 @@ func BeginAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pas
 		return nil, ErrPasskeyInvalidPassword
 	}
 
-	waUser, err := loadWebAuthnAdminUser(db, admin)
+	waUser, err := loadWebAuthnAdminUser(store, admin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
 	}
@@ -171,7 +173,7 @@ type AdminPasskeyRegistrationFinalizeResult struct {
 }
 
 // FinishAdminPasskeyRegistrationToken completes the registration ceremony.
-func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env PasskeyEnvelope, ceremonyToken string, body []byte) (*AdminPasskeyRegistrationFinalizeResult, error) {
+func FinishAdminPasskeyRegistrationToken(store *database.Store, admin *models.Admin, env PasskeyEnvelope, ceremonyToken string, body []byte) (*AdminPasskeyRegistrationFinalizeResult, error) {
 	state, err := loadPasskeyCeremonyByToken(ceremonyToken)
 	if err != nil {
 		return nil, err
@@ -180,7 +182,7 @@ func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pa
 		return nil, ErrPasskeyInvalidRegistrationSession
 	}
 
-	waUser, err := loadWebAuthnAdminUser(db, admin)
+	waUser, err := loadWebAuthnAdminUser(store, admin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
 	}
@@ -195,7 +197,7 @@ func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pa
 		return nil, err
 	}
 
-	passkeyModel := &models.AdminPasskeyModel{DB: db}
+	passkeyModel := &models.AdminPasskeyModel{Store: store}
 	passkey, err := passkeyModel.CreateAdminPasskey(admin.ID, state.Name, credential)
 	if err != nil {
 		return nil, err

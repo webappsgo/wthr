@@ -60,7 +60,7 @@ func openAuthTestUsersDB(t *testing.T) *sql.DB {
 func TestAuthMiddleware_RequiredRejectsUnauthenticatedJSON(t *testing.T) {
 	usersDB := openAuthTestUsersDB(t)
 
-	handler := RequireAuth(usersDB)(okHandler)
+	handler := RequireAuth(storeForDB(usersDB))(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
@@ -77,7 +77,7 @@ func TestAuthMiddleware_RequiredRejectsUnauthenticatedJSON(t *testing.T) {
 func TestAuthMiddleware_RequiredRedirectsBrowser(t *testing.T) {
 	usersDB := openAuthTestUsersDB(t)
 
-	handler := RequireAuth(usersDB)(okHandler)
+	handler := RequireAuth(storeForDB(usersDB))(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
@@ -104,7 +104,7 @@ func TestAuthMiddleware_OptionalAllowsUnauthenticated(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	handler := OptionalAuth(usersDB)(next)
+	handler := OptionalAuth(storeForDB(usersDB))(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -122,13 +122,13 @@ func TestAuthMiddleware_OptionalAllowsUnauthenticated(t *testing.T) {
 func TestAuthMiddleware_ValidSessionCookieAuthenticates(t *testing.T) {
 	usersDB := openAuthTestUsersDB(t)
 
-	userModel := &models.UserModel{DB: usersDB}
+	userModel := &models.UserModel{Store: storeForDB(usersDB)}
 	user, err := userModel.CreateUserAccount("alice", "alice@example.com", "correct horse battery staple")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
-	sessionModel := &models.SessionModel{DB: usersDB}
+	sessionModel := &models.SessionModel{Store: storeForDB(usersDB)}
 	session, err := sessionModel.CreateSession(user.ID, 3600)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
@@ -147,7 +147,7 @@ func TestAuthMiddleware_ValidSessionCookieAuthenticates(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	handler := RequireAuth(usersDB)(next)
+	handler := RequireAuth(storeForDB(usersDB))(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
@@ -165,7 +165,7 @@ func TestAuthMiddleware_ValidSessionCookieAuthenticates(t *testing.T) {
 func TestAuthMiddleware_InvalidSessionCookieRejected(t *testing.T) {
 	usersDB := openAuthTestUsersDB(t)
 
-	handler := RequireAuth(usersDB)(okHandler)
+	handler := RequireAuth(storeForDB(usersDB))(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)

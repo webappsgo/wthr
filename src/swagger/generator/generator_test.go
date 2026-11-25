@@ -208,6 +208,37 @@ func TestMarshalOpenAPIRejectsDuplicateOperationIDs(t *testing.T) {
 	}
 }
 
+func TestMarshalOpenAPIDescribesQueuedVacuumOperation(t *testing.T) {
+	data, err := marshalOpenAPI([]Route{{Method: "POST", Path: "/api/{api_version}/server/{admin_path}/database/vacuum"}})
+	if err != nil {
+		t.Fatalf("marshalOpenAPI: %v", err)
+	}
+	var document struct {
+		Paths map[string]map[string]map[string]interface{} `json:"paths"`
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatalf("decode OpenAPI document: %v", err)
+	}
+	operation := document.Paths["/api/{api_version}/server/{admin_path}/database/vacuum"]["post"]
+	if _, exists := operation["requestBody"]; exists {
+		t.Fatal("vacuum operation unexpectedly advertises a request body")
+	}
+	responses, ok := operation["responses"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("responses = %#v", operation["responses"])
+	}
+	for _, status := range []string{"202", "401", "500", "501", "503"} {
+		if _, exists := responses[status]; !exists {
+			t.Errorf("vacuum operation is missing response %s", status)
+		}
+	}
+	for _, status := range []string{"200", "400"} {
+		if _, exists := responses[status]; exists {
+			t.Errorf("vacuum operation unexpectedly advertises response %s", status)
+		}
+	}
+}
+
 func writeGeneratorSource(t *testing.T, root, source string) {
 	t.Helper()
 	mainDir := filepath.Join(root, "src")

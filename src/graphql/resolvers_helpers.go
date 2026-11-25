@@ -343,13 +343,13 @@ func mapGraphQLServerInviteValidation(response *handler.ServerInviteValidationRe
 		ExpiresAt: response.ExpiresAt,
 	}
 }
-func loadGraphQLCurrentUserAuth(ctx context.Context, db *sql.DB) (*models.User, error) {
+func loadGraphQLCurrentUserAuth(ctx context.Context, db *database.Store) (*models.User, error) {
 	userID := getUserIDFromContext(ctx)
 	if userID == 0 {
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &models.UserModel{Store: db}
 	user, err := userModel.GetByID(int64(userID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load current user: %w", err)
@@ -376,13 +376,13 @@ func getGraphQLCurrentAdminID(ctx context.Context) (int64, error) {
 
 	return 0, fmt.Errorf("unauthorized: admin session required")
 }
-func loadGraphQLCurrentAdmin(ctx context.Context, db *sql.DB) (*models.Admin, error) {
+func loadGraphQLCurrentAdmin(ctx context.Context, db *database.Store) (*models.Admin, error) {
 	adminID, err := getGraphQLCurrentAdminID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	adminModel := &models.AdminModel{DB: db}
+	adminModel := &models.AdminModel{Store: db}
 	admin, err := adminModel.GetByID(adminID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load admin: %w", err)
@@ -390,7 +390,7 @@ func loadGraphQLCurrentAdmin(ctx context.Context, db *sql.DB) (*models.Admin, er
 
 	return admin, nil
 }
-func loadGraphQLOnlineAdminUsernames(ctx context.Context, sessionDB, accountsDB *sql.DB) ([]string, error) {
+func loadGraphQLOnlineAdminUsernames(ctx context.Context, sessionDB, accountsDB *database.Store) ([]string, error) {
 	// The unexpired test is not done in SQL: "expires_at > CURRENT_TIMESTAMP" is a
 	// lexicographic TEXT comparison over a column holding two layouts (canonical
 	// UTC text and the local-zone time.Time.String() form older builds wrote), so
@@ -501,7 +501,7 @@ func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, err
 
 	return &task, nil
 }
-func loadGraphQLNotificationChannel(ctx context.Context, db *sql.DB, channelType string) (*NotificationChannel, error) {
+func loadGraphQLNotificationChannel(ctx context.Context, db *database.Store, channelType string) (*NotificationChannel, error) {
 	return scanGraphQLNotificationChannel(database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
 		"SELECT channel_type, enabled, config FROM server_notification_channels WHERE channel_type = ?",
 		channelType,
@@ -527,7 +527,7 @@ func scanGraphQLNotificationChannel(scan func(dest ...any) error) (*Notification
 
 	return &channel, nil
 }
-func loadGraphQLSetting(ctx context.Context, db *sql.DB, key string) (*models.Setting, error) {
+func loadGraphQLSetting(ctx context.Context, db *database.Store, key string) (*models.Setting, error) {
 	return (&models.SettingsModel{}).GetSetting(key)
 }
 func scanGraphQLSetting(scan func(dest ...any) error) (*models.Setting, error) {
@@ -585,7 +585,7 @@ func mapSchedulerTaskHistory(run scheduler.TaskRun) *TaskHistory {
 // would silently exclude their rows from today's counts.
 const graphQLAuditLogSkewWindow = 15 * time.Hour
 
-func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestStats, error) {
+func loadGraphQLRequestStats(ctx context.Context, serverDB *database.Store) (*RequestStats, error) {
 	now := time.Now().UTC()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	lastMinuteStart := now.Add(-time.Minute)
@@ -656,7 +656,7 @@ func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestSta
 		Errors:    &errorsToday,
 	}, nil
 }
-func loadGraphQLDatabaseStats(ctx context.Context, serverDB, usersDB *sql.DB) (*DatabaseStats, error) {
+func loadGraphQLDatabaseStats(ctx context.Context, serverDB, usersDB *database.Store) (*DatabaseStats, error) {
 	serverSize, serverTables, err := loadGraphQLSQLiteStats(ctx, serverDB)
 	if err != nil {
 		return nil, err
@@ -686,15 +686,15 @@ func loadGraphQLDatabaseStats(ctx context.Context, serverDB, usersDB *sql.DB) (*
 		Connections: &connections,
 	}, nil
 }
-func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, error) {
+func loadGraphQLSQLiteStats(ctx context.Context, db *database.Store) (float64, int, error) {
 	if db == nil {
 		return 0, 0, nil
 	}
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		var size float64
 		var tables int
 		var query string
-		if database.RemoteDatabaseDialect(db) == "mysql" || database.RemoteDatabaseDialect(db) == "mariadb" {
+		if db.Dialect() == "mysql" || db.Dialect() == "mariadb" {
 			query = `SELECT COALESCE(SUM(data_length + index_length), 0), COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()`
 		} else {
 			query = `SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))), 0), COUNT(*) FROM pg_tables WHERE schemaname = current_schema()`

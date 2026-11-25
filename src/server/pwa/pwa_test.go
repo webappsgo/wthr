@@ -88,4 +88,10 @@ func TestServiceWorkerFollowsLifecycleRules(t *testing.T) {
 	if !strings.Contains(body, "type === 'SKIP_WAITING'") {
 		t.Error("the worker must still honor SKIP_WAITING from the update prompt")
 	}
+	if strings.Contains(body, "'/offline.html'") {
+		t.Error("the worker must synthesize its offline document instead of precaching a static page")
+	}
+	if !strings.Contains(body, "async function offlineFallbackResponse()") || !strings.Contains(body, "offline-strings.json") {
+		t.Error("the offline document must be synthesized from the translated strings stored by the page")
+	}
 }

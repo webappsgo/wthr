@@ -107,7 +107,7 @@ func testCredential(id byte) *webauthn.Credential {
 func TestUserPasskeyModel_CreateListCountDelete(t *testing.T) {
 	db := newModelUsersDB(t)
 	userID := insertTestUser(t, db, "pk-user", "pk-user@example.com")
-	model := &UserPasskeyModel{DB: db}
+	model := &UserPasskeyModel{testDB: db}
 
 	t.Run("empty before creation", func(t *testing.T) {
 		has, err := model.HasPasskeys(userID)
@@ -238,14 +238,14 @@ func TestUserPasskeyModel_CreateListCountDelete(t *testing.T) {
 // injected DB field but falls back to the global accessor when nil.
 func TestUserPasskeyModel_GetDB_FallsBackToGlobal(t *testing.T) {
 	db := newModelUsersDB(t)
-	model := &UserPasskeyModel{DB: db}
-	if model.getDB() != db {
+	model := &UserPasskeyModel{testDB: db}
+	if model.getDB().DB() != db {
 		t.Error("getDB() should return the injected DB")
 	}
 
 	setModelGlobalDualDB(t, nil, db)
 	fallback := &UserPasskeyModel{}
-	if fallback.getDB() != db {
-		t.Error("getDB() should fall back to database.GetUsersDB() when DB field is nil")
+	if fallback.getDB().DB() != db {
+		t.Error("getDB() should fall back to database.GetUsersStore() when DB field is nil")
 	}
 }

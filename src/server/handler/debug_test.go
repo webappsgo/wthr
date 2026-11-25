@@ -13,11 +13,11 @@ func TestNewDebugHandlers(t *testing.T) {
 	db := newTestServerDB(t)
 	router := chi.NewRouter()
 
-	h := NewDebugHandlers(db, router)
+	h := NewDebugHandlers(storeForDB(db), router)
 	if h == nil {
 		t.Fatal("NewDebugHandlers returned nil")
 	}
-	if h.db != db {
+	if h.db.DB() != db {
 		t.Error("db not set correctly")
 	}
 	if h.router != router {
@@ -30,7 +30,7 @@ func TestDebugHandlers_ListRoutes(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/example", func(w http.ResponseWriter, r *http.Request) {})
 
-	h := NewDebugHandlers(db, router)
+	h := NewDebugHandlers(storeForDB(db), router)
 
 	r := httptest.NewRequest(http.MethodGet, "/debug/routes", nil)
 	w := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func TestDebugHandlers_ListRoutes(t *testing.T) {
 func TestDebugHandlers_ShowMemory(t *testing.T) {
 	db := newTestServerDB(t)
 	router := chi.NewRouter()
-	h := NewDebugHandlers(db, router)
+	h := NewDebugHandlers(storeForDB(db), router)
 
 	r := httptest.NewRequest(http.MethodGet, "/debug/memory", nil)
 	w := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestDebugHandlers_ShowMemory(t *testing.T) {
 func TestDebugHandlers_TriggerGC(t *testing.T) {
 	db := newTestServerDB(t)
 	router := chi.NewRouter()
-	h := NewDebugHandlers(db, router)
+	h := NewDebugHandlers(storeForDB(db), router)
 
 	r := httptest.NewRequest(http.MethodPost, "/debug/gc", nil)
 	w := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestDebugHandlers_TriggerGC(t *testing.T) {
 func TestDebugHandlers_ReloadConfig(t *testing.T) {
 	db := newTestServerDB(t)
 	router := chi.NewRouter()
-	h := NewDebugHandlers(db, router)
+	h := NewDebugHandlers(storeForDB(db), router)
 
 	r := httptest.NewRequest(http.MethodPost, "/debug/reload", nil)
 	w := httptest.NewRecorder()

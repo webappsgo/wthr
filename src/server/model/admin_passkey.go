@@ -33,7 +33,8 @@ type AdminPasskey struct {
 }
 
 type AdminPasskeyModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -44,12 +45,15 @@ type AdminPasskeyModel struct {
 // before the global dual DB is wired) the process-global server handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *AdminPasskeyModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *AdminPasskeyModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 func (m *AdminPasskeyModel) scanPasskey(rowScanner interface {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,43 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/server/middleware"
 )
+
+func TestRegisterAPIRootUsesVersionedCanonicalPath(t *testing.T) {
+	t.Setenv("DOMAIN", "example.com")
+	r := chi.NewRouter()
+	api := chi.NewRouter()
+	registerAPIRoot(api, "v1", "/api/v1", "/api/v1/server/administration")
+	r.Mount("/api/v1", api)
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/", nil)
+	request.Host = "example.com"
+	request.Header.Set("Accept", "application/json")
+	r.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/ status = %d, want %d", response.Code, http.StatusOK)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("GET /api/v1/ body is not JSON: %v", err)
+	}
+	if body["version"] != "v1" {
+		t.Fatalf("API root version = %v, want v1", body["version"])
+	}
+	if body["documentation"] != "http://example.com/docs" {
+		t.Fatalf("API root documentation URL = %v", body["documentation"])
+	}
+	endpoints, ok := body["endpoints"].([]interface{})
+	if !ok || len(endpoints) == 0 || endpoints[0] != "http://example.com/api/v1/users" {
+		t.Fatalf("API root endpoints = %v", body["endpoints"])
+	}
+
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api", nil))
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("GET /api status = %d, want %d for an undocumented unversioned route", response.Code, http.StatusNotFound)
+	}
+}
 
 // routeMethodPaths collects the "METHOD PATH" pairs currently registered on
 // the router so route assertions do not depend on registration order.

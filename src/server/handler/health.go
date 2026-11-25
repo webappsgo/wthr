@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/i18n"
@@ -336,7 +337,7 @@ type publicHealthResponse struct {
 // @Success 200 {object} map[string]interface{} "Service healthy"
 // @Failure 503 {object} map[string]interface{} "Service unhealthy"
 // @Router /server/healthz [get]
-func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+func HealthCheck(db *database.Store, startTime time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, r)
 
@@ -505,7 +506,7 @@ func checkmark(ready bool) string {
 
 // APIHealthCheck handles GET /api/{api_version}/server/healthz with the same
 // payload as /server/healthz.
-func APIHealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+func APIHealthCheck(db *database.Store, startTime time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, r)
 
@@ -535,7 +536,7 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Request) (int, publicHealthResponse) {
+func buildPublicHealthResponse(db *database.Store, startTime time.Time, r *http.Request) (int, publicHealthResponse) {
 	cfg := config.GetGlobalConfig()
 	brandingTitle := "wthr"
 	brandingTagline := ""
@@ -569,9 +570,8 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		buildCommit = "unknown"
 	}
 
-	dbStatus, _, dbErr := db.HealthCheck()
 	dbCheck := "ok"
-	if dbErr != nil || dbStatus != "connected" {
+	if err := probeHealthDatabase(db); err != nil {
 		dbCheck = "error"
 	}
 
@@ -662,6 +662,17 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 	return statusCode, response
 }
 
+func probeHealthDatabase(db *database.Store) error {
+	if db == nil {
+		return fmt.Errorf("database is unavailable")
+	}
+	if db.IsSQLite() {
+		return db.Probe(context.Background())
+	}
+	_, _, err := db.HealthCheck()
+	return err
+}
+
 func getPublicDiskCheck() string {
 	dataUsage := getDiskUsage(getDataDir())
 	logUsage := getDiskUsage(getLogDir())
@@ -689,7 +700,7 @@ func getPublicSchedulerCheck() string {
 	return "error"
 }
 
-func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster {
+func getPublicClusterInfo(db *database.Store, r *http.Request) publicHealthCluster {
 	cluster := publicHealthCluster{
 		Enabled: false,
 		Primary: "",
@@ -708,7 +719,7 @@ func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster 
 	cluster.Role = "member"
 
 	var nodeCount int
-	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_nodes WHERE status IN ('online', 'active')").Scan(&nodeCount); err != nil || nodeCount < 1 {
+	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_nodes WHERE status IN ('online', 'active')").Scan(&nodeCount); err != nil || nodeCount < 1 {
 		nodeCount = 1
 	}
 	cluster.NodeCount = nodeCount
@@ -721,11 +732,11 @@ func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster 
 	return cluster
 }
 
-func getPublicGeoIPStatus(db *database.DB) bool {
+func getPublicGeoIPStatus(db *database.Store) bool {
 	if db == nil {
 		return false
 	}
-	settingsModel := &models.SettingsModel{DB: db.DB}
+	settingsModel := &models.SettingsModel{Store: db}
 	return settingsModel.GetBool("geoip.enabled", true)
 }
 
@@ -769,10 +780,10 @@ func getPublicI2PStatus(_ *config.AppConfig) (publicHealthI2P, string) {
 	return publicHealthI2P{Enabled: enabled, Running: running, Status: status, Hostname: address, Provider: provider}, check
 }
 
-func getPublicStats(db *database.DB) publicHealthStats {
+func getPublicStats(db *database.Store) publicHealthStats {
 	stats := publicHealthStats{}
 
-	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&stats.RequestsTotal)
+	_ = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log").Scan(&stats.RequestsTotal)
 	// The cutoff is computed in Go and bound as canonical UTC text rather than
 	// left to SQLite's datetime('now', '-24 hours'). Every producer of
 	// audit_log.timestamp writes dbtime.FormatSQLTimestamp output, which
@@ -781,7 +792,7 @@ func getPublicStats(db *database.DB) publicHealthStats {
 	// on a SQLite-only function this project's other supported drivers
 	// (PostgreSQL, MySQL) spell differently.
 	cutoff := dbtime.FormatSQLTimestamp(time.Now().Add(-24 * time.Hour))
-	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ?", cutoff).Scan(&stats.Requests24H)
+	_ = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ?", cutoff).Scan(&stats.Requests24H)
 
 	sessionCount, err := db.GetSessionCount()
 	if err == nil {
@@ -791,11 +802,11 @@ func getPublicStats(db *database.DB) publicHealthStats {
 	return stats
 }
 
-func getMaintenanceMode(db *database.DB) bool {
+func getMaintenanceMode(db *database.Store) bool {
 	if db == nil {
 		return false
 	}
-	settingsModel := &models.SettingsModel{DB: db.DB}
+	settingsModel := &models.SettingsModel{Store: db}
 	return settingsModel.GetBool("maintenance.mode", false)
 }
 

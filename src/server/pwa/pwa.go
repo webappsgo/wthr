@@ -1,4 +1,4 @@
-// Package pwa serves the service worker, web app manifest and offline page
+// Package pwa serves the service worker and web app manifest
 // (AI.md PART 16 PWA Support).
 package pwa
 
@@ -15,9 +15,6 @@ var serviceWorkerSource string
 
 //go:embed manifest.json
 var manifestSource []byte
-
-//go:embed offline.html
-var offlineSource []byte
 
 const appName = "wthr"
 
@@ -55,14 +52,6 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = w.Write(manifestSource)
-}
-
-// Offline serves /offline.html, the precached offline page.
-func Offline(w http.ResponseWriter, r *http.Request) {
-	if revalidate(w, r, "text/html; charset=utf-8") {
-		return
-	}
-	_, _ = w.Write(offlineSource)
 }
 
 // StaticCache wraps the static file server: a request whose ?v= equals the

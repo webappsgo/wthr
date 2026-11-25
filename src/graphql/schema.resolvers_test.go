@@ -451,7 +451,7 @@ const graphqlLocalLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
 // and cover the fail-closed case, so this test fails against the old query.
 func TestQueryResolver_AdminStats_ActiveUsersCountedByInstant(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 	now := time.Now()
 
 	fixtures := []struct {
@@ -541,7 +541,7 @@ func assertGraphQLOrder(t *testing.T, query string, got, want []string) {
 func TestQueryResolver_UserTokens_OrderedByInstant(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	user := seedGraphQLUser(t, ddb, "tokenorder", "tokenorder@example.com", "correctpass1")
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for i, fixture := range fixtures {
@@ -571,7 +571,7 @@ func TestQueryResolver_UserTokens_OrderedByInstant(t *testing.T) {
 func TestQueryResolver_SavedLocations_OrderedByInstant(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	user := seedGraphQLUser(t, ddb, "locationorder", "locationorder@example.com", "correctpass1")
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for _, fixture := range fixtures {
@@ -597,7 +597,7 @@ func TestQueryResolver_SavedLocations_OrderedByInstant(t *testing.T) {
 
 func TestQueryResolver_AdminUsers_OrderedByInstant(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for _, fixture := range fixtures {
@@ -626,7 +626,7 @@ func TestQueryResolver_AdminUsers_OrderedByInstant(t *testing.T) {
 // under the old text ordering was the entry sorted last of the three.
 func TestQueryResolver_AdminAuditLogs_OrderedByInstantAndPaged(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for i, fixture := range fixtures {
@@ -690,7 +690,7 @@ func TestQueryResolver_AdminAuditLogs_OrderedByInstantAndPaged(t *testing.T) {
 func TestQueryResolver_Notifications_NewestByInstantSurvivesLimit(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	user := seedGraphQLUser(t, ddb, "notiforder", "notiforder@example.com", "correctpass1")
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	now := time.Now().UTC().Truncate(time.Second)
 	insertNotification := func(id, timestamp string) {
@@ -745,7 +745,7 @@ func TestQueryResolver_Notifications_NewestByInstantSurvivesLimit(t *testing.T) 
 func TestQueryResolver_Notifications_UnparseableTimestampIsListedLast(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	user := seedGraphQLUser(t, ddb, "notifbroken", "notifbroken@example.com", "correctpass1")
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	q := &queryResolver{&Resolver{ServerDB: ddb.GetServerStore(), UsersDB: ddb.GetUsersStore()}}
 
 	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
 	for _, fixture := range fixtures {

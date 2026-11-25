@@ -14,14 +14,14 @@ import (
 )
 
 // AdminServerStatus handles admin API server status/health requests with JSON-only output.
-func AdminServerStatus(db *database.DB, httpPort string, httpsPort int, sslManager interface{}) http.HandlerFunc {
+func AdminServerStatus(db *database.Store, httpPort string, httpsPort int, sslManager interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		httpStatus, response := buildAdminServerStatusResponse(db, r, httpPort, httpsPort, sslManager)
 		writeJSON(w, httpStatus, response)
 	}
 }
 
-func buildAdminServerStatusResponse(db *database.DB, r *http.Request, httpPort string, httpsPort int, sslManager interface{}) (int, map[string]interface{}) {
+func buildAdminServerStatusResponse(db *database.Store, r *http.Request, httpPort string, httpsPort int, sslManager interface{}) (int, map[string]interface{}) {
 	status := GetInitStatus()
 	startTime := status.Started
 	version := readVersion()
@@ -79,8 +79,8 @@ func buildAdminServerStatusResponse(db *database.DB, r *http.Request, httpPort s
 	requestStats := getRequestStats()
 	serverInfo := getServerInfo(r, httpPort, httpsPort, sslManager)
 	databaseType := "sqlite"
-	if database.IsRemoteDatabase(database.GetServerDB()) {
-		databaseType = database.RemoteDatabaseDialect(database.GetServerDB())
+	if store := database.GetServerStore(); store != nil && !store.IsSQLite() {
+		databaseType = store.Dialect()
 	}
 
 	response := map[string]interface{}{
@@ -225,7 +225,7 @@ func getSSLStatus(sslManager interface{}) map[string]interface{} {
 }
 
 func getSchedulerStatus() map[string]interface{} {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return map[string]interface{}{
 			"status":        "unknown",
@@ -286,7 +286,7 @@ func getSchedulerStatus() map[string]interface{} {
 }
 
 func getRequestStats() map[string]interface{} {
-	db := database.GetServerDB()
+	db := database.GetServerStore()
 	if db == nil {
 		return map[string]interface{}{
 			"total_today":     0,

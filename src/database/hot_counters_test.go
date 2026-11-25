@@ -21,10 +21,11 @@ func TestFlushHotCounterUpdatesCoalescesWithinTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := QueueHotCounterUpdate(db, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "first", "session-1"); err != nil {
+	store := NewStore(db)
+	if err := QueueHotCounterUpdate(store, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "first", "session-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := QueueHotCounterUpdate(db, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "latest", "session-1"); err != nil {
+	if err := QueueHotCounterUpdate(store, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "latest", "session-1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := FlushHotCounterUpdates(context.Background()); err != nil {
@@ -44,7 +45,7 @@ func TestFlushHotCounterUpdatesCoalescesWithinTransaction(t *testing.T) {
 	if _, err := db.Exec(`CREATE TRIGGER reject_activity_update BEFORE UPDATE ON activity BEGIN SELECT RAISE(ABORT, 'forced update failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := QueueHotCounterUpdate(db, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "retry", "session-1"); err != nil {
+	if err := QueueHotCounterUpdate(store, "session-1", `UPDATE activity SET last_used = ? WHERE id = ?`, "retry", "session-1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := FlushHotCounterUpdates(context.Background()); err == nil {
@@ -65,7 +66,7 @@ func TestQueueHotCounterUpdateRejectsInvalidInput(t *testing.T) {
 	if err := QueueHotCounterUpdate(nil, "row", "UPDATE activity SET last_used = ?", "now"); err == nil {
 		t.Fatal("QueueHotCounterUpdate accepted a nil database")
 	}
-	if err := QueueHotCounterUpdate(&sql.DB{}, "", "UPDATE activity SET last_used = ?", "now"); err == nil {
+	if err := QueueHotCounterUpdate(NewStore(&sql.DB{}), "", "UPDATE activity SET last_used = ?", "now"); err == nil {
 		t.Fatal("QueueHotCounterUpdate accepted an empty key")
 	}
 }

@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"net/http"
 	"strings"
 	"time"
@@ -19,7 +18,7 @@ const gpcOptOutContextKey = "gpc_opt_out"
 
 // GlobalPrivacyControl records and exposes the browser's privacy opt-out for
 // the full request lifecycle.
-func GlobalPrivacyControl(db *sql.DB) func(http.Handler) http.Handler {
+func GlobalPrivacyControl(store *database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Sec-GPC") != "1" {
@@ -31,12 +30,12 @@ func GlobalPrivacyControl(db *sql.DB) func(http.Handler) http.Handler {
 			request := r.Clone(ctx)
 			request.Header.Set("Cookie", cookiesWithoutOptionalPreferences(r.Cookies()))
 			next.ServeHTTP(w, request)
-			if db == nil {
+			if store == nil {
 				return
 			}
 
 			now := time.Now()
-			_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+			_, err := database.ExecContext(context.Background(), store, database.TimeoutWrite, `
 				INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), dbtime.FormatSQLTimestamp(now), "anonymous", "", "compliance.gpc_honored", "request", r.URL.Path, util.TrustedGetClientIP(r), r.UserAgent(), "web", "success")

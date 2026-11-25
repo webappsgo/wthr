@@ -47,7 +47,7 @@ func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -74,7 +74,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if setup is already done
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -273,7 +273,7 @@ func markSetupComplete() error {
 	// updated_at is bound as canonical UTC text rather than produced by SQL's
 	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
 	// MySQL and SQL Server than it does on SQLite.
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO server_setup_state (key, value, updated_at)
 		VALUES ('setup_completed', '1', ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
@@ -287,7 +287,7 @@ func markSetupComplete() error {
 // IsSetupComplete checks if the initial setup has been completed
 // Per TEMPLATE.md PART 22: Required for setup wizard flow
 func IsSetupComplete() (bool, error) {
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		return false, fmt.Errorf("failed to count admins: %w", err)

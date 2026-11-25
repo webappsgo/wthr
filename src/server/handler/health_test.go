@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/webappsgo/wthr/src/database"
 )
 
 // resetInitStatus restores package-level init state to "nothing initialized"
@@ -212,14 +210,8 @@ func TestCheckmark(t *testing.T) {
 // against a real in-memory ServerSchema database, covering both the healthy
 // and not-initialized (unhealthy/503) branches end to end.
 //
-// NOTE: buildPublicHealthResponse's getPublicGeoIPStatus/getMaintenanceMode
-// helpers build a models.SettingsModel{DB: db.DB} but SettingsModel.Get
-// (src/server/model/settings.go:35) ignores that injected DB field and
-// queries database.GetServerDB() (the package-level global) instead. So the
-// global dual-DB must be wired via setGlobalTestDualDB for these calls to
-// reach a live connection instead of nil-pointer-panicking. This mirrors how
-// the real server wires the global at startup; it is test setup, not a
-// workaround for the underlying bug (see final report).
+// The global dual-DB is wired to mirror production startup and provide the
+// separate server and users stores used by the health response.
 func TestAPIHealthCheck(t *testing.T) {
 	t.Run("healthy when initialized and db reachable", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
@@ -228,7 +220,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		SetInitStatus(true, true, true)
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
-		db := &database.DB{DB: serverDB}
+		db := storeForDB(serverDB)
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		// AI.md PART 14 API negotiation: explicit Accept: application/json
 		// wins over the non-interactive-client (empty UA) default of plain
@@ -236,7 +228,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		r.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(w, r)
+		APIHealthCheck(storeForDB(db), time.Now())(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -263,7 +255,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		resetInitStatus(t)
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
-		db := &database.DB{DB: serverDB}
+		db := storeForDB(serverDB)
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		// AI.md PART 14 API negotiation: explicit Accept: application/json
 		// wins over the non-interactive-client (empty UA) default of plain
@@ -271,7 +263,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		r.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(w, r)
+		APIHealthCheck(storeForDB(db), time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want 503; body=%s", w.Code, w.Body.String())
@@ -290,14 +282,14 @@ func TestAPIHealthCheck(t *testing.T) {
 		SetInitStatus(true, true, true)
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
-		db := &database.DB{DB: serverDB}
+		db := storeForDB(serverDB)
 		if err := db.Close(); err != nil {
 			t.Fatalf("close test database: %v", err)
 		}
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(w, r)
+		APIHealthCheck(storeForDB(db), time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("status = %d, want 503 when db is closed", w.Code)

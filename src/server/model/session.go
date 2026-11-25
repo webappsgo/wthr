@@ -49,8 +49,10 @@ func isTimestampAfter(value interface{}, threshold time.Time) bool {
 // timestampColumn holds an instant earlier than cutoff (or equal to it when
 // includeEqual is true), comparing in Go so mixed on-disk layouts and mixed
 // timezones all resolve to the same absolute instant.
-func deleteRowsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) (int64, error) {
-	return dbtime.DeleteRowsWithTimestampBefore(db, table, idColumn, timestampColumn, cutoff, includeEqual)
+func deleteRowsWithTimestampBefore(store *database.Store, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), database.TimeoutBulk)
+	defer cancel()
+	return dbtime.DeleteRowsWithTimestampBefore(ctx, store, table, idColumn, timestampColumn, cutoff, includeEqual)
 }
 
 // Session represents a user session.
@@ -67,7 +69,8 @@ type Session struct {
 
 // SessionModel handles session database operations
 type SessionModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // ShouldUpdateLastUsed reports whether a stored activity timestamp is old
@@ -85,12 +88,15 @@ func ShouldUpdateLastUsed(lastUsed *time.Time, now time.Time) bool {
 // before the global dual DB is wired) the process-global users handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *SessionModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *SessionModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GenerateSessionID creates a cryptographically secure random session token.
@@ -223,7 +229,7 @@ func (m *SessionModel) Touch(rawToken string) error {
 	db := m.getDB()
 	hash := hashToken(rawToken)
 	query := `UPDATE user_sessions SET last_used_at = ? WHERE token_hash = ?`
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), hash)
 		return err
 	}

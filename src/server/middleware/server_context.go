@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -68,17 +68,17 @@ type ServerContext struct {
 	VerifyFacebook  string
 	// Analytics tags for <head> and the <noscript> pixel for <body>; both empty
 	// unless tracking is configured, consent is given and the request is clearnet
-	TrackingHTML     template.HTML
-	TrackingNoscript template.HTML
-	HasConsentCookie bool
-	ConsentMessage   string
-	ConsentPolicyURL string
-	ConsentPolicyText string
-	ConsentDeclineText string
-	ConsentAcceptText string
+	TrackingHTML           template.HTML
+	TrackingNoscript       template.HTML
+	HasConsentCookie       bool
+	ConsentMessage         string
+	ConsentPolicyURL       string
+	ConsentPolicyText      string
+	ConsentDeclineText     string
+	ConsentAcceptText      string
 	ConsentShowPreferences bool
 	ConsentPreferencesText string
-	ConsentDataSold bool
+	ConsentDataSold        bool
 }
 
 // analyticsConsentGiven reports whether the visitor opted in to analytics. Tracking is
@@ -123,7 +123,7 @@ func resolveThemeFromRequest(r *http.Request) string {
 }
 
 // InjectServerContext adds server configuration to all requests
-func InjectServerContext(db *sql.DB, version string, buildDate ...string) func(http.Handler) http.Handler {
+func InjectServerContext(store *database.Store, version string, buildDate ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Branding and SEO are sourced from the branding area file.
@@ -200,55 +200,55 @@ func InjectServerContext(db *sql.DB, version string, buildDate ...string) func(h
 
 			// Create server context
 			serverCtx := ServerContext{
-				Title:           title,
-				Tagline:         tagline,
-				Description:     description,
-				Version:         version,
-				GitOrg:          "webappsgo",
-				GitRepo:         "wthr",
-				Lang:            lang.(string),
-				ThemeClass:      server.ThemeClass(themeMode),
-				Theme:           themeMode,
-				Keywords:        keywords,
-				Author:          author,
-				OGImage:         ogImage,
-				TwitterHandle:   twitterHandle,
-				Logo:            logo,
-				Logo200:         logo200,
-				Logo50:          logo50,
-				Favicon:         favicon,
-				Favicon16:       favicon16,
-				Favicon32:       favicon32,
-				Favicon48:       favicon48,
-				Favicon180:      favicon180,
-				Favicon192:      favicon192,
-				Favicon512:      favicon512,
-				OGImage1200:     ogImage1200,
-				TitleSeparator:  seo.TitleSeparator,
-				Canonical:       seo.Canonical,
-				Noindex:         seo.Noindex,
-				OGEnabled:       seo.OpenGraph.Enabled,
-				OGType:          seo.OpenGraph.Type,
-				OGSiteName:      seo.OpenGraph.SiteName,
-				TwitterEnabled:  seo.Twitter.Enabled,
-				TwitterCard:     seo.Twitter.Card,
-				TwitterCreator:  seo.Twitter.Creator,
-				MetaTags:        seo.MetaTags,
-				VerifyGoogle:    verifyGoogle,
-				VerifyBing:      verifyBing,
-				VerifyYandex:    verifyYandex,
-				VerifyBaidu:     verifyBaidu,
-				VerifyPinterest: verifyPinterest,
-				VerifyFacebook:  verifyFacebook,
-				HasConsentCookie: hasConsentCookie,
-				ConsentMessage: consentMessage,
-				ConsentPolicyURL: privacy.Consent.Policy.URL,
-				ConsentPolicyText: privacy.Consent.Policy.Text,
-				ConsentDeclineText: privacy.Consent.Buttons.Decline,
-				ConsentAcceptText: privacy.Consent.Buttons.Accept,
+				Title:                  title,
+				Tagline:                tagline,
+				Description:            description,
+				Version:                version,
+				GitOrg:                 "webappsgo",
+				GitRepo:                "wthr",
+				Lang:                   lang.(string),
+				ThemeClass:             server.ThemeClass(themeMode),
+				Theme:                  themeMode,
+				Keywords:               keywords,
+				Author:                 author,
+				OGImage:                ogImage,
+				TwitterHandle:          twitterHandle,
+				Logo:                   logo,
+				Logo200:                logo200,
+				Logo50:                 logo50,
+				Favicon:                favicon,
+				Favicon16:              favicon16,
+				Favicon32:              favicon32,
+				Favicon48:              favicon48,
+				Favicon180:             favicon180,
+				Favicon192:             favicon192,
+				Favicon512:             favicon512,
+				OGImage1200:            ogImage1200,
+				TitleSeparator:         seo.TitleSeparator,
+				Canonical:              seo.Canonical,
+				Noindex:                seo.Noindex,
+				OGEnabled:              seo.OpenGraph.Enabled,
+				OGType:                 seo.OpenGraph.Type,
+				OGSiteName:             seo.OpenGraph.SiteName,
+				TwitterEnabled:         seo.Twitter.Enabled,
+				TwitterCard:            seo.Twitter.Card,
+				TwitterCreator:         seo.Twitter.Creator,
+				MetaTags:               seo.MetaTags,
+				VerifyGoogle:           verifyGoogle,
+				VerifyBing:             verifyBing,
+				VerifyYandex:           verifyYandex,
+				VerifyBaidu:            verifyBaidu,
+				VerifyPinterest:        verifyPinterest,
+				VerifyFacebook:         verifyFacebook,
+				HasConsentCookie:       hasConsentCookie,
+				ConsentMessage:         consentMessage,
+				ConsentPolicyURL:       privacy.Consent.Policy.URL,
+				ConsentPolicyText:      privacy.Consent.Policy.Text,
+				ConsentDeclineText:     privacy.Consent.Buttons.Decline,
+				ConsentAcceptText:      privacy.Consent.Buttons.Accept,
 				ConsentShowPreferences: privacy.Consent.ShowPreferences,
 				ConsentPreferencesText: privacy.Consent.PreferencesText,
-				ConsentDataSold: privacy.Data.Sold,
+				ConsentDataSold:        privacy.Data.Sold,
 			}
 
 			if cfg != nil && cfg.Server.SEO.Noindex {

@@ -308,6 +308,16 @@ func TestCreateDefaultConfig(t *testing.T) {
 	})
 }
 
+func TestInfrastructureNotificationDefaults(t *testing.T) {
+	cfg := DefaultAppConfig()
+	if got := cfg.Server.Notifications.DatabaseError; !got.Enabled || got.Failures != 3 || got.CheckInterval != "1m" || got.Repeat != "24h" {
+		t.Errorf("database error defaults = %+v", got)
+	}
+	if got := cfg.Server.Notifications.DiskLow; !got.Enabled || got.ThresholdPercent != 85 || got.CheckInterval != "5m" || got.Repeat != "24h" {
+		t.Errorf("disk low defaults = %+v", got)
+	}
+}
+
 func containsBytes(haystack, needle []byte) bool {
 	return len(needle) == 0 || (len(haystack) >= len(needle) && indexBytes(haystack, needle) >= 0)
 }

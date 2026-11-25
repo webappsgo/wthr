@@ -1,11 +1,12 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/go-chi/chi/v5"
 
@@ -16,7 +17,7 @@ import (
 )
 
 type LocationHandler struct {
-	DB               *sql.DB
+	DB               *database.Store
 	WeatherService   *service.WeatherService
 	LocationEnhancer *service.LocationEnhancer
 }
@@ -39,7 +40,7 @@ func (h *LocationHandler) ListLocations(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.locations.failed_to_fetch_locations"))
@@ -76,7 +77,7 @@ func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
 		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
@@ -138,7 +139,7 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 
 	// Check location limit per IDEA.md: Save up to 10 locations per user
 	count, err := locationModel.Count(int(user.ID))
@@ -212,7 +213,7 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -264,7 +265,7 @@ func (h *LocationHandler) DeleteLocation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -311,7 +312,7 @@ func (h *LocationHandler) ToggleAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -362,7 +363,7 @@ func (h *LocationHandler) ShowEditLocationPage(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": Translate(r, "errors.locations.location_not_found")}))

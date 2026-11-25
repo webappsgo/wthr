@@ -1,17 +1,19 @@
 package service
 
 import (
-	"database/sql"
+	"context"
+	"errors"
 	"fmt"
 	"log"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // NotificationService handles all notification operations
 type NotificationService struct {
-	UserDB   *sql.DB
-	ServerDB *sql.DB
+	UserDB   *database.Store
+	ServerDB *database.Store
 	WSHub    *WebSocketHub
 
 	// Models
@@ -21,19 +23,19 @@ type NotificationService struct {
 }
 
 // NewNotificationService creates a new notification service
-func NewNotificationService(userDB, serverDB *sql.DB, wsHub *WebSocketHub) *NotificationService {
+func NewNotificationService(userDB, serverDB *database.Store, wsHub *WebSocketHub) *NotificationService {
 	return &NotificationService{
 		UserDB:   userDB,
 		ServerDB: serverDB,
 		WSHub:    wsHub,
 		UserNotif: &model.UserNotificationModel{
-			DB: userDB,
+			Store: userDB,
 		},
 		AdminNotif: &model.AdminNotificationModel{
-			DB: userDB,
+			Store: userDB,
 		},
 		Prefs: &model.NotificationPreferencesModel{
-			UserDB: userDB,
+			UserStore: userDB,
 		},
 	}
 }
@@ -306,11 +308,47 @@ func (s *NotificationService) CleanupExpired() error {
 
 // EnforceLimits enforces the 100 notification limit for all users and admins
 func (s *NotificationService) EnforceLimits() error {
-	// This is called periodically by the scheduler
-	// The actual limit enforcement happens per-user/admin when new notifications are created
-	// This is just a safety net to catch any edge cases
+	if s == nil || s.UserNotif == nil || s.AdminNotif == nil {
+		return fmt.Errorf("notification models are unavailable")
+	}
+	if err := enforceNotificationModelLimits(s.UserNotif.Store, "user_notifications", "user_id", s.UserNotif.EnforceLimit); err != nil {
+		return fmt.Errorf("enforce user notification limits: %w", err)
+	}
+	if err := enforceNotificationModelLimits(s.AdminNotif.Store, "admin_notifications", "admin_id", s.AdminNotif.EnforceLimit); err != nil {
+		return fmt.Errorf("enforce admin notification limits: %w", err)
+	}
+	log.Println("Notification limit enforcement task completed")
+	return nil
+}
 
-	log.Println("Notification limit enforcement task completed (limits enforced per-user on creation)")
+func enforceNotificationModelLimits(store *database.Store, table, recipientColumn string, enforce func(int, int) (int64, error)) error {
+	if store == nil {
+		return fmt.Errorf("notification database is unavailable")
+	}
+	rows, err := database.QueryContext(context.Background(), store, database.TimeoutSimpleSelect,
+		"SELECT DISTINCT "+recipientColumn+" FROM "+table)
+	if err != nil {
+		return err
+	}
+	recipients := make([]int, 0)
+	for rows.Next() {
+		var recipientID int
+		if err := rows.Scan(&recipientID); err != nil {
+			return errors.Join(err, rows.Close())
+		}
+		recipients = append(recipients, recipientID)
+	}
+	if err := rows.Err(); err != nil {
+		return errors.Join(err, rows.Close())
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close notification recipient rows: %w", err)
+	}
+	for _, recipientID := range recipients {
+		if _, err := enforce(recipientID, 100); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -20,7 +20,7 @@ func newAdminSettingsTestHandler(t *testing.T) (*AdminSettingsHandler, *sql.DB) 
 	serverDB := newTestServerDB(t)
 	usersDB := newTestUsersDB(t)
 	setGlobalTestDualDB(t, serverDB, usersDB)
-	return &AdminSettingsHandler{DB: serverDB}, serverDB
+	return &AdminSettingsHandler{DB: storeForDB(serverDB)}, serverDB
 }
 
 func TestAdminSettingsHandler_GetAllSettings(t *testing.T) {

@@ -20,11 +20,11 @@ import (
 )
 
 // NotificationHandler serves the user notification center. DB must be the
-// users database handle (database.GetUsersDB() / DualDB.Users): the
+// users database handle (database.GetUsersStore() / DualDB.Users): the
 // user_notifications table this handler reads lives in database.UsersSchema,
 // not database.ServerSchema.
 type NotificationHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // defaultNotificationPageSize is the page size used when the request omits
@@ -353,7 +353,7 @@ func (h *NotificationHandler) CreateNotification(userID int, notifType, title, m
 		action = &model.NotificationAction{Label: title, URL: link}
 	}
 
-	notificationModel := &model.UserNotificationModel{DB: h.DB}
+	notificationModel := &model.UserNotificationModel{Store: h.DB}
 	_, err := notificationModel.CreateUserNotification(userID, model.NotificationType(notifType),
 		model.NotificationDisplayToast, title, message, action)
 

@@ -18,8 +18,8 @@ import (
 func securityOverview(r *http.Request, cfg *config.AppConfig) map[string]interface{} {
 	var contacts []map[string]string
 	settings := &model.SettingsModel{}
-	if db := database.GetServerDB(); db != nil {
-		settings = &model.SettingsModel{DB: db}
+	if db := database.GetServerStore(); db != nil {
+		settings = &model.SettingsModel{Store: db}
 		if report := settings.GetString("web.security.report_url", ""); report != "" {
 			contacts = append(contacts, map[string]string{"type": "report", "url": report})
 		}
@@ -34,7 +34,7 @@ func securityOverview(r *http.Request, cfg *config.AppConfig) map[string]interfa
 	}
 	expires := ""
 	pgp := map[string]interface{}{"available": false, "url": "", "fingerprint": ""}
-	if db := database.GetServerDB(); db != nil {
+	if db := database.GetServerStore(); db != nil {
 		expires = settings.GetString("security.expires", "")
 		manager := service.NewPGPKeyManager(db, securityKeyDir())
 		if manager.Exists() {
@@ -55,8 +55,8 @@ func securityOverview(r *http.Request, cfg *config.AppConfig) map[string]interfa
 
 // securityPolicyText returns the operator-edited disclosure policy (Markdown), or "" for the default.
 func securityPolicyText() string {
-	if db := database.GetServerDB(); db != nil {
-		return (&model.SettingsModel{DB: db}).GetString("security.policy_text", "")
+	if db := database.GetServerStore(); db != nil {
+		return (&model.SettingsModel{Store: db}).GetString("security.policy_text", "")
 	}
 	return ""
 }

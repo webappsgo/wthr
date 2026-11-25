@@ -15,7 +15,7 @@ func SaveEmailForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, adminPagePath(r, "/email"), "flash.settings_saved", "flash.settings_save_failed", err)
 		return
 	}
-	s := &model.SettingsModel{DB: database.GetServerDB()}
+	s := &model.SettingsModel{Store: database.GetServerStore()}
 	values := map[string]string{"smtp.host": r.FormValue("smtp.host"), "smtp.port": r.FormValue("smtp.port"), "smtp.username": r.FormValue("smtp.username"), "smtp.tls": r.FormValue("smtp.tls"), "from.email": r.FormValue("smtp.from_address"), "from.name": r.FormValue("smtp.from_name"), "smtp.enabled": strconv.FormatBool(r.FormValue("smtp.enabled") != "")}
 	port, portErr := strconv.Atoi(values["smtp.port"])
 	if portErr != nil || port < 1 || port > 65535 {
@@ -44,7 +44,7 @@ func SaveDatabaseForm(w http.ResponseWriter, r *http.Request) {
 		redirectAdminForm(w, r, adminPagePath(r, "/database"), "flash.settings_saved", "flash.settings_save_failed", err)
 		return
 	}
-	s := &model.SettingsModel{DB: database.GetServerDB()}
+	s := &model.SettingsModel{Store: database.GetServerStore()}
 	values := map[string]string{}
 	for _, key := range []string{"driver", "host", "port", "name", "username", "sslmode", "pool_size", "timeout"} {
 		if v := r.FormValue("database." + key); v != "" {

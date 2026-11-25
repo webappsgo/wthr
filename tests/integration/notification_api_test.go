@@ -44,14 +44,16 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 	// Create WebSocket hub and notification service
 	wsHub := service.NewWebSocketHub()
 	go wsHub.RunWebSocketHub()
+	userStore := database.NewStore(userDB)
+	serverStore := database.NewStore(serverDB)
 
 	notificationService := &service.NotificationService{
-		UserDB:     userDB,
-		ServerDB:   serverDB,
+		UserDB:     userStore,
+		ServerDB:   serverStore,
 		WSHub:      wsHub,
-		UserNotif:  &models.UserNotificationModel{DB: userDB},
-		AdminNotif: &models.AdminNotificationModel{DB: userDB},
-		Prefs:      &models.NotificationPreferencesModel{UserDB: userDB},
+		UserNotif:  &models.UserNotificationModel{Store: userStore},
+		AdminNotif: &models.AdminNotificationModel{Store: userStore},
+		Prefs:      &models.NotificationPreferencesModel{UserStore: userStore},
 	}
 
 	// Create handlers

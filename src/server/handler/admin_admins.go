@@ -2,11 +2,11 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"strconv"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,16 +20,16 @@ import (
 // AdminsHandler handles admin account management
 // TEMPLATE.md Part 31: Multiple admin accounts support
 type AdminsHandler struct {
-	DB            *sql.DB
+	DB            *database.Store
 	AdminModel    *model.AdminModel
 	InviteService *service.AdminInviteService
 }
 
 // NewAdminsHandler creates a new admins handler
-func NewAdminsHandler(db *sql.DB, inviteService *service.AdminInviteService) *AdminsHandler {
+func NewAdminsHandler(db *database.Store, inviteService *service.AdminInviteService) *AdminsHandler {
 	return &AdminsHandler{
 		DB:            db,
-		AdminModel:    &model.AdminModel{DB: db},
+		AdminModel:    &model.AdminModel{Store: db},
 		InviteService: inviteService,
 	}
 }
@@ -297,6 +297,10 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	// Verify current password
 	if request.CurrentPassword != "" {
+		if passwordHasSurroundingWhitespace(request.CurrentPassword) {
+			Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
+			return
+		}
 		var currentHash string
 		err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT password_hash FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
 		if err != nil {

@@ -62,12 +62,12 @@ func setupNotificationService(t *testing.T) (*NotificationService, *sql.DB, *sql
 	wsHub := NewWebSocketHub()
 
 	service := &NotificationService{
-		UserDB:     userDB,
-		ServerDB:   serverDB,
+		UserDB:     serviceStoreForDB(userDB),
+		ServerDB:   serviceStoreForDB(serverDB),
 		WSHub:      wsHub,
-		UserNotif:  &model.UserNotificationModel{DB: userDB},
-		AdminNotif: &model.AdminNotificationModel{DB: userDB},
-		Prefs:      &model.NotificationPreferencesModel{UserDB: userDB},
+		UserNotif:  &model.UserNotificationModel{Store: serviceStoreForDB(userDB)},
+		AdminNotif: &model.AdminNotificationModel{Store: serviceStoreForDB(userDB)},
+		Prefs:      &model.NotificationPreferencesModel{UserStore: serviceStoreForDB(userDB)},
 	}
 
 	return service, userDB, serverDB
@@ -496,21 +496,22 @@ func TestNewNotificationService(t *testing.T) {
 	defer closeNotificationTestDBs(t, userDB, serverDB)
 
 	wsHub := NewWebSocketHub()
-	service := NewNotificationService(userDB, serverDB, wsHub)
+	userStore, serverStore := serviceStoreForDB(userDB), serviceStoreForDB(serverDB)
+	service := NewNotificationService(userStore, serverStore, wsHub)
 
 	if service == nil {
 		t.Fatal("NewNotificationService() returned nil")
 	}
-	if service.UserDB != userDB || service.ServerDB != serverDB || service.WSHub != wsHub {
+	if service.UserDB != userStore || service.ServerDB != serverStore || service.WSHub != wsHub {
 		t.Error("NewNotificationService() did not wire the given DB/hub fields through")
 	}
-	if service.UserNotif == nil || service.UserNotif.DB != userDB {
+	if service.UserNotif == nil || service.UserNotif.Store != userStore {
 		t.Error("NewNotificationService() UserNotif model not wired to userDB")
 	}
-	if service.AdminNotif == nil || service.AdminNotif.DB != userDB {
+	if service.AdminNotif == nil || service.AdminNotif.Store != userStore {
 		t.Error("NewNotificationService() AdminNotif model not wired to userDB")
 	}
-	if service.Prefs == nil || service.Prefs.UserDB != userDB {
+	if service.Prefs == nil || service.Prefs.UserStore != userStore {
 		t.Error("NewNotificationService() Prefs model not wired to userDB")
 	}
 

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -34,7 +35,7 @@ const (
 var passkeyCeremonyCache = cache.New(passkeyCeremonyTTL, 30*time.Minute)
 
 type PasskeyHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 type passkeyCeremonyState struct {
@@ -88,12 +89,12 @@ func (u *passkeyUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.credentials
 }
 
-func NewPasskeyHandler(db *sql.DB) *PasskeyHandler {
+func NewPasskeyHandler(db *database.Store) *PasskeyHandler {
 	return &PasskeyHandler{DB: db}
 }
 
 func (h *PasskeyHandler) loadWebAuthnUser(user *models.User) (*passkeyUser, error) {
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
+	passkeyModel := &models.UserPasskeyModel{Store: h.DB}
 	credentials, err := passkeyModel.ListCredentialsByUserID(user.ID)
 	if err != nil {
 		return nil, err
@@ -217,7 +218,7 @@ func (h *PasskeyHandler) passkeyLookup(rawID []byte, userHandle []byte) (webauth
 		return nil, err
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &models.UserModel{Store: h.DB}
 	user, err := userModel.GetByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user")
@@ -255,7 +256,7 @@ func (h *PasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
+	passkeyModel := &models.UserPasskeyModel{Store: h.DB}
 	passkeys, err := passkeyModel.ListByUserID(user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
@@ -324,7 +325,7 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &models.UserModel{Store: h.DB}
 	if !userModel.CheckPassword(user, req.Password) {
 		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_password")})
 		return
@@ -406,7 +407,7 @@ func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *htt
 		return
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
+	passkeyModel := &models.UserPasskeyModel{Store: h.DB}
 	passkey, err := passkeyModel.CreateUserPasskey(user.ID, state.Name, credential)
 	if err != nil {
 		writePasskeyError(w, r, http.StatusBadRequest, err)
@@ -429,7 +430,7 @@ func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *htt
 
 	count, err := passkeyModel.CountByUserID(user.ID)
 	if err == nil && count == 1 {
-		recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+		recoveryKeyModel := &models.RecoveryKeyModel{Store: h.DB}
 		existingKeys, countErr := recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 		if countErr == nil && existingKeys == 0 {
 			recoveryKeys, generateErr := recoveryKeyModel.GenerateRecoveryKeys(int(user.ID))
@@ -465,7 +466,7 @@ func (h *PasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
+	passkeyModel := &models.UserPasskeyModel{Store: h.DB}
 	if err := passkeyModel.DeleteByID(user.ID, passkeyID); err != nil {
 		status := http.StatusInternalServerError
 		if isPasskeyNotFound(err) {
@@ -510,7 +511,7 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Re
 			return
 		}
 
-		userModel := &models.UserModel{DB: h.DB}
+		userModel := &models.UserModel{Store: h.DB}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_session_token")})
@@ -602,8 +603,8 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
-	userModel := &models.UserModel{DB: h.DB}
+	passkeyModel := &models.UserPasskeyModel{Store: h.DB}
+	userModel := &models.UserModel{Store: h.DB}
 
 	var (
 		user       *models.User
@@ -673,7 +674,7 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sessionModel := &models.SessionModel{DB: h.DB}
+		sessionModel := &models.SessionModel{Store: h.DB}
 		_ = sessionModel.DeleteSession(pendingSession.ID)
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_session")})

@@ -77,7 +77,7 @@ func (h *SAMLAuthHandler) StartSAMLLogout(w http.ResponseWriter, r *http.Request
 		return
 	}
 	now := dbtime.FormatSQLTimestamp(time.Now().Add(5 * time.Minute))
-	if _, err := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `INSERT INTO saml_logout_requests(request_id, provider_name, relay_state, expires_at) VALUES(?,?,?,?)`, request.ID, provider, state, now); err != nil {
+	if _, err := database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `INSERT INTO saml_logout_requests(request_id, provider_name, relay_state, expires_at) VALUES(?,?,?,?)`, request.ID, provider, state, now); err != nil {
 		http.Error(w, "Could not store SAML logout state", http.StatusInternalServerError)
 		return
 	}
@@ -169,11 +169,11 @@ func (h *SAMLAuthHandler) SAMLLogout(w http.ResponseWriter, r *http.Request) {
 		h.StartSAMLLogout(w, r)
 		return
 	}
-	if _, err := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `DELETE FROM saml_logout_requests WHERE expires_at <= ?`, dbtime.FormatSQLTimestamp(time.Now())); err != nil {
+	if _, err := database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `DELETE FROM saml_logout_requests WHERE expires_at <= ?`, dbtime.FormatSQLTimestamp(time.Now())); err != nil {
 		http.Error(w, "SAML logout state is unavailable", http.StatusInternalServerError)
 		return
 	}
-	rows, err := database.QueryContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT request_id, relay_state FROM saml_logout_requests WHERE provider_name=? AND expires_at>?`, provider, dbtime.FormatSQLTimestamp(time.Now()))
+	rows, err := database.QueryContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT request_id, relay_state FROM saml_logout_requests WHERE provider_name=? AND expires_at>?`, provider, dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
 		http.Error(w, "SAML logout state is unavailable", http.StatusInternalServerError)
 		return
@@ -210,7 +210,7 @@ func (h *SAMLAuthHandler) SAMLLogout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid signed SAML LogoutResponse", http.StatusBadRequest)
 		return
 	}
-	if _, err := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `DELETE FROM saml_logout_requests WHERE request_id=? AND provider_name=?`, response.InResponseTo, provider); err != nil {
+	if _, err := database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `DELETE FROM saml_logout_requests WHERE request_id=? AND provider_name=?`, response.InResponseTo, provider); err != nil {
 		http.Error(w, "Could not consume SAML logout state", http.StatusInternalServerError)
 		return
 	}
@@ -264,7 +264,7 @@ func (h *SAMLAuthHandler) StartAPISAMLLogout(w http.ResponseWriter, r *http.Requ
 		RespondNegotiatedData(w, r, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "SAML_LOGOUT_FAILED"})
 		return
 	}
-	if _, err := database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `INSERT INTO saml_logout_requests(request_id,provider_name,relay_state,expires_at) VALUES(?,?,?,?)`, request.ID, provider, state, dbtime.FormatSQLTimestamp(time.Now().Add(5*time.Minute))); err != nil {
+	if _, err := database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `INSERT INTO saml_logout_requests(request_id,provider_name,relay_state,expires_at) VALUES(?,?,?,?)`, request.ID, provider, state, dbtime.FormatSQLTimestamp(time.Now().Add(5*time.Minute))); err != nil {
 		RespondNegotiatedData(w, r, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "SAML_LOGOUT_FAILED"})
 		return
 	}
@@ -275,19 +275,19 @@ func (h *SAMLAuthHandler) StartAPISAMLLogout(w http.ResponseWriter, r *http.Requ
 func (h *SAMLAuthHandler) samlSessionForRequest(r *http.Request, provider string) (string, string, func(), error) {
 	if adminID := reqctx.GetInt(r.Context(), "admin_id"); adminID > 0 {
 		var nameID, index, externalID string
-		err := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT ss.name_id,ss.session_index,ss.external_id FROM admin_saml_sessions ss JOIN admin_sessions a ON a.id=ss.session_id WHERE ss.provider_name=? AND a.admin_id=? ORDER BY a.created_at DESC`, provider, adminID).Scan(&nameID, &index, &externalID)
+		err := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT ss.name_id,ss.session_index,ss.external_id FROM admin_saml_sessions ss JOIN admin_sessions a ON a.id=ss.session_id WHERE ss.provider_name=? AND a.admin_id=? ORDER BY a.created_at DESC`, provider, adminID).Scan(&nameID, &index, &externalID)
 		if err == nil {
 			return nameID, index, func() {
-				_, _ = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `DELETE FROM admin_sessions WHERE id IN (SELECT session_id FROM admin_saml_sessions WHERE provider_name=? AND external_id=?)`, provider, externalID)
+				_, _ = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `DELETE FROM admin_sessions WHERE id IN (SELECT session_id FROM admin_saml_sessions WHERE provider_name=? AND external_id=?)`, provider, externalID)
 			}, nil
 		}
 	}
 	if userID := reqctx.GetInt(r.Context(), middleware.UserIDContextKey); userID > 0 {
 		var nameID, index, externalID string
-		err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT ss.name_id,ss.session_index,ss.external_id FROM user_saml_sessions ss JOIN user_sessions us ON us.id=ss.session_id WHERE ss.provider_name=? AND us.user_id=? ORDER BY us.created_at DESC`, provider, userID).Scan(&nameID, &index, &externalID)
+		err := database.QueryRowContext(r.Context(), database.GetUsersStore(), database.TimeoutSimpleSelect, `SELECT ss.name_id,ss.session_index,ss.external_id FROM user_saml_sessions ss JOIN user_sessions us ON us.id=ss.session_id WHERE ss.provider_name=? AND us.user_id=? ORDER BY us.created_at DESC`, provider, userID).Scan(&nameID, &index, &externalID)
 		if err == nil {
 			return nameID, index, func() {
-				_, _ = database.ExecContext(r.Context(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id IN (SELECT session_id FROM user_saml_sessions WHERE provider_name=? AND external_id=?)`, provider, externalID)
+				_, _ = database.ExecContext(r.Context(), database.GetUsersStore(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id IN (SELECT session_id FROM user_saml_sessions WHERE provider_name=? AND external_id=?)`, provider, externalID)
 			}, nil
 		}
 	}
@@ -295,10 +295,10 @@ func (h *SAMLAuthHandler) samlSessionForRequest(r *http.Request, provider string
 		hash := sha256.Sum256([]byte(session.ID))
 		var rowID int64
 		var nameID, index string
-		err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT us.id, ss.name_id, ss.session_index FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=? AND ss.provider_name=?`, hex.EncodeToString(hash[:]), provider).Scan(&rowID, &nameID, &index)
+		err := database.QueryRowContext(r.Context(), database.GetUsersStore(), database.TimeoutSimpleSelect, `SELECT us.id, ss.name_id, ss.session_index FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=? AND ss.provider_name=?`, hex.EncodeToString(hash[:]), provider).Scan(&rowID, &nameID, &index)
 		if err == nil {
 			return nameID, index, func() {
-				_, _ = database.ExecContext(r.Context(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id=?`, rowID)
+				_, _ = database.ExecContext(r.Context(), database.GetUsersStore(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id=?`, rowID)
 			}, nil
 		}
 	}
@@ -306,20 +306,20 @@ func (h *SAMLAuthHandler) samlSessionForRequest(r *http.Request, provider string
 		hash := sha256.Sum256([]byte(cookie.Value))
 		var rowID int64
 		var nameID, index string
-		err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT us.id, ss.name_id, ss.session_index FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=? AND ss.provider_name=?`, hex.EncodeToString(hash[:]), provider).Scan(&rowID, &nameID, &index)
+		err := database.QueryRowContext(r.Context(), database.GetUsersStore(), database.TimeoutSimpleSelect, `SELECT us.id, ss.name_id, ss.session_index FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=? AND ss.provider_name=?`, hex.EncodeToString(hash[:]), provider).Scan(&rowID, &nameID, &index)
 		if err == nil {
 			return nameID, index, func() {
-				_, _ = database.ExecContext(r.Context(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id=?`, rowID)
+				_, _ = database.ExecContext(r.Context(), database.GetUsersStore(), database.TimeoutWrite, `DELETE FROM user_sessions WHERE id=?`, rowID)
 			}, nil
 		}
 	}
 	if cookie, err := r.Cookie(middleware.AdminSessionCookieName()); err == nil && cookie.Value != "" {
 		hash := models.HashAdminSessionToken(cookie.Value)
 		var rowID, nameID, index string
-		err := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT ss.session_id, ss.name_id, ss.session_index FROM admin_sessions a JOIN admin_saml_sessions ss ON ss.session_id=a.id WHERE a.token_hash=? AND ss.provider_name=?`, hash, provider).Scan(&rowID, &nameID, &index)
+		err := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT ss.session_id, ss.name_id, ss.session_index FROM admin_sessions a JOIN admin_saml_sessions ss ON ss.session_id=a.id WHERE a.token_hash=? AND ss.provider_name=?`, hash, provider).Scan(&rowID, &nameID, &index)
 		if err == nil {
 			return nameID, index, func() {
-				_, _ = database.ExecContext(r.Context(), database.GetServerDB(), database.TimeoutWrite, `DELETE FROM admin_sessions WHERE id=?`, rowID)
+				_, _ = database.ExecContext(r.Context(), database.GetServerStore(), database.TimeoutWrite, `DELETE FROM admin_sessions WHERE id=?`, rowID)
 			}, nil
 		}
 	}
@@ -330,14 +330,14 @@ func (h *SAMLAuthHandler) providerForCurrentSession(r *http.Request) (string, er
 	if cookie, err := r.Cookie(middleware.UserSessionCookieName()); err == nil && cookie.Value != "" {
 		hash := sha256.Sum256([]byte(cookie.Value))
 		var provider string
-		err := database.QueryRowContext(r.Context(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT ss.provider_name FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=?`, hex.EncodeToString(hash[:])).Scan(&provider)
+		err := database.QueryRowContext(r.Context(), database.GetUsersStore(), database.TimeoutSimpleSelect, `SELECT ss.provider_name FROM user_sessions us JOIN user_saml_sessions ss ON ss.session_id=us.id WHERE us.token_hash=?`, hex.EncodeToString(hash[:])).Scan(&provider)
 		if err == nil {
 			return provider, nil
 		}
 	}
 	if cookie, err := r.Cookie(middleware.AdminSessionCookieName()); err == nil && cookie.Value != "" {
 		var provider string
-		err := database.QueryRowContext(r.Context(), database.GetServerDB(), database.TimeoutSimpleSelect, `SELECT ss.provider_name FROM admin_sessions a JOIN admin_saml_sessions ss ON ss.session_id=a.id WHERE a.token_hash=?`, models.HashAdminSessionToken(cookie.Value)).Scan(&provider)
+		err := database.QueryRowContext(r.Context(), database.GetServerStore(), database.TimeoutSimpleSelect, `SELECT ss.provider_name FROM admin_sessions a JOIN admin_saml_sessions ss ON ss.session_id=a.id WHERE a.token_hash=?`, models.HashAdminSessionToken(cookie.Value)).Scan(&provider)
 		if err == nil {
 			return provider, nil
 		}
@@ -349,7 +349,7 @@ func (h *SAMLAuthHandler) endSAMLNameIDSessions(r *http.Request, provider, nameI
 	if nameID == "" {
 		return errors.New("SAML NameID is required")
 	}
-	usersDB, serverDB := database.GetUsersDB(), database.GetServerDB()
+	usersDB, serverDB := database.GetUsersStore(), database.GetServerStore()
 	if len(indexes) == 0 {
 		_, err := database.ExecContext(r.Context(), usersDB, database.TimeoutWrite, `DELETE FROM user_sessions WHERE id IN (SELECT session_id FROM user_saml_sessions WHERE provider_name=? AND name_id=?)`, provider, nameID)
 		if err != nil {

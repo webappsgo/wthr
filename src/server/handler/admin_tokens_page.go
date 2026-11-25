@@ -35,7 +35,7 @@ func ShowAdminTokensPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func renderAdminTokensPage(w http.ResponseWriter, r *http.Request, newToken string) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), database.GetUsersStore(), database.TimeoutComplexSelect, `
 		SELECT t.id, t.owner_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
 		FROM tokens t LEFT JOIN users u ON t.owner_id = u.id
 		WHERE t.owner_type = 'user' ORDER BY t.created_at DESC
@@ -76,7 +76,7 @@ func renderAdminTokensPage(w http.ResponseWriter, r *http.Request, newToken stri
 		}))
 		return
 	}
-	users, err := (&model.UserModel{DB: database.GetUsersDB()}).GetAll()
+	users, err := (&model.UserModel{Store: database.GetUsersStore()}).GetAll()
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", AdminTemplateData(r, map[string]interface{}{
 			"title": Translate(r, "admin.tokens.title"), "message": Translate(r, "errors.admin.core.failed_to_fetch_users"),
@@ -105,13 +105,13 @@ func GenerateAdminTokenForm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, adminPagePath(r, "/security/tokens"), http.StatusSeeOther)
 		return
 	}
-	user, err := (&model.UserModel{DB: database.GetUsersDB()}).GetByID(int64(userID))
+	user, err := (&model.UserModel{Store: database.GetUsersStore()}).GetByID(int64(userID))
 	if err != nil || user == nil || !user.IsActive || user.IsBanned {
 		SetFlash(w, r, "error", "flash.settings_save_failed")
 		http.Redirect(w, r, adminPagePath(r, "/security/tokens"), http.StatusSeeOther)
 		return
 	}
-	tokenModel := &model.TokenModel{DB: database.GetUsersDB()}
+	tokenModel := &model.TokenModel{Store: database.GetUsersStore()}
 	token, err := tokenModel.CreateAPIToken(userID, name)
 	if err != nil {
 		SetFlash(w, r, "error", "flash.settings_save_failed")
@@ -142,7 +142,7 @@ func RevokeAdminTokenForm(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err == nil && id > 0 {
-		err = (&model.TokenModel{DB: database.GetUsersDB()}).DeleteAPIToken(id)
+		err = (&model.TokenModel{Store: database.GetUsersStore()}).DeleteAPIToken(id)
 	}
 	if err != nil {
 		SetFlash(w, r, "error", "flash.settings_save_failed")
@@ -160,7 +160,7 @@ func writeAdminTokenAudit(r *http.Request, adminID int64, userID, tokenID int, a
 	if err != nil {
 		return err
 	}
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), database.GetServerStore(), database.TimeoutWrite, `
 		INSERT INTO audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, source, status)
 		VALUES (?, ?, 'admin', ?, ?, 'token', ?, ?, ?, ?, 'web', 'success')
 	`, ulid.Make().String(), dbtime.FormatSQLTimestamp(time.Now()), strconv.FormatInt(adminID, 10), action,

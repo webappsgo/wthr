@@ -57,7 +57,7 @@ func TestSessionModel_CreateAndGetByID(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "sess-user", "sess-user@example.com")
-	model := &SessionModel{DB: db}
+	model := &SessionModel{testDB: db}
 
 	tests := []struct {
 		name    string
@@ -108,7 +108,7 @@ func TestSessionModel_GetByID_Expired(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "sess-exp", "sess-exp@example.com")
-	model := &SessionModel{DB: db}
+	model := &SessionModel{testDB: db}
 
 	sess, err := model.CreateSession(int(userID), -1)
 	if err != nil {
@@ -135,7 +135,7 @@ func TestSessionModel_UpdateDataAndExtend(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "sess-data", "sess-data@example.com")
-	model := &SessionModel{DB: db}
+	model := &SessionModel{testDB: db}
 
 	sess, err := model.CreateSession(int(userID), 3600)
 	if err != nil {
@@ -175,7 +175,7 @@ func TestSessionModel_DeleteAndCleanup(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "sess-cleanup", "sess-cleanup@example.com")
-	model := &SessionModel{DB: db}
+	model := &SessionModel{testDB: db}
 
 	sess1, err := model.CreateSession(int(userID), 3600)
 	if err != nil {

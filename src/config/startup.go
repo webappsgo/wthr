@@ -13,6 +13,7 @@ type StartupSettings struct {
 	Port      string
 	Address   string
 	Daemonize bool
+	PIDFile   interface{}
 }
 
 // LoadStartupSettings reads the early listener settings from server.yml and
@@ -29,6 +30,7 @@ func LoadStartupSettings(configDir string) StartupSettings {
 			Port      interface{} `yaml:"port"`
 			Address   *string     `yaml:"address"`
 			Daemonize bool        `yaml:"daemonize"`
+			PIDFile   interface{} `yaml:"pidfile"`
 		} `yaml:"server"`
 	}
 	if err := merged.Decode(&early); err != nil {
@@ -50,5 +52,5 @@ func LoadStartupSettings(configDir string) StartupSettings {
 			address = "[::]"
 		}
 	}
-	return StartupSettings{Port: port, Address: address, Daemonize: early.Server.Daemonize}
+	return StartupSettings{Port: port, Address: address, Daemonize: early.Server.Daemonize, PIDFile: early.Server.PIDFile}
 }

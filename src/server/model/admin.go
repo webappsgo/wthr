@@ -241,7 +241,8 @@ func (s *AdminSession) SessionExpired() bool {
 
 // AdminModel handles admin database operations
 type AdminModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. Every
@@ -252,12 +253,15 @@ type AdminModel struct {
 // before the global dual DB is wired) the process-global server handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *AdminModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *AdminModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // GetAll returns all admins (with privacy: no passwords, minimal info)
@@ -489,7 +493,7 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 func (m *AdminModel) QueueAPITokenLastUsed(tokenID int64) error {
 	db := m.getDB()
 	query := `UPDATE tokens SET last_used_at = ? WHERE id = ?`
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), tokenID)
 		return err
 	}
@@ -535,47 +539,47 @@ func (m *AdminModel) CreateAdminAccount(username, email, password string, isSupe
 	// would hold a different layout per backend. Binding through sqlTimestamp
 	// gives every writer and reader the one layout parseStoredTimestamp expects.
 	now := time.Now()
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 1, ?, ?)
-	`, username, email, passwordHash, isSuperAdmin, sqlTimestamp(now), sqlTimestamp(now))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create admin: %w", err)
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get admin ID: %w", err)
-	}
-
-	// The admin's API token lives in the unified tokens table (AI.md PART 11);
-	// only its SHA-256 hash and display prefix are stored.
-	if err := m.storeDefaultToken(id, apiToken); err != nil {
-		return nil, err
-	}
-
-	// Create default preferences.
-	// admin_preferences (src/database/users_schema.go) stores
-	// preferences as a single JSON blob column, not individual columns.
-	defaultPrefs, err := json.Marshal(AdminPreferences{
-		AdminID:              id,
-		Theme:                "auto",
-		Language:             "en",
-		Timezone:             "UTC",
-		NotificationsEnabled: true,
-		EmailNotifications:   true,
+	var id int64
+	tokenHash := HashAPIToken(apiToken)
+	tokenPrefix := GetAPITokenPrefix(apiToken)
+	err = database.WithTransaction(context.Background(), m.getDB(), func(tx *sql.Tx) error {
+		result, err := tx.Exec(`
+			INSERT INTO admins (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 1, ?, ?)
+		`, username, email, passwordHash, isSuperAdmin, sqlTimestamp(now), sqlTimestamp(now))
+		if err != nil {
+			return fmt.Errorf("failed to create admin: %w", err)
+		}
+		id, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("failed to get admin ID: %w", err)
+		}
+		// Create default preferences in the same transaction as the admin row.
+		// admin_preferences stores preferences as one JSON blob.
+		defaultPrefs, err := json.Marshal(AdminPreferences{
+			AdminID:              id,
+			Theme:                "auto",
+			Language:             "en",
+			Timezone:             "UTC",
+			NotificationsEnabled: true,
+			EmailNotifications:   true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to encode default admin preferences: %w", err)
+		}
+		if err := storeDefaultTokenInTx(tx, id, tokenHash, tokenPrefix, sqlTimestamp(now)); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO admin_preferences (admin_id, preferences, updated_at)
+			VALUES (?, ?, ?)
+		`, id, string(defaultPrefs), sqlTimestamp(now)); err != nil {
+			return fmt.Errorf("failed to create admin preferences: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
-	}
-
-	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO admin_preferences (admin_id, preferences, updated_at)
-		VALUES (?, ?, ?)
-	`, id, string(defaultPrefs), sqlTimestamp(now))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create admin preferences: %w", err)
+		return nil, err
 	}
 
 	return m.GetByID(id)
@@ -657,8 +661,13 @@ func (m *AdminModel) storeDefaultToken(adminID int64, apiToken string) error {
 	tokenHash := HashAPIToken(apiToken)
 	tokenPrefix := GetAPITokenPrefix(apiToken)
 	now := sqlTimestamp(time.Now())
+	return database.WithTransaction(context.Background(), m.getDB(), func(tx *sql.Tx) error {
+		return storeDefaultTokenInTx(tx, adminID, tokenHash, tokenPrefix, now)
+	})
+}
 
-	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
+func storeDefaultTokenInTx(tx *sql.Tx, adminID int64, tokenHash, tokenPrefix, now string) error {
+	result, err := tx.Exec(`
 		UPDATE tokens
 		SET token_hash = ?, token_prefix = ?, last_used_at = NULL, created_at = ?
 		WHERE owner_type = 'admin' AND owner_id = ? AND name = ?
@@ -666,17 +675,20 @@ func (m *AdminModel) storeDefaultToken(adminID int64, apiToken string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update API token: %w", err)
 	}
-	if affected, rowsErr := result.RowsAffected(); rowsErr == nil && affected > 0 {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
 		return nil
 	}
-
-	if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
+	_, err = tx.Exec(`
 		INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix, scope, created_at)
 		VALUES ('admin', ?, ?, ?, ?, 'global', ?)
-	`, adminID, adminDefaultTokenName, tokenHash, tokenPrefix, now); err != nil {
+	`, adminID, adminDefaultTokenName, tokenHash, tokenPrefix, now)
+	if err != nil {
 		return fmt.Errorf("failed to store API token: %w", err)
 	}
-
 	return nil
 }
 
@@ -716,50 +728,36 @@ func (m *AdminModel) RevokeAPIToken(id int64) error {
 // DeleteAdminAccount removes an admin account
 // Per TEMPLATE.md PART 22: Cannot delete the last super admin
 func (m *AdminModel) DeleteAdminAccount(id int64) error {
-	// Check if this is the last super admin
-	var superAdminCount int
-	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM admins
-		WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
-	`, id).Scan(&superAdminCount)
-	if err != nil {
-		return fmt.Errorf("failed to check super admin count: %w", err)
-	}
-
-	// Get the admin to check if they're a super admin
-	admin, err := m.GetByID(id)
+	usersStore := m.getDB()
+	err := database.WithTransaction(context.Background(), usersStore, func(tx *sql.Tx) error {
+		var adminIsSuper bool
+		if err := tx.QueryRow(`SELECT is_super_admin FROM admins WHERE id = ?`, id).Scan(&adminIsSuper); err != nil {
+			return err
+		}
+		var otherSuperAdmins int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM admins WHERE is_super_admin = 1 AND is_active = 1 AND id != ?`, id).Scan(&otherSuperAdmins); err != nil {
+			return fmt.Errorf("failed to check super admin count: %w", err)
+		}
+		if adminIsSuper && otherSuperAdmins == 0 {
+			return fmt.Errorf("cannot delete the last super admin account")
+		}
+		if _, err := tx.Exec(`DELETE FROM admins WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("failed to delete admin: %w", err)
+		}
+		if _, err := tx.Exec(`DELETE FROM passkeys WHERE user_type = 'admin' AND user_id = ?`, id); err != nil {
+			return fmt.Errorf("failed to delete admin passkeys: %w", err)
+		}
+		if _, err := tx.Exec(`DELETE FROM tokens WHERE owner_type = 'admin' AND owner_id = ?`, id); err != nil {
+			return fmt.Errorf("failed to delete admin tokens: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	if admin.IsSuperAdmin && superAdminCount == 0 {
-		return fmt.Errorf("cannot delete the last super admin account")
-	}
-
-	// Delete admin; preferences, notifications and invites cascade through their
-	// foreign keys inside users.db
-	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM admins WHERE id = ?
-	`, id)
-
-	if err != nil {
-		return fmt.Errorf("failed to delete admin: %w", err)
-	}
-
-	// Passkeys and tokens carry only a logical reference to the admin, so they are removed explicitly
-	if _, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM passkeys WHERE user_type = 'admin' AND user_id = ?
-	`, id); err != nil {
-		return fmt.Errorf("failed to delete admin passkeys: %w", err)
-	}
-	if _, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM tokens WHERE owner_type = 'admin' AND owner_id = ?
-	`, id); err != nil {
-		return fmt.Errorf("failed to delete admin tokens: %w", err)
-	}
-
 	// admin_sessions lives in server.db, outside any foreign key from admins
-	if _, err = database.ExecContext(context.Background(), database.ServerDBOr(m.getDB()), database.TimeoutWrite, `
+	if _, err = database.ExecContext(context.Background(), database.ServerStoreOr(m.getDB()), database.TimeoutWrite, `
 		DELETE FROM admin_sessions WHERE admin_id = ?
 	`, id); err != nil {
 		return fmt.Errorf("failed to delete admin sessions: %w", err)
@@ -846,7 +844,8 @@ func (m *AdminModel) VerifyCredentials(username, password string) (*Admin, error
 
 // AdminInviteModel handles admin invite operations
 type AdminInviteModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the users.db handle this model was constructed with. The only
@@ -857,12 +856,15 @@ type AdminInviteModel struct {
 // before the global dual DB is wired) the process-global server handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *AdminInviteModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *AdminInviteModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetUsersDB()
+	return database.GetUsersStore()
 }
 
 // CreateInvite creates a new admin invite token.
@@ -1063,7 +1065,8 @@ func (m *AdminInviteModel) GetPendingInvites() (invites []AdminInvite, retErr er
 // AdminSessionModel handles admin session operations
 // Per TEMPLATE.md PART 22: Secure session management required
 type AdminSessionModel struct {
-	DB *sql.DB
+	Store  *database.Store
+	testDB *sql.DB
 }
 
 // getDB returns the server.db handle this model was constructed with. The only
@@ -1074,12 +1077,15 @@ type AdminSessionModel struct {
 // before the global dual DB is wired) the process-global server handle is used
 // instead, so a nil handle degrades to the previous behavior rather than
 // panicking.
-func (m *AdminSessionModel) getDB() *sql.DB {
-	if m.DB != nil {
-		return m.DB
+func (m *AdminSessionModel) getDB() *database.Store {
+	if m.Store != nil {
+		return m.Store
+	}
+	if m.testDB != nil {
+		return database.NewStore(m.testDB)
 	}
 
-	return database.GetServerDB()
+	return database.GetServerStore()
 }
 
 // CreateSession creates a new admin session
@@ -1177,7 +1183,7 @@ func (m *AdminSessionModel) QueueSessionLastUsed(sessionID string) error {
 	db := m.getDB()
 	hash := HashAdminSessionToken(sessionID)
 	query := `UPDATE admin_sessions SET last_used_at = ? WHERE token_hash = ?`
-	if database.IsRemoteDatabase(db) {
+	if !db.IsSQLite() {
 		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, query, sqlTimestamp(time.Now()), hash)
 		return err
 	}
@@ -1289,15 +1295,15 @@ type AdminSessionActivity struct {
 // active. admin_sessions lives in server.db and admins in users.db (AI.md PART
 // 12), so the two are read with separate queries instead of a join. The expiry
 // is returned as the raw driver value so the caller judges it with dbtime.
-func LookupActiveAdminSession(sessionDB, accountsDB *sql.DB, tokenHash string) (int, interface{}, error) {
-	activity, err := LookupAdminSessionActivity(sessionDB, accountsDB, tokenHash)
+func LookupActiveAdminSession(sessionStore, accountsStore *database.Store, tokenHash string) (int, interface{}, error) {
+	activity, err := LookupAdminSessionActivity(sessionStore, accountsStore, tokenHash)
 	return activity.AdminID, activity.ExpiresAt, err
 }
 
 // LookupAdminSessionActivity returns timestamps needed to enforce absolute and idle expiry.
-func LookupAdminSessionActivity(sessionDB, accountsDB *sql.DB, tokenHash string) (AdminSessionActivity, error) {
+func LookupAdminSessionActivity(sessionStore, accountsStore *database.Store, tokenHash string) (AdminSessionActivity, error) {
 	var activity AdminSessionActivity
-	err := database.QueryRowContext(context.Background(), sessionDB, database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), sessionStore, database.TimeoutSimpleSelect, `
 		SELECT admin_id, created_at, last_used_at, expires_at
 		FROM admin_sessions
 		WHERE token_hash = ?
@@ -1307,7 +1313,7 @@ func LookupAdminSessionActivity(sessionDB, accountsDB *sql.DB, tokenHash string)
 	}
 
 	var activeCount int
-	err = database.QueryRowContext(context.Background(), accountsDB, database.TimeoutSimpleSelect, `
+	err = database.QueryRowContext(context.Background(), accountsStore, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM admins WHERE id = ? AND is_active = 1
 	`, activity.AdminID).Scan(&activeCount)
 	if err != nil {

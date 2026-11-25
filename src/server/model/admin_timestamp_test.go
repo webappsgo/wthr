@@ -149,7 +149,7 @@ func TestAdminSessionDeleteExpiredHonorsStoredZone(t *testing.T) {
 	fixtures := adminSessionFixtures(now)
 	insertAdminSessionFixtures(t, serverDB, 1, fixtures)
 
-	model := &AdminSessionModel{DB: serverDB}
+	model := &AdminSessionModel{testDB: serverDB}
 	if err := model.DeleteExpiredSessions(); err != nil {
 		t.Fatalf("DeleteExpiredSessions: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestAdminSessionGetActiveHonorsStoredZone(t *testing.T) {
 		},
 	})
 
-	model := &AdminSessionModel{DB: serverDB}
+	model := &AdminSessionModel{testDB: serverDB}
 	sessions, err := model.GetActiveSessions(1)
 	if err != nil {
 		t.Fatalf("GetActiveSessions: %v", err)
@@ -219,7 +219,7 @@ func TestAdminSessionCreateReadRoundTrip(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
-	model := &AdminSessionModel{DB: serverDB}
+	model := &AdminSessionModel{testDB: serverDB}
 	created, err := model.CreateSession(1, "203.0.113.10", "go-test", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
@@ -369,7 +369,7 @@ func TestAdminInviteDeleteExpiredHonorsStoredZone(t *testing.T) {
 	fixtures := adminInviteFixtures(time.Now())
 	insertAdminInviteFixtures(t, usersDB, fixtures)
 
-	model := &AdminInviteModel{DB: usersDB}
+	model := &AdminInviteModel{testDB: usersDB}
 	if err := model.DeleteExpiredInvites(); err != nil {
 		t.Fatalf("DeleteExpiredInvites: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestAdminInviteGetPendingHonorsStoredZone(t *testing.T) {
 	fixtures := adminInviteFixtures(time.Now())
 	insertAdminInviteFixtures(t, usersDB, fixtures)
 
-	model := &AdminInviteModel{DB: usersDB}
+	model := &AdminInviteModel{testDB: usersDB}
 	invites, err := model.GetPendingInvites()
 	if err != nil {
 		t.Fatalf("GetPendingInvites: %v", err)
@@ -431,7 +431,7 @@ func TestAdminInviteCreateStoresCanonicalLayout(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
-	model := &AdminInviteModel{DB: usersDB}
+	model := &AdminInviteModel{testDB: usersDB}
 	invite, err := model.CreateInvite("invitee@example.com", 1, 15*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateInvite: %v", err)

@@ -11,6 +11,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
@@ -358,7 +359,7 @@ func csrfStoreFixture(t *testing.T) *secret.Store {
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, rotated_at DATETIME)`); err != nil {
 		t.Fatal(err)
 	}
-	store := secret.NewStore(db)
+	store := secret.NewStore(database.NewStore(db))
 	if err := store.EnsureAll(); err != nil {
 		t.Fatal(err)
 	}

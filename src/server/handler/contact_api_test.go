@@ -55,7 +55,7 @@ func TestGetContactFormAPIDescribesTheForm(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/contact", nil)
 	r.Header.Set("Accept", "application/json")
 	w := httptest.NewRecorder()
-	GetContactFormAPI(db, cfg)(w, r)
+	GetContactFormAPI(storeForDB(db), cfg)(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}

@@ -15,7 +15,7 @@ import (
 func newLocationTestHandler(t *testing.T) (*LocationHandler, *sql.DB) {
 	t.Helper()
 	db := newTestUsersDB(t)
-	return &LocationHandler{DB: db}, db
+	return &LocationHandler{DB: storeForDB(db)}, db
 }
 
 // setCurrentUser injects a fake authenticated user into the context the way

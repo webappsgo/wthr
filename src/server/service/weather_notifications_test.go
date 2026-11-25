@@ -429,10 +429,10 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 			t.Fatalf("seed failed: %v", err)
 		}
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		alert := WeatherAlert{
 			LocationName: "Testville",
@@ -471,10 +471,10 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 			t.Fatalf("seed subscription: %v", err)
 		}
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		alert := WeatherAlert{LocationName: "X", AlertType: "Y", Severity: "critical", Message: "m", IssuedAt: time.Now()}
 		if err := wns.sendWeatherAlert(1, alert); err != nil {
@@ -495,10 +495,10 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		alert := WeatherAlert{LocationName: "X", AlertType: "Y", Severity: "medium", Message: "m", IssuedAt: time.Now()}
 		if err := wns.sendWeatherAlert(99, alert); err != nil {
@@ -527,10 +527,10 @@ func TestWeatherNotifications_sendWeatherAlert(t *testing.T) {
 			t.Fatalf("seed subscription: %v", err)
 		}
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		alert := WeatherAlert{LocationName: "X", AlertType: "Y", Severity: "medium", Message: "m", IssuedAt: time.Now()}
 		if err := wns.sendWeatherAlert(5, alert); err != nil {
@@ -566,10 +566,10 @@ func TestWeatherNotifications_CheckWeatherAlerts_EndToEnd(t *testing.T) {
 	}
 
 	ws := newTestWeatherServiceForNotifications(t, sampleWeatherJSON)
-	cm := NewChannelManager(serverDB)
-	te := NewTemplateEngine(serverDB)
-	ds := NewDeliverySystem(serverDB, cm, te)
-	wns := NewWeatherNotificationService(usersDB, ws, ds, te)
+	cm := NewChannelManager(serviceStoreForDB(serverDB))
+	te := NewTemplateEngine(serviceStoreForDB(serverDB))
+	ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+	wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), ws, ds, te)
 
 	if err := wns.CheckWeatherAlerts(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -612,10 +612,10 @@ func TestWeatherNotifications_CheckWeatherAlerts_NoLocations(t *testing.T) {
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 	ws := newTestWeatherServiceForNotifications(t, sampleWeatherJSON)
-	cm := NewChannelManager(serverDB)
-	te := NewTemplateEngine(serverDB)
-	ds := NewDeliverySystem(serverDB, cm, te)
-	wns := NewWeatherNotificationService(usersDB, ws, ds, te)
+	cm := NewChannelManager(serviceStoreForDB(serverDB))
+	te := NewTemplateEngine(serviceStoreForDB(serverDB))
+	ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+	wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), ws, ds, te)
 
 	if err := wns.CheckWeatherAlerts(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -644,10 +644,10 @@ func TestWeatherNotifications_sendDailyForecast(t *testing.T) {
 		}
 
 		ws := newTestWeatherService()
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, ws, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), ws, ds, te)
 
 		weather := &CurrentWeather{Temperature: 70, WeatherCode: 1, IsDay: 1}
 		if err := wns.sendDailyForecast(1, "Home", weather); err != nil {
@@ -669,10 +669,10 @@ func TestWeatherNotifications_sendDailyForecast(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		ws := newTestWeatherService()
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, ws, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), ws, ds, te)
 
 		weather := &CurrentWeather{Temperature: 70, WeatherCode: 1, IsDay: 1}
 		if err := wns.sendDailyForecast(2, "Home", weather); err != nil {
@@ -705,10 +705,10 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 			t.Fatalf("seed channel preference: %v", err)
 		}
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		if err := wns.SendSystemHealthAlert("database", "disk full", "critical"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -736,10 +736,10 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 			t.Fatalf("seed channel preference: %v", err)
 		}
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		if err := wns.SendSystemHealthAlert("database", "disk full", "high"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -759,10 +759,10 @@ func TestWeatherNotifications_SendSystemHealthAlert(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		cm := NewChannelManager(serverDB)
-		te := NewTemplateEngine(serverDB)
-		ds := NewDeliverySystem(serverDB, cm, te)
-		wns := NewWeatherNotificationService(usersDB, nil, ds, te)
+		cm := NewChannelManager(serviceStoreForDB(serverDB))
+		te := NewTemplateEngine(serviceStoreForDB(serverDB))
+		ds := NewDeliverySystem(serviceStoreForDB(serverDB), cm, te)
+		wns := NewWeatherNotificationService(serviceStoreForDB(usersDB), nil, ds, te)
 
 		if err := wns.SendSystemHealthAlert("database", "disk full", "low"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -806,7 +806,7 @@ func TestWeatherNotifications_UsesInjectedUsersDB(t *testing.T) {
 
 	seedWeatherLocation(t, injected, 1, 1, 1)
 
-	wns := NewWeatherNotificationService(injected, nil, nil, nil)
+	wns := NewWeatherNotificationService(serviceStoreForDB(injected), nil, nil, nil)
 	wns.recordAlertSent(1, 1, "severe_wind")
 
 	var injectedRows, decoyRows int

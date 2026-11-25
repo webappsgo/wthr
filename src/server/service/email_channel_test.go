@@ -59,7 +59,7 @@ func TestEmailChannel_GetType_GetName(t *testing.T) {
 func TestEmailChannel_IsEnabled_DisabledSMTP(t *testing.T) {
 	serverDB := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, serverDB)
-	smtp := NewSMTPService(serverDB)
+	smtp := NewSMTPService(serviceStoreForDB(serverDB))
 	ch := NewEmailChannel(smtp)
 	if ch.IsEnabled() {
 		t.Error("expected channel to be disabled with unconfigured SMTP")
@@ -75,7 +75,7 @@ func TestEmailChannel_IsEnabled_EnabledSMTP(t *testing.T) {
 	host, port, _ := startFakeSMTPResponder(t, "")
 	seedEmailChannelSMTPConfig(t, host, "noreply@example.com", port)
 
-	smtp := NewSMTPService(serverDB)
+	smtp := NewSMTPService(serviceStoreForDB(serverDB))
 	if err := smtp.VerifyConfiguredConnection(); err != nil {
 		t.Fatalf("VerifyConfiguredConnection: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestEmailChannel_Refresh_NilSMTP(t *testing.T) {
 func TestEmailChannel_Refresh_ReflectsConfigChange(t *testing.T) {
 	serverDB := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, serverDB)
-	smtp := NewSMTPService(serverDB)
+	smtp := NewSMTPService(serviceStoreForDB(serverDB))
 	ch := NewEmailChannel(smtp)
 	if ch.IsEnabled() {
 		t.Fatal("expected channel to start disabled")

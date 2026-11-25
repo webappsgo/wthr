@@ -135,7 +135,7 @@ func contactRawFromRequest(w http.ResponseWriter, r *http.Request, api bool) (ma
 	return values, nil
 }
 
-func processContactFlow(r *http.Request, db *database.DB, cfg *config.AppConfig, raw map[string]string, htmlForm bool) contactFlowResult {
+func processContactFlow(r *http.Request, db *database.Store, cfg *config.AppConfig, raw map[string]string, htmlForm bool) contactFlowResult {
 	manager, err := getContactAntispam(db, cfg)
 	if err != nil {
 		return contactFlowResult{Kind: "unavailable"}
@@ -247,7 +247,7 @@ func processContactFlow(r *http.Request, db *database.DB, cfg *config.AppConfig,
 	return contactFlowResult{Kind: "delivered", DeliverResult: result, Form: form, Values: values}
 }
 
-func processSecurityContactFlow(r *http.Request, db *database.DB, cfg *config.AppConfig, securityID string, raw map[string]string, htmlForm bool) contactFlowResult {
+func processSecurityContactFlow(r *http.Request, db *database.Store, cfg *config.AppConfig, securityID string, raw map[string]string, htmlForm bool) contactFlowResult {
 	manager, err := getContactAntispam(db, cfg)
 	if err != nil {
 		return contactFlowResult{Kind: "unavailable"}
@@ -497,7 +497,7 @@ func securityFlowPageData(w http.ResponseWriter, r *http.Request, cfg *config.Ap
 	return data
 }
 
-func handleSecurityContactFlowWeb(w http.ResponseWriter, r *http.Request, db *database.DB, cfg *config.AppConfig, securityID string, raw map[string]string) {
+func handleSecurityContactFlowWeb(w http.ResponseWriter, r *http.Request, db *database.Store, cfg *config.AppConfig, securityID string, raw map[string]string) {
 	flow := processSecurityContactFlow(r, db, cfg, securityID, raw, true)
 	if flow.Kind == "review" || flow.Kind == "edit" {
 		mode := "form"
@@ -520,7 +520,7 @@ func handleSecurityContactFlowWeb(w http.ResponseWriter, r *http.Request, db *da
 	renderContactFlowFailure(w, r, cfg, db, flow, securityID)
 }
 
-func handleSecurityContactFlowAPI(w http.ResponseWriter, r *http.Request, db *database.DB, cfg *config.AppConfig, securityID string, raw map[string]string) {
+func handleSecurityContactFlowAPI(w http.ResponseWriter, r *http.Request, db *database.Store, cfg *config.AppConfig, securityID string, raw map[string]string) {
 	flow := processSecurityContactFlow(r, db, cfg, securityID, raw, false)
 	if flow.FormToken == "" {
 		if manager, err := getContactAntispam(db, cfg); err == nil {
@@ -553,7 +553,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 	return b
 }
 
-func writeContactFlowError(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, db *database.DB, flow contactFlowResult) {
+func writeContactFlowError(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, db *database.Store, flow contactFlowResult) {
 	formToken := flow.FormToken
 	if formToken == "" {
 		if manager, err := getContactAntispam(db, cfg); err == nil {
@@ -592,7 +592,7 @@ func writeContactFlowError(w http.ResponseWriter, r *http.Request, cfg *config.A
 	writeJSON(w, status, map[string]interface{}{"ok": false, "error": code, "message": message, "details": details, "data": data})
 }
 
-func renderContactFlowFailure(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, db *database.DB, flow contactFlowResult, securityID string) {
+func renderContactFlowFailure(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig, db *database.Store, flow contactFlowResult, securityID string) {
 	if flow.FormToken == "" {
 		if manager, err := getContactAntispam(db, cfg); err == nil {
 			flow.FormToken, _ = manager.NewContactFormToken(time.Now())

@@ -51,8 +51,8 @@ var (
 )
 
 // CreateJoinToken creates a one-time join token and stores only its SHA-256 hash.
-func CreateJoinToken(ctx context.Context, db *sql.DB, createdBy string) (string, time.Time, error) {
-	if db == nil || !database.IsRemoteDatabase(db) {
+func CreateJoinToken(ctx context.Context, db *database.Store, createdBy string) (string, time.Time, error) {
+	if db == nil || db.IsSQLite() {
 		return "", time.Time{}, errors.New("cluster joining requires a configured remote database")
 	}
 	if err := requireSharedCache(); err != nil {
@@ -165,8 +165,8 @@ type appSecretRecord struct {
 
 type joinFiles map[string]string
 
-func buildJoinBootstrap(ctx context.Context, db *sql.DB, token string) (*JoinBootstrap, error) {
-	if !database.IsRemoteDatabase(db) {
+func buildJoinBootstrap(ctx context.Context, db *database.Store, token string) (*JoinBootstrap, error) {
+	if db.IsSQLite() {
 		return nil, errors.New("cluster joining requires a configured remote database")
 	}
 	if err := requireSharedCache(); err != nil {
@@ -349,7 +349,7 @@ func readConnectionTLSFiles() (joinFiles, map[string]string, error) {
 	return files, fileNames, nil
 }
 
-func getOrCreateClusterID(ctx context.Context, db *sql.DB) (string, error) {
+func getOrCreateClusterID(ctx context.Context, db *database.Store) (string, error) {
 	var id string
 	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, `SELECT cluster_id FROM srv_config_meta WHERE id = 1`).Scan(&id); err != nil {
 		return "", err
@@ -371,7 +371,7 @@ func getOrCreateClusterID(ctx context.Context, db *sql.DB) (string, error) {
 	return id, nil
 }
 
-func validateJoinToken(ctx context.Context, db *sql.DB, token string) error {
+func validateJoinToken(ctx context.Context, db *database.Store, token string) error {
 	if !joinTokenPattern.MatchString(token) {
 		return ErrJoinTokenInvalid
 	}
@@ -400,7 +400,7 @@ func validateJoinToken(ctx context.Context, db *sql.DB, token string) error {
 }
 
 // JoinHandler serves the public, one-time authenticated cluster bootstrap endpoint.
-func JoinHandler(db *sql.DB) http.HandlerFunc {
+func JoinHandler(db *database.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -437,23 +437,20 @@ func JoinHandler(db *sql.DB) http.HandlerFunc {
 			writeJoinError(w, http.StatusInternalServerError, "DATABASE_ERROR", "cluster bootstrap is unavailable")
 			return
 		}
-		tx, err := db.BeginTx(r.Context(), nil)
+		var tokenErr error
+		err = db.Write(r.Context(), func(tx *sql.Tx) error {
+			if err := consumeJoinTokenTx(r.Context(), tx, request.Token, request.NodeID); err != nil {
+				tokenErr = err
+				return err
+			}
+			return registerJoinedNodeTx(r.Context(), tx, request.NodeID, r.RemoteAddr)
+		})
+		if tokenErr != nil {
+			writeTokenFailure(w, tokenErr)
+			return
+		}
 		if err != nil {
-			writeJoinError(w, http.StatusInternalServerError, "DATABASE_ERROR", "cluster bootstrap is unavailable")
-			return
-		}
-		if err := consumeJoinTokenTx(r.Context(), tx, request.Token, request.NodeID); err != nil {
-			_ = tx.Rollback()
-			writeTokenFailure(w, err)
-			return
-		}
-		if err := registerJoinedNodeTx(r.Context(), tx, request.NodeID, r.RemoteAddr); err != nil {
-			_ = tx.Rollback()
 			log.Printf("cluster node registration failed")
-			writeJoinError(w, http.StatusInternalServerError, "DATABASE_ERROR", "cluster bootstrap is unavailable")
-			return
-		}
-		if err := tx.Commit(); err != nil {
 			writeJoinError(w, http.StatusInternalServerError, "DATABASE_ERROR", "cluster bootstrap is unavailable")
 			return
 		}
@@ -524,7 +521,7 @@ func consumeJoinTokenTx(ctx context.Context, tx *sql.Tx, token, nodeID string) e
 // PrepareClusterDatabase creates cluster metadata before the first node starts
 // its manager. It is used by the conversion wizard while the running process
 // still has its original SQLite handles open.
-func PrepareClusterDatabase(db *sql.DB, nodeID, address string) error {
+func PrepareClusterDatabase(db *database.Store, nodeID, address string) error {
 	manager := NewClusterManager(db, nodeID, address, true)
 	if err := manager.initializeClusterTables(); err != nil {
 		return err
@@ -544,8 +541,8 @@ func PrepareClusterDatabase(db *sql.DB, nodeID, address string) error {
 
 // LeaveCluster removes only the calling node from cluster membership and
 // switches its next startup to fresh local SQLite and in-memory cache.
-func LeaveCluster(ctx context.Context, db *sql.DB, dataDir, configDir, nodeID string) error {
-	if db == nil || !database.IsRemoteDatabase(db) {
+func LeaveCluster(ctx context.Context, db *database.Store, dataDir, configDir, nodeID string) error {
+	if db == nil || db.IsSQLite() {
 		return errors.New("this node is not connected to a cluster database")
 	}
 	tlsFiles := make(map[string]struct{})
@@ -565,18 +562,13 @@ func LeaveCluster(ctx context.Context, db *sql.DB, dataDir, configDir, nodeID st
 		}
 		delete(tlsFiles, filepath.Base(settingText(value)))
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
+	if err := db.Write(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM cluster_nodes WHERE node_id = ?`, nodeID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM server_nodes WHERE node_id = ?`, nodeID)
 		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM cluster_nodes WHERE node_id = ?`, nodeID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM server_nodes WHERE node_id = ?`, nodeID); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
+	}); err != nil {
 		return err
 	}
 	for _, key := range []string{"server.database.url", "server.database.password", "server.database.driver", "server.database.host", "server.database.port", "server.database.name", "server.database.username", "server.database.sslmode", "server.database.ssl_ca", "server.database.ssl_cert", "server.database.ssl_key", "server.cache.url", "server.cache.password", "server.cache.host", "server.cache.port", "server.cache.username", "server.cache.db", "server.cache.tls", "server.cache.tls_skip_verify", "server.cache.tls_ca", "server.cache.tls_cert", "server.cache.tls_key", "server.cluster.id"} {

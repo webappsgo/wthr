@@ -61,7 +61,7 @@ func TestUserNotificationModel_Create(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	tests := []struct {
 		name      string
@@ -155,7 +155,7 @@ func TestUserNotificationModel_GetByID(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create a test notification
 	created, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
@@ -215,7 +215,7 @@ func TestUserNotificationModel_MarkAsRead(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create a test notification
 	created, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
@@ -248,7 +248,7 @@ func TestUserNotificationModel_GetUnreadCount(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create multiple notifications
 	_, _ = model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test 1", "Message 1", nil)
@@ -277,7 +277,7 @@ func TestUserNotificationModel_CleanupExpired(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create a notification and manually set it as expired
 	_, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
@@ -317,7 +317,7 @@ func TestUserNotificationModel_EnforceLimit(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create 5 notifications
 	for i := 1; i <= 5; i++ {
@@ -361,7 +361,7 @@ func TestNotificationPreferencesModel_GetUserPreferences(t *testing.T) {
 	serverDB := setupTestDB(t)
 	defer func() { _ = serverDB.Close() }()
 
-	model := &NotificationPreferencesModel{UserDB: db}
+	model := &NotificationPreferencesModel{testUserDB: db}
 
 	// Get default preferences (no record exists)
 	prefs, err := model.GetUserPreferences(1)
@@ -404,7 +404,7 @@ func TestNotificationPreferencesModel_UpdateUserPreferences(t *testing.T) {
 	serverDB := setupTestDB(t)
 	defer func() { _ = serverDB.Close() }()
 
-	model := &NotificationPreferencesModel{UserDB: db}
+	model := &NotificationPreferencesModel{testUserDB: db}
 
 	// Update preferences
 	newPrefs := &NotificationPreferences{
@@ -447,7 +447,7 @@ func TestAdminNotificationModel_Create(t *testing.T) {
 		}
 	})
 
-	model := &AdminNotificationModel{DB: db}
+	model := &AdminNotificationModel{testDB: db}
 
 	notif, err := model.CreateAdminNotification(1, NotificationTypeSuccess, NotificationDisplayToast, "Admin Test", "Admin message", nil)
 	if err != nil {
@@ -473,7 +473,7 @@ func TestUserNotificationModel_GetStatistics(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 
 	// Create notifications of different types
 	_, _ = model.CreateUserNotification(1, NotificationTypeSuccess, NotificationDisplayToast, "Success", "Message", nil)
@@ -604,7 +604,7 @@ func TestUserNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 				}
 			})
 
-			model := &UserNotificationModel{DB: db}
+			model := &UserNotificationModel{testDB: db}
 			insertNotificationExpiryFixture(t, db, "user_notifications", "user_id", "fixture-user-1", 42, tc.expiresAt(time.Now().UTC()))
 
 			want := tc.liveCount()
@@ -663,7 +663,7 @@ func TestAdminNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
 				}
 			})
 
-			model := &AdminNotificationModel{DB: db}
+			model := &AdminNotificationModel{testDB: db}
 			insertNotificationExpiryFixture(t, db, "admin_notifications", "admin_id", "fixture-admin-1", 7, tc.expiresAt(time.Now().UTC()))
 
 			want := tc.liveCount()
@@ -724,7 +724,7 @@ func TestNotificationPaginationSkipsExpiredRowsBeforeWindowing(t *testing.T) {
 		}
 	})
 
-	model := &UserNotificationModel{DB: db}
+	model := &UserNotificationModel{testDB: db}
 	now := time.Now().UTC()
 
 	// created_at descending is the listing order, so "newest" is inserted with

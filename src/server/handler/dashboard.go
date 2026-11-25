@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 
 	"github.com/webappsgo/wthr/src/database"
@@ -13,7 +12,7 @@ import (
 )
 
 type DashboardHandler struct {
-	DB *sql.DB
+	DB *database.Store
 }
 
 // ShowDashboard renders the user dashboard
@@ -25,7 +24,7 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get user's saved locations
-	locationModel := &model.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{Store: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
 		// Empty array on error
@@ -33,7 +32,7 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get unread notification count
-	notificationModel := &model.NotificationModel{DB: h.DB}
+	notificationModel := &model.NotificationModel{Store: h.DB}
 	unreadCount, err := notificationModel.GetUnreadCount(user.ID)
 	if err != nil {
 		unreadCount = 0
@@ -63,7 +62,7 @@ func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	adminModel := &model.AdminModel{DB: database.GetUsersDB()}
+	adminModel := &model.AdminModel{Store: database.GetUsersStore()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		http.Redirect(w, r, "/server/administration", http.StatusFound)
@@ -71,13 +70,13 @@ func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get system statistics
-	userModel := &model.UserModel{DB: h.DB}
+	userModel := &model.UserModel{Store: h.DB}
 	totalUsers, err := userModel.Count()
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_users"))
 		return
 	}
-	adminCount, err := (&model.AdminModel{DB: database.GetUsersDB()}).GetCount()
+	adminCount, err := (&model.AdminModel{Store: database.GetUsersStore()}).GetCount()
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_count_admins"))
 		return

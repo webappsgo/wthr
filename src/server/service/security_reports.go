@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/secret"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -32,7 +34,7 @@ var ErrBadStatusMove = errors.New("status cannot move backward")
 
 // InstallationSecret returns the 32-byte root secret (PART 11). The secret store creates it on
 // first start; this also creates it when called before startup installed the store.
-func InstallationSecret(db *sql.DB) ([]byte, error) {
+func InstallationSecret(db *database.Store) ([]byte, error) {
 	store := secret.Default()
 	if store == nil {
 		store = secret.NewStore(db)
@@ -55,7 +57,7 @@ func securityIDFor(secret []byte, t time.Time) string {
 }
 
 // CurrentSecurityID returns the {security_id} for now.
-func CurrentSecurityID(db *sql.DB) (string, error) {
+func CurrentSecurityID(db *database.Store) (string, error) {
 	secret, err := InstallationSecret(db)
 	if err != nil {
 		return "", err
@@ -66,7 +68,7 @@ func CurrentSecurityID(db *sql.DB) (string, error) {
 // ValidSecurityID reports whether id is the current or the previous window's id, compared in
 // constant time. Each installation_secret still valid is tried, so a {security_id} issued before a
 // rotation keeps working for the 7 day grace period (PART 11 "installation_secret").
-func ValidSecurityID(db *sql.DB, id string) bool {
+func ValidSecurityID(db *database.Store, id string) bool {
 	if len(id) != 16 {
 		return false
 	}
@@ -92,7 +94,7 @@ func ValidSecurityID(db *sql.DB, id string) bool {
 // private key is re-encrypted under the new secret, and live {security_id} values keep validating
 // against the previous secret for the grace period. The previous value is stored before the new
 // one is used, so a failure loses nothing.
-func RotateInstallationSecret(db *sql.DB, pgp *PGPKeyManager) error {
+func RotateInstallationSecret(db *database.Store, pgp *PGPKeyManager) error {
 	store := secret.Default()
 	if store == nil {
 		store = secret.NewStore(db)
@@ -164,7 +166,7 @@ type SecurityReportRow struct {
 
 // SecurityReportStore persists encrypted reports (PART 11 "Security Report Storage").
 type SecurityReportStore struct {
-	DB *sql.DB
+	Store *database.Store
 	// EncryptionKey is server.security.encryption_key
 	EncryptionKey string
 	PGP           *PGPKeyManager
@@ -219,7 +221,7 @@ func (s *SecurityReportStore) Create(securityID string, report SecurityReport, c
 	token = hex.EncodeToString(tokenBytes)
 	tokenHash := sha256.Sum256([]byte(token))
 	now := time.Now().UTC()
-	_, err = s.DB.Exec(`INSERT INTO security_reports (tracking_id, security_id, severity, component, status, body_enc, body_alg, contact_enc, cve_requested, token_hash, created_at, updated_at)
+	_, err = database.ExecContext(context.Background(), s.Store, database.TimeoutWrite, `INSERT INTO security_reports (tracking_id, security_id, severity, component, status, body_enc, body_alg, contact_enc, cve_requested, token_hash, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 'received', ?, ?, ?, ?, ?, ?, ?)`,
 		trackingID, SecurityIDFingerprint(securityID), report.Severity, report.Component, body, alg, contactEnc, report.CVERequested,
 		hex.EncodeToString(tokenHash[:]), now, now)
@@ -250,7 +252,7 @@ func (s *SecurityReportStore) List(status string) ([]*SecurityReportRow, error) 
 		query += ` WHERE status = ?`
 		args = append(args, status)
 	}
-	rows, err := s.DB.Query(query+` ORDER BY created_at DESC LIMIT 500`, args...)
+	rows, err := database.QueryContext(context.Background(), s.Store, database.TimeoutComplexSelect, query+` ORDER BY created_at DESC LIMIT 500`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +274,7 @@ func (s *SecurityReportStore) List(status string) ([]*SecurityReportRow, error) 
 
 // Get returns one report's metadata.
 func (s *SecurityReportStore) Get(trackingID string) (*SecurityReportRow, error) {
-	r, err := scanReport(s.DB.QueryRow(`SELECT `+reportColumns+` FROM security_reports WHERE tracking_id = ?`, trackingID).Scan)
+	r, err := scanReport(database.QueryRowContext(context.Background(), s.Store, database.TimeoutSimpleSelect, `SELECT `+reportColumns+` FROM security_reports WHERE tracking_id = ?`, trackingID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrReportNotFound
 	}
@@ -283,7 +285,7 @@ func (s *SecurityReportStore) Get(trackingID string) (*SecurityReportRow, error)
 func (s *SecurityReportStore) Body(trackingID string) (*SecurityReport, *ReportContact, error) {
 	var body, contact []byte
 	var alg string
-	err := s.DB.QueryRow(`SELECT body_enc, body_alg, contact_enc FROM security_reports WHERE tracking_id = ?`, trackingID).Scan(&body, &alg, &contact)
+	err := database.QueryRowContext(context.Background(), s.Store, database.TimeoutSimpleSelect, `SELECT body_enc, body_alg, contact_enc FROM security_reports WHERE tracking_id = ?`, trackingID).Scan(&body, &alg, &contact)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, ErrReportNotFound
 	}
@@ -329,70 +331,91 @@ func ValidStatus(status string) bool { return statusIndex(status) >= 0 }
 // Update changes status, researcher comment and disclosure date. Status only moves
 // forward, or to wont_fix; disclosed and wont_fix close the report.
 func (s *SecurityReportStore) Update(trackingID, status, comment, disclosureDate string) (oldStatus string, err error) {
-	cur, err := s.Get(trackingID)
-	if err != nil {
-		return "", err
-	}
-	if !ValidStatus(status) {
-		return cur.Status, errors.New("invalid status")
-	}
-	if status != cur.Status && status != "wont_fix" && statusIndex(status) < statusIndex(cur.Status) {
-		return cur.Status, ErrBadStatusMove
-	}
-	if cur.Status == "wont_fix" && status != "wont_fix" {
-		return cur.Status, ErrBadStatusMove
-	}
-	if len([]rune(comment)) > 2000 {
-		return cur.Status, errors.New("comment too long")
-	}
-	var date any
-	if disclosureDate != "" {
-		if _, perr := time.Parse("2006-01-02", disclosureDate); perr != nil {
-			return cur.Status, errors.New("invalid date")
+	err = s.Store.Write(context.Background(), func(tx *sql.Tx) error {
+		cur, err := scanReport(tx.QueryRowContext(context.Background(), `SELECT `+reportColumns+` FROM security_reports WHERE tracking_id = ?`, trackingID).Scan)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrReportNotFound
 		}
-		date = disclosureDate
-	}
-	now := time.Now().UTC()
-	var closed any
-	if cur.ClosedAt != nil {
-		closed = *cur.ClosedAt
-	} else if status == "disclosed" || status == "wont_fix" {
-		closed = now
-	}
-	_, err = s.DB.Exec(`UPDATE security_reports SET status = ?, researcher_comment = ?, disclosure_date = ?, updated_at = ?, closed_at = ? WHERE tracking_id = ?`,
-		status, comment, date, now, closed, trackingID)
-	return cur.Status, err
+		if err != nil {
+			return err
+		}
+		oldStatus = cur.Status
+		if !ValidStatus(status) {
+			return errors.New("invalid status")
+		}
+		if status != cur.Status && status != "wont_fix" && statusIndex(status) < statusIndex(cur.Status) {
+			return ErrBadStatusMove
+		}
+		if cur.Status == "wont_fix" && status != "wont_fix" {
+			return ErrBadStatusMove
+		}
+		if len([]rune(comment)) > 2000 {
+			return errors.New("comment too long")
+		}
+		var date any
+		if disclosureDate != "" {
+			if _, err := time.Parse("2006-01-02", disclosureDate); err != nil {
+				return errors.New("invalid date")
+			}
+			date = disclosureDate
+		}
+		now := time.Now().UTC()
+		var closed any
+		if cur.ClosedAt != nil {
+			closed = *cur.ClosedAt
+		} else if status == "disclosed" || status == "wont_fix" {
+			closed = now
+		}
+		_, err = tx.ExecContext(context.Background(), `UPDATE security_reports SET status = ?, researcher_comment = ?, disclosure_date = ?, updated_at = ?, closed_at = ? WHERE tracking_id = ?`,
+			status, comment, date, now, closed, trackingID)
+		return err
+	})
+	return oldStatus, err
 }
 
 // ResearcherView validates the one-shot token for the public status page. The token is
 // compared in constant time, works once per calendar day, and stops working 30 days
 // after the report was closed.
 func (s *SecurityReportStore) ResearcherView(trackingID, token string) (*SecurityReportRow, error) {
-	var hash string
-	var lastUsed sql.NullString
-	err := s.DB.QueryRow(`SELECT token_hash, token_last_used FROM security_reports WHERE tracking_id = ?`, trackingID).Scan(&hash, &lastUsed)
-	if err != nil {
-		return nil, ErrReportNotFound
-	}
-	sum := sha256.Sum256([]byte(token))
-	if subtle.ConstantTimeCompare([]byte(hash), []byte(hex.EncodeToString(sum[:]))) != 1 {
-		return nil, ErrReportNotFound
-	}
-	row, err := s.Get(trackingID)
+	var report *SecurityReportRow
+	err := s.Store.Write(context.Background(), func(tx *sql.Tx) error {
+		var hash string
+		var lastUsed sql.NullString
+		var row SecurityReportRow
+		var closed sql.NullTime
+		err := tx.QueryRowContext(context.Background(), `SELECT `+reportColumns+`, token_hash, token_last_used FROM security_reports WHERE tracking_id = ?`, trackingID).Scan(
+			&row.TrackingID, &row.Severity, &row.Component, &row.Status, &row.ResearcherComment, &row.DisclosureDate,
+			&row.CVERequested, &row.CreatedAt, &row.UpdatedAt, &closed, &row.BodyAlg, &hash, &lastUsed,
+		)
+		if err != nil {
+			return ErrReportNotFound
+		}
+		if closed.Valid {
+			closedAt := closed.Time
+			row.ClosedAt = &closedAt
+		}
+		row.DisclosureDate = strings.TrimSuffix(strings.SplitN(row.DisclosureDate, "T", 2)[0], " 00:00:00")
+		sum := sha256.Sum256([]byte(token))
+		if subtle.ConstantTimeCompare([]byte(hash), []byte(hex.EncodeToString(sum[:]))) != 1 {
+			return ErrReportNotFound
+		}
+		if row.ClosedAt != nil && time.Since(*row.ClosedAt) > 30*24*time.Hour {
+			return ErrReportNotFound
+		}
+		today := time.Now().UTC().Format("2006-01-02")
+		if lastUsed.Valid && strings.HasPrefix(lastUsed.String, today) {
+			return ErrReportNotFound
+		}
+		if _, err := tx.ExecContext(context.Background(), `UPDATE security_reports SET token_last_used = ? WHERE tracking_id = ?`, today, trackingID); err != nil {
+			return err
+		}
+		report = &row
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if row.ClosedAt != nil && time.Since(*row.ClosedAt) > 30*24*time.Hour {
-		return nil, ErrReportNotFound
-	}
-	today := time.Now().UTC().Format("2006-01-02")
-	if lastUsed.Valid && strings.HasPrefix(lastUsed.String, today) {
-		return nil, ErrReportNotFound
-	}
-	if _, err := s.DB.Exec(`UPDATE security_reports SET token_last_used = ? WHERE tracking_id = ?`, today, trackingID); err != nil {
-		return nil, err
-	}
-	return row, nil
+	return report, nil
 }
 
 // Purge deletes closed reports older than retentionDays after closure; open reports are never purged.
@@ -401,7 +424,7 @@ func (s *SecurityReportStore) Purge(retentionDays int) (int64, error) {
 		retentionDays = 365
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
-	res, err := s.DB.Exec(`DELETE FROM security_reports WHERE closed_at IS NOT NULL AND closed_at < ?`, cutoff)
+	res, err := database.ExecContext(context.Background(), s.Store, database.TimeoutWrite, `DELETE FROM security_reports WHERE closed_at IS NOT NULL AND closed_at < ?`, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -436,7 +459,7 @@ func (s *SecurityReportStore) AddThanks(trackingID string) error {
 		credit = report.CreditHandle
 	case "anonymous":
 		var n int
-		_ = s.DB.QueryRow(`SELECT COUNT(*) FROM security_thanks WHERE credit LIKE 'Anonymous Researcher #%'`).Scan(&n)
+		_ = database.QueryRowContext(context.Background(), s.Store, database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM security_thanks WHERE credit LIKE 'Anonymous Researcher #%'`).Scan(&n)
 		credit = fmt.Sprintf("Anonymous Researcher #%d", n+1)
 	default:
 		return nil
@@ -444,7 +467,7 @@ func (s *SecurityReportStore) AddThanks(trackingID string) error {
 	if strings.TrimSpace(credit) == "" {
 		return nil
 	}
-	_, err = s.DB.Exec(`INSERT OR IGNORE INTO security_thanks (tracking_id, credit, severity, year) VALUES (?, ?, ?, ?)`,
+	_, err = database.ExecContext(context.Background(), s.Store, database.TimeoutWrite, `INSERT OR IGNORE INTO security_thanks (tracking_id, credit, severity, year) VALUES (?, ?, ?, ?)`,
 		trackingID, credit, row.Severity, time.Now().UTC().Year())
 	return err
 }
@@ -455,7 +478,7 @@ func (s *SecurityReportStore) Thanks(onlyVisible bool) ([]ThanksEntry, error) {
 	if onlyVisible {
 		query += ` WHERE visible = 1`
 	}
-	rows, err := s.DB.Query(query + ` ORDER BY sort_order, year DESC, id DESC`)
+	rows, err := database.QueryContext(context.Background(), s.Store, database.TimeoutComplexSelect, query+` ORDER BY sort_order, year DESC, id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -482,6 +505,6 @@ func (s *SecurityReportStore) UpdateThanks(id int64, credit string, visible bool
 	if strings.TrimSpace(credit) == "" || len([]rune(credit)) > 100 {
 		return errors.New("invalid credit")
 	}
-	_, err := s.DB.Exec(`UPDATE security_thanks SET credit = ?, visible = ?, sort_order = ? WHERE id = ?`, credit, visible, sortOrder, id)
+	_, err := database.ExecContext(context.Background(), s.Store, database.TimeoutWrite, `UPDATE security_thanks SET credit = ?, visible = ?, sort_order = ? WHERE id = ?`, credit, visible, sortOrder, id)
 	return err
 }

@@ -46,7 +46,7 @@ func TestTokenModel_CreateAndGetByToken(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "tok-user", "tok-user@example.com")
-	model := &TokenModel{DB: db}
+	model := &TokenModel{testDB: db}
 
 	created, err := model.CreateAPIToken(int(userID), "CI Key")
 	if err != nil {
@@ -97,7 +97,7 @@ func TestTokenModel_GetByToken_Expiry(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "tok-exp", "tok-exp@example.com")
-	model := &TokenModel{DB: db}
+	model := &TokenModel{testDB: db}
 
 	setExpiry := func(t *testing.T, id int, at time.Time) {
 		t.Helper()
@@ -155,7 +155,7 @@ func TestTokenModel_GetByUserID(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "tok-list", "tok-list@example.com")
-	model := &TokenModel{DB: db}
+	model := &TokenModel{testDB: db}
 
 	t.Run("empty", func(t *testing.T) {
 		tokens, err := model.GetByUserID(int(userID))
@@ -191,7 +191,7 @@ func TestTokenModel_UpdateLastUsedAndDelete(t *testing.T) {
 	db := newModelUsersDB(t)
 	setModelGlobalDualDB(t, nil, db)
 	userID := insertTestUser(t, db, "tok-del", "tok-del@example.com")
-	model := &TokenModel{DB: db}
+	model := &TokenModel{testDB: db}
 
 	created, err := model.CreateAPIToken(int(userID), "Key")
 	if err != nil {
