@@ -49,6 +49,10 @@ make docker
 
 `make docker` builds the image locally. CI publishes release images.
 
+## Beta Release
+
+The maintainer can publish a beta from a clean `main` checkout with `make beta`. This creates and pushes a UTC `YYYYMMDDHHMMSS-beta` tag; the release and container workflows build from that tag. Beta releases are tag based and do not use a `beta` branch.
+
 ## Tests
 
 Run both project test phases when validating a complete change:
