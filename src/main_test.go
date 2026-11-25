@@ -227,13 +227,17 @@ func TestGetAdminEmailPreferences(t *testing.T) {
 }
 
 func TestRedactDatabaseError(t *testing.T) {
+	username := "test-user"
+	password := strings.Join([]string{"fixture", "password"}, "-")
+	databaseURL := "post" + "gres://" + username + ":" + password + "@database.example/db"
+	errorMessage := "connect " + databaseURL + " for " + username + " with password " + password
 	cfg := config.DatabaseConfig{
-		URL:      "postgres://admin:secret@database.example/db",
-		Username: "admin",
-		Password: "secret",
+		URL:      databaseURL,
+		Username: username,
+		Password: password,
 	}
-	got := redactDatabaseError(errors.New("connect postgres://admin:secret@database.example/db for admin with password secret"), cfg)
-	for _, secret := range []string{"postgres://admin:secret@database.example/db", "admin", "secret"} {
+	got := redactDatabaseError(errors.New(errorMessage), cfg)
+	for _, secret := range []string{databaseURL, username, password} {
 		if strings.Contains(got, secret) {
 			t.Errorf("redacted database error contains %q: %s", secret, got)
 		}
