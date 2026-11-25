@@ -416,7 +416,7 @@ valid one (readable, not expired, naming the host):
 |-------|----------|------------|
 | 1 | `/etc/letsencrypt/live/domain/` | certbot (the app never renews it) |
 | 2 | `/etc/letsencrypt/live/{fqdn}/` | certbot |
-| 3 | `{config_dir}/ssl/letsencrypt/{fqdn}/` (`fullchain.pem`, `privkey.pem`) | the app, 7 days before expiry |
+| 3 | `{config_dir}/ssl/letsencrypt/{fqdn}/` (`fullchain.pem`, `privkey.pem`) | the app, when 30 days or fewer remain |
 | 4 | `{config_dir}/ssl/local/{fqdn}/` (`cert.pem`, `key.pem`) | you (never renewed) |
 
 With none of them the server starts on a self-signed certificate in `ssl/local/{fqdn}/`, so a
@@ -424,7 +424,7 @@ first run works with no configuration. `ssl.cert` and `ssl.key` (absolute paths)
 lookup. With `ssl.letsencrypt.enabled: true` and a public domain name, the server then requests
 a certificate with the configured `challenge` (`http-01`, `tls-alpn-01` or `dns-01`) and serves
 it without a restart. The `ssl_renewal` task checks daily
-at 03:00 and renews an app-managed certificate 7 days before it expires. `ssl.min_version` is
+at 03:00 and renews an app-managed certificate when 30 days or fewer remain. `ssl.min_version` is
 `TLS1.2` or `TLS1.3`.
 
 ### DNS-01 provider

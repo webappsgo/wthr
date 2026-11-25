@@ -122,7 +122,7 @@ When a `server.domain` is configured (non-localhost), wthr automatically obtains
 TLS certificate via Let's Encrypt (ACME HTTP-01 challenge). HTTP traffic is redirected to HTTPS.
 
 Certificates obtained by wthr are stored in `{config_dir}/ssl/letsencrypt/{fqdn}/` as
-`fullchain.pem` and `privkey.pem`, and are renewed automatically 7 days before expiry.
+`fullchain.pem` and `privkey.pem`, and are renewed automatically when 30 days or fewer remain.
 Self-signed and operator-supplied certificates live in `{config_dir}/ssl/local/{fqdn}/`
 as `cert.pem` and `key.pem` and are never auto-renewed. Explicit certificate paths can be
 set in `server.yml` under `ssl.cert_file` and `ssl.key_file`.
