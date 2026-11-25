@@ -820,7 +820,11 @@ func TestDeliverySystem_UsesInjectedServerDB(t *testing.T) {
 
 	database.SetGlobalDualDB(&database.DualDB{Server: decoy, Users: usersDB})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
-	t.Setenv("CONFIG_DIR", t.TempDir())
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("server: {}\n"), 0o600); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
 	previousConfig := config.GetGlobalConfig()
 	config.SetGlobalConfig(nil)
 	t.Cleanup(func() { config.SetGlobalConfig(previousConfig) })
