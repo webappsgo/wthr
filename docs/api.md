@@ -551,6 +551,21 @@ Admin session or admin token required. The value is never returned by a read.
 
 The operator token itself is presented as `Authorization: Bearer tok_...` on the `/debug/*` endpoints.
 
+### Rate limit settings
+
+These server admin API routes require an authenticated admin session or an authorized server admin
+API token. Rate limiting is always on; `PATCH` changes thresholds and windows only.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/server/{admin_path}/security/ratelimit` | Read current rate limit settings |
+| `PATCH` | `/api/v1/server/{admin_path}/security/ratelimit` | Update all configured rate limit thresholds and windows |
+
+The update body accepts `global_burst`, `read_requests`, `read_window`, `write_requests`,
+`write_window`, `health_requests`, `health_window`, `login_requests`, `login_window`,
+`password_reset_requests`, `password_reset_window`, `registration_requests`, and
+`registration_window`, each as a positive integer.
+
 ### Firewall and IP blocks
 
 These routes are under `/api/v1/server/{admin_path}/security/` and require an authenticated server
