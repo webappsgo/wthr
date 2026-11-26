@@ -27,7 +27,7 @@ https://wthr.top
 - Signed role-based contact and security webhooks with durable retries
 - Single static binary with all assets embedded
 - Multi-platform (Linux, macOS, Windows, FreeBSD - amd64/arm64)
-- Production grade with rate limiting, caching, health checks
+- Production grade with always-on, configurable rate limiting, caching, and health checks
 - Tor hidden service (always-on when the Tor binary is found)
 - I2P eepsite support (opt-in, admin-configurable)
 - User accounts with saved locations and alert subscriptions (password auth, optional TOTP/passkey 2FA)
