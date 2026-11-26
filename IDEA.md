@@ -541,6 +541,8 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `GET` | `/api/{api_version}/server/{admin_path}/settings/export` |
 | `POST` | `/api/{api_version}/server/{admin_path}/settings/import` |
 | `PUT` | `/api/{api_version}/server/{admin_path}/settings/rate-limit` |
+| `GET` | `/api/{api_version}/server/{admin_path}/security/ratelimit` |
+| `PATCH` | `/api/{api_version}/server/{admin_path}/security/ratelimit` |
 | `POST` | `/api/{api_version}/server/{admin_path}/settings/reload` |
 | `POST` | `/api/{api_version}/server/{admin_path}/settings/reset` |
 | `GET` | `/api/{api_version}/server/{admin_path}/settings/search` |

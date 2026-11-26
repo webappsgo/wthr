@@ -561,7 +561,8 @@ API token. Rate limiting is always on; `PATCH` changes thresholds and windows on
 | `GET` | `/api/v1/server/{admin_path}/security/ratelimit` | Read current rate limit settings |
 | `PATCH` | `/api/v1/server/{admin_path}/security/ratelimit` | Update all configured rate limit thresholds and windows |
 
-The update body accepts `global_burst`, `read_requests`, `read_window`, `write_requests`,
+The update body accepts `global_burst`, `strict_requests`, `strict_window`,
+`auth_failures_requests`, `auth_failures_window`, `read_requests`, `read_window`, `write_requests`,
 `write_window`, `health_requests`, `health_window`, `login_requests`, `login_window`,
 `password_reset_requests`, `password_reset_window`, `registration_requests`, and
 `registration_window`, each as a positive integer.
@@ -632,8 +633,7 @@ X-RateLimit-Reset: 1642252800
 ```
 
 When rate limited, the response uses the canonical error shape with a
-`RATE_LIMITED` code. Retry timing is returned in both the `Retry-After`
-HTTP header and the JSON `retry_after` field:
+`RATE_LIMITED` code. Retry timing is returned in the `Retry-After` HTTP header only:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -644,8 +644,7 @@ Retry-After: 30
 {
   "ok": false,
   "error": "RATE_LIMITED",
-  "message": "Too many requests. Please try again later.",
-  "retry_after": 30
+  "message": "Too many requests. Please try again later."
 }
 ```
 
