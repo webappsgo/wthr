@@ -101,7 +101,7 @@ authenticator verification, and creates ten one-time recovery codes.
 | Manage admins | ❌ | ❌ | ✅ |
 | Manage regular users | ❌ | ❌ | ✅ |
 
-Rate limits use the AI.md PART 11/12 defaults (reads 120/min, writes 10/min, health 120/min, global burst 240/min): per IP for anonymous callers and per token for authenticated callers. Every value is editable in the admin panel.
+Rate limiting is always on. General read/write/health limits use the AI.md PART 12 defaults per IP for anonymous callers and per token for authenticated callers; the global ceiling is 240 requests/minute. Login is limited per IP and identifier, password reset and registration are per IP, invalid/revoked/expired Bearer tokens trigger a per-IP 5-attempt lockout, and operator-token reveal/rotation and backup restore use the strict per-IP limit. Counters use Redis/Valkey when configured and persist through `server.db` otherwise. Thresholds and windows are editable in the admin panel.
 
 ### Data model & sensitivity
 

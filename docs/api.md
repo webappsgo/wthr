@@ -619,10 +619,15 @@ API endpoints are rate-limited:
 | Writes (POST, PUT, PATCH, DELETE) | 10 requests/minute |
 | Health | 120 requests/minute |
 | Global burst | 240 requests/minute |
+| Strict operator-token and restore actions | 10 requests/15 minutes |
+| Invalid, revoked, or expired Bearer tokens | 5 attempts/15 minutes; locks the IP |
+| Login | 5 requests/15 minutes per IP and identifier |
+| Password reset | 3 requests/hour per IP |
+| Registration | 5 requests/hour per IP |
 
 Anonymous requests are limited per IP. Requests with a valid Bearer token are limited per
 token, so clients that share an egress IP do not throttle each other. Failed authentication is
-always counted per IP. Every limit is editable in the admin panel.
+always counted per IP; reaching the failed-token limit also rejects valid-token requests from that IP until its sliding-window count drops. Redis/Valkey is authoritative when configured; otherwise counters persist through `server.db`. Configurable limits are editable in the admin panel.
 
 Rate limit headers:
 

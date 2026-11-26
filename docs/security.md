@@ -76,11 +76,13 @@ Failed authentication is always counted per IP. The defaults below live under
 | Write (POST, PUT, PATCH, DELETE) | 10 requests / minute |
 | Health endpoints | 120 requests / minute |
 | Global burst across all buckets | 240 requests / minute |
-| Login | 5 attempts / 15 minutes |
-| Password reset | 3 requests / hour |
-| Registration | 5 requests / hour |
+| Strict operator-token and restore actions | 10 requests / 15 minutes |
+| Invalid, revoked, or expired Bearer tokens | 5 failures / 15 minutes; locks the IP, including valid-token requests |
+| Login | 5 requests / 15 minutes per IP and identifier |
+| Password reset | 3 requests / hour per IP |
+| Registration | 5 requests / hour per IP |
 
-Exceeding the limit returns **HTTP 429 Too Many Requests** with a `Retry-After` header.
+Counters use Redis/Valkey when configured and are persisted to `server.db` every 30 seconds and at shutdown. Without a shared backend, the in-process sliding-window state is loaded from and flushed to `server.db`. Exceeding a limit returns **HTTP 429 Too Many Requests** with a `Retry-After` header; retry timing is not included in the response body.
 
 ### Trusted IP allowlist
 
