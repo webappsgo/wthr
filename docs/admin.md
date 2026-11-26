@@ -236,7 +236,7 @@ hours), or permanent. Changes apply immediately.
 #### Security Settings
 
 - **CSRF Protection** - Enable CSRF tokens
-- **Rate Limiting** - API rate limits
+- **Rate Limiting** - Always-on limits by request class, editable at `/server/{admin_path}/security/ratelimit`; there is no enable/disable switch.
 - **IP Blocking** - Block specific IPs or countries
 - **CORS** - Cross-origin settings on the **Web** page: allow all origins or list origins, with a preview of the headers sent
 

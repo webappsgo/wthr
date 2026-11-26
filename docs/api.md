@@ -617,8 +617,8 @@ X-RateLimit-Reset: 1642252800
 ```
 
 When rate limited, the response uses the canonical error shape with a
-`RATE_LIMITED` code, and the retry timing is returned in the `Retry-After`
-HTTP header (not in the response body):
+`RATE_LIMITED` code. Retry timing is returned in both the `Retry-After`
+HTTP header and the JSON `retry_after` field:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -629,7 +629,8 @@ Retry-After: 30
 {
   "ok": false,
   "error": "RATE_LIMITED",
-  "message": "Too many requests. Please try again later."
+  "message": "Too many requests. Please try again later.",
+  "retry_after": 30
 }
 ```
 
