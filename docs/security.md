@@ -174,6 +174,11 @@ any API:
 | `cookie_signing_key` | Signs the session cookies, so a forged or tampered cookie is dropped | Every 90 days; the previous value stays valid for 7 days |
 | `csrf_token_secret` | Signs the CSRF tokens | Every 180 days and on every admin password change |
 
+In Cluster Mode, the project PGP public key and its installation-secret-encrypted private key are
+stored in the shared `app_secrets` rows `pgp_pub` and `pgp_priv_enc`. Each node writes its local
+key files from those versioned rows at startup and when a row version changes. A join bootstrap
+includes both rows, and key generation, import, deletion, and rotation update the pair together.
+
 A rotation writes the previous value first, then the new one, then re-encrypts what depends on it,
 so a crash loses nothing. The upkeep task deletes previous values once their grace period has
 passed.
@@ -289,6 +294,12 @@ hashes. Forward logs to another host when that threat is in scope.
 | `/api/{api_version}/server/healthz` | API health status — JSON by default, text via standard API text rules |
 | `/api/healthz` | Unversioned alias for machine-friendly versionless probing |
 | `/metrics` | Prometheus-compatible metrics (configurable auth) |
+
+Metrics authentication uses separate `mtr_` bearer secrets for Prometheus, Grafana and Loki.
+The values live in `{config_dir}/secrets.yml`, are compared in constant time, and never
+authenticate API or admin requests. Missing service tokens are generated at startup. The
+unauthenticated-access option bypasses all three tokens and is safe only behind a firewall or
+equivalent network control.
 
 ---
 

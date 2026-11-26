@@ -297,9 +297,9 @@ built-in `database_check` and `disk_check` scheduler tasks.
 The metrics endpoint is internal only and every service is gated by its own bearer token. Tokens
 are `mtr_` secrets stored in `{config_dir}/secrets.yml` under
 `server.metrics.auth.tokens.{service}`; they are compared in constant time and are not API token
-rows. A blank token disables that service. Each token grants access only to `/server/metrics` and
-its service-specific path. See [Integrations](integrations.md) for the full route list and a
-Prometheus scrape example.
+rows. Missing service tokens are generated and saved at startup, so each service has its own
+credential. Each token grants access only to its metrics service. See
+[Integrations](integrations.md) for the full route list and a Prometheus scrape example.
 
 ```yaml
 server:

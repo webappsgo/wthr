@@ -331,7 +331,10 @@ Monitor system performance and usage.
 
 The Metrics page's settings form works without JavaScript. Its no-JavaScript links open the
 registered-metrics listing and the Prometheus, JSON, or OpenMetrics export through the
-session-authenticated admin web routes.
+session-authenticated admin web routes. Prometheus, Grafana, and Loki use separate `mtr_`
+bearer tokens stored in `secrets.yml`; missing tokens are generated at startup and masked in the
+settings page. **Allow unauthenticated access** skips token checks for all three services and is
+intended only for endpoints protected by a firewall or proxy.
 
 ### Scheduler
 
