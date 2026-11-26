@@ -153,7 +153,7 @@ credentials live in `secrets.yml`. Area files are reloaded when changed.
 
 ```yaml
 server:
-  port: 0
+  port: 64580
   address: "[::]"
   mode: production
   admin_path: administration
