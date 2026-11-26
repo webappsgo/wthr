@@ -212,12 +212,15 @@ To leave, use **Nodes → Remove This Node** on the node being removed, or its a
 `POST /api/{api_version}/server/{admin_path}/nodes/leave` endpoint. This removes only that node's
 membership, clears its remote database/cache and cluster encryption settings, archives any
 pre-existing local SQLite files under `removed-nodes/`, and makes the active service refuse
-requests until the node enrolls again. On the next standalone startup, fresh local databases are
-created; the archived files remain available for forensic review. Other nodes and their shared
-database are left intact. After removing a compromised node, use another live node to rotate `installation_secret`
-and `server.security.encryption_key` with `--maintenance secret rotate {name}`, change the admin
-password (which rotates `csrf_token_secret`), and rotate the project PGP keypair from the security
-page. `cookie_signing_key` rotates on its 90-day schedule.
+requests until the node enrolls again. Remove the node from its own page while the service is
+running, then stop the service. An offline node cannot be removed by another node; it remains
+listed until it returns and removes itself or the cluster is rebuilt. On the next standalone
+startup, fresh local databases are created; the archived files remain available for forensic
+review. Other nodes and their shared database are left intact. After removing a compromised node,
+use another live node to rotate `installation_secret` and `server.security.encryption_key` with
+`--maintenance secret rotate {name}`, change the admin password (which rotates `csrf_token_secret`),
+and rotate the project PGP keypair from the security page. `cookie_signing_key` rotates on its
+90-day schedule.
 
 ### Weather Data
 
@@ -291,8 +294,11 @@ built-in `database_check` and `disk_check` scheduler tasks.
 
 ### Metrics
 
-The metrics endpoint is internal only and every service is gated by its own bearer token. An empty
-token disables that service. See [Integrations](integrations.md) for the full route list and a
+The metrics endpoint is internal only and every service is gated by its own bearer token. Tokens
+are `mtr_` secrets stored in `{config_dir}/secrets.yml` under
+`server.metrics.auth.tokens.{service}`; they are compared in constant time and are not API token
+rows. A blank token disables that service. Each token grants access only to `/server/metrics` and
+its service-specific path. See [Integrations](integrations.md) for the full route list and a
 Prometheus scrape example.
 
 ```yaml
