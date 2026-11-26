@@ -210,9 +210,11 @@ Environment connection values do not override the cluster values received by a j
 
 To leave, use **Nodes → Remove This Node** on the node being removed, or its authenticated
 `POST /api/{api_version}/server/{admin_path}/nodes/leave` endpoint. This removes only that node's
-membership, clears its remote database/cache settings, and removes stale local SQLite files so
-the next restart creates fresh standalone databases. Other nodes and their shared database are
-left intact.
+membership, clears its remote database/cache and cluster encryption settings, archives any
+pre-existing local SQLite files under `removed-nodes/`, and makes the active service refuse
+requests until the node enrolls again. On the next standalone startup, fresh local databases are
+created; the archived files remain available for forensic review. Other nodes and their shared
+database are left intact.
 
 ### Weather Data
 

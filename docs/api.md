@@ -602,6 +602,7 @@ authenticated node; changing them returns `restart_required: true`.
 | `PATCH` | `/api/v1/server/{admin_path}/nodes/settings` | Update this node's ID and display name |
 | `POST` | `/api/v1/server/{admin_path}/nodes/token` | Create a one-time cluster join token |
 | `POST` | `/api/v1/server/{admin_path}/nodes/leave` | Remove this node from cluster membership |
+| `POST` | `/api/v1/server/{admin_path}/nodes/join` | HTTPS-only, one-time node enrollment; publishes encrypted bootstrap configuration |
 
 The settings body is `{"node_id":"node-1","display_name":"Weather node 1"}`. Empty identity
 values restore the hostname default. Node IDs accept letters, numbers, dots, underscores, and
