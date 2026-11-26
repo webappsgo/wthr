@@ -214,9 +214,10 @@ membership, clears its remote database/cache and cluster encryption settings, ar
 pre-existing local SQLite files under `removed-nodes/`, and makes the active service refuse
 requests until the node enrolls again. On the next standalone startup, fresh local databases are
 created; the archived files remain available for forensic review. Other nodes and their shared
-database are left intact. The confirmation page also offers **Rotate Everything and Remove This
-Node**; it re-prompts for the current admin password, rotates the shared secrets and encryption
-key plus the project PGP keypair, then removes this node.
+database are left intact. After removing a compromised node, use another live node to rotate `installation_secret`
+and `server.security.encryption_key` with `--maintenance secret rotate {name}`, change the admin
+password (which rotates `csrf_token_secret`), and rotate the project PGP keypair from the security
+page. `cookie_signing_key` rotates on its 90-day schedule.
 
 ### Weather Data
 
