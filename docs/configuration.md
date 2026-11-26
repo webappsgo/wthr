@@ -194,6 +194,11 @@ with deletion tombstones; remotely fetched image caches stay local. `server.yml`
 and `secrets.yml` remain node-local. PostgreSQL and MySQL tables use `srv_` and
 `usr_` prefixes; SQLite retains the split local database files.
 
+Open **Nodes → Settings** to set this node's `server.cluster.node_id` and
+`server.cluster.display_name` in its node-local `server.yml`. Both default to
+the hostname; identity changes require a restart. The node list and detail pages
+are under `/server/{admin_path}/nodes`.
+
 The first node enters cluster mode from the admin **Nodes → Add Node** wizard. It supplies a
 shared PostgreSQL/MySQL URL and Valkey/Redis URL; the wizard tests the cache, migrates local
 database data, and creates the first one-time join token. Restart that first node to activate the

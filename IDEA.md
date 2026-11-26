@@ -519,6 +519,10 @@ This inventory is checked against the generated OpenAPI document and router regi
 | `POST` | `/api/{api_version}/server/{admin_path}/nodes/join` |
 | `POST` | `/api/{api_version}/server/{admin_path}/nodes/leave` |
 | `POST` | `/api/{api_version}/server/{admin_path}/nodes/token` |
+| `GET` | `/api/{api_version}/server/{admin_path}/nodes` |
+| `GET` | `/api/{api_version}/server/{admin_path}/nodes/{node}` |
+| `GET` | `/api/{api_version}/server/{admin_path}/nodes/settings` |
+| `PATCH` | `/api/{api_version}/server/{admin_path}/nodes/settings` |
 | `GET` | `/api/{api_version}/server/{admin_path}/security/blocked-ips` |
 | `POST` | `/api/{api_version}/server/{admin_path}/security/blocked-ips` |
 | `DELETE` | `/api/{api_version}/server/{admin_path}/security/blocked-ips/expired` |

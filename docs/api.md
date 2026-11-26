@@ -589,6 +589,24 @@ extended default.
 Trusted entries bypass IP blocks, rate limits, and GeoIP country blocking. They do not bypass
 authentication, API token validation, or CSRF protection.
 
+### Cluster nodes
+
+These routes require an authorized server admin API token. Node identity settings are local to the
+authenticated node; changing them returns `restart_required: true`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/server/{admin_path}/nodes` | List nodes with heartbeat status, uptime, version, and last-seen time |
+| `GET` | `/api/v1/server/{admin_path}/nodes/{node}` | Read safe node, system, database, and Tor details |
+| `GET` | `/api/v1/server/{admin_path}/nodes/settings` | Read this node's ID and display name |
+| `PATCH` | `/api/v1/server/{admin_path}/nodes/settings` | Update this node's ID and display name |
+| `POST` | `/api/v1/server/{admin_path}/nodes/token` | Create a one-time cluster join token |
+| `POST` | `/api/v1/server/{admin_path}/nodes/leave` | Remove this node from cluster membership |
+
+The settings body is `{"node_id":"node-1","display_name":"Weather node 1"}`. Empty identity
+values restore the hostname default. Node IDs accept letters, numbers, dots, underscores, and
+hyphens; duplicate IDs are rejected.
+
 ## Content Negotiation
 
 `/api/**` routes pick the response format in this order:
