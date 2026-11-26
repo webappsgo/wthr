@@ -103,6 +103,14 @@ authenticator verification, and creates ten one-time recovery codes.
 
 Rate limiting is always on. General read/write/health limits use the AI.md PART 12 defaults per IP for anonymous callers and per token for authenticated callers; the global ceiling is 240 requests/minute. Login is limited per IP and identifier, password reset and registration are per IP, invalid/revoked/expired Bearer tokens trigger a per-IP 5-attempt lockout, and operator-token reveal/rotation and backup restore use the strict per-IP limit. Counters use Redis/Valkey when configured and persist through `server.db` otherwise. Thresholds and windows are editable in the admin panel.
 
+### Cluster administration
+
+The admin panel provides node enrollment with expiring join tokens, node status
+details, and shared cluster settings. In shared-database cluster mode, nodes
+synchronize versioned server configuration, application secrets, and PGP keys
+through the shared database. Node management pages provide the join, status,
+settings, and removal flows.
+
 ### Data model & sensitivity
 
 **Stored data:** application configuration, admin accounts, regular user accounts, saved locations, alert subscriptions, sessions, the audit log and scheduler state (storage layout: AI.md PART 10).

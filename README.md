@@ -28,6 +28,7 @@ https://wthr.top
 - Single static binary with all assets embedded
 - Multi-platform (Linux, macOS, Windows, FreeBSD - amd64/arm64)
 - Production grade with always-on, configurable rate limiting, caching, and health checks
+- Cluster administration for node enrollment, status, shared settings, and removal
 - Tor hidden service (always-on when the Tor binary is found)
 - I2P eepsite support (opt-in, admin-configurable)
 - User accounts with saved locations and alert subscriptions (password auth, optional TOTP/passkey 2FA)
