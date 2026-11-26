@@ -178,6 +178,11 @@ A rotation writes the previous value first, then the new one, then re-encrypts w
 so a crash loses nothing. The upkeep task deletes previous values once their grace period has
 passed.
 
+For a potentially compromised cluster node, the **Nodes → Remove This Node** confirmation page
+can rotate the installation, cookie-signing and CSRF secrets, the server encryption key, and the
+project PGP keypair before removing the current node. Rotation requires the current admin password
+and a healthy-node quorum.
+
 The optional scheduled-backup password is separate from these three application secrets. It is
 AES-256-GCM encrypted with `server.security.encryption_key` and stored in `{config_dir}/secrets.yml`.
 It is included in backups, never returned by an API, and re-encrypted when the server encryption key
