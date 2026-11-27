@@ -134,7 +134,7 @@ See the [CLI reference](docs/cli.md) for configuration and details.
 
 ## Configuration
 
-Configuration is auto-generated on first run. Edit via admin panel at `https://wthr.top/admin`.
+Configuration is auto-generated on first run. Edit via the admin panel at `https://wthr.top/server/administration`.
 
 Key settings:
 - `server.port` - Listen port (auto-selected in the 64000-64999 range on first run, then persisted; set explicitly to override)

@@ -92,8 +92,9 @@ the same size, type, and image validation pipeline.
 Raster uploads and remote images produce responsive logo variants (200px and 50px wide), favicon
 variants (16, 32, 48, 180, 192, and 512px, including the Apple touch icon), and a 1200×630 Open
 Graph image variant. The header advertises the responsive logo sizes; the page head uses the
-generated favicon and social preview images. The accent stylesheet is served at
-`/static/css/accent.css`.
+generated favicon and social preview images. When `web.ui.accent` is configured, the page head
+loads the generated `/static/css/accent.css`; with the built-in accent, that link and route are
+omitted.
 
 ## Environment Variables
 
@@ -207,6 +208,17 @@ before its first start. The endpoint requires HTTPS except for loopback developm
 credentials and connection TLS files are authenticated-encrypted with the token; the node then
 replaces the supplied shared secrets and writes private TLS files before opening databases.
 Environment connection values do not override the cluster values received by a joiner.
+
+Mixed Mode adds node-local database replicas to a Cluster node while the shared PostgreSQL or
+MySQL database remains the only application source of truth. Each replica entry needs a unique
+name, driver, and connection URL; supported destinations are SQLite, PostgreSQL, MySQL, and
+MariaDB. Replicas are initialized with the standard server and users schemas and receive
+primary changes through durable Valkey/Redis streams. Valkey/Redis is required when replicas are
+configured. `server.database.sync.enabled` defaults to `true`, and `interval` defaults to `5s`.
+Each replica's `sync` setting can disable synchronization for a manual copy; `read_only: true`
+means application code does not write to that replica, while the synchronizer still requires
+write access. A replica is never promoted automatically. All nodes must run the same application
+schema version.
 
 To leave, use **Nodes → Remove This Node** on the node being removed, or its authenticated
 `POST /api/{api_version}/server/{admin_path}/nodes/leave` endpoint. This removes only that node's

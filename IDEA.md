@@ -46,6 +46,7 @@ All weather data sources are free/public APIs and require no operator API keys o
     maintainer_name:  webappsgo
     maintainer_email: casjay@yahoo.com
     module_path:      github.com/webappsgo/wthr
+    uses_geolocation: true
 
 ## Business logic
 

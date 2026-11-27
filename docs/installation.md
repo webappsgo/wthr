@@ -84,7 +84,7 @@ The server is functional immediately on first run. Admin setup is completed thro
 After setup, use:
 
 - Admin panel: `https://wthr.top/server/administration`
-- Health: `https://wthr.top/healthz`
+- Health: `https://wthr.top/server/healthz`
 - Swagger UI: `https://wthr.top/server/docs/swagger`
 - OpenAPI JSON: `https://wthr.top/api/v1/server/swagger`
 
@@ -93,7 +93,7 @@ After setup, use:
 ```bash
 wthr --version
 wthr --status
-curl -q -LSsf https://wthr.top/healthz
+curl -q -LSsf https://wthr.top/server/healthz
 ```
 
 ## Building From Source
