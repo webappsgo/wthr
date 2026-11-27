@@ -151,6 +151,8 @@ IDEA.md is the project PLAN. AI.md (this file) is the authoritative template bas
 
 **A feature IDEA.md defines that AI.md has no contract for** (for example operator-level billing or federation) is built from IDEA.md under the full AI.md baseline: security, authentication, database, API conventions, configuration, audit, i18n and every PART the feature touches. AI.md defines no protocol for it and forbids nothing about it. The project's SPEC.md states the feature's technical contract (data, endpoints, signatures, retries, conflict handling) and is the only place that does; the feature never loosens a baseline rule, and a baseline rule it cannot meet is a SPEC.md exception (PART 0).
 
+A feature that builds or runs user-supplied source (a PaaS build path) also defines `server.builds.*` like any other configuration: a builder image pinned by digest, memory and CPU limits (defaults `2g` and `1`), a timeout (default `15m`) and an egress proxy address with its token (default empty: the build has no network). Each key follows the area-file rules.
+
 **Billing** (plans, subscriptions, payment providers, invoices, dunning, usage metering, tax) is such a feature. The "Free & open source" and "No artificial limits" rules (PART 0) bar the template itself from paid tiers, an enterprise edition and monetization quotas on its own features; a billing feature that IDEA.md defines is the owner's product feature, never gates a template feature and never turns a rate limit into a usage limit. When IDEA.md defines it, the reference for the SPEC.md billing contract is `~/.claude/TEMPLATES/BILLING.md`, and the `billing-builder` agent implements it. CAVEAT: that file is an optional, machine-level reference outside this specification: it may be absent, it is never copied into a project, it only informs the SPEC.md contract and never overrides AI.md (AI.md wins every conflict), and when it is absent the project's SPEC.md states the billing contract itself. The project's SPEC.md (with the user's approval) is where the provider list is chosen: it may drop or add providers relative to that file, and a provider the user removes there is never reintroduced from the reference. A project that defines no billing ignores it.
 
 | IDEA.md MAY | IDEA.md MAY NOT |
@@ -850,7 +852,7 @@ CI workflows reference the image directly: `container: image: casjaysdev/go:late
 | Jenkins | `Jenkinsfile` | Declarative Pipeline |
 
 **`security` job conditionality (applies to all providers):**
-- Secret scan (truffleHog) — always runs; full git history required
+- Secret scan (truffleHog) — always runs: a range scan of the pushed commits (or the PR range) on branch pushes and pull requests, and the full git history on new-branch, scheduled and manual runs (see the CI/CD secret-scan contract)
 - Workflow policy (SHA/digest pinning check) — always runs
 - `vuln-scan` (govulncheck) — conditional on `go.sum` present
 - `image-scan` (Trivy) — conditional on Dockerfile present; builds its own image first (host-runner job, no `needs`)
@@ -3364,7 +3366,7 @@ Implemented core server functionality and API.
 | Code patterns | Relevant PARTs | Config, server, API patterns match |
 | Business logic | IDEA.md | Features implemented match what IDEA.md defines |
 | Threat model / abuse model | IDEA.md → `## Business logic` | Trust boundaries, data sensitivity, abuse cases, and security exceptions are documented and code matches them |
-| Well-known namespace | PART 11 / web routes | `/.well-known/**` serves the paths the project implements per the IANA registry and the RFCs, unimplemented paths 404, and optional entries exist only when the corresponding feature is defined |
+| Well-known namespace | PART 11 / web routes | `/.well-known/**` serves the paths the project implements per the IANA registry and the RFCs (the one template exception is `llms.txt`, served there and at `/llms.txt` by the llms.txt convention although no registry entry exists), unimplemented paths 404, and optional entries exist only when the corresponding feature is defined |
 | External identity auth | PART 34 | OIDC, LDAP, and SAML all exist, support multiple providers, expose the documented `/server/auth/*` and `/api/{api_version}/server/auth/*` routes, and are manageable from `/server/{admin_path}/security/auth/*` |
 | External username onboarding | PART 34 | New OIDC/LDAP/SAML-backed users/admins go through the documented first-login username confirmation flow, including prefill normalization and collision-safe numeric suggestions |
 | CLI interface | PART 8 | Flags, commands, help output match spec |
@@ -3538,7 +3540,7 @@ Spec version: {line count or hash}
 
 | Rule | Description |
 |------|-------------|
-| **NEVER** | Include AI attribution anywhere (code, comments, commits, PRs, documentation) |
+| **NEVER** | Include AI attribution anywhere (code, comments, commits, PRs, documentation); the one exception is the owner-directed original-content statement on the attribution surface ("Embedded Datasets and Content") |
 | **NEVER** | Add "authored by Claude", "generated by AI", "Co-Authored-By: Claude/AI", etc. |
 | **NEVER** | Add AI-related comments like "AI-generated", "written by assistant", etc. |
 | **NEVER** | Reference AI tools in commit messages, PR descriptions, or changelogs |
@@ -3618,7 +3620,7 @@ If a requested action would run a forbidden command on the host, AI MUST refuse 
 total := price * (1 + taxRate)
 
 // User configuration options
-type Config struct {
+type ServerConfig struct {
     // Server port number
     Port int
     // Enable debug mode
@@ -3633,7 +3635,7 @@ total := price * (1 + taxRate) // Calculate total price - WRONG
 total := price * (1 + taxRate)
 // Calculate total price - WRONG (below)
 
-type Config struct {
+type ServerConfig struct {
     Port int  // Server port - WRONG (inline)
     Debug bool // Debug mode - WRONG (inline)
 }
@@ -4709,7 +4711,7 @@ go build -o binary/{project_name} ./src
   - clearer UI copy and recovery flows
   - progressive disclosure in admin UX
   - better docs/examples
-- AI MUST NOT reduce friction by disabling, loosening, or bypassing:
+- AI MUST NOT reduce friction by disabling, loosening, or bypassing (this limits what the AI changes in a project; the operator-configured trusted-IP allowlist, which skips blocklists, rate limits and lockouts but never authentication, is a product feature and not a violation):
   - authn / authz
   - TLS / secure cookies
   - CSRF / CSP / CORS protections
@@ -4834,8 +4836,8 @@ Content-Type: application/json
 
 {
   "ok": false,
-  "error": "SERVICE_ERROR",
-  "message": "Service temporarily unavailable"
+  "error": "MAINTENANCE",
+  "message": "Service unavailable"
 }
 ```
 
@@ -5549,6 +5551,14 @@ chmod +x {project_name}-linux-amd64
 ./{project_name}-linux-amd64
 ```
 
+### systemd
+
+```bash
+# Install the service and start it (the binary writes its own unit file)
+sudo ./{project_name}-linux-amd64 --service --install
+sudo systemctl enable --now {project_name}
+```
+
 ## Client
 
 A companion client is available for interacting with the server API.
@@ -5617,8 +5627,7 @@ curl -q -LSsf -H "Authorization: Bearer TOKEN" {official_site}/api/{api_version}
 
 ### Prerequisites
 
-- Go (latest stable)
-- Docker (for containerized builds)
+- Docker (the Go toolchain runs in the `casjaysdev/go` container; no local Go install is needed or used)
 
 ### Build
 
@@ -6221,7 +6230,7 @@ package main
 
 ## Embedded Datasets and Content (Provenance Before Embedding)
 
-**Any third-party dataset or content a project embeds or ships (word lists, quote or joke collections, place and postal data, images, fonts, icons, translations, GeoIP-style databases) needs documented provenance BEFORE it is embedded.**
+**Any third-party dataset or content a project embeds or ships (word lists, quote or joke collections, place and postal data, images, fonts, icons, translations, GeoIP-style databases) needs documented provenance BEFORE it is embedded, with ONE exclusion: the JSON files under `src/data/**` (`src/data/**.json`) are outside this section entirely. They need no provenance, terms, attribution, third-party notice, `source` key or ask-first decision; the rows below apply to everything else (images, fonts, icons, downloaded databases, translations from outside the project).**
 
 | Required | Rule |
 |----------|------|
@@ -7807,6 +7816,9 @@ func PathSecurityMiddleware(next http.Handler) http.Handler {
 | `GET /server/admin//settings` | `/server/{admin_path}/settings` | 200 |
 | `GET //api///v1//users` | `/api/{api_version}/users` | 200 |
 | `GET ///` | `/` | 200 |
+
+Repeated slashes are collapsed BEFORE any trailing-slash redirect, so `///` normalizes straight to `/` (no `//` intermediate redirect).
+
 | `GET /static/../server/admin` | Blocked | 400 |
 | `GET /api/{api_version}/files/..%2F..%2Fetc/passwd` | Blocked | 400 |
 | `GET /server/admin/....//secret` | Blocked | 400 |
@@ -8069,7 +8081,7 @@ Self-Healing Successful?                        │
     │        Resume Normal Operation
     │
     └─► NO: Continue in Maintenance Mode
-            Retry every 30 seconds
+            Retry every 30 seconds (until maintenance.self_healing.max_attempts is reached; 0 = forever)
             Show fix instructions in admin UI
 ```
 
@@ -8214,7 +8226,7 @@ X-Maintenance-Reason: database_connection
 
 **`mode` always reports the configured MODE (`production`/`development`/`debug`) — maintenance is a state carried by `status`, never a mode. HTTP code: `503 Service Unavailable`.**
 
-**Self-healing limit.** `max_attempts: 0` retries forever. A positive value caps the failed attempts: once it is reached retrying stops and the server stays in maintenance mode (writes keep answering `503`; reads keep working only while the database or a usable cache can answer them, and with neither, for example a remote database that is down and no usable cache, only the health endpoints answer and every other route is `503`). `maintenance.self_healing` in `/server/healthz` then reports `enabled: false`, `exhausted: true` and `next_attempt: null`; the audit log records `server.self_healing_exhausted` (reason, attempts); and one notification (when email is configured) says operator action is needed. The server leaves maintenance mode only when an operator removes the cause and restarts the service (`--service restart`); a restart also resets the attempt count.
+**Self-healing limit.** `max_attempts: 0` retries every 30 seconds forever; a positive value caps the failed attempts, after which the health fields keep `attempts`, report `exhausted` and recovery needs an operator restart. A positive value caps the failed attempts: once it is reached retrying stops and the server stays in maintenance mode (writes keep answering `503`; reads keep working only while the database or a usable cache can answer them, and with neither, for example a remote database that is down and no usable cache, only the health endpoints answer and every other route is `503`). `maintenance.self_healing` in `/server/healthz` then reports `enabled: false`, `exhausted: true` and `next_attempt: null`; the audit log records `server.self_healing_exhausted` (reason, attempts); and one notification (when email is configured) says operator action is needed. The server leaves maintenance mode only when an operator removes the cause and restarts the service (`--service restart`); a restart also resets the attempt count.
 
 ### Recovery (Automatic)
 
@@ -8765,7 +8777,7 @@ Wherever this specification says a setting is set "in `server.yml`", it means th
 | `server.security.installation_secret`, `.installation_secret_previous`, `.installation_secret_previous_expires`, `.encryption_key_previous`, `.encryption_key_previous_expires` | imported into the database `app_secrets` row of the same name when that row is missing (the legacy `..._previous_expires` keys become the canonical `{name}_previous_until` rows), then removed from the file (PART 11 → "Rotation contract") |
 | Settings that no longer exist | removed: `web.llms.enabled`, `server.privacy.content.*`, `server.mcp`, `server.rate_limit.enabled`, `server.rate_limit.requests`, `server.rate_limit.window`, `server.scheduler.enabled`, `server.maintenance_mode`, `server.i18n.auto_detect`, `.rtl_languages`, `.show_selector`, `.translations_dir`, `server.geoip.dir`, `.databases`, `.country_mode`, `server.database.sqlite`, `server.metrics.endpoint`, `server.notifications.email_enabled`, `.webhook_enabled`, `server.secret_key`, `web.permissions_policy`, `web.honor_dnt`, `web.robots.ai_bots` |
 
-**Scheduler tasks.** A task under `server.scheduler.tasks` has exactly the keys `enabled`, `schedule`, `retry_on_fail` and `retry_delay` (backup retention is NOT a task key: it lives only in `server.backup.retention`, PART 22). Any other per-task key is removed by the migration, and a built-in task that still has its default values is not written at all.
+**Scheduler tasks.** A task under `server.scheduler.tasks` has exactly the keys `enabled`, `schedule`, `retry_on_fail`, `retry_delay` and `timeout` (default `1h`, the run limit that the lock lease is derived from) (backup retention is NOT a task key: it lives only in `server.backup.retention`, PART 22). Any other per-task key is removed by the migration, and a built-in task that still has its default values is not written at all.
 
 **Layout.** Sections and keys are written in the order this specification lists them, so a rewrite never reshuffles a file and diffs stay small.
 
@@ -9034,7 +9046,7 @@ ENTRYPOINT [ "tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh" ]
    }
 
    // execElevated re-executes with elevated privileges (Unix)
-   // Illustrative: the normative dispatch tries the detected methods in the order of the list in PART 23 (sudo, doas, pkexec)
+   // Illustrative and intentionally partial (the example shows sudo only): the normative dispatch tries the detected methods in the order of the list in PART 23 (sudo, doas, pkexec)
    // and, only after the user accepted the prompt and every detected method failed, su in the same terminal
    // (su asks for the root password itself; the accepted prompt is not repeated)
    func execElevated(args []string) error {
@@ -9891,7 +9903,7 @@ Before proceeding, confirm you understand:
 | Debug endpoints | **Enabled** (`/debug/*`) |
 | pprof endpoints | **Enabled** (`/debug/pprof/*`) |
 | expvar endpoints | **Enabled** (`/debug/vars`) |
-| Request/response logging | Full (headers, body, timing) |
+| Request/response logging | Full (headers, timing) and bodies only when `server.debug.log_bodies` is `true` (default `false`; bodies are sanitized like every other logged value) |
 | Database query logging | Enabled (queries, timing, rows) |
 | Cache operation logging | Enabled (hits, misses, evictions) |
 | Memory profiling | Enabled |
@@ -12243,6 +12255,17 @@ func detectServiceManager() string {
         }
     }
 
+    // Explicit runit (SVDIR) and s6 (S6_*) evidence wins over the container markers, so a supervised host is never reported as a container
+    // runit: check for SVDIR
+    if os.Getenv("SVDIR") != "" {
+        return "runit"
+    }
+
+    // s6: check for S6_* vars
+    if os.Getenv("S6_LOGGING") != "" {
+        return "s6"
+    }
+
     // Check for container environment
     if isContainer() {
         return "container"
@@ -12265,16 +12288,6 @@ func detectServiceManager() string {
     // launchd: macOS with PPID=1
     if runtime.GOOS == "darwin" && ppid == 1 {
         return "launchd"
-    }
-
-    // runit: check for SVDIR
-    if os.Getenv("SVDIR") != "" {
-        return "runit"
-    }
-
-    // s6: check for S6_* vars
-    if os.Getenv("S6_LOGGING") != "" {
-        return "s6"
     }
 
     // OpenRC: PPID=1 with OpenRC running. Checked BEFORE SysV: both use /etc/init.d
@@ -13172,6 +13185,8 @@ See **PART 10: DATABASE & CLUSTER** for full cluster configuration.
 | Auto-increment | `AUTOINCREMENT` | `SERIAL` / `AUTO_INCREMENT` |
 | Upsert | `ON CONFLICT DO UPDATE` | `ON CONFLICT DO UPDATE` / `ON DUPLICATE KEY` |
 | Boolean | `INTEGER (0/1)` | `BOOLEAN` / `TINYINT(1)` |
+
+**MSSQL equivalents:** timestamps `DATEDIFF_BIG(SECOND, '1970-01-01', SYSUTCDATETIME())`, auto-increment `IDENTITY(1,1)`, upsert `MERGE … WHEN MATCHED THEN UPDATE WHEN NOT MATCHED THEN INSERT`, boolean `BIT`.
 
 **Automatic Detection:**
 
@@ -14814,6 +14829,8 @@ func IsValidSSLHost(host string) bool {
 - `X-Forwarded-Port` - Standard: "443" or "8080"
 - `X-Real-Port` - nginx alternative
 
+These protocol, host and port headers (`Front-End-Https` and `X-Real-Port` included) are honored only when the TCP peer is in `trusted_proxies` (step 1 of the client-IP table below); from any other peer they are ignored.
+
 **Client IP Detection (for logging, rate limiting, GeoIP):**
 
 Resolution walks the proxy chain from the right (nearest hop first), following RFC 7239 §5.2 and the de-facto `X-Forwarded-For` convention. The leftmost entry is client-controlled and is NEVER trusted on its own.
@@ -15203,6 +15220,7 @@ See **PART 12: SERVER CONFIGURATION** for full Valkey/Redis setup.
 | `memory` | Single instance | Development, small deployments | Default, in-process, lost on restart |
 | `valkey` | Single/Cluster | Production | Preferred, open-source Redis fork |
 | `redis` | Single/Cluster | Production | Full compatibility |
+| `none` | Disabled | Single-instance projects that use no cache-backed feature | `server.cache.type: none`: every cache lookup misses and nothing is stored; cluster and mixed mode do not allow it |
 
 ### Cache Key Naming
 
@@ -15844,7 +15862,7 @@ SQLite allows ONE writer at a time. Without the rules below, concurrent requests
 | Busy wait | `busy_timeout=10000` (10 s) on EVERY connection, set through the DSN so the pool applies it to each new connection |
 | Two handles | `writeDB`: `SetMaxOpenConns(1)`, `SetMaxIdleConns(1)`, no connection lifetime, `_txlock=immediate` (every transaction starts with `BEGIN IMMEDIATE`, so the write lock is taken up front and a busy wait is honored). `readDB`: `SetMaxOpenConns(pool.max_open)`, `query_only(1)`. Only the store layer sees the handles; it exposes `Write(ctx, fn)` and `Read(ctx)`, so a handler cannot pick the wrong one |
 | Writes only through `Write` | Every INSERT, UPDATE, DELETE, DDL and every transaction that may write goes through `Write`. A read-then-write flow runs entirely inside ONE `Write` transaction; it never reads on `readDB` and then writes |
-| Short transactions | A write transaction holds no network call, email send, file I/O, sleep or user callback. Target under 100 ms; `Write` has a 10 s context deadline |
+| Short transactions | A write transaction holds no network call, email send, file I/O, sleep or user callback. Target under 100 ms; `Write` has a 10 s context deadline. The two operations the specification requires to be ONE atomic transaction, owner privacy deletion and PGP key rotation re-encryption (PART 11), are explicit exceptions to this target and to the batch limit below: each runs as one transaction under a dedicated 5-minute deadline, bounded by the owner's own rows or the stored reports, and keeps its crash-recovery marker inside the same transaction |
 | Rows are closed first | Rows from a query are fully read and closed before a write in the same flow: collect the ids, close, then write. A cursor held open across a write is a defect |
 | Batches | Cleanup, retention, audit purge and import work in batches of at most 500 rows per transaction, with a short yield between batches (the scheduler tasks of PART 19). `VACUUM` runs only from a maintenance task on the write handle, never inside a transaction and never during a request |
 | Hot counters | Rate-limit counters, request metrics, session `last_used` and other per-request bookkeeping are NOT written per request. They live in memory and one goroutine flushes them in a single transaction every 30 s and on shutdown. `last_used` (a token's `last_used_at`, and a session's where the template has sessions) is updated only when the stored value is older than 60 seconds and then reaches the database with the next flush, so a token or session is written at most once a minute |
@@ -16413,7 +16431,7 @@ The root secret all other derived material hangs off. Without it, in-flight HMAC
 - NEVER returned in any API response — even to admins. The admin panel shows "configured" / "rotated 12 days ago" / fingerprint hashes only.
 - NEVER logged. The Output Sanitization Pipeline (PART 11 → above) treats any field whose name contains `secret`, `key`, `password`, `token` as redacted at the log layer too.
 - Always included in backups (PART 22 → "Backup Contents").
-- Restored verbatim from a backup. Restoring partially (e.g., DB without these secrets) is rejected by the restore flow — the manifest verifies all secrets are present.
+- Restored verbatim from a backup into SQLite (a restore into a remote database applies them only when its `app_secrets` rows are absent and keeps the live ones otherwise, PART 21). Restoring partially (e.g., DB without these secrets) is rejected by the restore flow — the manifest verifies all secrets are present.
 
 ## Security Headers
 
@@ -17124,6 +17142,7 @@ func extractContextFromPath(path string) (*Context, error) {
 | `/server/auth/password/forgot` | GET/POST | Request password reset — sends email (if SMTP) |
 | `/server/auth/password/reset` | GET/POST | Set new password with emailed token (if SMTP) |
 | `/server/auth/invite/server/{code}` | GET | Admin invite acceptance |
+| `/server/auth/invite/server/{code}` | POST | Complete the invite from the web form (username and password; CSRF-protected; `303` to the login page) |
 | `/server/auth/oidc/{provider}` | GET | Start OIDC login for user/admin auth |
 | `/server/auth/oidc/{provider}/callback` | GET | Complete OIDC browser login and apply user/admin mapping rules |
 | `/server/auth/ldap` | GET | LDAP provider chooser when one or more LDAP providers are enabled |
@@ -17220,7 +17239,7 @@ Redirect to         │                    │
 
 - `/.well-known/**` is reserved to the server and can NEVER be claimed by users, orgs, vanity routes, or admin path settings
 - Well-known endpoints live only at the root `/.well-known/...` namespace, never under `/server/*` or `/api/*`
-- The authority for what may live here is the IANA "Well-Known URIs" registry and the RFCs themselves, not a list kept in this template: a project MAY implement any registered or RFC-defined `/.well-known/` path, and this template never forbids a standard path. A path the project does not implement MUST return `404 Not Found`. The Support Matrix below lists only what this template itself implements, and is not exhaustive
+- The authority for what may live here is the IANA "Well-Known URIs" registry and the RFCs themselves, not a list kept in this template (with one explicit template exception: `llms.txt` is always served here by the llms.txt convention although no registry entry exists): a project MAY implement any registered or RFC-defined `/.well-known/` path, and this template never forbids a standard path. A path the project does not implement MUST return `404 Not Found`. The Support Matrix below lists only what this template itself implements, and is not exhaustive
 - `GET` and `HEAD` are the default methods for `/.well-known/**`. A standard that requires another method, a credential, a request body or a special response follows the RFC EXACTLY (path, methods, authentication, content types, status codes, headers), declared as a row in "Well-Known Protocol Exceptions"; any other method on that path MUST return `405 Method Not Allowed`
 - No auth, no CSRF token, and no session requirement may be needed to read any `/.well-known/**` resource; only a method with a row in "Well-Known Protocol Exceptions" may require a credential, and then never a session cookie
 - `/.well-known/` itself MUST NOT list a directory index, file browser, or generated listing
@@ -17732,7 +17751,7 @@ All three coexist under the admin tree. The admin-panel UI groups them under a s
 | **Export public key** | Download `pgp.pub.asc` directly from the admin panel. Or use the public URL `/.well-known/pgp-key.asc`. |
 | **Export private key** | **Full export, ASCII-armored, decrypted with the operator's confirmation password.** Triggers a sensitive-operation flow (PART 5 → "Sensitive Operations"): re-prompt admin password, log to `audit.log` as `security.private_key_exported`, return the file as a single download. **The download is rate-limited to 1 per hour per admin and the audit entry includes admin username, IP, and reason text the admin must type.** |
 | **Import private key** | Upload an existing `pgp.priv.asc` (e.g., restoring from backup, migrating from another instance). Same sensitive-operation gate. Validates the key's identity matches the project's expected identity (warns on mismatch — admin can override). |
-| **Delete** | Sensitive-operation flow. Deletes both keys, removes `Encryption:` line from security.txt. Stored and in-flight PGP-encrypted report bodies become un-decryptable (retention still purges them on schedule) — admin warned and must type confirmation. |
+| **Delete** | Sensitive-operation flow with typed confirmation: the operator types the exact phrase `DELETE PGP KEY`. Deletes both keys, removes `Encryption:` line from security.txt. Stored and in-flight PGP-encrypted report bodies become un-decryptable (retention still purges them on schedule) — admin warned and must type confirmation. |
 
 **Keypair properties stored in DB (NOT the keys themselves — those are on disk):**
 
@@ -18895,7 +18914,7 @@ Temporary blocks are automatically released when:
 
 ### Account Lockout (User-Level)
 
-**Separate from IP blocking.** When a specific user account has too many failed login attempts:
+**Separate from IP blocking.** When a specific account (a user or an admin: the same thresholds apply to both, tracked per account in its own store) has too many failed login attempts:
 
 | Failed Attempts | Action | Duration |
 |-----------------|--------|----------|
@@ -18987,7 +19006,7 @@ type IPBlock struct {
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/{api_version}/server/{admin_path}/security/locked-accounts` | GET | List locked accounts (each entry has `kind`, `id`, `locked_until`) |
-| `/api/{api_version}/server/{admin_path}/security/locked-accounts/{kind}/{id}` | DELETE | Unlock an account (`{kind}` is `user` or `admin`; `{id}` is `users.id`, text, or `admins.id`, integer) |
+| `/api/{api_version}/server/{admin_path}/security/locked-accounts/{kind}/{id}` | DELETE | Unlock an account (`{kind}` is `user` or `admin`; `{id}` is `users.id` or `admins.id`, both integers, written in decimal in the path) |
 
 **Security Settings API:**
 
@@ -20436,6 +20455,7 @@ server:
     # ============================================================
     consent:
       # Show banner on ALL frontend pages until user acknowledges
+      # Fixed: the banner always appears while the cookie_consent cookie is absent; false is an invalid value and is reset to true
       show_until_acknowledged: true
 
       # Non-essential cookies and tracking are OPT-IN: nothing non-essential runs until the visitor accepts
@@ -20477,7 +20497,9 @@ server:
       # Preference cookies (theme, language, UI settings)
       preferences:
         # Whether the category is OFFERED (banner, /server/preferences, toggles). It is not the consent state:
-        # a visitor with no consent action has the category off until they accept it
+        # a visitor with no consent action has the category off until they accept it.
+        # Setting it to false hides the control, ignores a submitted value for the category and treats the
+        # category as off whatever the stored consent says (the stored cookie_consent keeps the choice)
         enabled: true
         description: "Remember your settings such as theme (dark/light), language, and UI preferences. Without it nothing is saved and the defaults apply on each visit."
 
@@ -20510,7 +20532,7 @@ server:
 | Keys | Role |
 |------|------|
 | `consent.*` (banner message, buttons, `show_preferences`; the banner is always fixed to the bottom of the viewport), `cookies.*.enabled` | Behavior only: they change what the server does, they do not add page text. `cookies.*.enabled` decides only whether a category is offered to the visitor; the consent state is the visitor's own `cookie_consent` cookie, and without it every non-essential category is off |
-| `data.sold` | Behavior AND page: picks the banner message, the CCPA opt-out and the Data Usage text |
+| `data.sold` | Behavior AND page: picks the banner message variant (the banner text and button labels are built-in translation keys, no setting owns them), the CCPA opt-out and the Data Usage text |
 | `data.stored_on_server`, `data.sharing`, `retention.*`, `cookies.*.description`, `third_party.services` | Page content only: they fill the Data Storage, Data Retention, Cookie Policy and Third Parties sections of `/server/privacy` |
 
 ### Built-in privacy text (not configurable)
@@ -21307,7 +21329,7 @@ type StatsInfo struct {
 
 ### Core Check Probes
 
-**The core checks report `ok` or `error` only (never `degraded`); each runs with its own timeout so a slow dependency cannot stall `/server/healthz`.**
+**The core checks report `ok` or `error` only (never `degraded`); each runs with its own timeout. The scheduler refreshes them every 30 seconds (the database queries and the disk probe-file write happen there) and `/server/healthz` reads the cached results: a request never runs a probe.**
 
 | Check | Probe | `error` when |
 |-------|-------|--------------|
@@ -21330,13 +21352,13 @@ type StatsInfo struct {
 | Rule | Detail |
 |------|--------|
 | **Registry, not hand-coding** | Each data set registers itself once at load time: `health.Register(key, critical, fn)`. `buildHealthResponse()` iterates the registry — adding a data set MUST NOT require editing the health handler |
-| **Values** | `ok` = loaded, parsed, non-empty, and within its maximum age · `degraded` = loaded but stale (update failing, past its max age) or running on the last known good copy · `error` = missing, empty, or unparseable with no usable copy |
+| **Values** | `ok` = loaded, parsed, non-empty, and within its maximum age · `degraded` = loaded but stale (update failing, past its max age) or running on the last known good copy · `error` = missing, empty, or unparseable with no usable copy (the one exception: GeoIP and the other enrichment datasets whose features fail open, such as blocklists and `extra_sources`, report `degraded` with no usable copy, because they never make the service unhealthy) |
 | **Disabled features** | A data set whose feature is disabled is OMITTED from `checks` (never reported as `ok` or `error`) |
 | **Aggregation** | `error` on `database` or `disk` → `unhealthy`. A dataset check at `degraded` → `degraded`, whether or not it is `critical`. A dataset check at `error` → `degraded`, unless it was registered `critical` (the app cannot do its core job without it; downloaded datasets such as GeoIP, blocklists and CVE data and third-party upstreams such as search engines are never critical, "Startup Never Fails"), which makes the service `unhealthy` |
 | **Overlay networks** | A Tor or I2P check at `degraded` → overall `degraded`. It is never `critical` and never makes the overall status `unhealthy` (see "Overlay Network Health") |
 | **Stable keys** | `{kind}_{id}` is a stable snake_case identifier — NEVER a file path, URL, or filename (public-safe; see Security) |
 | **Order** | Core checks first (`database`, `cache`, `disk`, `scheduler`), then `tor`, `i2p`, then dataset checks in registration order. JSON emits keys in exactly this order (custom marshaller — never an unordered map) |
-| **Cost** | `/server/healthz` reads CACHED results. The scheduler re-runs dataset checks at most every 60 seconds and after every data-set reload/update; a request NEVER triggers a disk scan, parse, or network fetch |
+| **Cost** | `/server/healthz` reads CACHED results. The scheduler re-runs dataset checks at most every 60 seconds and after every data-set reload/update; a request NEVER triggers a probe, disk scan, parse, or network fetch |
 | **Freshness** | Each data set declares a `max_age` (e.g. 21 days for GeoIP, 72 hours for every blocklist source, fixed, not configurable per source (each source's own last-update time is a stored `{id}.last_updated` file, PART 17); the GeoIP update itself runs weekly, so 21 days is three missed runs, and the timestamp that drives it is `{data_dir}/security/geoip/.last_updated`); the check compares last successful load/update against it |
 | **Public-safe** | `ok` / `degraded` / `error` only — no paths, URLs, sizes, record counts, versions, or error text |
 
@@ -21492,7 +21514,7 @@ type StatsInfo struct {
         <dd>
           <div class="code-block">
             <code class="code-content">https://node1.example.com</code>
-            <button class="copy-btn" data-copy="https://node1.example.com">
+            <button class="copy-btn" data-js-copy data-copy="https://node1.example.com">
               <span class="copy-icon">📋</span><span class="copy-text" aria-live="polite">Copy</span>
             </button>
           </div>
@@ -21507,7 +21529,7 @@ type StatsInfo struct {
         <li>
           <div class="code-block">
             <code class="code-content">https://node1.example.com</code>
-            <button class="copy-btn" data-copy="https://node1.example.com">
+            <button class="copy-btn" data-js-copy data-copy="https://node1.example.com">
               <span class="copy-icon">📋</span>
             </button>
           </div>
@@ -21516,7 +21538,7 @@ type StatsInfo struct {
         <li>
           <div class="code-block">
             <code class="code-content">https://node2.example.com</code>
-            <button class="copy-btn" data-copy="https://node2.example.com">
+            <button class="copy-btn" data-js-copy data-copy="https://node2.example.com">
               <span class="copy-icon">📋</span>
             </button>
           </div>
@@ -21534,7 +21556,7 @@ type StatsInfo struct {
           🧅 Tor: <span class="status status-ok">✅ healthy</span>
           <div class="code-block">
             <code class="code-content">abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.onion</code>
-            <button class="copy-btn" data-copy="abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.onion">
+            <button class="copy-btn" data-js-copy data-copy="abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.onion">
               <span class="copy-icon">📋</span><span class="copy-text" aria-live="polite">Copy</span>
             </button>
           </div>
@@ -21544,7 +21566,7 @@ type StatsInfo struct {
           🔗 I2P: <span class="status status-ok">✅ healthy</span>
           <div class="code-block">
             <code class="code-content">abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.b32.i2p</code>
-            <button class="copy-btn" data-copy="abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.b32.i2p">
+            <button class="copy-btn" data-js-copy data-copy="abc123xyz456abcdef789xyz456abcdef789xyz456abcdef789xyz.b32.i2p">
               <span class="copy-icon">📋</span><span class="copy-text" aria-live="polite">Copy</span>
             </button>
           </div>
@@ -21631,7 +21653,7 @@ type StatsInfo struct {
 }
 /* Uses same modifier classes as inline .status: .status-ok, .status-error, .status-warning */
 .status-banner.status-ok { background: var(--color-success-bg); color: var(--color-success); }
-.status-banner.status-error { background: var(--color-error-bg); color: var(--color-error); }
+.status-banner.status-error { background: var(--color-error-bg); color: var(--color-error-text); }
 .status-banner.status-warning { background: var(--color-warning-bg); color: var(--color-warning); }
 
 /* Stats with larger values */
@@ -22790,9 +22812,9 @@ func getAPIResponseFormat(r *http.Request) string {
 | **5** | CLI/curl (no browser UA) | `curl /joke` | Plain text |
 | **6** | Default | Any request | HTML |
 
-**Mapping for `Accept: application/json` on a frontend route.** The paired API route is the same path under the API prefix: `/jokes/random` is `/api/{api_version}/jokes/random`, `/server/about` is `/api/{api_version}/server/about`; the JSON is that route's response, byte for byte. The pairing rule (PART 1) guarantees the pair exists, so a page never has "no API route": a form or tool page whose API operation is not a plain `GET` pairs with the `GET` form descriptor of that API route (as `GET /api/{api_version}/server/contact` does for the contact form), and a hub or information page pairs with an API route that returns the same structured content. A page found without a pair is a defect fixed by adding the pair, never by inventing a JSON shape for the page.
+**Mapping for `Accept: application/json` on a frontend route.** The paired API route is the same path under the API prefix: `/jokes/random` is `/api/{api_version}/jokes/random`, `/server/about` is `/api/{api_version}/server/about`; the JSON is that route's response, byte for byte for a deterministic document. A document that carries per-request state (a fresh CAPTCHA challenge, a one-use token reveal) is one issuance: the frontend negotiation calls the API handler once and returns its output, while two independent GETs share fields and schema only. The pairing rule (PART 1) guarantees the pair exists, so a page never has "no API route": a form or tool page whose API operation is not a plain `GET` pairs with the `GET` form descriptor of that API route (as `GET /api/{api_version}/server/contact` does for the contact form), and a hub or information page pairs with an API route that returns the same structured content. A page found without a pair is a defect fixed by adding the pair, never by inventing a JSON shape for the page; the one documented exception is `/server/preferences/tokens`, a public form shell whose API operations are all Bearer-only, so it has no JSON pair and `Accept: application/json` on it answers `406`.
 
-**Health endpoints (`/server/healthz`, `/healthz`) are ordinary frontend routes:** `Accept: application/json` returns the bare health JSON, byte-identical to `/api/{api_version}/server/healthz`. There is no healthz-specific negotiation.
+**Health endpoints (`/server/healthz`, `/healthz`) are ordinary frontend routes:** `Accept: application/json` returns the bare health JSON, the same document as `/api/{api_version}/server/healthz` (same fields and schema; the volatile values `uptime`, `timestamp` and the request statistics come from one shared snapshot refreshed together with the cached checks, so two requests inside one refresh window are byte-identical). There is no healthz-specific negotiation.
 
 **HTML variant:** once the format is HTML, the User-Agent picks the variant. Text browsers (lynx, w3m, links) advertise `text/html` but cannot run JavaScript, so they get the no-JS HTML even with an explicit `Accept: text/html`; every other client gets the full HTML.
 
@@ -23243,7 +23265,7 @@ func renderNoJSHTML(w http.ResponseWriter, data interface{}) {
 | **Optional routes** | The embedded build-time spec is the full SUPERSET of routes, and every route that depends on a flag or a setting (the root aliases, optional well-known files, optional features) carries `x-mounted-when` naming its condition (for example the setting that enables the feature); INTERNAL routes (metrics, `/debug/*`, Tor control) are never in the OpenAPI document, embedded or served. At startup the server derives the SERVED spec from the embedded one by removing every operation whose condition is false for this run, so the spec a client reads always matches the routes that are actually mounted. The drift test compares the superset with the route table |
 | **JSON only** | OpenAPI spec uses JSON format only (NO YAML) |
 | **Source of truth** | AI.md defines the TEMPLATE routes and the `### API routes` inventory in IDEA.md defines EVERY project-defined route, including any native or compatibility API of the project; together they are the API CONTRACT: routes, methods, auth and shapes. AI.md never enumerates project routes. The code and its annotations implement that contract, and the specs are GENERATED from the code, so they are artifacts, never edited by hand. Drift is detected by a test with three legs: the generated OpenAPI route and method list, the router's registered routes, and the union of the AI.md template routes and the IDEA.md `### API routes` inventory. A route present in one leg and missing from another fails the build, naming the route and the missing place; a project whose IDEA.md has no `### API routes` subsection fails with that message instead of passing vacuously. A deliberate change is made in AI.md or IDEA.md first, then the code, then the specs are regenerated |
-| **Template route inventory** | The template leg of the drift test is read from the project's own `AI.md` at test time, deterministically: a template route is a row of a Markdown table whose header row has a path column (`Endpoint`, `Path` or `Route`) and a method column (`Method` or `Methods`), in any order and with any other columns (rows are read by those headers, never by column position): the path cell is exactly one backticked path starting with `/` and the method cell lists one or more HTTP methods (`GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`) separated by `/` or `,` (each method of the path is its own route), and the method is always explicit (a row without one is not a route). A row whose method cell is `ALL` and whose path ends in `/*` declares a PREFIX, not routes (the admin panel and admin API rows): the drift test does not expand it, the concrete routes under the prefix are the rows of the tables that define them (each with explicit methods), and the test requires at least one registered route under the prefix and every registered route under it to be such a row; `ALL` is valid only on a prefix row. Route classes: a row whose path starts with `/api/`, or is a root alias of an API route (`/mcp`), is an API route and is compared with all three legs (an INTERNAL path, below, is compared with the router and the inventory only, never with the OpenAPI leg); every other row (`/`, `/server/healthz` and its root alias `/healthz` (the alias of the frontend handler, never of the API one), the Swagger and GraphiQL pages, the admin pages, the preferences forms) is a PAGE-class route, compared with the router's registered routes and, when it renders a page, with the page registry (an action route that only changes state, such as `GET /server/preferences/sync/import`, is a route but not a page and is never in the page registry), and expected in NONE of the OpenAPI document. INTERNAL is a class of path, not a marker on each row: every path of the INTERNAL services (metrics with its `/metrics`, `/api/metrics` and versioned aliases, the `/debug/*` routes, the Tor control routes; the INTERNAL rows of the PART 1 endpoint-pattern table) counts as a template route when it has a row, and the drift test expects it in the route table and in NONE of the OpenAPI document, llms.txt, GraphQL and MCP; an alias is its own row (a path cell never holds two paths); optional-segment brackets such as `/metrics[/{service}]` expand to two routes, the path without and the path with the bracketed segment. A row in a fenced code block or in a table introduced as an illustrative example (for example the generic REST row `/api/{api_version}/{resource}`) is not a template route. `{api_version}` is the API version in use, `{admin_path}` the configured admin path, a representation suffix (`.txt`) of an inventoried route is not a separate route (`/api/{api_version}/server/healthz.txt` is the `.txt` form of the inventoried `GET /api/{api_version}/server/healthz`), a leading `{base}` (the Scoped Agents API table only) is replaced by the Base Route of each enabled scope (admin always, user with PART 34, org with PART 35), any other `{name}` segment matches a path parameter. A row under a section marked OPTIONAL counts only when the project enables that feature (its `x-mounted-when` condition); a row whose description names its own condition (an alias that exists `when server.healthz.root.enabled is true`) is optional in the same way and carries that condition as its `x-mounted-when`. A table without a method column (the frontend page lists, static files, the well-known support matrix) is not a route inventory either: those are `GET`/`HEAD` pages covered by the page registry and conformance tests, not by the drift parser, and any route that accepts a `POST` form is listed in an inventory table with an explicit `POST` row. A table that writes the method inside the route cell (`GET /path`) instead of a method column illustrates the page/API pairing and is not an inventory: its routes are inventoried by the section tables that define them. A route table in any other form is not a route inventory: a new template route is added to AI.md in this form, and nothing is copied into a project |
+| **Template route inventory** | The template leg of the drift test is read from the project's own `AI.md` at test time, deterministically: a template route is a row of a Markdown table whose header row has a path column (`Endpoint`, `Path` or `Route`) and a method column (`Method` or `Methods`), in any order and with any other columns (rows are read by those headers, never by column position): the path cell is exactly one backticked path starting with `/` and the method cell lists one or more HTTP methods (`GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`) separated by `/` or `,` (each method of the path is its own route), and the method is always explicit (a row without one is not a route). A row whose method cell is `ALL` and whose path ends in `/*` declares a PREFIX, not routes (the admin panel and admin API rows): the drift test does not expand it, the concrete routes under the prefix are the rows of the tables that define them (each with explicit methods), and the test requires at least one registered route under the prefix and every registered route under it to be such a row; `ALL` is valid only on a prefix row. Route classes: a row whose path starts with `/api/`, or is a root alias of an API route (`/mcp`), is an API route and is compared with all three legs (an INTERNAL path, below, is compared with the router and the inventory only, never with the OpenAPI leg); every other row (`/`, `/server/healthz` and its root alias `/healthz` (the alias of the frontend handler, never of the API one), the Swagger and GraphiQL pages, the admin pages, the preferences forms) is a PAGE-class route, compared with the router's registered routes and, when it renders a page, with the page registry (an action route that only changes state, such as `GET /server/preferences/sync/import`, is a route but not a page and is never in the page registry), and expected in NONE of the OpenAPI document. INTERNAL is a class of path, not a marker on each row: every path of the INTERNAL services (metrics with its `/metrics`, `/api/metrics` and versioned aliases, the `/debug/*` routes, the Tor control routes; the INTERNAL rows of the PART 1 endpoint-pattern table) counts as a template route when it has a row, and the drift test expects it in the route table and in NONE of the OpenAPI document, llms.txt, GraphQL and MCP; an alias is its own row (a path cell never holds two paths); optional-segment brackets such as `/metrics[/{service}]` expand to two routes, the path without and the path with the bracketed segment. A row in a fenced code block or in a table introduced as an illustrative example (for example the generic REST row `/api/{api_version}/{resource}`) is not a template route. `{api_version}` is the API version in use, `{admin_path}` the configured admin path, a representation suffix (`.txt`) of an inventoried route is not a separate route (`/api/{api_version}/server/healthz.txt` is the `.txt` form of the inventoried `GET /api/{api_version}/server/healthz`), a leading `{base}` is replaced in two tables only: in the Scoped Agents API table by the Base Route of each enabled scope (admin always, user with PART 34, org with PART 35), and in the CLI Auto-Update tables by `/api/{api_version}` (so the CLI download route is an API route and is in the OpenAPI document), any other `{name}` segment matches a path parameter. A row under a section marked OPTIONAL counts only when the project enables that feature (its `x-mounted-when` condition); root aliases such as `/healthz` and `/metrics` are PAGE-class and are not in the OpenAPI document: their mount condition is the `x-mounted-when` of the versioned API route they alias; a row whose description names its own condition (an alias that exists `when server.healthz.root.enabled is true`) is optional in the same way and carries that condition as its `x-mounted-when`. A table without a method column (the frontend page lists, static files, the well-known support matrix) is not a route inventory either: those are `GET`/`HEAD` pages covered by the page registry and conformance tests, not by the drift parser, and any route that accepts a `POST` form is listed in an inventory table with an explicit `POST` row. A table that writes the method inside the route cell (`GET /path`) instead of a method column illustrates the page/API pairing and is not an inventory: its routes are inventoried by the section tables that define them. A route table in any other form is not a route inventory: a new template route is added to AI.md in this form, and nothing is copied into a project |
 | **Match site theme** | Both UIs styled to match site theme (light/dark/auto) |
 | **Standardized locations** | ALWAYS `src/swagger/` and `src/graphql/` (NEVER in root `.`) |
 
@@ -23985,7 +24007,7 @@ Before proceeding, confirm you understand:
 
 1. Select the DNS provider from a dropdown (every lego-supported provider is listed)
 2. The form shows the provider's fields. For the common providers below the fields are prefilled from that table. For every other provider the form is a free-form editor of `VARIABLE` / value rows with a link to the provider's lego page, because lego publishes no field list at runtime; lego's error names a missing variable and the form shows it next to the editor
-3. Submit credentials → app validates by attempting DNS API connection
+3. Submit credentials → the app validates them by constructing the lego provider (no DNS record is touched; a successful issuance is the real proof)
 4. On success, credentials are **encrypted** and stored for reuse
 5. Certificate requests use stored encrypted credentials
 
@@ -25254,9 +25276,14 @@ When custom domains are enabled, the vanity URL becomes the root:
 // URLNormalizeMiddleware normalizes URLs for consistent routing
 // - Removes trailing slashes (except for root "/")
 // - Redirects to the canonical URL if normalization changed the path: 301 for GET/HEAD, 308 for other methods
+// slashRuns matches every run of two or more slashes
+var slashRuns = regexp.MustCompile(`/{2,}`)
+
 func URLNormalizeMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        path := r.URL.Path
+        // Collapse repeated slashes BEFORE any trailing-slash handling: "///" is "/" and "//a///b" is "/a/b" (served directly, status 200)
+        path := slashRuns.ReplaceAllString(r.URL.Path, "/")
+        r.URL.Path = path
 
         // Root path "/" stays as-is
         if path == "/" {
@@ -25704,13 +25731,13 @@ footer p {
 | **Content fills the viewport width correctly** | The `.container` rules above apply on every page: phones use the full width minus `1rem` padding; a content column is centered, never stuck left with dead space on the right |
 | **Fixed/overlay containment** | See "Drawer containment" in the header / navigation section ("Mobile Menu Behavior"). Overlays are direct children of `<body>`; no `transform`, `filter`, `backdrop-filter`, `contain` or `will-change` on an ancestor of a `position: fixed` element |
 | **Dynamic viewport** | `100dvh` / `min-height: 100dvh`, never bare `100vh` (mobile browser bars); `env(safe-area-inset-*)` padding on anything touching a screen edge (drawer, toast, banner, bottom actions) |
-| **Spacing scale** | Only the `--space-*` tokens from "CSS Variable Reference" (`--space-1` 4 px, `--space-2` 8 px, `--space-3` 12 px, `--space-4` 16 px, `--space-6` 24 px, `--space-8` 32 px, `--space-12` 48 px). Label to control `--space-1`, control to control `--space-4`, card to card `--space-6` (24 px). A page is never a bare stream of headings, text and controls: group content in `.section-card` blocks |
+| **Spacing scale** | Only the `--space-*` tokens of "CSS Variable Reference" (`--space-px`, then `--space-1` 4 px through `--space-24`); rhythm uses `--space-1` 4 px, `--space-2` 8 px, `--space-3` 12 px, `--space-4` 16 px, `--space-6` 24 px, `--space-8` 32 px and `--space-12` 48 px, and the larger steps are for heroes and empty states. Label to control `--space-1`, control to control `--space-4`, card to card `--space-6` (24 px). A page is never a bare stream of headings, text and controls: group content in `.section-card` blocks |
 | **Page header pattern** | Exactly one `<h1>` per page (the page title); an optional back link above it written `← {parent title}` (arrow icon + one full translated string); one `<h2>` per card. A heading is never repeated at a lower level (an "Owner tokens" `<h1>` followed by an "Owner tokens" `<h2>` is a defect) |
 | **No UI string concatenation** | Every visible label is ONE translation key holding the whole phrase (`nav.back_to_preferences` = "Back to Preferences"). Never join fragments ("Back" + "Preferences" rendered "Back Preferences"; this also breaks RTL and other languages) |
 | **No empty or unlabeled controls** | A `<select>` always has options and a visible selected default; an input always has a visible `<label>`; a button always has visible text or an `aria-label` plus tooltip. Two controls never share a label (a duplicated "Expiry" with a blank select is a defect) |
 | **Readable measure** | Prose max `72ch`; single-purpose form and card columns max `40rem` on desktop, centered |
 | **Typography** | Base 16 px, line-height 1.5, a heading scale via CSS variables, `0.875rem` monospace for tokens and code, `font-size >= 16px` on inputs (iOS zoom) |
-| **Contrast and focus** | Text 4.5:1 and UI parts 3:1 in BOTH themes; visible `:focus-visible` ring; `prefers-reduced-motion` honored |
+| **Contrast and focus** | Text 4.5:1 and UI parts 3:1 in BOTH themes (text in the error color uses `--color-error-text`, and text on an error fill uses `--color-on-error`, which is dark on the dark theme's `#ff5555`; both are measured by the conformance test); visible `:focus-visible` ring; `prefers-reduced-motion` honored |
 | **Opaque surfaces** | Modals, drawers, dropdowns and popovers have solid backgrounds; page content never shows through |
 | **No overlap, no touching** | No two text-bearing or interactive elements overlap; boxes may intersect only for an intended overlay (modal, drawer, toast, popover, a badge on a tile). Sibling cards and sections are separated by `--space-6`, form groups by `--space-4`, and a button row is followed by `--space-6`: two adjacent blocks with a gap of 0 are a defect |
 | **Controls render as designed** | A custom control (toggle, tile picker, segmented control, custom select) renders every part at its declared size and inside its container; no absolutely positioned part (a thumb, a check mark, a badge) overlaps the control's own label. Every `[role="switch"]`, `[role="radio"]` and `[role="tab"]` has a visible, non-collapsed visual and a hit area of at least 44 x 44 px |
@@ -25730,7 +25757,7 @@ footer p {
 | **States** | empty, loading, error, success flash, disabled, JavaScript off |
 | **Pass criteria** | No horizontal scroll; nothing clipped or overlapping; every target >= 44x44 px (below `md`; an `sm` control at `md` and up is at least 24x24 px); no empty or unlabeled control; no heading repeated; screenshot looks intentional at every viewport |
 
-Automated layout tests (headless browser at the viewports above) assert: `scrollWidth <= innerWidth`; no element's bounding box extends past the viewport; every `<select>` has options; every form control has a label; the open nav drawer covers the full viewport height and lists every nav link. The same run, on every registered page and error page, in dark and light, asserts: no overlap between text-bearing or interactive boxes outside the intended overlays; no zero gap between adjacent cards, sections or a button row and the next block; every custom control part (`.toggle-track`, tile, segmented option) has a non-zero rendered size and lies inside its container; no visible text matches the raw-key shape or a placeholder ("No raw keys or placeholders"); computed contrast of every text node against its effective background is at least 4.5:1 (3:1 for large text and UI parts), checked with the vendored axe-core script; every interactive element has a hit area of at least 44 x 44 px below `md` (24 x 24 px for an `sm` control at `md` and up); every component size (`sm`, `md`, `lg`, `xl`) of the gallery renders at its declared height; the browser console reports no error or warning; and the layout shift score stays below 0.1. These checks run in the same pure-Go chromedp harness as the browser E2E tests (PART 28, no Node toolchain): the test code lives in `tests/e2e/` behind the `e2e` build tag, the accessibility checks use a pinned `axe.min.js` vendored under `tests/e2e/vendor/` and injected with `chromedp.Evaluate`, and they run from `./tests/e2e.sh`, never from `make test`.
+Automated layout tests (headless browser at the viewports above) assert: `scrollWidth <= innerWidth`; no element's bounding box extends past the viewport (descendants clipped by an intentional horizontal scroll container such as `.table-wrapper` are excluded; the container itself and the document width are still checked); every `<select>` has options; every form control has a label; the open nav drawer covers the full viewport height and lists every nav link. The same run, on every registered page and error page, in dark and light, asserts: no overlap between text-bearing or interactive boxes outside the intended overlays; no zero gap between adjacent cards, sections or a button row and the next block; every custom control part (`.toggle-track`, tile, segmented option) has a non-zero rendered size and lies inside its container; no visible text matches the raw-key shape or a placeholder ("No raw keys or placeholders"); computed contrast of every text node against its effective background is at least 4.5:1 (3:1 for large text and UI parts), checked with the vendored axe-core script; every interactive element has a hit area of at least 44 x 44 px below `md` (24 x 24 px for an `sm` control at `md` and up); every component size (`sm`, `md`, `lg`, `xl`) of the gallery renders at its declared height; the browser console reports no error or warning; and the layout shift score stays below 0.1. These checks run in the same pure-Go chromedp harness as the browser E2E tests (PART 28, no Node toolchain): the test code lives in `tests/e2e/` behind the `e2e` build tag, the accessibility checks use a pinned `axe.min.js` vendored under `tests/e2e/vendor/` and injected with `chromedp.Evaluate`, and they run from `./tests/e2e.sh`, never from `make test`.
 
 ---
 
@@ -25787,7 +25814,7 @@ code {
 ```html
 <div class="code-block">
   <code class="code-content">abc123xyz789.onion</code>
-  <button type="button" class="copy-btn" data-copy="abc123xyz789.onion" data-copied-label="Copied!" aria-label="Copy to clipboard">
+  <button type="button" class="copy-btn" data-js-copy data-copy="abc123xyz789.onion" data-copied-label="Copied!" aria-label="Copy to clipboard">
     <span class="copy-icon">📋</span>
     <span class="copy-text" aria-live="polite">Copy</span>
   </button>
@@ -25869,7 +25896,7 @@ code {
 ```javascript
 // Copy button handler - every copy button MUST show visible "Copied!" feedback
 document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.copy-btn');
+  const btn = e.target.closest('[data-js-copy]');
   if (!btn) return;
 
   const text = btn.dataset.copy || btn.previousElementSibling?.textContent;
@@ -25928,7 +25955,7 @@ document.addEventListener('click', function(e) {
 <div class="code-block-multi">
   <div class="code-header">
     <span class="code-lang">yaml</span>
-    <button type="button" class="copy-btn" data-copy-target="config-example">📋 Copy</button>
+    <button type="button" class="copy-btn" data-js-copy data-copy-target="config-example">📋 Copy</button>
   </div>
   <pre><code id="config-example">server:
   host: 0.0.0.0
@@ -26017,7 +26044,7 @@ document.addEventListener('click', function(e) {
 }
 
 .status-ok { background: var(--color-success-bg); color: var(--color-success); }
-.status-error { background: var(--color-error-bg); color: var(--color-error); }
+.status-error { background: var(--color-error-bg); color: var(--color-error-text); }
 .status-warning { background: var(--color-warning-bg); color: var(--color-warning); }
 
 .badge {
@@ -26032,7 +26059,7 @@ document.addEventListener('click', function(e) {
 /* Mode badges (class is badge-{mode}) */
 .badge-production { background: var(--color-success-bg); color: var(--color-success); }
 .badge-development { background: var(--color-warning-bg); color: var(--color-warning); }
-.badge-debug { background: var(--color-error-bg); color: var(--color-error); }
+.badge-debug { background: var(--color-error-bg); color: var(--color-error-text); }
 
 @media (min-width: 768px) {
   .badge {
@@ -26059,7 +26086,7 @@ document.addEventListener('click', function(e) {
   <dd>
     <div class="code-block">
       <code class="code-content">abc123xyz789.onion</code>
-      <button class="copy-btn" data-copy="abc123xyz789.onion">📋</button>
+      <button class="copy-btn" data-js-copy data-copy="abc123xyz789.onion">📋</button>
     </div>
   </dd>
 </dl>
@@ -26205,7 +26232,7 @@ document.addEventListener('click', function(e) {
     <span class="status status-ok">✅ healthy</span>
     <div class="code-block">
       <code class="code-content">abc123xyz789.onion</code>
-      <button class="copy-btn" data-copy="abc123xyz789.onion">📋</button>
+      <button class="copy-btn" data-js-copy data-copy="abc123xyz789.onion">📋</button>
     </div>
   </li>
   <!-- I2P row mirrors Tor exactly — only rendered when features.i2p.enabled -->
@@ -26214,7 +26241,7 @@ document.addEventListener('click', function(e) {
     <span class="status status-ok">✅ healthy</span>
     <div class="code-block">
       <code class="code-content">abc123xyz789.b32.i2p</code>
-      <button class="copy-btn" data-copy="abc123xyz789.b32.i2p">📋</button>
+      <button class="copy-btn" data-js-copy data-copy="abc123xyz789.b32.i2p">📋</button>
     </div>
   </li>
   <li class="feature-disabled">📊 GeoIP</li>
@@ -26265,14 +26292,14 @@ document.addEventListener('click', function(e) {
   <li>
     <div class="code-block">
       <code class="code-content">https://node1.example.com</code>
-      <button class="copy-btn" data-copy="https://node1.example.com">📋</button>
+      <button class="copy-btn" data-js-copy data-copy="https://node1.example.com">📋</button>
     </div>
     <span class="badge badge-primary">👑 Primary</span>
   </li>
   <li>
     <div class="code-block">
       <code class="code-content">https://node2.example.com</code>
-      <button class="copy-btn" data-copy="https://node2.example.com">📋</button>
+      <button class="copy-btn" data-js-copy data-copy="https://node2.example.com">📋</button>
     </div>
     <span class="status status-ok">✅</span>
   </li>
@@ -26381,7 +26408,7 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
 | Size | `.block-sm`, `.block-lg`, `.block-xl` (`md` is the default and has no class) | `.btn-lg`, `.input-sm` |
 | State | The native or ARIA state first: `:disabled`, `:checked`, `[aria-current="page"]`, `[aria-expanded="true"]`, `[aria-pressed="true"]`, `[aria-busy="true"]`, `[aria-invalid="true"]`; a state class (`.is-active`, `.is-loading`) only when no attribute exists | `.toggle input:checked + .toggle-track` |
 | Page hook | `.page-{name}` on `<body>` or `<main>`, with no styling of its own: `public.css` and `admin.css` may use it only for the documented placement properties ("Page placement"), and tests and anchors use it freely | `.page-preferences` |
-| JavaScript hook | `data-js-{name}` attribute, never a class | `data-js-copy` |
+| JavaScript hook | `data-js-{name}` attribute, never a class (a component that scripts attach to carries its own `data-js-{name}` next to its class: `.copy-btn` carries `data-js-copy`, and the listener selects `[data-js-copy]`) | `data-js-copy` |
 
 **Never:** an ID selector, a class named for its look (`.red`, `.big-box`), a class named for a spacing size (`.spacing-sm`: `sm` is a SIZE name, spacing helpers are numbered, see Utilities), a one-off class on one page, or a class that only one page uses.
 
@@ -26433,9 +26460,9 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
 | Toggle | `.toggle`, `.toggle-track`, `.toggle-thumb`, `.toggle-label`, `.toggle-help` | none | `sm`, `lg` | `:checked`, `:disabled`, `:focus-visible` |
 | Check and radio | `.check`, `.check-box`, `.check-label` | none | none | `:checked`, `:indeterminate`, `:disabled` |
 | Tile (picker) | `.tile`, `.tile-icon`, `.tile-label` | none | `sm`, `lg`, `xl` | `[aria-checked]`, `:disabled` |
-| Badge | `.badge` | `-ok`, `-warning`, `-error`, `-info`, `-neutral` | `sm`, `lg` | none |
+| Badge | `.badge` | `-ok`, `-warning`, `-error`, `-info`, `-neutral`, `-production`, `-development`, `-debug` | `sm`, `lg` | none |
 | Alert | `.alert`, `.alert-title` | `-info`, `-success`, `-warning`, `-error` | none | none |
-| Toast | `.toast-container`, `.toast`, `.toast-icon`, `.toast-message`, `.toast-progress`, `.toast-close` | `-success`, `-info`, `-warning`, `-error` | none | none |
+| Toast | `.toast-container`, `.toast`, `.toast-icon`, `.toast-message`, `.toast-progress`, `.toast-close` | `-success`, `-info`, `-warning`, `-error` | none | `.toast-removing` (the exit animation, set by `app.js` just before the toast is removed) |
 | Modal, popover | `.modal`, `.modal-body`, `.modal-actions` on `<dialog>` or `[popover]` | none | none | `[open]`, `:popover-open` |
 | Table | `.table-wrapper`, `.data-table` | none | `sm` | `[aria-sort]` |
 | Navigation | `.nav-links`, `.nav-link`, and the drawer: `.nav-panel`, `.nav-toggle`, `.nav-overlay`, `.nav-checkbox`, `.nav-close` | none | none | `[aria-current]`, `[aria-expanded]` |
@@ -26443,7 +26470,7 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
 | Hub list | `.hub-list`, `.hub-item`, `.hub-link`, `.hub-title`, `.hub-desc` | none | none | `:focus-visible` |
 | Info list | `.info-list`, `.info-label`, `.info-value` | none | none | none |
 | Empty state | `.empty-state`, `.empty-state-icon`, `.empty-state-title`, `.empty-state-message` | none | `lg`, `xl` | none |
-| Site banner | `.site-banner` | `-info`, `-warning`, `-error`, `-success` | none | none |
+| Site banner | `.site-banner`, `.site-banner-icon`, `.site-banner-text`, `.site-banner-dismiss`, `.site-banner-close` | `-info`, `-warning`, `-error`, `-success` | none | none |
 | Icon | `.icon` | none | `sm`, `lg`, `xl` | none |
 
 ### Feature components and exempt CSS
@@ -26454,7 +26481,7 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
 |-------------------|------------------------------|------------|
 | Cookie banner | `.cookie-banner` (fixed at the bottom edge: `inset-inline: 0`, `inset-block-end: 0`, `z-index: var(--z-banner)`; one of the allowed fixed elements), `.cookie-banner-content`, `.cookie-message`, `.cookie-buttons`, `.policy-link`, `.btn-accept`, `.btn-decline` | Cookie banner section |
 | Navigation drawer | `.nav-panel`, `.nav-toggle`, `.nav-overlay`, `.nav-checkbox` | Navigation section |
-| Status | `.status-ok`, `.status-warning`, `.status-error`, `.status-banner`, `.status-text`, `.spinner` | Status and health sections |
+| Status | `.status`, `.status-ok`, `.status-info`, `.status-warning`, `.status-error`, `.status-neutral`, `.status-banner`, `.status-text`, `.spinner` | Status and health sections |
 | Code and copy | `.code-block`, `.copy-btn`, `.copy-icon`, `.copy-text`, `.copy-value`, `.long-string`, `.onion-address`, `.i2p-address`, `.monospace-data`, `.ip-address`, `.api-token`, `.hash` | Code block section |
 | Stats and lists | `.stats-grid`, `.feature-list`, `.feature-enabled`, `.feature-disabled`, `.node-list` | Landing and cluster sections |
 | Admin shell | `.topbar`, `.sidebar`, `.admin-footer`, `.dropdown-item`, `.notification-bell`, `.profile-menu`, `.avatar` | Admin panel section |
@@ -26512,7 +26539,7 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
 | **Print** | One `@media print` block in `utilities`: white background, black text, no nav, no toast, no banner, links show their URL |
 | **Focus** | One `:focus-visible` rule in `base` draws `--focus-ring`; a component never removes an outline without a replacement of at least the same contrast |
 
-**CSS lint rules (in addition to "CSS Architecture"):** no literal color, `font-size`, `margin`, `padding`, `gap` or `border-radius` value outside the `tokens` layer; logical properties only; no ID selector; no `!important` outside the print and reduced-motion blocks; no class that is not in the catalog, the primitives, the utilities or a page hook.
+**CSS lint rules (in addition to "CSS Architecture"):** no literal color, `font-size`, `margin`, `padding`, `gap` or `border-radius` value outside the `tokens` layer; logical properties only (`overflow-x` and `overflow-y` stay physical because `overflow-block` and `overflow-inline` are not yet baseline; `inset: 0` is written `inset-block: 0; inset-inline: 0`); no ID selector; no `!important` outside the print and reduced-motion blocks; no class that is not in the catalog, the primitives, the utilities or a page hook.
 
 ## CSS Variable Reference
 
@@ -26551,7 +26578,8 @@ No other stylesheet is written by hand: a project never adds a file per page. Th
   --color-primary-bg: rgba(189, 147, 249, 0.15);
   --color-secondary: #50fa7b;
   --color-accent: #ff79c6;
-  --color-on-error: #ffffff;
+  --color-on-error: #282a36;
+  --color-error-text: #ff8080;
   --color-on-primary: #282a36;
   --color-overlay: rgba(0, 0, 0, 0.6);
 
@@ -26659,6 +26687,7 @@ html.theme-light {
   --color-secondary: #1a7f37;
   --color-accent: #8250df;
   --color-on-error: #ffffff;
+  --color-error-text: #d1242f;
   --color-on-primary: #ffffff;
   --color-overlay: rgba(0, 0, 0, 0.4);
 }
@@ -26685,11 +26714,11 @@ html.theme-light {
 
 | Rule | Detail |
 |------|--------|
-| **No unlayered CSS** | Unlayered rules beat every layer, so every rule in every stylesheet sits in a layer; each file starts with its `@layer` block |
+| **No unlayered CSS** | Unlayered rules beat every layer, so every rule in every project stylesheet sits in a layer (the vendored and generated-theme files of the exemption excepted); each file starts with its `@layer` block |
 | **Customize through properties** | A component exposes custom properties for what may vary; overriding its selectors from another file is a defect |
 | **No `!important`, no ID selectors** | The `!important` of the print block and of the reduced-motion block is the only exception; both live in `utilities` |
 | **Examples are unwrapped** | The CSS examples in this document are shown without their `@layer` wrapper to stay readable; in a project every rule sits inside its layer |
-| **Lint gate** | A CSS lint test runs in `make test` (Phase 1, no Node and no `package.json`): a unit test in the package that embeds the static files parses every embedded stylesheet with a pure-Go CSS parser (`github.com/tdewolff/parse/v2/css`) and fails on an unlayered rule, `!important`, an ID selector, a selector above `(0,4,1)` in `components`, and a descendant selector whose subject is a bare element under a generic or foreign component class (a component's own block may style its own `dt`, `dd`, `th`, `td`, `input` and `label`), plus every check of "CSS lint rules" above (token-bound values, logical properties, cataloged classes); the two lists together are the complete gate |
+| **Lint gate** | A CSS lint test runs in `make test` (Phase 1, no Node and no `package.json`): a unit test in the package that embeds the static files parses every embedded project stylesheet (not the vendored and generated-theme files of the exemption) with a pure-Go CSS parser (`github.com/tdewolff/parse/v2/css`) and fails on an unlayered rule, `!important`, an ID selector, a selector above `(0,4,1)` in `components`, and a descendant selector whose subject is a bare element under a generic or foreign component class (a component's own block may style its own `dt`, `dd`, `th`, `td`, `input` and `label`), plus every check of "CSS lint rules" above (token-bound values, logical properties, cataloged classes); the two lists together are the complete gate |
 
 ## Reuse Before Creating
 
@@ -26897,6 +26926,7 @@ fetch('/api/save', { method: 'POST', body: data })
 | **Why `display: block` and `flex: 0 0`** | The track is a `<span>`: an inline span ignores `width` and `height`, so any rule that turns the label into a block (a generic `.form-group label { display: block }`) would collapse the track and draw the absolutely positioned thumb over the text. The track therefore sets its own `display`, and a generic form-label rule MUST exclude toggles (`label:not(.toggle)`) |
 | **Contrast** | The off-state track border is `--color-border-strong` (at least 3:1 against the card, WCAG 1.4.11) and the thumb contrasts with the track in both states; a track whose border equals its surface is a defect |
 | **Alignment** | The label and any description below it are start-aligned (never centered) and share one left edge with the page's other controls |
+| **Sizes** | `.toggle-sm` and `.toggle-lg` change the track height and the thumb only (`--size-sm` and `--size-lg` scale the height); the track is at least `2.5rem` wide at every size |
 | **Conformance test** | A browser test opens every page that contains a `.toggle` at 320, 768 and 1280 px and asserts that each `.toggle-track` renders at least `2.5rem x 1.5rem` and that its thumb lies inside it |
 
 ### Component State Matrix (REQUIRED)
@@ -27540,7 +27570,7 @@ textarea:user-invalid,
 }
 
 .form-group-error {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-size: 0.875rem;
   margin-top: 0.25rem;
   display: block;
@@ -27880,16 +27910,18 @@ setInterval(() => {
 **Notify user when new version is available:**
 
 ```javascript
-// Show update banner
+// Show the update prompt: it is a `.site-banner-info` in the site-banner slot ("Site banner" in PART 16) and replaces an announcement banner while it is shown
 function showUpdateNotification() {
   const banner = document.createElement('div');
-  banner.className = 'update-banner';
+  banner.className = 'site-banner site-banner-info';
   const label = document.createElement('span');
   label.textContent = 'A new version is available';
   const updateBtn = document.createElement('button');
+  updateBtn.className = 'btn btn-primary btn-sm';
   updateBtn.textContent = 'Update Now';
   updateBtn.addEventListener('click', updateApp);
   const laterBtn = document.createElement('button');
+  laterBtn.className = 'btn btn-secondary btn-sm';
   laterBtn.textContent = 'Later';
   laterBtn.addEventListener('click', () => banner.remove());
   banner.append(label, updateBtn, laterBtn);
@@ -28094,8 +28126,9 @@ self.addEventListener('notificationclick', event => {
 |------|------|
 | Keys | The VAPID key pair is generated at first start once push is enabled; the private key lives in `secrets.yml` (`server.push.vapid_private_key`), the public key is derived from it and served to the page. "Regenerate" in the admin panel replaces the pair and deletes every subscription, so users subscribe again |
 | Storage | Table `push_subscriptions` in `users.db`: `id`, `user_id`, `endpoint` (UNIQUE), `p256dh`, `auth`, `created_at`, `last_used_at` |
+| Availability | Conditional: the subscribe control, the service-worker push handler and these routes exist only when IDEA.md requires closed-app notifications; every other project has no browser push UI |
 | Routes | `POST /api/{api_version}/users/push/subscriptions` stores the browser's subscription for the signed-in user (an existing `endpoint` is updated, not duplicated); `DELETE /api/{api_version}/users/push/subscriptions` with `{ "endpoint": ... }` removes it. Both are session or Bearer authenticated like every `/users` route, and the browser page is the `push_enabled` toggle in the user's notification settings |
-| Delivery | Sent only by the notification system (PART 17) as the `webpush` channel, only for events the user's `push_enabled` and `push_*` preferences allow; a `404` or `410` from the push service deletes that subscription; a payload never holds more than the summary the notification already carries |
+| Delivery | Sent only by the notification system (PART 17) as the `webpush` channel, only for events the user's per-event preferences allow (the `webpush` channel of the PART 17 Preference Schema) and only while a push subscription exists; a `404` or `410` from the push service deletes that subscription; a payload never holds more than the summary the notification already carries |
 
 ### Background Sync
 
@@ -30111,19 +30144,20 @@ Without the script: Esc and overflow detection are unavailable, but the scrim, t
   padding-bottom: env(safe-area-inset-bottom);
   /* Opaque - page content must never show through */
   background: var(--color-bg);
-  /* Hidden with transform + visibility, NEVER a negative offset (it widens the page) */
-  transform: translateX(100%);
+  /* Hidden with clip-path + visibility, NEVER a negative offset or an off-canvas transform (both widen the document, at 320 px in Chromium too) */
+  clip-path: inset(0 0 0 100%);
   visibility: hidden;
-  transition: transform var(--duration-drawer) ease, visibility 0s linear var(--duration-drawer);
+  transition: clip-path var(--duration-drawer) ease, visibility 0s linear var(--duration-drawer);
   z-index: var(--z-drawer);
 }
-[dir="rtl"] .nav-panel { transform: translateX(-100%); }
+[dir="rtl"] .nav-panel { clip-path: inset(0 100% 0 0); }
 
 /* Overlay (hidden by default) */
 .nav-overlay {
   display: none;
   position: fixed;
-  inset: 0;
+  inset-block: 0;
+  inset-inline: 0;
   background: var(--color-overlay);
   z-index: var(--z-overlay);
   cursor: pointer;
@@ -30131,9 +30165,9 @@ Without the script: Esc and overflow detection are unavailable, but the scrim, t
 
 /* When checkbox is checked: show menu and overlay */
 .nav-checkbox:checked ~ .nav-panel {
-  transform: none;
+  clip-path: inset(0);
   visibility: visible;
-  transition: transform var(--duration-drawer) ease;
+  transition: clip-path var(--duration-drawer) ease;
 }
 
 .nav-checkbox:checked ~ .nav-overlay {
@@ -31766,7 +31800,7 @@ When an admin edits `branding.content.footer` (or any other page content), show:
 </footer>
 ```
 
-**No `<br />` spacers between rows** — rows are consecutive `<p>` elements; vertical rhythm comes from CSS (`footer p { margin: 0.25rem 0; }`), kept tight. Row order is fixed: onion address (Tor only) → page links → branding → last update. A disabled feature drops its row entirely without leaving a gap.
+**No `<br />` spacers between rows** — rows are consecutive `<p>` elements; vertical rhythm comes from CSS (`footer p { margin: 0.25rem 0; }`), kept tight. Row order is fixed: onion address (Tor only) → I2P address (I2P only) → page links → branding → last update. A disabled feature drops its row entirely without leaving a gap.
 
 ### Default Admin Footer (Admin Panel)
 
@@ -31849,7 +31883,7 @@ When an admin edits `branding.content.footer` (or any other page content), show:
 
 .status-ok { color: var(--color-success); }
 .status-warning { color: var(--color-warning); }
-.status-error { color: var(--color-error); }
+.status-error { color: var(--color-error-text); }
 ```
 
 **Admin Footer Contents:**
@@ -32010,7 +32044,7 @@ func handleConsent(w http.ResponseWriter, r *http.Request) {
     }
     b, _ := json.Marshal(consent)
     http.SetCookie(w, &http.Cookie{
-        Name: "cookie_consent", Value: url.QueryEscape(string(b)),
+        Name: "cookie_consent", Value: url.PathEscape(string(b)),
         Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
     })
     http.Redirect(w, r, safeReferrer(r), http.StatusSeeOther)
@@ -34079,7 +34113,7 @@ Admin clicks "Invite New Admin"
 ├─────────────────────────────────────────────────────────────┤
 │  Username: [                    ]                           │
 │                                                             │
-│  Invite expires in: [24 hours ▼]                            │
+│  Invite expires in: [7 days ▼]                              │
 │                                                             │
 │  [Cancel]  [Generate Invite]                                │
 └─────────────────────────────────────────────────────────────┘
@@ -34682,6 +34716,9 @@ Admin Panel Header:
 | `hard_lock_attempts` | Number | `10` | No | Attempts before hard lock |
 | `hard_lock_duration` | Duration | `1 hour` | No | Hard lock duration |
 | `permanent_lock_attempts` | Number | `15` | No | Attempts before permanent lock |
+| `soft_lock_window` | Duration | `15 min` | No | Rolling window in which failed attempts count toward a soft lock |
+| `hard_lock_window` | Duration | `1 hour` | No | Rolling window for the hard lock |
+| `permanent_lock_window` | Duration | `24 hours` | No | Rolling window for the permanent lock |
 
 #### IP Blocking Section
 
@@ -34716,8 +34753,9 @@ Admin Panel Header:
 | `mfa.enabled` | Toggle | Off | No | Require MFA for admins |
 | `mfa.methods` | Checkbox group | TOTP | No | Allowed MFA methods |
 | `password.min_length` | Number | `8` | No | Minimum password length |
-| `password.require_uppercase` | Toggle | On | No | Require uppercase |
-| `password.require_number` | Toggle | On | No | Require number |
+| `password.require_uppercase` | Toggle | Off | No | Require uppercase |
+| `password.require_lowercase` | Toggle | Off | No | Require lowercase |
+| `password.require_number` | Toggle | Off | No | Require number |
 | `password.require_special` | Toggle | Off | No | Require special char |
 | `auth.oidc.enabled` | Toggle | Off | No | Enable OIDC login support |
 | `auth.oidc.providers` | Provider table | (empty) | No | Add/edit/remove/test OIDC providers |
@@ -35435,7 +35473,7 @@ The admin panel MUST include a scheduler section with:
 | `/api/{api_version}/server/{admin_path}/web/security` | PATCH | Update security.txt |
 | `/api/{api_version}/server/{admin_path}/web/security/preview` | GET | Preview security.txt |
 | `/api/{api_version}/server/{admin_path}/web/well-known` | GET | Get well-known namespace settings and supported entries |
-| `/api/{api_version}/server/{admin_path}/web/well-known` | PATCH | Update the config-backed content of well-known entries (it never enables or disables an entry) |
+| `/api/{api_version}/server/{admin_path}/web/well-known` | PATCH | Update the `security.txt` fields (`contact`, `expires`; body `{"contact": [...], "expires": "RFC 3339"}`); every other entry is generated and read-only, and an operator file in `{data_dir}/web/.well-known/` overrides a generated entry |
 | `/api/{api_version}/server/{admin_path}/web/well-known/preview/{name}` | GET | Preview the exact rendered body for one well-known entry |
 
 **`/api/{api_version}/server/{admin_path}/web` includes `server.healthz.root.enabled` and well-known namespace status in its settings payload.**
@@ -35504,6 +35542,7 @@ The admin panel MUST include a scheduler section with:
 | `/api/{api_version}/server/{admin_path}/logs` | GET | List log files |
 | `/api/{api_version}/server/{admin_path}/logs/{type}` | GET | Get log entries |
 | `/api/{api_version}/server/{admin_path}/logs/{type}/download` | GET | Download log file |
+| `/api/{api_version}/server/{admin_path}/logs/{type}` | DELETE | Truncate the log file (every type except `audit`; for `audit` it answers `403` with the code `FORBIDDEN`, because the audit log is append-only) |
 
 ## Agent Management (OPTIONAL - When Agent is Enabled)
 
@@ -37110,6 +37149,8 @@ Every row of this table is a BLOCKING error: the template is not loaded (the emb
 
 ## Server Admin Notifications
 
+**Admin notification center routes.** History: `GET /server/{admin_path}/{admin_username}/notifications` (HTML) and `GET /api/{api_version}/server/{admin_path}/{admin_username}/notifications` (JSON, newest first, `?unread=true`); mark read: `POST` to `.../notifications/{id}/read` and `.../notifications/read-all`; the preferences live at `.../notifications/preferences`.
+
 **Notifications shown to Server Admins in `/server/{admin_path}/*` routes.**
 
 | Event | Toast | Banner | Center | Description |
@@ -37151,6 +37192,8 @@ Every row of this table is a BLOCKING error: the template is not loaded (the emb
 | Account suspended | | ✓ | | Admin action notice |
 | Password reset required | | ✓ | | Admin-initiated reset |
 | Recovery keys running low | | | ✓ | Only 1-2 keys left |
+
+**Event keys and preferences (one rule).** Every row above that sends a notification is an event of the PART 17 Preference Schema. Required Security events are never stored and are locked On: `password_changed`, `two_factor_changed` (2FA enabled or disabled), `login_alert` (a login from a new IP or a new device is ONE event), `recovery_key_used` and `recovery_keys_low` (two separate events). Optional events default to WebUI On and Email Off: `api_token_created`, `api_token_revoked` and `profile_updated`. "Email verified" is an authentication email (template `email_verify`), not a notification event: it has no preference and is sent whenever verification is requested. Session expiry, suspension and a forced reset are state notices with no preference. The Settings page lists every non-required event once, with its WebUI and Email toggles.
 
 ## Notification vs Email Decision Matrix
 
@@ -37543,7 +37586,7 @@ server:
     # Catch-up window: run missed tasks if within this duration
     catch_up_window: 1h
 
-    # Built-in tasks: the schedule can be adjusted; the critical tasks ssl_renewal, session_cleanup and token_cleanup cannot be disabled (the same for every project); every other built-in can be disabled
+    # Built-in tasks: the schedule can be adjusted; the tasks marked `No` in the built-in task table cannot be disabled (the same for every project); every other built-in can be disabled
     tasks:
       # Daily at 03:00 (after backup at 02:00)
       ssl_renewal:
@@ -37837,7 +37880,7 @@ Execute task
 │  2025-01-14 02:00   14.8 seconds ✓        Verified: 2 backups, 27 megabytes│
 │  2025-01-13 02:00   45.2 seconds ✗        Error: disk full                │
 │                                                                             │
-│  [View Full History]  [Download Backup]  [Restore...]                      │
+│  History: {project_name} --maintenance scheduler history backup_daily      │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -39693,7 +39736,7 @@ groups:
 {project_name} --maintenance backup test [file]
 ```
 
-`backup test` verifies a backup without touching live data: `file` defaults to the newest backup file in `{backup_dir}`, full or incremental (chosen by the UTC date in the file name, "Default archive selection"; an incremental is checked together with its base). An encrypted backup asks for its password interactively exactly like restore (there is no password flag; without a terminal the command fails with a message that says so). It extracts into a temporary directory, verifies the manifest checksums, reports each result and removes the temporary directory.
+`backup test` verifies a backup without touching live data: `file` defaults to the newest full backup in `{backup_dir}` (chosen by the UTC date in the file name, "Default archive selection") and also tests the daily and hourly incrementals when present, each together with its base: every file the next restore could use (incrementals have fixed names without a date, so they are tested when present, never "dated"). An encrypted backup takes its password like restore: the `--password` flag when given, otherwise an interactive prompt (without a flag or a terminal the command fails with a message that says so). It extracts into a temporary directory, verifies the manifest checksums, reports each result and removes the temporary directory.
 
 ### Backup Contents
 
@@ -39704,7 +39747,7 @@ groups:
 | `{config_dir}/secrets.yml` | ✓ If exists | Secrets (encryption key, credentials); `server.token` and `server.backup.encryption_password` are blanked in the backup copy (the backup password is never inside an archive) |
 | `{config_dir}/assets/` | If exists | Branding image files |
 | `server.db` | ✓ When the local file exists | The local SQLite main database (settings). With a remote driver the optional cache file `cache.db` is a derived replica, never part of a backup (the next sync rebuilds it). A remote database is never part of a backup (see below) |
-| `app_secrets.json` | ✓ Always | EVERY `app_secrets` row (`installation_secret`, `cookie_signing_key`, `csrf_token_secret`, and all `{name}_previous` and `{name}_previous_until` rows, including `encryption_key_previous` and `encryption_key_previous_until` during the 30-day grace period, so a restore inside it can still decrypt data that depends on the previous key), exported by the server whether the database is local or remote, so a restore can decrypt the PGP private key (PART 11) even when the database is remote with no local cache. A restore writes them back and replaces rows that exist |
+| `app_secrets.json` | ✓ Always | EVERY `app_secrets` row (`installation_secret`, `cookie_signing_key`, `csrf_token_secret`, and all `{name}_previous` and `{name}_previous_until` rows, including `encryption_key_previous` and `encryption_key_previous_until` during the 30-day grace period, so a restore inside it can still decrypt data that depends on the previous key), exported by the server whether the database is local or remote, so a restore can decrypt the PGP private key (PART 11) even when the database is remote with no local cache. A restore into SQLite writes them back and replaces rows that exist; a restore into a remote database applies them only when its `app_secrets` rows are absent, because other nodes use the live rows |
 | `users.db` | ✓ When the local file exists | The local SQLite user database (admins table holds admin credentials) |
 | `{config_dir}/template/` | ✓ If exists | Custom email templates |
 | `{config_dir}/ssl/` | Optional | SSL certificates (flag: `--include-ssl`) |
@@ -40017,7 +40060,7 @@ Every backup is verified **immediately after creation** - backups must be 100% w
 | `{project_name}-daily.tar.gz[.enc]` | Daily incremental (cumulative changes since the previous full - see Incremental Backup Contract) | Always 1 (replaced each run) |
 | `{project_name}-hourly.tar.gz[.enc]` | Hourly incremental (if enabled) | Always 1 (replaced each run) |
 
-**Default archive selection (restore and "Test Backup").** When no archive is named, the newest file is the one with the latest date in its file name (restore considers fulls only and uses an incremental only when it is named; "Test Backup" considers every backup file and tests an incremental together with its base) (`{project_name}_backup_YYYY-MM-DD`, UTC; a tie goes to the later file modification time). The manifest and its `snapshot_at` are never read to choose, because an encrypted archive keeps the manifest inside the ciphertext and the cleartext `BKUP1` header carries no timestamp.
+**Default archive selection (restore and "Test Backup").** When no archive is named, the newest full is the one with the latest date in its file name (restore uses that full and an incremental only when it is named; "Test Backup" uses the same newest full and also tests the present incrementals with their bases) (`{project_name}_backup_YYYY-MM-DD`, UTC; a tie goes to the later file modification time). The manifest and its `snapshot_at` are never read to choose, because an encrypted archive keeps the manifest inside the ciphertext and the cleartext `BKUP1` header carries no timestamp.
 
 ### Retention Validation & Examples
 
@@ -43004,7 +43047,7 @@ All Docker builds use persistent Go module caching to avoid re-downloading depen
 1. Downloads Go modules (cached)
 2. Runs tests inside Docker container (`casjaysdev/go:latest`)
 3. Mounts project directory to `/app`
-4. Runs every gate CI runs, first: `go vet`, `staticcheck`, `govulncheck`, and `shellcheck` plus `shfmt -d` on `tests/*.sh`; then `go test` with coverage
+4. Runs every gate CI runs, first: `go vet`, `staticcheck`, `govulncheck`, and `shellcheck` plus `shfmt -d -i 2 -ci` on `tests/*.sh`; then `go test` with coverage
 5. Tests all packages (`./...`)
 6. Container removed after completion (`--rm`)
 7. Then runs `./tests/run_tests.sh` (the basic tier of Phase 2): it builds the host-platform debug binaries and checks that the server starts without errors and that `--help`, `--version` and the CLI work
@@ -43437,7 +43480,7 @@ Container registries (GHCR, Docker Hub, etc.) read metadata from the manifest in
 | Workflow `labels:` | Per-platform image config | Same metadata on each individual image |
 | Workflow `annotations:` | Manifest index | Registry display, multiarch metadata |
 
-**Apply annotations via `docker/metadata-action` in GitHub Actions:**
+**Apply annotations in GitHub Actions with either `docker/metadata-action` (shown here) or the explicit `annotations:` input of `docker/build-push-action` (used in the workflow examples); the required set of keys is the same:**
 
 ```yaml
 - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
@@ -45984,6 +46027,10 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -45997,6 +46044,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 
   build-devel:
     runs-on: ubuntu-26.04
@@ -46064,6 +46115,10 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -46077,6 +46132,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 ```
 
 **Image Tag Summary (Standard):**
@@ -46214,6 +46273,10 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -46226,6 +46289,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 ```
 
 **Image Tag Summary (All-in-One):**
@@ -47221,6 +47288,10 @@ jobs:
             org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -47234,6 +47305,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 
   build-devel:
     runs-on: ubuntu-26.04
@@ -47310,6 +47385,10 @@ jobs:
             org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -47323,6 +47402,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 ```
 
 **Image Tag Summary (Standard):**
@@ -47468,6 +47551,10 @@ jobs:
             org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             org.opencontainers.image.licenses=MIT
+            maintainer={maintainer_name} <{maintainer_email}>
+            org.opencontainers.image.schema-version=${{ env.VERSION }}
+            org.opencontainers.image.vcs-type=Git
+            com.github.containers.toolbox=false
           annotations: |
             manifest:org.opencontainers.image.vendor={project_org}
             manifest:org.opencontainers.image.authors={project_org}
@@ -47480,6 +47567,10 @@ jobs:
             manifest:org.opencontainers.image.source=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.documentation=${{ gitea.server_url }}/${{ gitea.repository }}
             manifest:org.opencontainers.image.licenses=MIT
+            manifest:maintainer={maintainer_name} <{maintainer_email}>
+            manifest:org.opencontainers.image.schema-version=${{ env.VERSION }}
+            manifest:org.opencontainers.image.vcs-type=Git
+            manifest:com.github.containers.toolbox=false
 ```
 
 **Image Tag Summary (All-in-One):**
@@ -50494,10 +50585,10 @@ verify_all_endpoints_tested
 
 **Test Execution Order:**
 ```bash
-# Go unit tests (fast)
+# Gates, unit tests and the basic binary tier (Docker only): make test already runs ./tests/run_tests.sh
 1. make test
-# Basic integration tier (Docker only; ./tests/incus.sh is the explicit full-app check)
-2. ./tests/run_tests.sh
+# Explicit full-app check, run by the developer (Incus preferred)
+2. ./tests/incus.sh
 ```
 
 ### Integration Testing Strategy
@@ -50576,7 +50667,7 @@ fi
 
 ### Test Scripts (tests/ directory)
 
-**ALL projects MUST have these test scripts in `tests/` directory:**
+**ALL projects MUST have these test scripts in `tests/` directory (`tests/virt.sh` is OPTIONAL: only a project that needs clean-OS VM testing has it):**
 
 **Definition:** Everywhere in this specification, `./tests/*` means executable shell scripts under the repository-root `tests/` directory. It does **not** refer to Go `*_test.go` files.
 
@@ -50589,7 +50680,7 @@ fi
 
 **docker.sh and incus.sh MUST:**
 1. Host cache dirs (`GO_CACHE`/`GO_BUILD`) provide persistent Go cache across builds
-2. Build the host-platform binaries using Docker (casjaysdev/go:latest) with the same debug flags as `make build`, output to `binaries/`:
+2. Build the host-platform binaries directly with the toolchain container (casjaysdev/go:latest, the same debug flags as `make build`, output to `binaries/`); no test script calls `make build` (it builds every platform) or adds a Makefile target:
    - Server (`./src`)
    - client (`./src/client`) if exists
    - Agent (`./src/agent`) if exists
@@ -50629,43 +50720,35 @@ PROJECT_ORG=$(basename "$(dirname "$PWD")")
 # The build output directory is the Makefile's BINDIR (default binaries)
 BIN_DIR="${BINDIR:-binaries}"
 
-# Build — use Makefile if present (standard for all bootstrapped projects)
-# Output always lands in binaries/
-if [ -f "Makefile" ]; then
-    echo "Building with make build..."
-    make build BINDIR="$BIN_DIR"
-else
-    # No Makefile yet — fallback to direct docker run
-    echo "Building in Docker (no Makefile)..."
-    GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
-    GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/${PROJECT_NAME}}"
-    mkdir -p "$GO_CACHE" "$GO_BUILD" "$BIN_DIR"
+# Build the host-platform debug binaries directly with the toolchain container; never `make build` (it builds every platform)
+GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/${PROJECT_NAME}}"
+mkdir -p "$GO_CACHE" "$GO_BUILD" "$BIN_DIR"
 
-    # Common docker run for Go builds
-    GO_DOCKER="docker run --rm \
-      --name ${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8) \
-      -v $PWD:/app \
-      -v $GO_CACHE:/usr/local/share/go/pkg/mod \
-      -v $GO_BUILD:/usr/local/share/go/cache \
-      -w /app \
-      -e CGO_ENABLED=0 \
-      -e GOFLAGS=-buildvcs=false \
-      casjaysdev/go:latest"
+# Common docker run for Go builds
+GO_DOCKER="docker run --rm \
+  --name ${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8) \
+  -v $PWD:/app \
+  -v $GO_CACHE:/usr/local/share/go/pkg/mod \
+  -v $GO_BUILD:/usr/local/share/go/cache \
+  -w /app \
+  -e CGO_ENABLED=0 \
+  -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest"
 
-    echo "Building server binary in Docker..."
-    $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME} ./src
+echo "Building server binary in Docker..."
+$GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME} ./src
 
-    # Build client if exists
-    if [ -d "src/client" ]; then
-        echo "Building client in Docker..."
-        $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME}-cli ./src/client
-    fi
+# Build client if exists
+if [ -d "src/client" ]; then
+    echo "Building client in Docker..."
+    $GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME}-cli ./src/client
+fi
 
-    # Build agent if exists
-    if [ -d "src/agent" ]; then
-        echo "Building agent in Docker..."
-        $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME}-agent ./src/agent
-    fi
+# Build agent if exists
+if [ -d "src/agent" ]; then
+    echo "Building agent in Docker..."
+    $GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME}-agent ./src/agent
 fi
 
 echo "Testing in Docker (Alpine)..."
@@ -50921,43 +51004,35 @@ trap cleanup EXIT INT TERM
 # The build output directory is the Makefile's BINDIR (default binaries); every build below passes it on
 BIN_DIR="${BINDIR:-binaries}"
 
-# Build — use Makefile if present (standard for all bootstrapped projects)
-# Output always lands in $BIN_DIR
-if [ -f "Makefile" ]; then
-    echo "Building with make build..."
-    make build BINDIR="$BIN_DIR"
-else
-    # No Makefile yet — fallback to direct docker run
-    echo "Building in Docker (no Makefile)..."
-    GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
-    GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/${PROJECT_NAME}}"
-    mkdir -p "$GO_CACHE" "$GO_BUILD" "$BIN_DIR"
+# Build the host-platform debug binaries directly with the toolchain container; never `make build` (it builds every platform)
+GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/${PROJECT_NAME}}"
+mkdir -p "$GO_CACHE" "$GO_BUILD" "$BIN_DIR"
 
-    # Common docker run for Go builds
-    GO_DOCKER="docker run --rm \
-      --name ${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8) \
-      -v $PWD:/app \
-      -v $GO_CACHE:/usr/local/share/go/pkg/mod \
-      -v $GO_BUILD:/usr/local/share/go/cache \
-      -w /app \
-      -e CGO_ENABLED=0 \
-      -e GOFLAGS=-buildvcs=false \
-      casjaysdev/go:latest"
+# Common docker run for Go builds
+GO_DOCKER="docker run --rm \
+  --name ${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8) \
+  -v $PWD:/app \
+  -v $GO_CACHE:/usr/local/share/go/pkg/mod \
+  -v $GO_BUILD:/usr/local/share/go/cache \
+  -w /app \
+  -e CGO_ENABLED=0 \
+  -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest"
 
-    echo "Building server binary in Docker..."
-    $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME} ./src
+echo "Building server binary in Docker..."
+$GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME} ./src
 
-    # Build client if exists
-    if [ -d "src/client" ]; then
-        echo "Building client in Docker..."
-        $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME}-cli ./src/client
-    fi
+# Build client if exists
+if [ -d "src/client" ]; then
+    echo "Building client in Docker..."
+    $GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME}-cli ./src/client
+fi
 
-    # Build agent if exists
-    if [ -d "src/agent" ]; then
-        echo "Building agent in Docker..."
-        $GO_DOCKER go build -buildvcs=false -trimpath -ldflags "-s -w" -o /app/${BIN_DIR}/${PROJECT_NAME}-agent ./src/agent
-    fi
+# Build agent if exists
+if [ -d "src/agent" ]; then
+    echo "Building agent in Docker..."
+    $GO_DOCKER go build -buildvcs=false -gcflags "all=-N -l" -o /app/${BIN_DIR}/${PROJECT_NAME}-agent ./src/agent
 fi
 
 REMOTE_LIB=$(cat <<'REMOTE_LIB_EOF'
@@ -51407,7 +51482,13 @@ detect_backend
 PROJECT_NAME=$(basename "$PWD")
 # The build output directory is the Makefile's BINDIR (default binaries)
 BIN_DIR="${BINDIR:-binaries}"
-make build BINDIR="$BIN_DIR"
+GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/${PROJECT_NAME}}"
+mkdir -p "$GO_CACHE" "$GO_BUILD" "$BIN_DIR"
+docker run --rm --name "${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8)" \
+  -v "$PWD:/app" -v "$GO_CACHE:/usr/local/share/go/pkg/mod" -v "$GO_BUILD:/usr/local/share/go/cache" \
+  -w /app -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest go build -buildvcs=false -gcflags "all=-N -l" -o "/app/${BIN_DIR}/${PROJECT_NAME}" ./src
 VM_PREFIX="${PROJECT_NAME}-$(head -c6 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-8)"
 VMS=()
 
@@ -55917,7 +55998,7 @@ func stopTor(cmd *exec.Cmd, ctrl *control.Conn) error {
 | Child exits before port file | `cmd.Wait` channel | Fail immediately with exit status + stderr (bad torrc, port in use, `DataDirectory` locked) |
 | `515 Authentication failed` | Step 3 error | Cookie unreadable or stale: kill child, delete `control_auth_cookie`, restart once; second failure = WARN |
 | `DataDirectory` lock held | stderr "Could not bind"/"already running" | Another Tor uses this dir: kill only the PID recorded in `{data_dir}/tor/tor.pid` if it is a `tor` process we started, then restart once |
-| Bootstrap timeout | Step 6 timeout | Kill child, WARN `Tor bootstrap timeout, hidden service unavailable`, retry per Restart rules |
+| Bootstrap timeout | Step 6 timeout | Kill child, WARN `Tor bootstrap timeout, hidden service unavailable`; no immediate retry: a bootstrap timeout is not a restart trigger, so Tor stays `unavailable` until the next trigger in "Restart rules" (a crash exit or a `server.tor.*` change) or a server restart |
 | `hostname` missing after bootstrap | Step 7 timeout | Kill child, WARN; check `HiddenServiceDir` mode `0700` and ownership |
 | `HS_DESC FAILED` | Event | WARN with `REASON`; Tor retries itself, no restart |
 | Control connection drops at runtime | Read error on events | WARN `Tor control connection lost, restarting` (existing Restart rules) |
@@ -57086,7 +57167,6 @@ Node: node-abc123
   Hostname: server-1.example.com
 
 Cluster: connected
-  Status: healthy
   Nodes: 3
   Database: postgres://db.example.com/myapp
 
@@ -58084,6 +58164,7 @@ func monitorI2P(ctx context.Context, service *I2PService, restartFunc func() (*I
 | I2P router config | `{config_dir}/i2p/i2pd.conf` | Server generates with 0600 (Model A) |
 | Empty tunnel definitions | `{config_dir}/i2p/tunnels.conf`, `{config_dir}/i2p/tunnels.d/` | Server creates empty (0600 / 0700) so no other tunnel is ever loaded (Model A) |
 | I2P data directory | `{data_dir}/i2p/` | Server creates with 0700 (Model A) |
+| Reseed trust certificates | The packaged directory: first existing of `/usr/share/i2pd/certificates`, `/var/lib/i2pd/certificates`, `/usr/local/share/i2pd/certificates` | The generated `i2pd.conf` points `certsdir` at it (read-only: the app never copies or edits those files, so package updates apply); when none exists, reseed cannot verify and the I2P check reports `unavailable` with the reason in the log (Model A) |
 | Destination key | `{data_dir}/i2p/site/site-keys.dat` | App creates with 0600; one line, SAM `PRIV` in I2P base64 (both models) |
 | Public address | `{data_dir}/i2p/site/hostname` | App writes with 0644; ONLY the public `.b32.i2p` address derived from the destination (both models), never private material |
 | i2pd process PID | `{data_dir}/i2p/i2pd.pid` | Model A only |
@@ -58429,7 +58510,7 @@ update:
   auto: false
   # CLI is short-lived; checks once per command. No background poll.
   check_interval: per_invocation
-  channel: stable
+  # The CLI follows the channel of the server it talks to (autodiscover serves that channel's cli_versions); there is no CLI-side channel setting
 ```
 
 **Server-side endpoints:**
@@ -60296,7 +60377,7 @@ output:
   pager: auto
   # Suppress non-essential output
   quiet: false
-  # Extra output (same as --verbose)
+  # Extra detail lines (resolved server, request id, elapsed time); config and environment only, there is no --verbose flag
   verbose: false
 
 # TUI preferences (if TUI supported)
@@ -60316,10 +60397,10 @@ logging:
   level: warn
   # Log file path (empty = {log_dir}/cli.log)
   file: ""
-  # Max log file size (match server default)
-  max_size: 10MB
-  # Max log files to keep (match server default)
-  max_files: 5
+  # Rotation (the server's default for every non-access log, PART 17)
+  rotate: weekly,50MB
+  # Rotated files to keep (the server's default)
+  keep: none
 
 # Cache
 cache:
@@ -62366,10 +62447,10 @@ logging:
   level: info
   # Log file path (empty = {log_dir}/agent.log)
   file: ""
-  # Max log file size (match server default)
-  max_size: 10MB
-  # Max log files to keep (match server default)
-  max_files: 5
+  # Rotation (the server's default for every non-access log, PART 17)
+  rotate: weekly,50MB
+  # Rotated files to keep (the server's default)
+  keep: none
 
 # Health reporting
 health:
@@ -62939,7 +63020,7 @@ Admin clicks "Invite New User"
 ├─────────────────────────────────────────────────────────────────┤
 │  Username: [                    ]                               │
 │                                                                 │
-│  Invite expires in: [24 hours ▼]                                │
+│  Invite expires in: [7 days ▼]                                  │
 │                                                                 │
 │  [Cancel]  [Generate Invite]                                    │
 └─────────────────────────────────────────────────────────────────┘
@@ -63721,7 +63802,7 @@ User receives: "Password reset requested by administrator.
 **Why Generic Errors?**
 - Prevents username/email enumeration attacks
 - Attacker cannot determine if account exists
-- Same response time for both cases (prevent timing attacks)
+- Same response time for both cases: the handler always does the same work (a lookup, then a real or a dummy token generation) and answers after a fixed minimum of 500 ms, and the email is queued for background delivery, so provider latency never shows in the response
 - Links to recovery flow instead of revealing information
 
 ### 2FA, Passkeys & External Identity (OIDC / LDAP / SAML)
@@ -64042,6 +64123,7 @@ POST /api/{api_version}/users/security/2fa/enable
 server:
   auth:
     oidc:
+      # Family toggle; each provider below also has its own `enabled` (default true) and is active only when both are true
       enabled: false
       providers:
         - name: authentik
@@ -64101,6 +64183,7 @@ server:
           revoke_sessions_on_delete: true
 
     ldap:
+      # Family toggle; each provider below also has its own `enabled` (default true) and is active only when both are true
       enabled: false
       providers:
         - name: corp
@@ -64178,6 +64261,7 @@ server:
           bind_failure_backoff: 30s
 
     saml:
+      # Family toggle; each provider below also has its own `enabled` (default true) and is active only when both are true
       enabled: false
       providers:
         - name: okta
@@ -64191,7 +64275,7 @@ server:
           # Assertion Consumer Service URL (where the IdP POSTs the assertion)
           acs_url: "https://app.example.com/server/auth/saml/okta/acs"
           # Require the IdP to sign assertions/responses (STRONGLY recommended)
-          want_assertions_signed: true
+          # Unsigned assertions are always rejected: there is no setting for it
           # Sign our AuthnRequest / LogoutRequest with the SP key
           sign_requests: true
           # Allowed clock skew when validating assertion NotBefore/NotOnOrAfter
@@ -64591,8 +64675,8 @@ server:
       blocked_domains: []
 
       # Invite / activation settings (admin-generated links)
-      # How long invite or activation links are valid
-      invite_expiration_days: 7
+      # How long invite or activation links are valid by default: 1h, 6h, 24h, 48h or 7d (the invite form offers the same choices)
+      invite_expiration: 7d
 
     roles:
       # Available roles
@@ -64993,7 +65077,7 @@ Appearance Settings (/users/settings/appearance)
 | **Account** (display_name, bio, location, website, timezone, language) | `users` table |
 | **Privacy** (visibility, org_visibility) | `users` table |
 | **Privacy** (show_email, show_activity, show_orgs, searchable) | `user_preferences` table |
-| **Notifications** (email_*, push_*) | `user_preferences` table |
+| **Notifications** (the PART 17 Preference Schema, the `notifications` JSON) | the user's row |
 | **Appearance** (theme, font_size, reduce_motion, date_format, time_format) | `user_preferences` table |
 
 **Preferences are created on first access (lazy initialization):**
@@ -65183,7 +65267,7 @@ PATCH /api/{api_version}/users/settings
 | `Bearer` | `Authorization: Bearer adm_…` / `usr_…` / `org_…` (or agent variants) | `tokens` table; SHA-256 hash compared (PART 11 → "API Token Security") | token creation flow |
 | `Reset token` | one-shot URL param (`/server/auth/password/reset?token=…`) | hashed in `password_resets` table; single-use; expires per `auth.password_reset_ttl` (default 1h) | `/server/auth/password/forgot` flow (sent via email) |
 | `Verify token` | one-shot URL param (`/server/auth/verify/{token}`) | hashed in `email_verifications` table; single-use; expires per `auth.email_verify_ttl` (default 48h) | sent via email on registration / email change |
-| `Invite token` | one-shot URL param (`/server/auth/invite/{user|server}/{token}`) | hashed in `invites` table; single-use by default (`max_uses` = 1, 0 = unlimited); expires per `invite_expiration_days` (default 7d) | admin issues from `/server/{admin_path}/admins` (server invite) or user from `/orgs/{slug}/invites` (org invite) |
+| `Invite token` | one-shot URL param (`/server/auth/invite/{user|server}/{token}`) | hashed in `invites` table; single-use by default (`max_uses` = 1; 0 = unlimited exists only for the generic Server Admin invite, while user and org invites are bound to one account or address and are always single-use); expires per `invite_expiration` (default `7d`, one of `1h`, `6h`, `24h`, `48h`, `7d`) | admin issues from `/server/{admin_path}/admins` (server invite) or user from `/orgs/{slug}/invites` (org invite) |
 | `Tracking token` | one-shot URL param (`/server/security/report/{tracking_id}?token=…`) | per-tracking-id token; single-use-per-day (researcher can refresh by re-clicking the email link); expires 30 days after report closes | sent via email when researcher submits a security report (PART 11 → "Security Reports") |
 | `Partial-session` | short-lived cookie issued mid-flow (post-password-correct, pre-2FA) | `partial_sessions` table; consumed when 2FA / recovery completes; expires per `auth.partial_session_ttl` (default 5m) | `/server/auth/login` flow when 2FA is required |
 
@@ -65239,7 +65323,7 @@ PATCH /api/{api_version}/users/settings
 |-------|------|-----|
 | `/server/auth/login`, `/server/auth/register`, `/server/auth/password/forgot`, `/server/auth/password/reset`, `/server/auth/username/forgot`, `/server/auth/verify/{token}`, `/server/auth/invite/*/{token}`, `/server/auth/passkey/challenge`, `/server/auth/passkey/verify` | None | Pre-session entry points |
 | `/server/auth/logout` | Session (web) / Bearer (API) | Must know whose session to end |
-| `/server/auth/refresh` | Session (web) / Bearer (API) | Must have a session/token to refresh |
+| `/server/auth/refresh` | Session (web) | A web session is required; a bearer call answers `400` |
 | `/server/auth/2fa` | Partial-session (post-password, pre-2FA) | Continuation of in-progress login |
 | `/server/auth/recovery/use` | Partial-session OR password-recovery token | 2FA bypass during account recovery |
 
@@ -65397,7 +65481,7 @@ curl -q -LSsf https://api.example.com/api/autodiscover
 | `/server/auth/username/forgot` | Request username reminder (sends email) |
 | `/server/auth/recovery/use` | Use recovery key (2FA bypass) |
 | `/server/auth/verify/{token}` | Email verification |
-| `/server/auth/invite/user/{token}` | User invite acceptance (set username, password) |
+| `/server/auth/invite/user/{token}` | User invite acceptance (set the password; the username is fixed by the admin) |
 | `/server/auth/invite/server/{token}` | Server admin invite acceptance (set username, password) |
 | `/server/auth/oidc/{provider}` | OIDC login initiation (redirect to provider) |
 | `/server/auth/oidc/{provider}/callback` | OIDC callback (provider redirects back) |
@@ -65504,9 +65588,8 @@ Organizations - only for projects with multi-user collaboration.
 
 | Path | Description |
 |------|-------------|
-| `/server/{admin_path}/admins` | Server admin accounts |
+| `/server/{admin_path}/admins` | Your own admin account and the aggregate admin count (no list and no other-admin detail page: Server Admin Privacy) |
 | `/server/{admin_path}/admins/invite` | Invite new Server Admin (generates link) |
-| `/server/{admin_path}/admins/{id}` | Admin detail |
 
 ### Admin - Moderation (`/server/{admin_path}/moderation/`)
 
@@ -65590,7 +65673,7 @@ Organizations - only for projects with multi-user collaboration.
 | `script-sample`, `error.message`, `body.message`, any free-text field | Truncate to 200 chars after PART 11 sanitization. |
 | `error.stack`, any stack-trace field | Strip absolute filesystem paths (regex `/[^\s:]+/`); keep only the basename. Truncate to 2 KB. |
 | User-Agent | Keep verbatim — already public information the browser sends to every site. |
-| Source IP | Hash with a daily-rotating salt before storage IF the deployment's `privacy.hash_report_ips: true` is set (default `true` in EU deployments per GDPR; `false` elsewhere). Raw IP retained only in the rate-limit ring buffer (memory only, never persisted). |
+| Source IP | Hash with a daily-rotating salt before storage IF the deployment's `privacy.hash_report_ips: true` is set (`privacy.hash_report_ips`, a boolean in `yaml.d/privacy.yml`; `true` when the key is absent; set `false` to keep raw IPs; no deployment region is detected or configured). Raw IP retained only in the rate-limit ring buffer (memory only, never persisted). |
 | Any field NOT in the allow-list per the report-type schema | Dropped. (Defense in depth — browser vendors add fields over time; we don't auto-trust new ones.) |
 
 **Cross-report rules:**
@@ -65621,9 +65704,9 @@ Organizations - only for projects with multi-user collaboration.
 | `/api/{api_version}/server/auth/username/forgot` | POST | Request username reminder (sends email) |
 | `/api/{api_version}/server/auth/recovery/use` | POST | Use recovery key (2FA bypass) |
 | `/api/{api_version}/server/auth/verify` | POST | Verify email address |
-| `/api/{api_version}/server/auth/refresh` | POST | Refresh session/token |
+| `/api/{api_version}/server/auth/refresh` | POST | Refresh a web session: extends the idle expiry, rotates the session id (the old id is invalid at once and a replay answers `401`) and returns `{expires_at}`; a bearer token is not refreshable (it keeps its fixed lifetime and is rotated through the token endpoints, a bearer call answers `400`) |
 | `/api/{api_version}/server/auth/invite/user/{token}` | GET | Validate user invite token |
-| `/api/{api_version}/server/auth/invite/user/{token}` | POST | Complete user invite (set username, password) |
+| `/api/{api_version}/server/auth/invite/user/{token}` | POST | Complete user invite (set the password; the username is fixed by the invite) |
 | `/api/{api_version}/server/auth/invite/server/{token}` | GET | Validate Server Admin invite token |
 | `/api/{api_version}/server/auth/invite/server/{token}` | POST | Complete admin invite (set username, password) |
 | `/api/{api_version}/server/auth/oidc/{provider}` | GET | Begin OIDC login: returns `{ redirect_url, request_id }` for the native client to open in a system browser (see "OIDC API-mode flow") |
@@ -65799,7 +65882,7 @@ Moderation only - Server Admin does not manage org members/roles.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/{api_version}/server/{admin_path}/{admin_username}/profile` | GET | Get admin profile |
-| `/api/{api_version}/server/{admin_path}/{admin_username}/profile` | PATCH | Update admin profile (username, icon) |
+| `/api/{api_version}/server/{admin_path}/{admin_username}/profile` | PATCH | Update admin profile (`username`) |
 | `/api/{api_version}/server/{admin_path}/{admin_username}/profile/password` | POST | Change admin password |
 | `/api/{api_version}/server/{admin_path}/{admin_username}/profile/token` | GET | Get current API token (masked) |
 | `/api/{api_version}/server/{admin_path}/{admin_username}/profile/token` | POST | Regenerate API token (returns new token ONCE) |
@@ -65858,7 +65941,7 @@ Moderation only - Server Admin does not manage org members/roles.
 | `/api/{api_version}/server/{admin_path}/web/security` | PATCH | Update security.txt |
 | `/api/{api_version}/server/{admin_path}/web/security/preview` | GET | Preview security.txt |
 | `/api/{api_version}/server/{admin_path}/web/well-known` | GET | Get well-known namespace settings and supported entries |
-| `/api/{api_version}/server/{admin_path}/web/well-known` | PATCH | Update the config-backed content of well-known entries (it never enables or disables an entry) |
+| `/api/{api_version}/server/{admin_path}/web/well-known` | PATCH | Update the `security.txt` fields (`contact`, `expires`; body `{"contact": [...], "expires": "RFC 3339"}`); every other entry is generated and read-only, and an operator file in `{data_dir}/web/.well-known/` overrides a generated entry |
 | `/api/{api_version}/server/{admin_path}/web/well-known/preview/{name}` | GET | Preview the exact rendered body for one well-known entry |
 
 **`/api/{api_version}/server/{admin_path}/web` includes `server.healthz.root.enabled` and well-known namespace status in its settings payload.**
@@ -65927,6 +66010,7 @@ Moderation only - Server Admin does not manage org members/roles.
 | `/api/{api_version}/server/{admin_path}/logs` | GET | List log files |
 | `/api/{api_version}/server/{admin_path}/logs/{type}` | GET | Get log entries |
 | `/api/{api_version}/server/{admin_path}/logs/{type}/download` | GET | Download log file |
+| `/api/{api_version}/server/{admin_path}/logs/{type}` | DELETE | Truncate the log file (every type except `audit`; for `audit` it answers `403` with the code `FORBIDDEN`, because the audit log is append-only) |
 
 ## Email Templates (User-Related)
 
@@ -68568,12 +68652,12 @@ POST /api/{api_version}/users/domains/api.mycompany.com/ssl
   "challenge": "dns-01",
   "provider": "cloudflare",
   "credentials": {
-    "api_token": "cf_xxx..."
+    "CF_DNS_API_TOKEN": "cf_xxx..."
   }
 }
 ```
 
-The system validates credentials, encrypts them, and stores for reuse.
+The system validates them by constructing the lego provider (no DNS record is touched; real proof is the first successful issuance), encrypts the flat map of lego environment variable names, and stores it for reuse.
 
 ### Certificate Issuance
 
@@ -69947,7 +70031,7 @@ make docker
 - [ ] GraphQL endpoint accessible
 - [ ] GraphiQL/Playground available
 - [ ] Schema matches REST API capabilities
-- [ ] Authentication integrated
+- [ ] Public and read-only: no authentication (the schema exposes only public data; operator and owner data is REST-only)
 - [ ] Query complexity limits
 - [ ] Introspection disabled in production (optional)
 - [ ] Theme matches project theme
@@ -70381,7 +70465,7 @@ make docker
 - [ ] Unsupported `--lang` value → silently use `en` (no error, no crash)
 - [ ] Unsupported `Accept-Language` → silently use `en`
 - [ ] Missing key in active language → fall back to `en` value
-- [ ] Missing key in `en` → return key itself as last resort (never empty/null)
+- [ ] A key missing from `en.json` fails the build (the raw key is never rendered); a key missing in another language falls back to `en`; the runtime returns the key itself only as a defensive last resort that the key-parity test makes unreachable
 - [ ] Invalid `?lang=` param → silently use `en` (no error page)
 - [ ] Corrupted/missing locale file → fall back to `en` (never crash on startup)
 
@@ -70936,7 +71020,7 @@ Implement the required client, then any project-specific optional features:
 
 - [ ] Docker builds successfully
 - [ ] Docker Compose files work (prod, dev, test)
-- [ ] `docker/Dockerfile.build` does NOT exist — Go projects always use `casjaysdev/go:latest` directly; no custom toolchain image is ever needed
+- [ ] `docker/Dockerfile.build` does NOT exist by default — Go projects use `casjaysdev/go:latest` directly; it exists only for a genuine custom need the image cannot satisfy, and then it is `FROM casjaysdev/go:latest`
 - [ ] `ci.yml` and `release.yml` use `container: image: casjaysdev/go:latest` — no `ensure-build-image` pre-flight, no `build-toolchain.yml`
 - [ ] CI/CD workflows configured
 - [ ] Automated builds work
