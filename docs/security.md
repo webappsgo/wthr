@@ -174,6 +174,11 @@ any API:
 | `cookie_signing_key` | Signs the session cookies, so a forged or tampered cookie is dropped | Every 90 days; the previous value stays valid for 7 days |
 | `csrf_token_secret` | Signs the CSRF tokens | Every 180 days and on every admin password change |
 
+Backups export every `app_secrets` row to `app_secrets.json`, including previous values during
+their grace periods. Restore replaces matching rows in the active server database. This also
+preserves the secrets needed to decrypt cluster-shared PGP keys when the primary database is
+remote.
+
 In Cluster Mode, the project PGP public key and its installation-secret-encrypted private key are
 stored in the shared `app_secrets` rows `pgp_pub` and `pgp_priv_enc`. Each node writes its local
 key files from those versioned rows at startup and when a row version changes. A join bootstrap

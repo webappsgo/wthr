@@ -390,8 +390,10 @@ The backup password is encrypted at rest in `{config_dir}/secrets.yml` using the
 key. It is not returned by an API or displayed again. Scheduled backups use the saved password;
 restoring an encrypted archive still requires the password to be supplied for that restore.
 
-Backups include databases and configuration, including account credential hashes and application
-secrets. Without a backup password, the archive is unencrypted and its contents are readable by
+Backups include configuration, local database files, account credential hashes, every shared
+`app_secrets` row (also when the primary database is remote), and any referenced database/cache
+TLS files. External manual server certificates are included and their paths are rewritten on
+restore. Without a backup password, the archive is unencrypted and its contents are readable by
 anyone who obtains the file. Store backups with access controls appropriate for credentials, or
 set a backup encryption password before creating one.
 
@@ -405,7 +407,11 @@ set a backup encryption password before creating one.
 2. Select backup file
 3. Click **Restore**
 4. Confirm restoration
-5. Server will restart with restored data
+5. Restart the server after the restore completes
+
+Restoring on the same server replaces its configuration and database state without generating a
+new setup token. Restoring to a new server generates a one-time setup token for primary-admin
+reauthentication; the existing password and settings remain in the restored database.
 
 ### Notifications
 
