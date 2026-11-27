@@ -274,6 +274,20 @@ make build
 make test
 ```
 
+### Browser end-to-end tests
+
+Run the on-demand browser suite with Docker and headless Chromium:
+
+```bash
+./tests/e2e.sh
+```
+
+It exercises server-rendered pages, no-JavaScript login and navigation, full-browser account flows, linked administration pages, and responsive theme/language layouts. This longer beta check is separate from `make test`. To run one Go E2E test by name, set `E2E_TEST_FILTER`, for example:
+
+```bash
+E2E_TEST_FILTER=TestBrowserAdminLogin ./tests/e2e.sh
+```
+
 ### Project Structure
 
 ```
