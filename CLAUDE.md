@@ -6,5 +6,6 @@ Read `AI.md` and `IDEA.md` before acting on this project.
 never modify. `IDEA.md` defines WHAT this project does — update as features change.
 If `SPEC.md` exists, it overrides AI.md for project-specific rule exceptions.
 
-See `.claude/rules/` for the 14 topic-scoped rule files PART 0 mandates. All 14
-are present; read the one covering your PART before editing.
+See `.claude/rules/` for the 14 topic-scoped rule files PART 0 mandates. Read
+the file covering your PART before editing. On every new session or after
+context compaction, reread the relevant rule and AI.md section.
